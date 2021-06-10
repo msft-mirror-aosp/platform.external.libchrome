@@ -14,6 +14,7 @@
 // the lambda definition. So included here for convenience.
 #include "base/tracing/protos/chrome_track_event.pbzero.h"
 #include "third_party/perfetto/include/perfetto/tracing/event_context.h"
+#include "third_party/perfetto/include/perfetto/tracing/string_helpers.h"
 
 #if !BUILDFLAG(USE_PERFETTO_CLIENT_LIBRARY)
 #include "base/trace_event/typed_macros_internal.h"
@@ -29,18 +30,6 @@
 // [1] https://perfetto.dev/docs/instrumentation/track-events
 // [2] //third_party/perfetto/include/perfetto/tracing/track_event.h
 // TODO(crbug/1006541): Replace this file with the Perfetto client library.
-
-namespace perfetto {
-
-// A wrapper for marking strings that can't be determined to be static at build
-// time, but are in fact static.
-class BASE_EXPORT StaticString final {
- public:
-  const char* value;
-  explicit operator const char*() const { return value; }
-};
-
-}  // namespace perfetto
 
 // Typed event macros:
 //
@@ -80,11 +69,13 @@ class BASE_EXPORT StaticString final {
 //   TRACE_EVENT_BEGIN("cat", "Name", perfetto::Track(1234), time_ticks);
 
 // Begin a slice under |category| with the title |name|.
+// Defaults to the current thread's track.
 #define TRACE_EVENT_BEGIN(category, name, ...)                              \
   TRACING_INTERNAL_ADD_TRACE_EVENT(TRACE_EVENT_PHASE_BEGIN, category, name, \
                                    ##__VA_ARGS__)
 
-// End a thread-scoped slice under |category|.
+// End a slice under |category|.
+// Defaults to the current thread's track.
 #define TRACE_EVENT_END(category, ...)                                       \
   TRACING_INTERNAL_ADD_TRACE_EVENT(TRACE_EVENT_PHASE_END, category,          \
                                    trace_event_internal::kTraceEventEndName, \
@@ -101,6 +92,7 @@ class BASE_EXPORT StaticString final {
   TRACING_INTERNAL_SCOPED_ADD_TRACE_EVENT(category, name, ##__VA_ARGS__)
 
 // Emit a single slice with title |name| and zero duration.
+// Defaults to the current thread's track.
 #define TRACE_EVENT_INSTANT(category, name, ...)                              \
   TRACING_INTERNAL_ADD_TRACE_EVENT(TRACE_EVENT_PHASE_INSTANT, category, name, \
                                    ##__VA_ARGS__)

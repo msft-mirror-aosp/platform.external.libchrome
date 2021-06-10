@@ -20,6 +20,7 @@ import dalvik.system.PathClassLoader;
 import org.chromium.base.annotations.CalledByNative;
 import org.chromium.base.compat.ApiHelperForO;
 import org.chromium.base.metrics.RecordHistogram;
+import org.chromium.build.BuildConfig;
 
 import java.lang.reflect.Field;
 import java.util.Arrays;
@@ -77,7 +78,6 @@ public final class BundleUtils {
         sIsBundle = isBundle;
     }
 
-    @CalledByNative
     public static boolean isolatedSplitsEnabled() {
         return BuildConfig.ISOLATED_SPLITS_ENABLED;
     }
@@ -206,14 +206,10 @@ public final class BundleUtils {
 
             // SplitCompat is installed on the application context, so check there for library paths
             // which were added to that ClassLoader.
-            ClassLoader classLoader = ContextUtils.getApplicationContext().getClassLoader();
-            // In WebLayer, the class loader will be a class loader from
-            // ClassLoaderContextWrapperFactory.
-            if (classLoader instanceof BaseDexClassLoader) {
-                path = ((BaseDexClassLoader) classLoader).findLibrary(libraryName);
-                if (path != null) {
-                    return path;
-                }
+            path = ((BaseDexClassLoader) ContextUtils.getApplicationContext().getClassLoader())
+                           .findLibrary(libraryName);
+            if (path != null) {
+                return path;
             }
 
             return getSplitApkLibraryPath(libraryName, splitName);

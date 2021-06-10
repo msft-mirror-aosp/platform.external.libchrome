@@ -20,7 +20,6 @@
 #include "base/memory/scoped_refptr.h"
 #include "base/message_loop/message_pump_default.h"
 #include "base/message_loop/message_pump_type.h"
-#include "base/optional.h"
 #include "base/run_loop.h"
 #include "base/single_thread_task_runner.h"
 #include "base/strings/strcat.h"
@@ -59,6 +58,7 @@
 
 #if BUILDFLAG(ENABLE_BASE_TRACING)
 #include "base/test/trace_event_analyzer.h"
+#include "third_party/abseil-cpp/absl/types/optional.h"
 #endif  // BUILDFLAG(ENABLE_BASE_TRACING)
 
 using base::sequence_manager::EnqueueOrder;
@@ -340,7 +340,7 @@ class SequenceManagerTest : public testing::TestWithParam<TestType>,
       // Advance time if we've run out of immediate work to do.
       if (!sequence_manager()->HasImmediateWork()) {
         LazyNow lazy_now(mock_tick_clock());
-        Optional<TimeDelta> delay =
+        absl::optional<TimeDelta> delay =
             sequence_manager()->GetRealTimeDomain()->DelayTillNextTask(
                 &lazy_now);
         if (delay) {
@@ -2610,6 +2610,54 @@ TEST_P(SequenceManagerTest, CancelledTaskPostAnother) {
   EXPECT_TRUE(did_post);
 }
 
+TEST_P(SequenceManagerTest, CancelledImmediateTaskShutsDownQueue) {
+  // This check ensures that an immediate task whose destruction causes the
+  // owning task queue to be shut down doesn't cause us to access freed memory.
+  auto queue = CreateTaskQueue();
+  bool did_shutdown = false;
+  auto on_destroy = BindLambdaForTesting([&] {
+    queue->ShutdownTaskQueue();
+    did_shutdown = true;
+  });
+
+  DestructionCallback destruction_observer(std::move(on_destroy));
+  CancelableTask task(mock_tick_clock());
+  queue->task_runner()->PostTask(
+      FROM_HERE, BindOnce(&CancelableTask::FailTask<DestructionCallback>,
+                          task.weak_factory_.GetWeakPtr(),
+                          std::move(destruction_observer)));
+
+  task.weak_factory_.InvalidateWeakPtrs();
+  EXPECT_FALSE(did_shutdown);
+  RunLoop().RunUntilIdle();
+  EXPECT_TRUE(did_shutdown);
+}
+
+TEST_P(SequenceManagerTest, CancelledDelayedTaskShutsDownQueue) {
+  // This check ensures that a delayed task whose destruction causes the owning
+  // task queue to be shut down doesn't cause us to access freed memory.
+  auto queue = CreateTaskQueue();
+  bool did_shutdown = false;
+  auto on_destroy = BindLambdaForTesting([&] {
+    queue->ShutdownTaskQueue();
+    did_shutdown = true;
+  });
+
+  DestructionCallback destruction_observer(std::move(on_destroy));
+  CancelableTask task(mock_tick_clock());
+  queue->task_runner()->PostDelayedTask(
+      FROM_HERE,
+      BindOnce(&CancelableTask::FailTask<DestructionCallback>,
+               task.weak_factory_.GetWeakPtr(),
+               std::move(destruction_observer)),
+      base::TimeDelta::FromSeconds(1));
+
+  task.weak_factory_.InvalidateWeakPtrs();
+  EXPECT_FALSE(did_shutdown);
+  sequence_manager()->ReclaimMemory();
+  EXPECT_TRUE(did_shutdown);
+}
+
 namespace {
 
 void ChromiumRunloopInspectionTask(
@@ -2909,7 +2957,7 @@ TEST_P(SequenceManagerTest, BlameContextAttribution) {
 
   trace_analyzer::Start("*");
   {
-    trace_event::BlameContext blame_context("cat", "name", "type", "scope", 0,
+    trace_event::BlameContext blame_context("base", "name", "type", "scope", 0,
                                             nullptr);
     blame_context.Initialize();
     queue->SetBlameContext(&blame_context);
@@ -3587,7 +3635,7 @@ TEST_P(SequenceManagerTest, DisablingQueuesChangesDelayTillNextDoWork) {
 TEST_P(SequenceManagerTest, GetNextScheduledWakeUp) {
   auto queue = CreateTaskQueue();
 
-  EXPECT_EQ(nullopt, queue->GetNextScheduledWakeUp());
+  EXPECT_EQ(absl::nullopt, queue->GetNextScheduledWakeUp());
 
   TimeTicks start_time = sequence_manager()->NowTicks();
   TimeDelta delay1 = TimeDelta::FromMilliseconds(10);
@@ -3603,7 +3651,7 @@ TEST_P(SequenceManagerTest, GetNextScheduledWakeUp) {
   std::unique_ptr<TaskQueue::QueueEnabledVoter> voter =
       queue->CreateQueueEnabledVoter();
   voter->SetVoteToEnable(false);
-  EXPECT_EQ(nullopt, queue->GetNextScheduledWakeUp());
+  EXPECT_EQ(absl::nullopt, queue->GetNextScheduledWakeUp());
 
   voter->SetVoteToEnable(true);
   EXPECT_EQ(start_time + delay2, queue->GetNextScheduledWakeUp());
@@ -4463,8 +4511,8 @@ class MockTimeDomain : public TimeDomain {
   LazyNow CreateLazyNow() const override { return LazyNow(now_); }
   TimeTicks Now() const override { return now_; }
 
-  Optional<TimeDelta> DelayTillNextTask(LazyNow* lazy_now) override {
-    return Optional<TimeDelta>();
+  absl::optional<TimeDelta> DelayTillNextTask(LazyNow* lazy_now) override {
+    return absl::optional<TimeDelta>();
   }
 
   MOCK_METHOD1(MaybeFastForwardToNextTask, bool(bool quit_when_idle_requested));
@@ -4823,9 +4871,9 @@ TEST_P(SequenceManagerTest, ReclaimMemoryRemovesCorrectQueueFromSet) {
 
   std::vector<int> order;
 
-  CancelableClosure cancelable_closure1(
+  CancelableRepeatingClosure cancelable_closure1(
       BindLambdaForTesting([&]() { order.push_back(10); }));
-  CancelableClosure cancelable_closure2(
+  CancelableRepeatingClosure cancelable_closure2(
       BindLambdaForTesting([&]() { order.push_back(11); }));
   queue1->task_runner()->PostTask(FROM_HERE, BindLambdaForTesting([&]() {
                                     order.push_back(1);

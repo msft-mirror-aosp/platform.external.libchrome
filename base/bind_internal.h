@@ -118,6 +118,17 @@ class OwnedWrapper {
   std::unique_ptr<T, Deleter> ptr_;
 };
 
+template <typename T>
+class OwnedRefWrapper {
+ public:
+  explicit OwnedRefWrapper(const T& t) : t_(t) {}
+  explicit OwnedRefWrapper(T&& t) : t_(std::move(t)) {}
+  T& get() const { return t_; }
+
+ private:
+  mutable T t_;
+};
+
 // PassedWrapper is a copyable adapter for a scoper that ignores const.
 //
 // It is needed to get around the fact that Bind() takes a const reference to
@@ -135,7 +146,7 @@ class OwnedWrapper {
 //
 // Two notes:
 //  1) PassedWrapper supports any type that has a move constructor, however
-//     the type will need to be specifically whitelisted in order for it to be
+//     the type will need to be specifically allowed in order for it to be
 //     bound to a Callback. We guard this explicitly at the call of Passed()
 //     to make for clear errors. Things not given to Passed() will be forwarded
 //     and stored by value which will not work for general move-only types.
@@ -1035,6 +1046,17 @@ struct BindArgument {
     struct ToParamWithType {
       static constexpr bool kCanBeForwardedToBoundFunctor =
           std::is_constructible<FunctorParamType, ForwardingType>::value;
+
+      // If the bound type can't be forwarded then test if `FunctorParamType` is
+      // a non-const lvalue reference and a reference to the unwrapped type
+      // *could* have been successfully forwarded.
+      static constexpr bool kNonConstRefParamMustBeWrapped =
+          kCanBeForwardedToBoundFunctor ||
+          !(std::is_lvalue_reference<FunctorParamType>::value &&
+            !std::is_const<std::remove_reference_t<FunctorParamType>>::value &&
+            std::is_convertible<std::decay_t<ForwardingType>&,
+                                FunctorParamType>::value);
+
       // Note that this intentionally drops the const qualifier from
       // `ForwardingType`, to test if it *could* have been successfully
       // forwarded if `Passed()` had been used.
@@ -1104,6 +1126,11 @@ struct AssertConstructible {
       "base::BindRepeating() argument is a move-only type. Use base::Passed() "
       "instead of std::move() to transfer ownership from the callback to the "
       "bound functor.");
+  static_assert(
+      BindArgument<i>::template ForwardedAs<Unwrapped>::
+          template ToParamWithType<Param>::kNonConstRefParamMustBeWrapped,
+      "Bound argument for non-const reference parameter must be wrapped in "
+      "std::ref() or base::OwnedRef().");
   static_assert(
       BindArgument<i>::template ForwardedAs<Unwrapped>::
           template ToParamWithType<Param>::kCanBeForwardedToBoundFunctor,
@@ -1261,6 +1288,11 @@ struct BindUnwrapTraits<internal::OwnedWrapper<T, Deleter>> {
   static T* Unwrap(const internal::OwnedWrapper<T, Deleter>& o) {
     return o.get();
   }
+};
+
+template <typename T>
+struct BindUnwrapTraits<internal::OwnedRefWrapper<T>> {
+  static T& Unwrap(const internal::OwnedRefWrapper<T>& o) { return o.get(); }
 };
 
 template <typename T>

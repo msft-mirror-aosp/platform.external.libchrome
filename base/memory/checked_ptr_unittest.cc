@@ -10,10 +10,9 @@
 #include <type_traits>
 #include <utility>
 
+#include "base/allocator/buildflags.h"
 #include "base/allocator/partition_allocator/partition_alloc.h"
-#include "base/allocator/partition_allocator/partition_alloc_features.h"
 #include "base/logging.h"
-#include "base/partition_alloc_buildflags.h"
 #include "build/build_config.h"
 #include "build/buildflag.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -79,25 +78,22 @@ static void ClearCounters() {
 struct CheckedPtrCountingNoOpImpl : base::internal::CheckedPtrNoOpImpl {
   using Super = base::internal::CheckedPtrNoOpImpl;
 
-  static ALWAYS_INLINE uintptr_t WrapRawPtr(const volatile void* cv_ptr) {
+  static ALWAYS_INLINE void* WrapRawPtr(void* ptr) {
     ++g_wrap_raw_ptr_cnt;
-    return Super::WrapRawPtr(cv_ptr);
+    return Super::WrapRawPtr(ptr);
   }
 
-  static ALWAYS_INLINE void* SafelyUnwrapPtrForDereference(
-      uintptr_t wrapped_ptr) {
+  static ALWAYS_INLINE void* SafelyUnwrapPtrForDereference(void* wrapped_ptr) {
     ++g_get_for_dereference_cnt;
     return Super::SafelyUnwrapPtrForDereference(wrapped_ptr);
   }
 
-  static ALWAYS_INLINE void* SafelyUnwrapPtrForExtraction(
-      uintptr_t wrapped_ptr) {
+  static ALWAYS_INLINE void* SafelyUnwrapPtrForExtraction(void* wrapped_ptr) {
     ++g_get_for_extraction_cnt;
     return Super::SafelyUnwrapPtrForExtraction(wrapped_ptr);
   }
 
-  static ALWAYS_INLINE void* UnsafelyUnwrapPtrForComparison(
-      uintptr_t wrapped_ptr) {
+  static ALWAYS_INLINE void* UnsafelyUnwrapPtrForComparison(void* wrapped_ptr) {
     ++g_get_for_comparison_cnt;
     return Super::UnsafelyUnwrapPtrForComparison(wrapped_ptr);
   }
@@ -488,6 +484,21 @@ TEST_F(CheckedPtrTest, Cast) {
   EXPECT_EQ(checked_const_derived_ptr->b2, 84);
   EXPECT_EQ(checked_const_derived_ptr->d, 1024);
 
+  const Derived* raw_const_derived_ptr2 = checked_const_derived_ptr;
+  EXPECT_EQ(raw_const_derived_ptr2->b1, 42);
+  EXPECT_EQ(raw_const_derived_ptr2->b2, 84);
+  EXPECT_EQ(raw_const_derived_ptr2->d, 1024);
+
+  CheckedPtr<const Derived> checked_const_derived_ptr2 = raw_derived_ptr;
+  EXPECT_EQ(checked_const_derived_ptr2->b1, 42);
+  EXPECT_EQ(checked_const_derived_ptr2->b2, 84);
+  EXPECT_EQ(checked_const_derived_ptr2->d, 1024);
+
+  CheckedPtr<const Derived> checked_const_derived_ptr3 = checked_derived_ptr2;
+  EXPECT_EQ(checked_const_derived_ptr3->b1, 42);
+  EXPECT_EQ(checked_const_derived_ptr3->b2, 84);
+  EXPECT_EQ(checked_const_derived_ptr3->d, 1024);
+
   volatile Derived* raw_volatile_derived_ptr = checked_derived_ptr2;
   EXPECT_EQ(raw_volatile_derived_ptr->b1, 42);
   EXPECT_EQ(raw_volatile_derived_ptr->b2, 84);
@@ -714,16 +725,12 @@ void HandleOOM(size_t unused_size) {
 }
 
 static constexpr PartitionOptions kOpts = {
-    PartitionOptions::Alignment::kRegular,
+    PartitionOptions::AlignedAlloc::kDisallowed,
     PartitionOptions::ThreadCache::kDisabled,
-    base::PartitionOptions::Quarantine::kDisallowed,
-    PartitionOptions::RefCount::kEnabled};
+    PartitionOptions::Quarantine::kDisallowed,
+    PartitionOptions::Cookies::kAllowed, PartitionOptions::RefCount::kAllowed};
 
 TEST(BackupRefPtrImpl, Basic) {
-  // This test works only if GigaCage is enabled. Bail out otherwise.
-  if (!features::IsPartitionAllocGigaCageEnabled())
-    return;
-
   // TODO(bartekn): Avoid using PartitionAlloc API directly. Switch to
   // new/delete once PartitionAlloc Everywhere is fully enabled.
   PartitionAllocGlobalInit(HandleOOM);
@@ -760,10 +767,6 @@ TEST(BackupRefPtrImpl, Basic) {
 }
 
 TEST(BackupRefPtrImpl, ZeroSized) {
-  // This test works only if GigaCage is enabled. Bail out otherwise.
-  if (!features::IsPartitionAllocGigaCageEnabled())
-    return;
-
   // TODO(bartekn): Avoid using PartitionAlloc API directly. Switch to
   // new/delete once PartitionAlloc Everywhere is fully enabled.
   PartitionAllocGlobalInit(HandleOOM);
@@ -780,10 +783,6 @@ TEST(BackupRefPtrImpl, ZeroSized) {
 }
 
 TEST(BackupRefPtrImpl, EndPointer) {
-  // This test works only if GigaCage is enabled. Bail out otherwise.
-  if (!features::IsPartitionAllocGigaCageEnabled())
-    return;
-
   // This test requires a fresh partition with an empty free list.
   PartitionAllocGlobalInit(HandleOOM);
   PartitionAllocator<ThreadSafe> allocator;
@@ -820,10 +819,6 @@ TEST(BackupRefPtrImpl, EndPointer) {
 
 #if DCHECK_IS_ON() || BUILDFLAG(ENABLE_BACKUP_REF_PTR_SLOW_CHECKS)
 TEST(BackupRefPtrImpl, ReinterpretCast) {
-  // This test works only if GigaCage is enabled. Bail out otherwise.
-  if (!features::IsPartitionAllocGigaCageEnabled())
-    return;
-
   // TODO(bartekn): Avoid using PartitionAlloc API directly. Switch to
   // new/delete once PartitionAlloc Everywhere is fully enabled.
   PartitionAllocGlobalInit(HandleOOM);

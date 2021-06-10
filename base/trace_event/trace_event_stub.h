@@ -50,6 +50,9 @@ struct IgnoredValue {
 #define INTERNAL_TRACE_EVENT_ADD_WITH_ID_TID_AND_TIMESTAMPS(...) \
   INTERNAL_TRACE_IGNORE(__VA_ARGS__)
 
+// Defined in application_state_proto_android.h
+#define TRACE_APPLICATION_STATE(...) INTERNAL_TRACE_IGNORE(__VA_ARGS__)
+
 #define TRACE_HEAP_PROFILER_API_SCOPED_TASK_EXECUTION \
   trace_event_internal::IgnoredValue
 
@@ -169,14 +172,33 @@ class BASE_EXPORT MemoryDumpProvider {
   MemoryDumpProvider() = default;
 };
 
+class BASE_EXPORT MemoryDumpManager {
+ public:
+  static constexpr const char* const kTraceCategory =
+      TRACE_DISABLED_BY_DEFAULT("memory-infra");
+};
+
 }  // namespace trace_event
 }  // namespace base
 
-// Stub implementation for perfetto::TracedValue/TracedDictionary/TracedArray.
+// Stub implementation for
+// perfetto::StaticString/ThreadTrack/TracedValue/TracedDictionary/TracedArray.
 namespace perfetto {
 
 class TracedArray;
 class TracedDictionary;
+
+class StaticString {
+ public:
+  template <typename T>
+  StaticString(T) {}
+};
+
+class DynamicString {
+ public:
+  template <typename T>
+  explicit DynamicString(T) {}
+};
 
 class TracedValue {
  public:
@@ -195,13 +217,18 @@ class TracedValue {
 
 class TracedDictionary {
  public:
-  TracedValue AddItem(const char*) { return TracedValue(); }
+  TracedValue AddItem(StaticString) { return TracedValue(); }
+  TracedValue AddItem(DynamicString) { return TracedValue(); }
 
   template <typename T>
-  void Add(const char*, T&&) {}
+  void Add(StaticString, T&&) {}
+  template <typename T>
+  void Add(DynamicString, T&&) {}
 
-  TracedDictionary AddDictionary(const char*);
-  TracedArray AddArray(const char*);
+  TracedDictionary AddDictionary(StaticString);
+  TracedDictionary AddDictionary(DynamicString);
+  TracedArray AddArray(StaticString);
+  TracedArray AddArray(DynamicString);
 };
 
 class TracedArray {

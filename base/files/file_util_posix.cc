@@ -20,9 +20,14 @@
 #include <time.h>
 #include <unistd.h>
 
+#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
+#include <sys/sendfile.h>
+#endif
+
 #include "base/base_switches.h"
 #include "base/bits.h"
 #include "base/command_line.h"
+#include "base/containers/contains.h"
 #include "base/containers/stack.h"
 #include "base/environment.h"
 #include "base/files/file_enumerator.h"
@@ -38,7 +43,6 @@
 #include "base/strings/string_piece.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
-#include "base/strings/stringprintf.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/system/sys_info.h"
@@ -883,25 +887,30 @@ int WriteFile(const FilePath& filename, const char* data, int size) {
   if (fd < 0)
     return -1;
 
-  int bytes_written = WriteFileDescriptor(fd, data, size) ? size : -1;
+  int bytes_written =
+      WriteFileDescriptor(fd, StringPiece(data, size)) ? size : -1;
   if (IGNORE_EINTR(close(fd)) < 0)
     return -1;
   return bytes_written;
 }
 
-bool WriteFileDescriptor(const int fd, const char* data, int size) {
+bool WriteFileDescriptor(int fd, span<const uint8_t> data) {
   // Allow for partial writes.
   ssize_t bytes_written_total = 0;
+  ssize_t size = checked_cast<ssize_t>(data.size());
   for (ssize_t bytes_written_partial = 0; bytes_written_total < size;
        bytes_written_total += bytes_written_partial) {
-    bytes_written_partial =
-        HANDLE_EINTR(write(fd, data + bytes_written_total,
-                           size - bytes_written_total));
+    bytes_written_partial = HANDLE_EINTR(write(
+        fd, data.data() + bytes_written_total, size - bytes_written_total));
     if (bytes_written_partial < 0)
       return false;
   }
 
   return true;
+}
+
+bool WriteFileDescriptor(int fd, StringPiece data) {
+  return WriteFileDescriptor(fd, as_bytes(make_span(data)));
 }
 
 bool AllocateFileRegion(File* file, int64_t offset, size_t size) {
@@ -978,7 +987,7 @@ bool AllocateFileRegion(File* file, int64_t offset, size_t size) {
 
 #if !defined(OS_NACL_NONSFI)
 
-bool AppendToFile(const FilePath& filename, const char* data, int size) {
+bool AppendToFile(const FilePath& filename, span<const uint8_t> data) {
   ScopedBlockingCall scoped_blocking_call(FROM_HERE, BlockingType::MAY_BLOCK);
   bool ret = true;
   int fd = HANDLE_EINTR(open(filename.value().c_str(), O_WRONLY | O_APPEND));
@@ -988,7 +997,7 @@ bool AppendToFile(const FilePath& filename, const char* data, int size) {
   }
 
   // This call will either write all of the data or return false.
-  if (!WriteFileDescriptor(fd, data, size)) {
+  if (!WriteFileDescriptor(fd, data)) {
     VPLOG(1) << "Error while writing to file " << filename.value();
     ret = false;
   }
@@ -999,6 +1008,10 @@ bool AppendToFile(const FilePath& filename, const char* data, int size) {
   }
 
   return ret;
+}
+
+bool AppendToFile(const FilePath& filename, StringPiece data) {
+  return AppendToFile(filename, as_bytes(make_span(data)));
 }
 
 bool GetCurrentDirectory(FilePath* dir) {
@@ -1223,6 +1236,41 @@ bool MoveUnsafe(const FilePath& from_path, const FilePath& to_path) {
   DeletePathRecursively(from_path);
   return true;
 }
+
+#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
+bool CopyFileContentsWithSendfile(File& infile,
+                                  File& outfile,
+                                  bool& retry_slow) {
+  int64_t file_size = infile.GetLength();
+  if (file_size < 0) {
+    return false;
+  }
+
+  size_t copied = 0;
+  ssize_t res = 0;
+  while (file_size - copied > 0) {
+    // Don't specify an offset and the kernel will begin reading/writing to the
+    // current file offsets.
+    res = HANDLE_EINTR(sendfile(outfile.GetPlatformFile(),
+                                infile.GetPlatformFile(), /*offset=*/nullptr,
+                                /*length=*/file_size - copied));
+    if (res <= 0) {
+      break;
+    }
+
+    copied += res;
+  }
+
+  // Fallback on non-fatal error cases. None of these errors can happen after
+  // data has started copying, a check is included for good measure. As a result
+  // file sizes and file offsets will not have changed. A slow fallback and
+  // proceed without issues.
+  retry_slow = (copied == 0 && res < 0 &&
+                (errno == EINVAL || errno == ENOSYS || errno == EPERM));
+
+  return res >= 0;
+}
+#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
 
 }  // namespace internal
 

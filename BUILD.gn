@@ -144,6 +144,7 @@ libbase_sublibs = [
       "base/files/memory_mapped_file.cc",
       "base/files/memory_mapped_file_posix.cc",
       "base/files/scoped_file.cc",
+      "base/files/scoped_file_linux.cc",
       "base/files/scoped_temp_dir.cc",
       "base/guid.cc",
       "base/hash/hash.cc",
@@ -163,6 +164,7 @@ libbase_sublibs = [
       "base/memory/aligned_memory.cc",
       "base/memory/memory_pressure_listener.cc",
       "base/memory/nonscannable_memory.cc",
+      "base/memory/page_size_posix.cc",
       "base/memory/platform_shared_memory_region.cc",
       "base/memory/platform_shared_memory_region_posix.cc",
       "base/memory/read_only_shared_memory_region.cc",
@@ -238,7 +240,6 @@ libbase_sublibs = [
       "base/sequence_token.cc",
       "base/sequenced_task_runner.cc",
       "base/strings/escape.cc",
-      "base/strings/nullable_string16.cc",
       "base/strings/pattern.cc",
       "base/strings/safe_sprintf.cc",
       "base/strings/strcat.cc",
@@ -347,6 +348,7 @@ libbase_sublibs = [
       "base/time/tick_clock.cc",
       "base/time/time.cc",
       "base/time/time_conversion_posix.cc",
+      "base/time/time_delta_from_string.cc",
       "base/time/time_exploded_posix.cc",
       "base/time/time_now_posix.cc",
       "base/time/time_override.cc",
@@ -503,23 +505,6 @@ if (use.dbus) {
         "dbus/mock_object_manager.cc",
         "dbus/mock_object_proxy.cc",
       ]
-    },
-  ]
-}
-
-if (use.timers) {
-  libbase_sublibs += [
-    {
-      name = "base-timers"
-      deps = [ ":base-core" ]
-      configs = [ "//common-mk:visibility_default" ]
-      sources = [ "components/timers/alarm_timer_chromeos.cc" ]
-    },
-
-    {
-      name = "base-timer_test_support"
-      testonly = true
-      sources = [ "base/timer/mock_timer.cc" ]
     },
   ]
 }
@@ -721,6 +706,8 @@ if (use.mojo) {
       "mojo/public/mojom/base/file_error.mojom",
       "mojo/public/mojom/base/file_info.mojom",
       "mojo/public/mojom/base/file_path.mojom",
+      "mojo/public/mojom/base/generic_pending_associated_receiver.mojom",
+      "mojo/public/mojom/base/generic_pending_receiver.mojom",
       "mojo/public/mojom/base/memory_allocator_dump_cross_process_uid.mojom",
       "mojo/public/mojom/base/process_id.mojom",
       "mojo/public/mojom/base/read_only_buffer.mojom",
@@ -838,6 +825,7 @@ if (use.mojo) {
           "mojo/public/cpp/bindings/async_flusher.cc",
           "mojo/public/cpp/bindings/connection_group.cc",
           "mojo/public/cpp/bindings/features.cc",
+          "mojo/public/cpp/bindings/receiver_set.cc",
           "mojo/public/cpp/bindings/lib/array_internal.cc",
           "mojo/public/cpp/bindings/lib/associated_group.cc",
           "mojo/public/cpp/bindings/lib/associated_group_controller.cc",

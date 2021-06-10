@@ -28,7 +28,6 @@
 #include "base/ranges/algorithm.h"
 #include "base/run_loop.h"
 #include "base/scoped_native_library.h"
-#include "base/stl_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/synchronization/lock.h"
 #include "base/synchronization/waitable_event.h"
@@ -803,9 +802,9 @@ PROFILER_TEST_F(StackSamplingProfilerTest, DestroyProfilerWhileProfiling) {
         BindLambdaForTesting([&profile](Profile result_profile) {
           profile = std::move(result_profile);
         }));
-    profiler.reset(new StackSamplingProfiler(
+    profiler = std::make_unique<StackSamplingProfiler>(
         target_thread_token, params, std::move(profile_builder),
-        CreateCoreUnwindersFactoryForTesting(module_cache())));
+        CreateCoreUnwindersFactoryForTesting(module_cache()));
     profiler->Start();
     profiler.reset();
 
@@ -1340,8 +1339,8 @@ PROFILER_TEST_F(StackSamplingProfilerTest, AddAuxUnwinder_BeforeStart) {
 
 PROFILER_TEST_F(StackSamplingProfilerTest, AddAuxUnwinder_AfterStart) {
   SamplingParams params;
-  params.sampling_interval = TimeDelta::FromMilliseconds(0);
-  params.samples_per_profile = 1;
+  params.sampling_interval = TimeDelta::FromMilliseconds(10);
+  params.samples_per_profile = 2;
 
   UnwindScenario scenario(BindRepeating(&CallWithPlainFunction));
 
@@ -1380,9 +1379,11 @@ PROFILER_TEST_F(StackSamplingProfilerTest, AddAuxUnwinder_AfterStart) {
 
   // The sample should have one frame from the context values and one from the
   // TestAuxUnwinder.
-  ASSERT_EQ(1u, profile.samples.size());
-  const std::vector<Frame>& frames = profile.samples[0];
+  ASSERT_EQ(2u, profile.samples.size());
 
+  // Whether the aux unwinder is available for the first sample is racy, so rely
+  // on the second sample.
+  const std::vector<Frame>& frames = profile.samples[1];
   ASSERT_EQ(2u, frames.size());
   EXPECT_EQ(23u, frames[1].instruction_pointer);
   EXPECT_EQ(nullptr, frames[1].module);

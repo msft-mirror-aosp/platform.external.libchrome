@@ -66,7 +66,7 @@ index 9b8311a67..6829f47f1 100644
 @@ -1,8 +1,8 @@
  Name: Jinja2 Python Template Engine
  Short Name: jinja2
--URL: http://jinja.pocoo.org/
+-URL: https://jinja.palletsprojects.com/
 -Version: 2.10
 -CPEPrefix: cpe:/a:pocoo:jinja2:2.10
 +URL: https://jinja.palletsprojects.com/
@@ -79,7 +79,7 @@ index 9b8311a67..6829f47f1 100644
  Description:
  Template engine for code generation in Blink.
  
--Source: https://pypi.python.org/packages/56/e6/332789f295cf22308386cf5bbd1f4e00ed11484299c5d7383378cf48ba47/Jinja2-2.10.tar.gz
+-Source: https://files.pythonhosted.org/packages/56/e6/332789f295cf22308386cf5bbd1f4e00ed11484299c5d7383378cf48ba47/Jinja2-2.10.tar.gz
 -MD5: 61ef1117f945486472850819b8d1eb3d
 -SHA-1: 34b69e5caab12ee37b9df69df9018776c008b7b8
 +Source: https://files.pythonhosted.org/packages/93/ea/d884a06f8c7f9b7afbc8138b762e80479fb17aedbbe2b06515a12de9378d/Jinja2-2.10.1.tar.gz
@@ -110,12 +110,12 @@ index bc6c4c306..bbaf5d1c8 100755
  # https://pypi.python.org/pypi/Jinja2
  PACKAGE='Jinja2'
 -VERSION='2.10'
--SRC_URL='https://pypi.python.org/packages/56/e6/332789f295cf22308386cf5bbd1f4e00ed11484299c5d7383378cf48ba47/Jinja2-2.10.tar.gz'
+-SRC_URL='https://files.pythonhosted.org/packages/56/e6/332789f295cf22308386cf5bbd1f4e00ed11484299c5d7383378cf48ba47/Jinja2-2.10.tar.gz'
 -PACKAGE_DIR='jinja2'
 +VERSION='2.10.1'
 +SRC_URL='https://files.pythonhosted.org/packages/93/ea/d884a06f8c7f9b7afbc8138b762e80479fb17aedbbe2b06515a12de9378d/Jinja2-2.10.1.tar.gz'
  
- CHROMIUM_FILES="README.chromium OWNERS get_jinja2.sh"
+ CHROMIUM_FILES="README.chromium OWNERS get_jinja2.sh DIR_METADATA patches"
  EXTRA_FILES='LICENSE AUTHORS'
 diff --git a/third_party/jinja2/sandbox.py b/third_party/jinja2/sandbox.py
 index 93fb9d45f..752e81289 100644

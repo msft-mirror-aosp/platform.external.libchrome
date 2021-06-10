@@ -19,23 +19,16 @@ absl-thread-annotation-conflict.patch
 # We don't need.
 revert-crbug-1001171.patch
 
+# libchrome does not support boringssl.
+keep-hash-sha1-old-implementation.patch
+
+# libchrome does not support trace_event
+# Compatmentalize patches to reduce chance of failing to apply them.
+disable-trace_event-in-ipc.patch
+disable-trace_event-in-mojo-core-code.patch
+disable-trace_event-in-mojo-binding-generator-templates.patch
+
 # ==================== CHERRY PICKS ===========================
-# Remove after r866231
-Share-most-ReceiverSet-state-and-logic.patch
-
-# Backport glibc 2.33 mallinfo deprecation fix
-# Remove after r873183 uprev.
-libchrome-base-process-Use-mallinfo2-with-glibc-2.33-and-up.patch
-
-# For base/notreached.h implicitly included via trace_event.h use in
-# ipc/ipc_message_utils.cc.
-# Remove after r875277 uprev.
-add-include-header-base-notreached.h.patch
-
-# For migration to absl::optional; cherry-pick of crrev.com/c/2892208
-# Remove after r882460 uprev
-Alias-base-Optional-to-absl-optional.patch
-
 # Modify mojom_parser.py to search for external Mojo modules.
 # Remove after r900163
 mojom-parser-external-modules.patch
@@ -47,9 +40,35 @@ jinja2-update-to-2.10.1.patch
 mojo-Add-ReceiverSetBase-RemoveWithReason.patch
 
 # ==================== BACKWARD / FORWARD COMPATIBILITY PATCHES FOR UPREVS ===
+# libchrome does not support PartitionAllocator yet
+# TODO(b/202362183): Remove when enabled
+disable-partition-allocator.patch
+
+# TODO(b/192529039): Remove when all base::Optional usages are migrated to
+# std::optional
+backward-compatibility-Add-base-Optional-as-alias-of-absl-optional.patch
+
 # Backward compatibility patches for header change.
 # CHECK* not implitly included by base/logging.h
+# TODO(b/186486897): Remove when clean up is done
 backward-compatibility-check.patch
 
-# Forward compatibility for 2-param base::{AppendToFile,WriteFileDescriptor} variants
-forward-compatibility-base-file-util.patch
+# Backward compatibility patch to add support of SimpleAlarmTimer
+# TODO(b/196308068): remove after usages in shill and power_manger are removed
+backward-compatibility-add-SimpleAlarmTimer.patch
+
+# Backward compatibility for r890000 uprev
+# Adds base::Callback, base::Bind, etc as there are still many usages in CrOS
+# TODO(crbug.com/1205291): remove when they are all migrated to Once/Repeating
+# variants
+backward-compatibility-add-deprecated-base-Bind-APIs.patch
+
+# Backward compatibility patch to temporarily disable KernelVersionNumbers
+# since it introduces new syscall uname.
+# TODO(b/202361491): Remove the patch when tested thoroughly.
+backward-compatibility-disable-KernelVersionNumbers.patch
+#
+# Backward compatibility patch to temporarily disable CopyFileContentsWithSendfile
+# since it introduces new syscall sendfile.
+# TODO(b/202686177): Remove the patch when tested thoroughly.
+backward-compatibility-disable-CopyFileContentsWithSendfile.patch

@@ -1,0 +1,26 @@
+From 769ab48f0905f642d78a17eeb938eff4d43ee4d6 Mon Sep 17 00:00:00 2001
+From: hscham <hscham@chromium.org>
+Date: Thu, 30 Sep 2021 17:24:33 +0900
+Subject: [PATCH] disable partition allocator
+
+Change-Id: I9d6106e20ab5b619a75b66535c4f44d0be9b8895
+---
+ base/task/thread_pool/worker_thread.cc | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/base/task/thread_pool/worker_thread.cc b/base/task/thread_pool/worker_thread.cc
+index 9165822fe..2f78be56f 100644
+--- a/base/task/thread_pool/worker_thread.cc
++++ b/base/task/thread_pool/worker_thread.cc
+@@ -10,7 +10,7 @@
+ #include <utility>
+ 
+ #include "base/allocator/buildflags.h"
+-#include "base/allocator/partition_allocator/partition_alloc_config.h"
++// #include "base/allocator/partition_allocator/partition_alloc_config.h"
+ #include "base/callback_helpers.h"
+ #include "base/check_op.h"
+ #include "base/compiler_specific.h"
+-- 
+2.33.0.685.g46640cef36-goog
+

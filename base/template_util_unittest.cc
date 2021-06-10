@@ -248,6 +248,40 @@ TEST(TemplateUtil, IsScopedEnum) {
   static_assert(is_scoped_enum<ScopedEnum>::value, "");
 }
 
+TEST(TemplateUtil, RemoveCvRefT) {
+  static_assert(std::is_same<int, remove_cvref_t<const int>>::value, "");
+  static_assert(std::is_same<int, remove_cvref_t<const volatile int>>::value,
+                "");
+  static_assert(std::is_same<int, remove_cvref_t<int&>>::value, "");
+  static_assert(std::is_same<int, remove_cvref_t<const int&>>::value, "");
+  static_assert(std::is_same<int, remove_cvref_t<const volatile int&>>::value,
+                "");
+  static_assert(std::is_same<int, remove_cvref_t<int&&>>::value, "");
+  static_assert(
+      std::is_same<SimpleStruct, remove_cvref_t<const SimpleStruct&>>::value,
+      "");
+  static_assert(std::is_same<int*, remove_cvref_t<int*>>::value, "");
+
+  // Test references and pointers to arrays.
+  static_assert(std::is_same<int[3], remove_cvref_t<int[3]>>::value, "");
+  static_assert(std::is_same<int[3], remove_cvref_t<int(&)[3]>>::value, "");
+  static_assert(std::is_same<int(*)[3], remove_cvref_t<int(*)[3]>>::value, "");
+
+  // Test references and pointers to functions.
+  static_assert(std::is_same<void(int), remove_cvref_t<void(int)>>::value, "");
+  static_assert(std::is_same<void(int), remove_cvref_t<void (&)(int)>>::value,
+                "");
+  static_assert(
+      std::is_same<void (*)(int), remove_cvref_t<void (*)(int)>>::value, "");
+}
+
+TEST(TemplateUtil, IsConstantEvaluated) {
+  // base::is_constant_evaluated() should return whether it is evaluated as part
+  // of a constant expression.
+  static_assert(is_constant_evaluated(), "");
+  EXPECT_FALSE(is_constant_evaluated());
+}
+
 }  // namespace
 
 }  // namespace base

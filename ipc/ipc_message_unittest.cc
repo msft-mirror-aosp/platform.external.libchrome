@@ -23,6 +23,7 @@
 
 #define IPC_MESSAGE_IMPL
 #include "ipc/ipc_message_macros.h"
+#include "ipc/ipc_message_start.h"
 
 #define IPC_MESSAGE_START TestMsgStart
 
@@ -37,7 +38,7 @@ namespace IPC {
 TEST(IPCMessageTest, BasicMessageTest) {
   int v1 = 10;
   std::string v2("foobar");
-  base::string16 v3(base::ASCIIToUTF16("hello world"));
+  std::u16string v3(u"hello world");
 
   IPC::Message m(0, 1, IPC::Message::PRIORITY_NORMAL);
   m.WriteInt(v1);
@@ -48,7 +49,7 @@ TEST(IPCMessageTest, BasicMessageTest) {
 
   int vi;
   std::string vs;
-  base::string16 vs16;
+  std::u16string vs16;
 
   EXPECT_TRUE(iter.ReadInt(&vi));
   EXPECT_EQ(v1, vi);
@@ -105,7 +106,7 @@ TEST(IPCMessageTest, Value) {
 
 TEST(IPCMessageTest, ListValue) {
   base::ListValue input;
-  input.AppendDouble(42.42);
+  input.Append(42.42);
   input.AppendString("forty");
   input.Append(std::make_unique<base::Value>());
 
@@ -137,7 +138,7 @@ TEST(IPCMessageTest, DictionaryValue) {
   subdict->SetBoolean("bool", false);
 
   auto sublist = std::make_unique<base::ListValue>();
-  sublist->AppendDouble(42.42);
+  sublist->Append(42.42);
   sublist->AppendString("forty");
   sublist->AppendString("two");
   subdict->Set("list", std::move(sublist));

@@ -181,7 +181,7 @@ Channel::MessagePtr CreateMessage(MessageType type,
   else
     capacity = std::max(total_size, capacity);
   auto message =
-      std::make_unique<Channel::Message>(capacity, total_size, num_handles);
+      Channel::Message::CreateMessage(capacity, total_size, num_handles);
   Header* header = reinterpret_cast<Header*>(message->mutable_payload());
 
   // Make sure any header padding gets zeroed.
@@ -271,13 +271,16 @@ Channel::MessagePtr NodeChannel::CreateEventMessage(size_t capacity,
 }
 
 // static
-void NodeChannel::GetEventMessageData(Channel::Message* message,
+bool NodeChannel::GetEventMessageData(Channel::Message& message,
                                       void** data,
                                       size_t* num_data_bytes) {
-  // NOTE: OnChannelMessage guarantees that we never accept a Channel::Message
-  // with a payload of fewer than |sizeof(Header)| bytes.
-  *data = reinterpret_cast<Header*>(message->mutable_payload()) + 1;
-  *num_data_bytes = message->payload_size() - sizeof(Header);
+  // NOTE: Callers must guarantee that the payload in `message` must be at least
+  // large enough to hold a Header.
+  if (message.payload_size() < sizeof(Header))
+    return false;
+  *data = reinterpret_cast<Header*>(message.mutable_payload()) + 1;
+  *num_data_bytes = message.payload_size() - sizeof(Header);
+  return true;
 }
 
 void NodeChannel::Start() {
@@ -665,8 +668,8 @@ void NodeChannel::OnChannelMessage(const void* payload,
     }
 
     case MessageType::EVENT_MESSAGE: {
-      Channel::MessagePtr message(
-          new Channel::Message(payload_size, handles.size()));
+      Channel::MessagePtr message =
+          Channel::Message::CreateMessage(payload_size, handles.size());
       message->SetHandles(std::move(handles));
       memcpy(message->mutable_payload(), payload, payload_size);
       delegate_->OnEventMessage(remote_node_name_, std::move(message));
@@ -779,8 +782,8 @@ void NodeChannel::OnChannelMessage(const void* payload,
 
         size_t num_bytes = payload_size - sizeof(data) - sizeof(Header);
 
-        Channel::MessagePtr message(
-            new Channel::Message(num_bytes, handles.size()));
+        Channel::MessagePtr message =
+            Channel::Message::CreateMessage(num_bytes, handles.size());
         message->SetHandles(std::move(handles));
         if (num_bytes)
           memcpy(message->mutable_payload(),

@@ -1,0 +1,660 @@
+From ecd7667c21281aded1fa27d7b723147071c48ead Mon Sep 17 00:00:00 2001
+From: hscham <hscham@chromium.org>
+Date: Mon, 28 Jun 2021 12:11:38 +0900
+Subject: [PATCH] Keep SimpleAlarmTimer available to shill and power_manager
+
+SimpleAlarmTimer is removed upstream but still in use in Chrome OS. This
+patch keep it available to classes (in shill and power_manager) that are
+currently using it.
+
+This reverts commit 9163151b7f8be8ef25338ccc71b7483195cf6df2.
+It also moves constructors Create{,ForTesting} as private and declare
+the shill and power_manager classes as friends, to ensure no new usages
+could be introduced.
+
+BUG=b:196308068
+Change-Id: If605736e0c9565b6412151f399d9f7eba84cc7a4
+
+Change-Id: I930eba43c2783ca02f06ba2efc7bd5d02d80b180
+---
+ BUILD.gn                                  |  17 +
+ base/timer/timer.cc                       |  10 +-
+ base/timer/timer.h                        |  16 +-
+ components/timers/DIR_METADATA            |   3 +
+ components/timers/README                  |   3 +
+ components/timers/alarm_timer_chromeos.cc |   1 +
+ components/timers/alarm_timer_chromeos.h  | 119 +++++++
+ components/timers/alarm_timer_unittest.cc | 366 ++++++++++++++++++++++
+ 8 files changed, 526 insertions(+), 9 deletions(-)
+ create mode 100644 components/timers/DIR_METADATA
+ create mode 100644 components/timers/README
+ create mode 100644 components/timers/alarm_timer_chromeos.h
+ create mode 100644 components/timers/alarm_timer_unittest.cc
+
+diff --git a/BUILD.gn b/BUILD.gn
+index 44ba43c3ef..f4cad0dd26 100644
+--- a/BUILD.gn
++++ b/BUILD.gn
+@@ -509,6 +509,23 @@ if (use.dbus) {
+   ]
+ }
+ 
++if (use.timers) {
++  libbase_sublibs += [
++    {
++      name = "base-timers"
++      deps = [ ":base-core" ]
++      configs = [ "//common-mk:visibility_default" ]
++      sources = [ "components/timers/alarm_timer_chromeos.cc" ]
++    },
++
++    {
++      name = "base-timer_test_support"
++      testonly = true
++      sources = [ "base/timer/mock_timer.cc" ]
++    },
++  ]
++}
++
+ # Generate static/shared libraries.
+ foreach(attr, libbase_sublibs) {
+   if (defined(attr.pkg_deps)) {
+diff --git a/base/timer/timer.cc b/base/timer/timer.cc
+index 7e6071456d..44c36f1cef 100644
+--- a/base/timer/timer.cc
++++ b/base/timer/timer.cc
+@@ -140,6 +140,11 @@ void TimerBase::Reset() {
+   ScheduleNewTask(delay_);
+ }
+ 
++TimeTicks TimerBase::Now() const {
++  DCHECK(origin_sequence_checker_.CalledOnValidSequence());
++  return tick_clock_ ? tick_clock_->NowTicks() : TimeTicks::Now();
++}
++
+ void TimerBase::ScheduleNewTask(TimeDelta delay) {
+   DCHECK(origin_sequence_checker_.CalledOnValidSequence());
+   DCHECK(!task_destruction_detector_);
+@@ -168,11 +173,6 @@ scoped_refptr<SequencedTaskRunner> TimerBase::GetTaskRunner() {
+   return task_runner_.get() ? task_runner_ : SequencedTaskRunnerHandle::Get();
+ }
+ 
+-TimeTicks TimerBase::Now() const {
+-  DCHECK(origin_sequence_checker_.CalledOnValidSequence());
+-  return tick_clock_ ? tick_clock_->NowTicks() : TimeTicks::Now();
+-}
+-
+ void TimerBase::AbandonScheduledTask() {
+   DCHECK(origin_sequence_checker_.CalledOnValidSequence());
+   if (task_destruction_detector_) {
+diff --git a/base/timer/timer.h b/base/timer/timer.h
+index 475b2d4aa0..d66b18157f 100644
+--- a/base/timer/timer.h
++++ b/base/timer/timer.h
+@@ -140,6 +140,14 @@ class BASE_EXPORT TimerBase {
+   virtual void OnStop() = 0;
+   virtual void RunUserTask() = 0;
+ 
++  // Returns the current tick count.
++  TimeTicks Now() const;
++
++  void set_desired_run_time(TimeTicks desired) { desired_run_time_ = desired; }
++  void set_is_running(bool running) { is_running_ = running; }
++
++  const Location& posted_from() const { return posted_from_; }
++
+   // The task runner on which the task should be scheduled. If it is null, the
+   // task runner for the current sequence will be used.
+   scoped_refptr<SequencedTaskRunner> task_runner_;
+@@ -164,10 +172,7 @@ class BASE_EXPORT TimerBase {
+   // sequence is returned.
+   scoped_refptr<SequencedTaskRunner> GetTaskRunner();
+ 
+-  // Returns the current tick count.
+-  TimeTicks Now() const;
+-
+-  // Disables the scheduled task and abandon it so that it no longer refers back
++  // Disable |scheduled_task_| and abandon it so that it no longer refers back
+   // to this object.
+   void AbandonScheduledTask();
+ 
+@@ -333,6 +338,9 @@ class BASE_EXPORT RetainingOneShotTimer : public internal::TimerBase {
+ 
+   const RepeatingClosure& user_task() const { return user_task_; }
+ 
++ protected:
++  void set_user_task(const RepeatingClosure& task) { user_task_ = task; }
++
+  private:
+   // Mark this final, so that the destructor can call this safely.
+   void OnStop() final;
+diff --git a/components/timers/DIR_METADATA b/components/timers/DIR_METADATA
+new file mode 100644
+index 0000000000..9640755ce1
+--- /dev/null
++++ b/components/timers/DIR_METADATA
+@@ -0,0 +1,3 @@
++monorail {
++  component: "Internals>TaskScheduler"
++}
+diff --git a/components/timers/README b/components/timers/README
+new file mode 100644
+index 0000000000..0b2b4e37f8
+--- /dev/null
++++ b/components/timers/README
+@@ -0,0 +1,3 @@
++This directory hosts a timer class that is shared with Chrome OS.  Code that
++lives in this directory is not allowed to depend on anything other than base/
++because Chrome OS only pulls in and depends on base/ as a library.
+diff --git a/components/timers/alarm_timer_chromeos.cc b/components/timers/alarm_timer_chromeos.cc
+index b7cc691106..c2ad166656 100644
+--- a/components/timers/alarm_timer_chromeos.cc
++++ b/components/timers/alarm_timer_chromeos.cc
+@@ -89,6 +89,7 @@ void SimpleAlarmTimer::Reset() {
+   pending_task_ = std::make_unique<base::PendingTask>(
+       base::RetainingOneShotTimer::posted_from(),
+       base::RetainingOneShotTimer::user_task(),
++      base::TimeTicks::Now(),
+       base::RetainingOneShotTimer::desired_run_time());
+ 
+   // Set |alarm_fd_| to be signaled when the delay expires. If the delay is
+diff --git a/components/timers/alarm_timer_chromeos.h b/components/timers/alarm_timer_chromeos.h
+new file mode 100644
+index 0000000000..1e9d13f9c3
+--- /dev/null
++++ b/components/timers/alarm_timer_chromeos.h
+@@ -0,0 +1,119 @@
++// Copyright 2014 The Chromium Authors. All rights reserved.
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef COMPONENTS_TIMERS_ALARM_TIMER_CHROMEOS_H_
++#define COMPONENTS_TIMERS_ALARM_TIMER_CHROMEOS_H_
++
++#include <memory>
++
++#include "base/files/file_descriptor_watcher_posix.h"
++#include "base/files/scoped_file.h"
++#include "base/macros.h"
++#include "base/memory/scoped_refptr.h"
++#include "base/memory/weak_ptr.h"
++#include "base/threading/sequenced_task_runner_handle.h"
++#include "base/time/time.h"
++#include "base/timer/timer.h"
++
++namespace base {
++struct PendingTask;
++}
++
++// Forward declare classes that are using SimpleAlarmTimer
++namespace shill {
++class WakeOnWiFi;
++class WakeOnWiFiTest;
++}
++
++namespace power_manager {
++namespace system {
++class SuspendConfigurator;
++class ArcTimerManager;
++}
++namespace policy {
++class ShutdownFromSuspend;
++class ShutdownFromSuspendTest;
++}
++}
++
++
++namespace timers {
++// The class implements a timer that is capable of waking the system up from a
++// suspended state. For example, this is useful for running tasks that are
++// needed for maintaining network connectivity, like sending heartbeat messages.
++// Currently, this feature is only available on Chrome OS systems running linux
++// version 3.11 or higher.
++//
++// A SimpleAlarmTimer instance can only be used from the sequence on which it
++// was instantiated. Start() and Stop() must be called from a thread that
++// supports FileDescriptorWatcher.
++//
++// A SimpleAlarmTimer only fires once but remembers the task that it was given
++// even after it has fired.  Useful if you want to run the same task multiple
++// times but not at a regular interval.
++class SimpleAlarmTimer : public base::RetainingOneShotTimer {
++ public:
++  ~SimpleAlarmTimer() override;
++
++  // Timer overrides.
++  void Stop() override;
++  void Reset() override;
++
++ private:
++  // TODO(b/196308068):
++  // SimpleAlarmTimer is deprecated on chromium upstream and is only available
++  // in libchrome as local patch before removal of its usages is completed.
++  // Create and CreateForTesting are made private and only available to classes
++  // currently using it. This is to ensure no new usages could be introduced.
++  friend class shill::WakeOnWiFi;
++  friend class shill::WakeOnWiFiTest;
++  friend class power_manager::system::ArcTimerManager;
++  friend class power_manager::system::SuspendConfigurator;
++  friend class power_manager::policy::ShutdownFromSuspend;
++  friend class power_manager::policy::ShutdownFromSuspendTest;
++
++  // Creates the SimpleAlarmTimer instance, or returns null on failure, e.g.,
++  // on a platform without timerfd_* system calls support, or missing
++  // capability (CAP_WAKE_ALARM).
++  static std::unique_ptr<SimpleAlarmTimer> Create();
++
++  // Similar to Create(), but for unittests without capability.
++  // Specifically, uses CLOCK_REALTIME instead of CLOCK_REALTIME_ALARM.
++  static std::unique_ptr<SimpleAlarmTimer> CreateForTesting();
++
++  // Shared implementation of Create and CreateForTesting.
++  static std::unique_ptr<SimpleAlarmTimer> CreateInternal(int clockid);
++
++  explicit SimpleAlarmTimer(base::ScopedFD alarm_fd);
++
++  // Called when |alarm_fd_| is readable without blocking. Reads data from
++  // |alarm_fd_| and calls OnTimerFired().
++  void OnAlarmFdReadableWithoutBlocking();
++
++  // Called when the timer fires. Runs the callback.
++  void OnTimerFired();
++
++  // Timer file descriptor.
++  const base::ScopedFD alarm_fd_;
++
++  // Watches |alarm_fd_|.
++  std::unique_ptr<base::FileDescriptorWatcher::Controller> alarm_fd_watcher_;
++
++  // Posts tasks to the sequence on which this AlarmTimer was instantiated.
++  const scoped_refptr<base::SequencedTaskRunner> origin_task_runner_ =
++      base::SequencedTaskRunnerHandle::Get();
++
++  // Keeps track of the user task we want to run. A new one is constructed every
++  // time Reset() is called.
++  std::unique_ptr<base::PendingTask> pending_task_;
++
++  // Used to invalidate pending callbacks.
++  base::WeakPtrFactory<SimpleAlarmTimer> weak_factory_{this};
++
++  DISALLOW_COPY_AND_ASSIGN(SimpleAlarmTimer);
++};
++
++}  // namespace timers
++
++#endif  // COMPONENTS_TIMERS_ALARM_TIMER_CHROMEOS_H_
+diff --git a/components/timers/alarm_timer_unittest.cc b/components/timers/alarm_timer_unittest.cc
+new file mode 100644
+index 0000000000..c8b5224ed4
+--- /dev/null
++++ b/components/timers/alarm_timer_unittest.cc
+@@ -0,0 +1,366 @@
++// Copyright 2014 The Chromium Authors. All rights reserved.
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include <sys/timerfd.h>
++
++#include <memory>
++
++#include "base/bind.h"
++#include "base/callback_helpers.h"
++#include "base/location.h"
++#include "base/macros.h"
++#include "base/run_loop.h"
++#include "base/single_thread_task_runner.h"
++#include "base/test/task_environment.h"
++#include "base/threading/platform_thread.h"
++#include "base/threading/thread_task_runner_handle.h"
++#include "base/time/time.h"
++#include "components/timers/alarm_timer_chromeos.h"
++#include "testing/gtest/include/gtest/gtest.h"
++
++// Most of these tests have been lifted right out of timer_unittest.cc with only
++// cosmetic changes. We want the AlarmTimer to be a drop-in replacement for the
++// regular Timer so it should pass the same tests as the Timer class.
++namespace timers {
++namespace {
++
++constexpr base::TimeDelta kTenMilliseconds =
++    base::TimeDelta::FromMilliseconds(10);
++
++class AlarmTimerTester {
++ public:
++  AlarmTimerTester(bool* did_run,
++                   base::TimeDelta delay,
++                   base::OnceClosure quit_closure)
++      : did_run_(did_run),
++        quit_closure_(std::move(quit_closure)),
++        delay_(delay),
++        timer_(SimpleAlarmTimer::CreateForTesting()) {}
++  void Start() {
++    timer_->Start(
++        FROM_HERE, delay_,
++        base::BindRepeating(&AlarmTimerTester::Run, base::Unretained(this)));
++  }
++
++ private:
++  void Run() {
++    *did_run_ = true;
++    if (quit_closure_)
++      std::move(quit_closure_).Run();
++  }
++
++  bool* did_run_;
++  base::OnceClosure quit_closure_;
++  const base::TimeDelta delay_;
++  std::unique_ptr<SimpleAlarmTimer> timer_;
++
++  DISALLOW_COPY_AND_ASSIGN(AlarmTimerTester);
++};
++
++class SelfDeletingAlarmTimerTester {
++ public:
++  SelfDeletingAlarmTimerTester(bool* did_run,
++                               base::TimeDelta delay,
++                               base::OnceClosure quit_closure)
++      : did_run_(did_run),
++        quit_closure_(std::move(quit_closure)),
++        delay_(delay),
++        timer_(SimpleAlarmTimer::CreateForTesting()) {}
++  void Start() {
++    timer_->Start(FROM_HERE, delay_,
++                  base::BindRepeating(&SelfDeletingAlarmTimerTester::Run,
++                                      base::Unretained(this)));
++  }
++
++ private:
++  void Run() {
++    *did_run_ = true;
++    timer_.reset();
++
++    if (quit_closure_)
++      std::move(quit_closure_).Run();
++  }
++
++  bool* did_run_;
++  base::OnceClosure quit_closure_;
++  const base::TimeDelta delay_;
++  std::unique_ptr<SimpleAlarmTimer> timer_;
++
++  DISALLOW_COPY_AND_ASSIGN(SelfDeletingAlarmTimerTester);
++};
++
++}  // namespace
++
++//-----------------------------------------------------------------------------
++// Each test is run against each type of MessageLoop.  That way we are sure
++// that timers work properly in all configurations.
++
++TEST(AlarmTimerTest, SimpleAlarmTimer) {
++  base::test::TaskEnvironment task_environment(
++      base::test::TaskEnvironment::MainThreadType::IO);
++
++  base::RunLoop run_loop;
++  bool did_run = false;
++  AlarmTimerTester f(&did_run, kTenMilliseconds,
++                     run_loop.QuitWhenIdleClosure());
++  f.Start();
++
++  run_loop.Run();
++
++  EXPECT_TRUE(did_run);
++}
++
++TEST(AlarmTimerTest, SimpleAlarmTimer_Cancel) {
++  base::test::TaskEnvironment task_environment(
++      base::test::TaskEnvironment::MainThreadType::IO);
++
++  bool did_run_a = false;
++  AlarmTimerTester* a =
++      new AlarmTimerTester(&did_run_a, kTenMilliseconds, base::OnceClosure());
++
++  // This should run before the timer expires.
++  base::ThreadTaskRunnerHandle::Get()->DeleteSoon(FROM_HERE, a);
++
++  // Now start the timer.
++  a->Start();
++
++  base::RunLoop run_loop;
++  bool did_run_b = false;
++  AlarmTimerTester b(&did_run_b, kTenMilliseconds,
++                     run_loop.QuitWhenIdleClosure());
++  b.Start();
++
++  run_loop.Run();
++
++  EXPECT_FALSE(did_run_a);
++  EXPECT_TRUE(did_run_b);
++}
++
++// If underlying timer does not handle this properly, we will crash or fail
++// in full page heap environment.
++TEST(AlarmTimerTest, SelfDeletingAlarmTimer) {
++  base::test::TaskEnvironment task_environment(
++      base::test::TaskEnvironment::MainThreadType::IO);
++
++  base::RunLoop run_loop;
++  bool did_run = false;
++  SelfDeletingAlarmTimerTester f(&did_run, kTenMilliseconds,
++                                 run_loop.QuitWhenIdleClosure());
++  f.Start();
++
++  run_loop.Run();
++
++  EXPECT_TRUE(did_run);
++}
++
++TEST(AlarmTimerTest, AlarmTimerZeroDelay) {
++  base::test::TaskEnvironment task_environment(
++      base::test::TaskEnvironment::MainThreadType::IO);
++
++  base::RunLoop run_loop;
++  bool did_run = false;
++  AlarmTimerTester f(&did_run, base::TimeDelta(),
++                     run_loop.QuitWhenIdleClosure());
++  f.Start();
++
++  run_loop.Run();
++
++  EXPECT_TRUE(did_run);
++}
++
++TEST(AlarmTimerTest, AlarmTimerZeroDelay_Cancel) {
++  base::test::TaskEnvironment task_environment(
++      base::test::TaskEnvironment::MainThreadType::IO);
++
++  bool did_run_a = false;
++  AlarmTimerTester* a =
++      new AlarmTimerTester(&did_run_a, base::TimeDelta(), base::OnceClosure());
++
++  // This should run before the timer expires.
++  base::ThreadTaskRunnerHandle::Get()->DeleteSoon(FROM_HERE, a);
++
++  // Now start the timer.
++  a->Start();
++
++  base::RunLoop run_loop;
++  bool did_run_b = false;
++  AlarmTimerTester b(&did_run_b, base::TimeDelta(),
++                     run_loop.QuitWhenIdleClosure());
++  b.Start();
++
++  run_loop.Run();
++
++  EXPECT_FALSE(did_run_a);
++  EXPECT_TRUE(did_run_b);
++}
++
++TEST(AlarmTimerTest, MessageLoopShutdown) {
++  // This test is designed to verify that shutdown of the
++  // message loop does not cause crashes if there were pending
++  // timers not yet fired.  It may only trigger exceptions
++  // if debug heap checking is enabled.
++  bool did_run = false;
++  {
++    base::test::TaskEnvironment task_environment(
++        base::test::TaskEnvironment::MainThreadType::IO);
++
++    AlarmTimerTester a(&did_run, kTenMilliseconds, base::OnceClosure());
++    AlarmTimerTester b(&did_run, kTenMilliseconds, base::OnceClosure());
++    AlarmTimerTester c(&did_run, kTenMilliseconds, base::OnceClosure());
++    AlarmTimerTester d(&did_run, kTenMilliseconds, base::OnceClosure());
++
++    a.Start();
++    b.Start();
++
++    // Allow FileDescriptorWatcher to start watching the timers. Without this,
++    // tasks posted by FileDescriptorWatcher::WatchReadable() are leaked.
++    base::RunLoop().RunUntilIdle();
++
++  }  // SimpleAlarmTimers destruct. SHOULD NOT CRASH, of course.
++
++  EXPECT_FALSE(did_run);
++}
++
++TEST(AlarmTimerTest, NonRepeatIsRunning) {
++  base::test::TaskEnvironment task_environment(
++      base::test::TaskEnvironment::MainThreadType::IO);
++
++  auto timer = SimpleAlarmTimer::CreateForTesting();
++  EXPECT_FALSE(timer->IsRunning());
++  timer->Start(FROM_HERE, base::TimeDelta::FromDays(1), base::DoNothing());
++
++  // Allow FileDescriptorWatcher to start watching the timer. Without this, a
++  // task posted by FileDescriptorWatcher::WatchReadable() is leaked.
++  base::RunLoop().RunUntilIdle();
++
++  EXPECT_TRUE(timer->IsRunning());
++  timer->Stop();
++  EXPECT_FALSE(timer->IsRunning());
++  ASSERT_FALSE(timer->user_task().is_null());
++  timer->Reset();
++  base::RunLoop().RunUntilIdle();
++  EXPECT_TRUE(timer->IsRunning());
++}
++
++TEST(AlarmTimerTest, RetainNonRepeatIsRunning) {
++  base::test::TaskEnvironment task_environment(
++      base::test::TaskEnvironment::MainThreadType::IO);
++
++  auto timer = SimpleAlarmTimer::CreateForTesting();
++  EXPECT_FALSE(timer->IsRunning());
++  timer->Start(FROM_HERE, base::TimeDelta::FromDays(1), base::DoNothing());
++
++  // Allow FileDescriptorWatcher to start watching the timer. Without this, a
++  // task posted by FileDescriptorWatcher::WatchReadable() is leaked.
++  base::RunLoop().RunUntilIdle();
++
++  EXPECT_TRUE(timer->IsRunning());
++  timer->Reset();
++  base::RunLoop().RunUntilIdle();
++  EXPECT_TRUE(timer->IsRunning());
++  timer->Stop();
++  EXPECT_FALSE(timer->IsRunning());
++  timer->Reset();
++  base::RunLoop().RunUntilIdle();
++  EXPECT_TRUE(timer->IsRunning());
++}
++
++namespace {
++
++bool g_callback_happened1 = false;
++bool g_callback_happened2 = false;
++
++void ClearAllCallbackHappened() {
++  g_callback_happened1 = false;
++  g_callback_happened2 = false;
++}
++
++void SetCallbackHappened1(base::OnceClosure quit_closure) {
++  g_callback_happened1 = true;
++  if (quit_closure)
++    std::move(quit_closure).Run();
++}
++
++void SetCallbackHappened2(base::OnceClosure quit_closure) {
++  g_callback_happened2 = true;
++  if (quit_closure)
++    std::move(quit_closure).Run();
++}
++
++TEST(AlarmTimerTest, ContinuationStopStart) {
++  ClearAllCallbackHappened();
++  base::test::TaskEnvironment task_environment(
++      base::test::TaskEnvironment::MainThreadType::IO);
++
++  auto timer = SimpleAlarmTimer::CreateForTesting();
++  timer->Start(FROM_HERE, base::TimeDelta::FromMilliseconds(10),
++               base::BindRepeating(&SetCallbackHappened1,
++                                   base::DoNothing().Repeatedly()));
++  timer->Stop();
++
++  base::RunLoop run_loop;
++  timer->Start(FROM_HERE, base::TimeDelta::FromMilliseconds(40),
++               base::BindRepeating(&SetCallbackHappened2,
++                                   run_loop.QuitWhenIdleClosure()));
++  run_loop.Run();
++
++  EXPECT_FALSE(g_callback_happened1);
++  EXPECT_TRUE(g_callback_happened2);
++}
++
++TEST(AlarmTimerTest, ContinuationReset) {
++  ClearAllCallbackHappened();
++  base::test::TaskEnvironment task_environment(
++      base::test::TaskEnvironment::MainThreadType::IO);
++
++  base::RunLoop run_loop;
++  auto timer = SimpleAlarmTimer::CreateForTesting();
++  timer->Start(FROM_HERE, base::TimeDelta::FromMilliseconds(10),
++               base::BindRepeating(&SetCallbackHappened1,
++                                   run_loop.QuitWhenIdleClosure()));
++  timer->Reset();
++  ASSERT_FALSE(timer->user_task().is_null());
++  run_loop.Run();
++  EXPECT_TRUE(g_callback_happened1);
++}
++
++// Verify that no crash occurs if a timer is deleted while its callback is
++// running.
++TEST(AlarmTimerTest, DeleteTimerWhileCallbackIsRunning) {
++  base::test::TaskEnvironment task_environment(
++      base::test::TaskEnvironment::MainThreadType::IO);
++
++  base::RunLoop run_loop;
++
++  // Will be deleted by the callback.
++  auto timer = SimpleAlarmTimer::CreateForTesting();
++  auto* timer_ptr = timer.get();
++  timer_ptr->Start(
++      FROM_HERE, base::TimeDelta::FromMilliseconds(10),
++      base::BindRepeating([](std::unique_ptr<SimpleAlarmTimer> timer,
++                             base::RunLoop* run_loop) { run_loop->Quit(); },
++                          base::Passed(std::move(timer)), &run_loop));
++  run_loop.Run();
++}
++
++// Verify that no crash occurs if a zero-delay timer is deleted while its
++// callback is running.
++TEST(AlarmTimerTest, DeleteTimerWhileCallbackIsRunningZeroDelay) {
++  base::test::TaskEnvironment task_environment(
++      base::test::TaskEnvironment::MainThreadType::IO);
++  base::RunLoop run_loop;
++
++  // Will be deleted by the callback.
++  auto timer = SimpleAlarmTimer::CreateForTesting();
++  auto* timer_ptr = timer.get();
++  timer_ptr->Start(
++      FROM_HERE, base::TimeDelta(),
++      base::BindRepeating([](std::unique_ptr<SimpleAlarmTimer> timer,
++                             base::RunLoop* run_loop) { run_loop->Quit(); },
++                          base::Passed(std::move(timer)), &run_loop));
++  run_loop.Run();
++}
++
++}  // namespace
++}  // namespace timers
+-- 
+2.32.0.605.g8dce9f2422-goog
+

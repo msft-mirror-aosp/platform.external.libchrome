@@ -9,6 +9,7 @@
 #include <memory>
 #include <utility>
 
+#include "base/containers/stack_container.h"
 #include "base/logging.h"
 #include "base/ranges/algorithm.h"
 #include "base/strings/stringprintf.h"
@@ -21,21 +22,10 @@
 #include "base/time/time.h"
 #include "base/trace_event/base_tracing.h"
 #include "build/build_config.h"
+#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace base {
 namespace sequence_manager {
-
-namespace {
-
-base::TimeTicks GetTaskDesiredExecutionTime(const Task& task) {
-  if (!task.delayed_run_time.is_null())
-    return task.delayed_run_time;
-  // The desired run time for a non-delayed task is the queue time.
-  DCHECK(!task.queue_time.is_null());
-  return task.queue_time;
-}
-
-}  // namespace
 
 // static
 const char* TaskQueue::PriorityToString(TaskQueue::QueuePriority priority) {
@@ -341,12 +331,12 @@ void TaskQueueImpl::PostImmediateTaskImpl(PostedTask task,
   TraceQueueSize();
 }
 
-void TaskQueueImpl::PostDelayedTaskImpl(PostedTask task,
+void TaskQueueImpl::PostDelayedTaskImpl(PostedTask posted_task,
                                         CurrentThread current_thread) {
   // Use CHECK instead of DCHECK to crash earlier. See http://crbug.com/711167
   // for details.
-  CHECK(task.callback);
-  DCHECK_GT(task.delay, TimeDelta());
+  CHECK(posted_task.callback);
+  DCHECK_GT(posted_task.delay, TimeDelta());
 
   WakeUpResolution resolution = WakeUpResolution::kLow;
 #if defined(OS_WIN)
@@ -354,7 +344,8 @@ void TaskQueueImpl::PostDelayedTaskImpl(PostedTask task,
   // than 0 and less than 32ms. This caps the relative error to less than 50% :
   // a 33ms wait can wake at 48ms since the default resolution on Windows is
   // between 10 and 15ms.
-  if (task.delay.InMilliseconds() < (2 * Time::kMinLowResolutionThresholdMs))
+  if (posted_task.delay.InMilliseconds() <
+      (2 * Time::kMinLowResolutionThresholdMs))
     resolution = WakeUpResolution::kHigh;
 #endif  // defined(OS_WIN)
 
@@ -363,13 +354,14 @@ void TaskQueueImpl::PostDelayedTaskImpl(PostedTask task,
     EnqueueOrder sequence_number = sequence_manager_->GetNextSequenceNumber();
 
     TimeTicks time_domain_now = main_thread_only().time_domain->Now();
-    TimeTicks time_domain_delayed_run_time = time_domain_now + task.delay;
+    TimeTicks time_domain_delayed_run_time =
+        time_domain_now + posted_task.delay;
     if (sequence_manager_->GetAddQueueTimeToTasks())
-      task.queue_time = time_domain_now;
+      posted_task.queue_time = time_domain_now;
 
     PushOntoDelayedIncomingQueueFromMainThread(
-        Task(std::move(task), time_domain_delayed_run_time, sequence_number,
-             EnqueueOrder(), resolution),
+        Task(std::move(posted_task), time_domain_delayed_run_time,
+             sequence_number, EnqueueOrder(), resolution),
         time_domain_now, /* notify_task_annotator */ true);
   } else {
     // NOTE posting a delayed task from a different thread is not expected to
@@ -383,13 +375,14 @@ void TaskQueueImpl::PostDelayedTaskImpl(PostedTask task,
       base::internal::CheckedAutoLock lock(any_thread_lock_);
       time_domain_now = any_thread_.time_domain->Now();
     }
-    TimeTicks time_domain_delayed_run_time = time_domain_now + task.delay;
+    TimeTicks time_domain_delayed_run_time =
+        time_domain_now + posted_task.delay;
     if (sequence_manager_->GetAddQueueTimeToTasks())
-      task.queue_time = time_domain_now;
+      posted_task.queue_time = time_domain_now;
 
     PushOntoDelayedIncomingQueue(
-        Task(std::move(task), time_domain_delayed_run_time, sequence_number,
-             EnqueueOrder(), resolution));
+        Task(std::move(posted_task), time_domain_delayed_run_time,
+             sequence_number, EnqueueOrder(), resolution));
   }
 }
 
@@ -440,13 +433,10 @@ void TaskQueueImpl::ScheduleDelayedWorkTask(Task pending_task) {
     // If |delayed_run_time| is in the past then push it onto the work queue
     // immediately. To ensure the right task ordering we need to temporarily
     // push it onto the |delayed_incoming_queue|.
-    delayed_run_time = time_domain_now;
     pending_task.delayed_run_time = time_domain_now;
     main_thread_only().delayed_incoming_queue.push(std::move(pending_task));
     LazyNow lazy_now(time_domain_now);
     MoveReadyDelayedTasksToWorkQueue(&lazy_now);
-    // if (IsQueueEnabled() || !main_thread_only().current_fence)
-    //  sequence_manager_->ScheduleWork();
   } else {
     // If |delayed_run_time| is in the future we can queue it as normal.
     PushOntoDelayedIncomingQueueFromMainThread(std::move(pending_task),
@@ -484,7 +474,7 @@ void TaskQueueImpl::TakeImmediateIncomingQueueTasks(TaskDeque* queue) {
       DCHECK(!task.queue_time.is_null());
       DCHECK(task.delayed_run_time.is_null());
       if (task.queue_time >= main_thread_only().delayed_fence.value()) {
-        main_thread_only().delayed_fence = nullopt;
+        main_thread_only().delayed_fence = absl::nullopt;
         DCHECK(!main_thread_only().current_fence);
         main_thread_only().current_fence = task.enqueue_order();
         // Do not trigger WorkQueueSets notification when taking incoming
@@ -543,10 +533,10 @@ bool TaskQueueImpl::HasTaskToRunImmediately() const {
   return !any_thread_.immediate_incoming_queue.empty();
 }
 
-Optional<DelayedWakeUp> TaskQueueImpl::GetNextScheduledWakeUpImpl() {
+absl::optional<DelayedWakeUp> TaskQueueImpl::GetNextScheduledWakeUpImpl() {
   // Note we don't scheduled a wake-up for disabled queues.
   if (main_thread_only().delayed_incoming_queue.empty() || !IsQueueEnabled())
-    return nullopt;
+    return absl::nullopt;
 
   // High resolution is needed if the queue contains high resolution tasks and
   // has a priority index <= kNormalPriority (precise execution time is
@@ -562,10 +552,10 @@ Optional<DelayedWakeUp> TaskQueueImpl::GetNextScheduledWakeUpImpl() {
                        resolution};
 }
 
-Optional<TimeTicks> TaskQueueImpl::GetNextScheduledWakeUp() {
-  Optional<DelayedWakeUp> wake_up = GetNextScheduledWakeUpImpl();
+absl::optional<TimeTicks> TaskQueueImpl::GetNextScheduledWakeUp() {
+  absl::optional<DelayedWakeUp> wake_up = GetNextScheduledWakeUpImpl();
   if (!wake_up)
-    return nullopt;
+    return absl::nullopt;
   return wake_up->time;
 }
 
@@ -590,8 +580,8 @@ void TaskQueueImpl::MoveReadyDelayedTasksToWorkQueue(LazyNow* lazy_now) {
     if (sequence_manager_->settings().log_task_delay_expiry)
       VLOG(0) << name_ << " Delay expired for " << task->posted_from.ToString();
 #endif  // DCHECK_IS_ON()
-
-    ActivateDelayedFenceIfNeeded(GetTaskDesiredExecutionTime(*task));
+    DCHECK(!task->delayed_run_time.is_null());
+    ActivateDelayedFenceIfNeeded(task->delayed_run_time);
     DCHECK(!task->enqueue_order_set());
     task->set_enqueue_order(sequence_manager_->GetNextSequenceNumber());
 
@@ -785,7 +775,7 @@ void TaskQueueImpl::SetTimeDomain(TimeDomain* time_domain) {
   // correctly.
   // TODO(altimin): Remove this when we won't have to support changing time
   // domains.
-  main_thread_only().scheduled_wake_up = nullopt;
+  main_thread_only().scheduled_wake_up = absl::nullopt;
   UpdateDelayedWakeUp(&lazy_now);
 }
 
@@ -801,7 +791,7 @@ void TaskQueueImpl::SetBlameContext(trace_event::BlameContext* blame_context) {
 
 void TaskQueueImpl::InsertFence(TaskQueue::InsertFencePosition position) {
   // Only one fence may be present at a time.
-  main_thread_only().delayed_fence = nullopt;
+  main_thread_only().delayed_fence = absl::nullopt;
 
   EnqueueOrder previous_fence = main_thread_only().current_fence;
   EnqueueOrder current_fence = position == TaskQueue::InsertFencePosition::kNow
@@ -851,7 +841,7 @@ void TaskQueueImpl::InsertFenceAt(TimeTicks time) {
 void TaskQueueImpl::RemoveFence() {
   EnqueueOrder previous_fence = main_thread_only().current_fence;
   main_thread_only().current_fence = EnqueueOrder::none();
-  main_thread_only().delayed_fence = nullopt;
+  main_thread_only().delayed_fence = absl::nullopt;
 
   bool front_task_unblocked =
       main_thread_only().immediate_work_queue->RemoveFence();
@@ -956,7 +946,7 @@ void TaskQueueImpl::SetQueueEnabled(bool enabled) {
 
   // Update the |main_thread_only_| struct.
   main_thread_only().is_enabled = enabled;
-  main_thread_only().disabled_time = nullopt;
+  main_thread_only().disabled_time = absl::nullopt;
   if (!enabled) {
     bool tracing_enabled = false;
     TRACE_EVENT_CATEGORY_GROUP_ENABLED(TRACE_DISABLED_BY_DEFAULT("lifecycles"),
@@ -1059,6 +1049,12 @@ void TaskQueueImpl::ReclaimMemory(TimeTicks now) {
   main_thread_only().delayed_incoming_queue.SweepCancelledTasks(
       sequence_manager_);
 
+  // If deleting one of the cancelled tasks shut down this queue, bail out. Note
+  // that in this scenario |this| is still valid, but some fields of the queue
+  // have been cleared out by |UnregisterTaskQueue|.
+  if (!main_thread_only().delayed_work_queue)
+    return;
+
   // Also consider shrinking the work queue if it's wasting memory.
   main_thread_only().delayed_work_queue->MaybeShrinkQueue();
   main_thread_only().immediate_work_queue->MaybeShrinkQueue();
@@ -1125,8 +1121,9 @@ void TaskQueueImpl::UpdateDelayedWakeUp(LazyNow* lazy_now) {
   return UpdateDelayedWakeUpImpl(lazy_now, GetNextScheduledWakeUpImpl());
 }
 
-void TaskQueueImpl::UpdateDelayedWakeUpImpl(LazyNow* lazy_now,
-                                            Optional<DelayedWakeUp> wake_up) {
+void TaskQueueImpl::UpdateDelayedWakeUpImpl(
+    LazyNow* lazy_now,
+    absl::optional<DelayedWakeUp> wake_up) {
   if (main_thread_only().scheduled_wake_up == wake_up)
     return;
   main_thread_only().scheduled_wake_up = wake_up;
@@ -1142,7 +1139,7 @@ void TaskQueueImpl::UpdateDelayedWakeUpImpl(LazyNow* lazy_now,
 }
 
 void TaskQueueImpl::SetDelayedWakeUpForTesting(
-    Optional<DelayedWakeUp> wake_up) {
+    absl::optional<DelayedWakeUp> wake_up) {
   LazyNow lazy_now = main_thread_only().time_domain->CreateLazyNow();
   UpdateDelayedWakeUpImpl(&lazy_now, wake_up);
 }
@@ -1218,7 +1215,7 @@ void TaskQueueImpl::ActivateDelayedFenceIfNeeded(TimeTicks now) {
   if (main_thread_only().delayed_fence.value() > now)
     return;
   InsertFence(TaskQueue::InsertFencePosition::kNow);
-  main_thread_only().delayed_fence = nullopt;
+  main_thread_only().delayed_fence = absl::nullopt;
 }
 
 void TaskQueueImpl::MaybeReportIpcTaskQueuedFromMainThread(
@@ -1395,15 +1392,16 @@ size_t TaskQueueImpl::DelayedIncomingQueue::PQueue::SweepCancelledTasks(
   // move all the cancelled tasks into a temporary container before deleting
   // them. This is to avoid |c| from changing while c.erase() is running.
   auto delete_start = std::stable_partition(c.begin(), c.end(), keep_task);
-  std::vector<Task> tasks_to_delete;
-  std::move(delete_start, c.end(), std::back_inserter(tasks_to_delete));
+  StackVector<Task, 8> tasks_to_delete;
+  std::move(delete_start, c.end(),
+            std::back_inserter(tasks_to_delete.container()));
   c.erase(delete_start, c.end());
 
   // stable_partition ensures order was not changed if there was nothing to
   // delete.
-  if (!tasks_to_delete.empty()) {
+  if (!tasks_to_delete->empty()) {
     ranges::make_heap(c, comp);
-    tasks_to_delete.clear();
+    tasks_to_delete->clear();
   }
   return num_high_res_tasks_swept;
 }

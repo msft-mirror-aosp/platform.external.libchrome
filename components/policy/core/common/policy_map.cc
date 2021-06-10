@@ -8,25 +8,25 @@
 #include <utility>
 
 #include "base/callback.h"
-#include "base/optional.h"
-#include "base/stl_util.h"
 #include "base/strings/strcat.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/values.h"
+#include "components/policy/core/common/cloud/affiliation.h"
 #include "components/policy/core/common/policy_merger.h"
 #include "components/strings/grit/components_strings.h"
+#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "ui/base/l10n/l10n_util.h"
 
 namespace policy {
 
 namespace {
 
-const base::string16 GetLocalizedString(
+const std::u16string GetLocalizedString(
     PolicyMap::Entry::L10nLookupFunction lookup,
-    const std::map<int, base::Optional<std::vector<base::string16>>>&
+    const std::map<int, absl::optional<std::vector<std::u16string>>>&
         localized_string_ids) {
-  base::string16 result = base::string16();
-  base::string16 line_feed = base::UTF8ToUTF16("\n");
+  std::u16string result = std::u16string();
+  std::u16string line_feed = u"\n";
   for (const auto& string_pairs : localized_string_ids) {
     if (string_pairs.second)
       result += l10n_util::GetStringFUTF16(
@@ -41,6 +41,16 @@ const base::string16 GetLocalizedString(
   return result;
 }
 
+// Inserts additional user affiliation IDs to the existing set.
+base::flat_set<std::string> CombineIds(
+    const base::flat_set<std::string>& ids_first,
+    const base::flat_set<std::string>& ids_second) {
+  base::flat_set<std::string> combined_ids;
+  combined_ids.insert(ids_first.begin(), ids_first.end());
+  combined_ids.insert(ids_second.begin(), ids_second.end());
+  return combined_ids;
+}
+
 }  // namespace
 
 PolicyMap::Entry::Entry() = default;
@@ -48,7 +58,7 @@ PolicyMap::Entry::Entry(
     PolicyLevel level,
     PolicyScope scope,
     PolicySource source,
-    base::Optional<base::Value> value,
+    absl::optional<base::Value> value,
     std::unique_ptr<ExternalDataFetcher> external_data_fetcher)
     : level(level),
       scope(scope),
@@ -63,8 +73,8 @@ PolicyMap::Entry& PolicyMap::Entry::operator=(Entry&&) noexcept = default;
 
 PolicyMap::Entry PolicyMap::Entry::DeepCopy() const {
   Entry copy(level, scope, source,
-             value_ ? base::make_optional<base::Value>(value_->Clone())
-                    : base::nullopt,
+             value_ ? absl::make_optional<base::Value>(value_->Clone())
+                    : absl::nullopt,
              external_data_fetcher
                  ? std::make_unique<ExternalDataFetcher>(*external_data_fetcher)
                  : nullptr);
@@ -78,7 +88,7 @@ PolicyMap::Entry PolicyMap::Entry::DeepCopy() const {
   return copy;
 }
 
-void PolicyMap::Entry::set_value(base::Optional<base::Value> val) {
+void PolicyMap::Entry::set_value(absl::optional<base::Value> val) {
   value_ = std::move(val);
 }
 
@@ -108,12 +118,12 @@ bool PolicyMap::Entry::Equals(const PolicyMap::Entry& other) const {
 }
 
 void PolicyMap::Entry::AddMessage(MessageType type, int message_id) {
-  message_ids_[type].emplace(message_id, base::nullopt);
+  message_ids_[type].emplace(message_id, absl::nullopt);
 }
 
 void PolicyMap::Entry::AddMessage(MessageType type,
                                   int message_id,
-                                  std::vector<base::string16>&& message_args) {
+                                  std::vector<std::u16string>&& message_args) {
   message_ids_[type].emplace(message_id, std::move(message_args));
 }
 
@@ -159,11 +169,11 @@ bool PolicyMap::Entry::HasMessage(MessageType type) const {
   return message_ids_.find(type) != message_ids_.end();
 }
 
-base::string16 PolicyMap::Entry::GetLocalizedMessages(
+std::u16string PolicyMap::Entry::GetLocalizedMessages(
     MessageType type,
     L10nLookupFunction lookup) const {
   if (!HasMessage(type)) {
-    return base::string16();
+    return std::u16string();
   }
   return GetLocalizedString(lookup, message_ids_.at(type));
 }
@@ -229,10 +239,9 @@ const PolicyMap::Entry& PolicyMap::EntryConflict::entry() const {
 }
 
 PolicyMap::PolicyMap() = default;
-
-PolicyMap::~PolicyMap() {
-  Clear();
-}
+PolicyMap::PolicyMap(PolicyMap&&) noexcept = default;
+PolicyMap& PolicyMap::operator=(PolicyMap&&) noexcept = default;
+PolicyMap::~PolicyMap() = default;
 
 const PolicyMap::Entry* PolicyMap::Get(const std::string& policy) const {
   auto entry = map_.find(policy);
@@ -274,7 +283,7 @@ void PolicyMap::Set(
     PolicyLevel level,
     PolicyScope scope,
     PolicySource source,
-    base::Optional<base::Value> value,
+    absl::optional<base::Value> value,
     std::unique_ptr<ExternalDataFetcher> external_data_fetcher) {
   Entry entry(level, scope, source, std::move(value),
               std::move(external_data_fetcher));
@@ -294,7 +303,7 @@ void PolicyMap::AddMessage(const std::string& policy,
 void PolicyMap::AddMessage(const std::string& policy,
                            MessageType type,
                            int message_id,
-                           std::vector<base::string16>&& message_args) {
+                           std::vector<std::u16string>&& message_args) {
   map_[policy].AddMessage(type, message_id, std::move(message_args));
 }
 
@@ -333,18 +342,15 @@ void PolicyMap::Swap(PolicyMap* other) {
   map_.swap(other->map_);
 }
 
-void PolicyMap::CopyFrom(const PolicyMap& other) {
-  DCHECK_NE(this, &other);
+PolicyMap PolicyMap::Clone() const {
+  PolicyMap clone;
+  for (const auto& it : map_)
+    clone.Set(it.first, it.second.DeepCopy());
 
-  Clear();
-  for (const auto& it : other)
-    Set(it.first, it.second.DeepCopy());
-}
+  clone.SetUserAffiliationIds(user_affiliation_ids_);
+  clone.SetDeviceAffiliationIds(device_affiliation_ids_);
 
-std::unique_ptr<PolicyMap> PolicyMap::DeepCopy() const {
-  std::unique_ptr<PolicyMap> copy(new PolicyMap());
-  copy->CopyFrom(*this);
-  return copy;
+  return clone;
 }
 
 void PolicyMap::MergeFrom(const PolicyMap& other) {
@@ -383,6 +389,11 @@ void PolicyMap::MergeFrom(const PolicyMap& other) {
     if (other_is_higher_priority)
       *current_policy = std::move(other_policy);
   }
+
+  SetUserAffiliationIds(
+      CombineIds(GetUserAffiliationIds(), other.GetUserAffiliationIds()));
+  SetDeviceAffiliationIds(
+      CombineIds(GetDeviceAffiliationIds(), other.GetDeviceAffiliationIds()));
 }
 
 void PolicyMap::MergeValues(const std::vector<PolicyMerger*>& mergers) {
@@ -398,34 +409,6 @@ void PolicyMap::LoadFrom(const base::DictionaryValue* policies,
        it.Advance()) {
     Set(it.key(), level, scope, source, it.value().Clone(), nullptr);
   }
-}
-
-void PolicyMap::GetDifferingKeys(const PolicyMap& other,
-                                 std::set<std::string>* differing_keys) const {
-  // Walk over the maps in lockstep, adding everything that is different.
-  auto iter_this(begin());
-  auto iter_other(other.begin());
-  while (iter_this != end() && iter_other != other.end()) {
-    const int diff = iter_this->first.compare(iter_other->first);
-    if (diff == 0) {
-      if (!iter_this->second.Equals(iter_other->second))
-        differing_keys->insert(iter_this->first);
-      ++iter_this;
-      ++iter_other;
-    } else if (diff < 0) {
-      differing_keys->insert(iter_this->first);
-      ++iter_this;
-    } else {
-      differing_keys->insert(iter_other->first);
-      ++iter_other;
-    }
-  }
-
-  // Add the remaining entries.
-  for (; iter_this != end(); ++iter_this)
-    differing_keys->insert(iter_this->first);
-  for (; iter_other != other.end(); ++iter_other)
-    differing_keys->insert(iter_other->first);
 }
 
 bool PolicyMap::Equals(const PolicyMap& other) const {
@@ -479,6 +462,28 @@ void PolicyMap::FilterErase(
       ++iter;
     }
   }
+}
+
+bool PolicyMap::IsUserAffiliated() const {
+  return IsAffiliated(user_affiliation_ids_, device_affiliation_ids_);
+}
+
+void PolicyMap::SetUserAffiliationIds(
+    const base::flat_set<std::string>& user_ids) {
+  user_affiliation_ids_ = {user_ids.begin(), user_ids.end()};
+}
+
+const base::flat_set<std::string>& PolicyMap::GetUserAffiliationIds() const {
+  return user_affiliation_ids_;
+}
+
+void PolicyMap::SetDeviceAffiliationIds(
+    const base::flat_set<std::string>& device_ids) {
+  device_affiliation_ids_ = {device_ids.begin(), device_ids.end()};
+}
+
+const base::flat_set<std::string>& PolicyMap::GetDeviceAffiliationIds() const {
+  return device_affiliation_ids_;
 }
 
 }  // namespace policy

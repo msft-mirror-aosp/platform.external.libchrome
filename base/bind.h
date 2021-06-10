@@ -45,9 +45,6 @@
 //   auto cb = base::BindOnce(&C::F, instance);
 //   std::move(cb).Run();  // Identical to instance->F()
 //
-// base::Bind is currently a type alias for base::BindRepeating(). In the
-// future, we expect to flip this to default to base::BindOnce().
-//
 // See //docs/callback.md for the full documentation.
 //
 // -----------------------------------------------------------------------------
@@ -70,14 +67,10 @@ inline OnceCallback<internal::MakeUnboundRunType<Functor, Args...>> BindOnce(
                      !std::is_const<std::remove_reference_t<Functor>>()),
                 "BindOnce requires non-const rvalue for OnceCallback binding."
                 " I.e.: base::BindOnce(std::move(callback)).");
-#if defined(OS_APPLE) || defined(OS_LINUX) || defined(OS_WIN) || \
-    defined(NCTEST_BIND_ONCE_WITH_PASSED)
-  // TODO(https://crbug.com/1180750): Enable this everywhere.
   static_assert(
       conjunction<
           internal::AssertBindArgIsNotBasePassed<std::decay_t<Args>>...>::value,
       "Use std::move() instead of base::Passed() with base::BindOnce()");
-#endif
 
   return internal::BindImpl<OnceCallback>(std::forward<Functor>(functor),
                                           std::forward<Args>(args)...);
@@ -95,20 +88,10 @@ BindRepeating(Functor&& functor, Args&&... args) {
                                                std::forward<Args>(args)...);
 }
 
-// Unannotated Bind.
-// TODO(tzik): Deprecate this and migrate to OnceCallback and
-// RepeatingCallback, once they get ready.
-template <typename Functor, typename... Args>
-inline Callback<internal::MakeUnboundRunType<Functor, Args...>> Bind(
-    Functor&& functor,
-    Args&&... args) {
-  return base::BindRepeating(std::forward<Functor>(functor),
-                             std::forward<Args>(args)...);
-}
-
-// Special cases for binding to a base::Callback without extra bound arguments.
-// We CHECK() the validity of callback to guard against null pointers
-// accidentally ending up in posted tasks, causing hard-to-debug crashes.
+// Special cases for binding to a base::{Once, Repeating}Callback without extra
+// bound arguments. We CHECK() the validity of callback to guard against null
+// pointers accidentally ending up in posted tasks, causing hard-to-debug
+// crashes.
 template <typename Signature>
 OnceCallback<Signature> BindOnce(OnceCallback<Signature> callback) {
   CHECK(callback);
@@ -124,12 +107,6 @@ OnceCallback<Signature> BindOnce(RepeatingCallback<Signature> callback) {
 template <typename Signature>
 RepeatingCallback<Signature> BindRepeating(
     RepeatingCallback<Signature> callback) {
-  CHECK(callback);
-  return callback;
-}
-
-template <typename Signature>
-Callback<Signature> Bind(Callback<Signature> callback) {
   CHECK(callback);
   return callback;
 }
@@ -210,6 +187,37 @@ template <typename T, typename Deleter>
 inline internal::OwnedWrapper<T, Deleter> Owned(
     std::unique_ptr<T, Deleter>&& ptr) {
   return internal::OwnedWrapper<T, Deleter>(std::move(ptr));
+}
+
+// OwnedRef() stores an object in the callback resulting from
+// bind and passes a reference to the object to the bound function.
+//
+// EXAMPLE OF OwnedRef():
+//
+//   void foo(int& arg) { cout << ++arg << endl }
+//
+//   int counter = 0;
+//   RepeatingClosure foo_callback = BindRepeating(&foo, OwnedRef(counter));
+//
+//   foo_callback.Run();  // Prints "1"
+//   foo_callback.Run();  // Prints "2"
+//   foo_callback.Run();  // Prints "3"
+//
+//   cout << counter;     // Prints "0", OwnedRef creates a copy of counter.
+//
+//  Supports OnceCallbacks as well, useful to pass placeholder arguments:
+//
+//   void bar(int& ignore, const std::string& s) { cout << s << endl }
+//
+//   OnceClosure bar_callback = BindOnce(&bar, OwnedRef(0), "Hello");
+//
+//   std::move(bar_callback).Run(); // Prints "Hello"
+//
+// Without OwnedRef() it would not be possible to pass a mutable reference to an
+// object owned by the callback.
+template <typename T>
+internal::OwnedRefWrapper<std::decay_t<T>> OwnedRef(T&& t) {
+  return internal::OwnedRefWrapper<std::decay_t<T>>(std::forward<T>(t));
 }
 
 // Passed() is for transferring movable-but-not-copyable types (eg. unique_ptr)

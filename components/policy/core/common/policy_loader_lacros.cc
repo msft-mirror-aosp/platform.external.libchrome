@@ -14,26 +14,20 @@
 #include "base/check.h"
 #include "base/logging.h"
 #include "base/memory/weak_ptr.h"
-#include "base/time/time.h"
 #include "chromeos/lacros/lacros_chrome_service_impl.h"
 #include "components/policy/core/common/cloud/cloud_policy_validator.h"
 #include "components/policy/core/common/policy_bundle.h"
 #include "components/policy/core/common/policy_proto_decoders.h"
+#include "components/policy/policy_constants.h"
 #include "components/policy/proto/device_management_backend.pb.h"
 
 namespace policy {
 
 PolicyLoaderLacros::PolicyLoaderLacros(
     scoped_refptr<base::SequencedTaskRunner> task_runner)
-    : AsyncPolicyLoader(task_runner), task_runner_(task_runner) {
+    : AsyncPolicyLoader(task_runner, /*periodic_updates=*/false),
+      task_runner_(task_runner) {
   auto* lacros_chrome_service = chromeos::LacrosChromeServiceImpl::Get();
-  if (!lacros_chrome_service) {
-    // LacrosChromeService should be available at this timing in production.
-    // However, in some existing tests, it is not.
-    // TODO(crbug.com/1114069): Set up LacrosChromeServiceImpl in tests.
-    LOG(ERROR) << "No LacrosChromeService is found.";
-    return;
-  }
   const crosapi::mojom::BrowserInitParams* init_params =
       lacros_chrome_service->init_params();
   if (!init_params) {
@@ -45,7 +39,6 @@ PolicyLoaderLacros::PolicyLoaderLacros(
     return;
   }
   policy_fetch_response_ = init_params->device_account_policy.value();
-  last_modification_ = base::Time::Now();
 }
 
 PolicyLoaderLacros::~PolicyLoaderLacros() {
@@ -91,23 +84,19 @@ std::unique_ptr<PolicyBundle> PolicyLoaderLacros::Load() {
   PolicyMap policy_map;
   base::WeakPtr<CloudExternalDataManager> external_data_manager;
   DecodeProtoFields(*(validator.payload()), external_data_manager,
-                    PolicySource::POLICY_SOURCE_CLOUD,
-                    PolicyScope::POLICY_SCOPE_USER, &policy_map);
+                    PolicySource::POLICY_SOURCE_CLOUD_FROM_ASH,
+                    PolicyScope::POLICY_SCOPE_USER, &policy_map,
+                    PolicyPerProfileFilter::kFalse);
+  SetEnterpriseUsersSystemWideDefaults(&policy_map);
   bundle->Get(PolicyNamespace(POLICY_DOMAIN_CHROME, std::string()))
       .MergeFrom(policy_map);
   return bundle;
-}
-
-base::Time PolicyLoaderLacros::LastModificationTime() {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  return last_modification_;
 }
 
 void PolicyLoaderLacros::NotifyPolicyUpdate(
     const std::vector<uint8_t>& policy_fetch_response) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   policy_fetch_response_ = policy_fetch_response;
-  last_modification_ = base::Time::Now();
   Reload(true);
 }
 

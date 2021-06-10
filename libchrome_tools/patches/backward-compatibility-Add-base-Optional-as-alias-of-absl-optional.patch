@@ -1,0 +1,356 @@
+From 2929d9b3c1358d36ba57f882e8fbe3978c62ad8c Mon Sep 17 00:00:00 2001
+From: hscham <hscham@chromium.org>
+Date: Tue, 31 Aug 2021 16:28:23 +0900
+Subject: [PATCH] Add base/optional.h where base::Optional is alias of
+ absl::optional
+
+Also add include base/optional.h to files under base/ which used to
+include it, to avoid adding include to client packages.
+
+Change-Id: Ie56e234af65b567ffc2fa8eff19158b019deae5f
+---
+ base/files/file_enumerator.h                  |  1 +
+ base/files/important_file_writer_cleaner.h    |  1 +
+ base/json/json_parser.h                       |  1 +
+ base/json/json_reader.h                       |  1 +
+ base/optional.h                               | 20 +++++++++++++++++++
+ base/pending_task.h                           |  1 +
+ base/process/process_metrics.h                |  1 +
+ base/stl_util.h                               |  1 +
+ .../sequence_manager/associated_thread_id.h   |  1 +
+ base/task/sequence_manager/lazy_now.h         |  1 +
+ base/task/sequence_manager/task_queue.h       |  1 +
+ .../test/mock_time_message_pump.h             |  1 +
+ ...thread_controller_with_message_pump_impl.h |  1 +
+ base/task/thread_pool/delayed_task_manager.h  |  1 +
+ base/task/thread_pool/job_task_source.h       |  1 +
+ base/task/thread_pool/sequence.h              |  1 +
+ base/task/thread_pool/task_source.h           |  1 +
+ base/task/thread_pool/thread_group_impl.h     |  1 +
+ base/task/thread_pool/thread_pool_impl.h      |  1 +
+ base/task/thread_pool/tracked_ref.h           |  1 +
+ base/threading/scoped_thread_priority.h       |  1 +
+ base/time/time.h                              |  1 +
+ base/token.h                                  |  1 +
+ base/util/values/values_util.h                |  1 +
+ base/values.h                                 |  1 +
+ 25 files changed, 44 insertions(+)
+ create mode 100644 base/optional.h
+
+diff --git a/base/files/file_enumerator.h b/base/files/file_enumerator.h
+index 5d4484105f..7ba9773899 100644
+--- a/base/files/file_enumerator.h
++++ b/base/files/file_enumerator.h
+@@ -14,6 +14,7 @@
+ #include "base/containers/stack.h"
+ #include "base/files/file.h"
+ #include "base/files/file_path.h"
++#include "base/optional.h"
+ #include "base/time/time.h"
+ #include "build/build_config.h"
+ 
+diff --git a/base/files/important_file_writer_cleaner.h b/base/files/important_file_writer_cleaner.h
+index d401399950..3e4466c1e7 100644
+--- a/base/files/important_file_writer_cleaner.h
++++ b/base/files/important_file_writer_cleaner.h
+@@ -14,6 +14,7 @@
+ #include "base/memory/scoped_refptr.h"
+ #include "base/no_destructor.h"
+ #include "base/numerics/clamped_math.h"
++#include "base/optional.h"
+ #include "base/sequence_checker.h"
+ #include "base/synchronization/lock.h"
+ #include "base/thread_annotations.h"
+diff --git a/base/json/json_parser.h b/base/json/json_parser.h
+index 0fb71fd3f1..c2aeb72e45 100644
+--- a/base/json/json_parser.h
++++ b/base/json/json_parser.h
+@@ -16,6 +16,7 @@
+ #include "base/gtest_prod_util.h"
+ #include "base/json/json_common.h"
+ #include "base/macros.h"
++#include "base/optional.h"
+ #include "base/strings/string_piece.h"
+ #include "base/values.h"
+ #include "third_party/abseil-cpp/absl/types/optional.h"
+diff --git a/base/json/json_reader.h b/base/json/json_reader.h
+index 6bd84ecde5..c12691a2c6 100644
+--- a/base/json/json_reader.h
++++ b/base/json/json_reader.h
+@@ -43,6 +43,7 @@
+ 
+ #include "base/base_export.h"
+ #include "base/json/json_common.h"
++#include "base/optional.h"
+ #include "base/strings/string_piece.h"
+ #include "base/values.h"
+ #include "third_party/abseil-cpp/absl/types/optional.h"
+diff --git a/base/optional.h b/base/optional.h
+new file mode 100644
+index 0000000000..95eae91426
+--- /dev/null
++++ b/base/optional.h
+@@ -0,0 +1,20 @@
++// Copyright 2016 The Chromium Authors. All rights reserved.
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef BASE_OPTIONAL_H_
++#define BASE_OPTIONAL_H_
++
++#include "third_party/abseil-cpp/absl/types/optional.h"
++
++namespace base {
++
++template <typename T>
++using Optional = absl::optional<T>;
++
++using absl::make_optional;
++using absl::nullopt;
++using absl::nullopt_t;
++}  // namespace base
++
++#endif  // BASE_OPTIONAL_H_
+diff --git a/base/pending_task.h b/base/pending_task.h
+index a40513a69b..e3179eacba 100644
+--- a/base/pending_task.h
++++ b/base/pending_task.h
+@@ -10,6 +10,7 @@
+ #include "base/base_export.h"
+ #include "base/callback.h"
+ #include "base/location.h"
++#include "base/optional.h"
+ #include "base/time/time.h"
+ 
+ namespace base {
+diff --git a/base/process/process_metrics.h b/base/process/process_metrics.h
+index b3390bc6ad..1f481d1abf 100644
+--- a/base/process/process_metrics.h
++++ b/base/process/process_metrics.h
+@@ -17,6 +17,7 @@
+ #include "base/compiler_specific.h"
+ #include "base/gtest_prod_util.h"
+ #include "base/macros.h"
++#include "base/optional.h"
+ #include "base/process/process_handle.h"
+ #include "base/strings/string_piece.h"
+ #include "base/time/time.h"
+diff --git a/base/stl_util.h b/base/stl_util.h
+index 65ca0e80f6..63fa755966 100644
+--- a/base/stl_util.h
++++ b/base/stl_util.h
+@@ -24,6 +24,7 @@
+ 
+ #include "base/check.h"
+ #include "base/cxx17_backports.h"
++#include "base/optional.h"
+ #include "base/ranges/algorithm.h"
+ #include "third_party/abseil-cpp/absl/types/optional.h"
+ 
+diff --git a/base/task/sequence_manager/associated_thread_id.h b/base/task/sequence_manager/associated_thread_id.h
+index 4b49492fe9..46e5d7ea88 100644
+--- a/base/task/sequence_manager/associated_thread_id.h
++++ b/base/task/sequence_manager/associated_thread_id.h
+@@ -9,6 +9,7 @@
+ #include <memory>
+ 
+ #include "base/memory/ref_counted.h"
++#include "base/optional.h"
+ #include "base/sequence_checker.h"
+ #include "base/threading/platform_thread.h"
+ #include "base/threading/thread_checker.h"
+diff --git a/base/task/sequence_manager/lazy_now.h b/base/task/sequence_manager/lazy_now.h
+index cdfc26f873..e72962ae73 100644
+--- a/base/task/sequence_manager/lazy_now.h
++++ b/base/task/sequence_manager/lazy_now.h
+@@ -6,6 +6,7 @@
+ #define BASE_TASK_SEQUENCE_MANAGER_LAZY_NOW_H_
+ 
+ #include "base/base_export.h"
++#include "base/optional.h"
+ #include "base/time/time.h"
+ #include "third_party/abseil-cpp/absl/types/optional.h"
+ 
+diff --git a/base/task/sequence_manager/task_queue.h b/base/task/sequence_manager/task_queue.h
+index 933ef4126e..d75fd662dd 100644
+--- a/base/task/sequence_manager/task_queue.h
++++ b/base/task/sequence_manager/task_queue.h
+@@ -8,6 +8,7 @@
+ #include <memory>
+ 
+ #include "base/memory/weak_ptr.h"
++#include "base/optional.h"
+ #include "base/single_thread_task_runner.h"
+ #include "base/task/common/checked_lock.h"
+ #include "base/task/sequence_manager/lazy_now.h"
+diff --git a/base/task/sequence_manager/test/mock_time_message_pump.h b/base/task/sequence_manager/test/mock_time_message_pump.h
+index 12423e5037..cf3ab73ef9 100644
+--- a/base/task/sequence_manager/test/mock_time_message_pump.h
++++ b/base/task/sequence_manager/test/mock_time_message_pump.h
+@@ -7,6 +7,7 @@
+ 
+ #include "base/callback.h"
+ #include "base/message_loop/message_pump.h"
++#include "base/optional.h"
+ #include "base/synchronization/waitable_event.h"
+ #include "base/time/time.h"
+ 
+diff --git a/base/task/sequence_manager/thread_controller_with_message_pump_impl.h b/base/task/sequence_manager/thread_controller_with_message_pump_impl.h
+index 35004ac12d..b51a13920d 100644
+--- a/base/task/sequence_manager/thread_controller_with_message_pump_impl.h
++++ b/base/task/sequence_manager/thread_controller_with_message_pump_impl.h
+@@ -9,6 +9,7 @@
+ 
+ #include "base/message_loop/message_pump.h"
+ #include "base/message_loop/work_id_provider.h"
++#include "base/optional.h"
+ #include "base/run_loop.h"
+ #include "base/task/common/checked_lock.h"
+ #include "base/task/common/task_annotator.h"
+diff --git a/base/task/thread_pool/delayed_task_manager.h b/base/task/thread_pool/delayed_task_manager.h
+index e85c411676..d88b4d74be 100644
+--- a/base/task/thread_pool/delayed_task_manager.h
++++ b/base/task/thread_pool/delayed_task_manager.h
+@@ -9,6 +9,7 @@
+ #include "base/callback.h"
+ #include "base/memory/ptr_util.h"
+ #include "base/memory/ref_counted.h"
++#include "base/optional.h"
+ #include "base/synchronization/atomic_flag.h"
+ #include "base/task/common/checked_lock.h"
+ #include "base/task/common/intrusive_heap.h"
+diff --git a/base/task/thread_pool/job_task_source.h b/base/task/thread_pool/job_task_source.h
+index d84cd84181..0e74e77c3f 100644
+--- a/base/task/thread_pool/job_task_source.h
++++ b/base/task/thread_pool/job_task_source.h
+@@ -14,6 +14,7 @@
+ 
+ #include "base/base_export.h"
+ #include "base/callback.h"
++#include "base/optional.h"
+ #include "base/synchronization/condition_variable.h"
+ #include "base/task/common/checked_lock.h"
+ #include "base/task/post_job.h"
+diff --git a/base/task/thread_pool/sequence.h b/base/task/thread_pool/sequence.h
+index bd0dc32111..db58325bd8 100644
+--- a/base/task/thread_pool/sequence.h
++++ b/base/task/thread_pool/sequence.h
+@@ -10,6 +10,7 @@
+ #include "base/base_export.h"
+ #include "base/compiler_specific.h"
+ #include "base/containers/queue.h"
++#include "base/optional.h"
+ #include "base/sequence_token.h"
+ #include "base/task/task_traits.h"
+ #include "base/task/thread_pool/pooled_parallel_task_runner.h"
+diff --git a/base/task/thread_pool/task_source.h b/base/task/thread_pool/task_source.h
+index 87f928a84f..43f3bcfcab 100644
+--- a/base/task/thread_pool/task_source.h
++++ b/base/task/thread_pool/task_source.h
+@@ -10,6 +10,7 @@
+ #include "base/base_export.h"
+ #include "base/compiler_specific.h"
+ #include "base/memory/ref_counted.h"
++#include "base/optional.h"
+ #include "base/sequence_token.h"
+ #include "base/task/common/checked_lock.h"
+ #include "base/task/common/intrusive_heap.h"
+diff --git a/base/task/thread_pool/thread_group_impl.h b/base/task/thread_pool/thread_group_impl.h
+index 597fa2a042..8380d79c70 100644
+--- a/base/task/thread_pool/thread_group_impl.h
++++ b/base/task/thread_pool/thread_group_impl.h
+@@ -16,6 +16,7 @@
+ #include "base/compiler_specific.h"
+ #include "base/gtest_prod_util.h"
+ #include "base/memory/ref_counted.h"
++#include "base/optional.h"
+ #include "base/sequenced_task_runner.h"
+ #include "base/strings/string_piece.h"
+ #include "base/synchronization/condition_variable.h"
+diff --git a/base/task/thread_pool/thread_pool_impl.h b/base/task/thread_pool/thread_pool_impl.h
+index 80709dd3fa..3df9f7f86a 100644
+--- a/base/task/thread_pool/thread_pool_impl.h
++++ b/base/task/thread_pool/thread_pool_impl.h
+@@ -13,6 +13,7 @@
+ #include "base/check_op.h"
+ #include "base/memory/ptr_util.h"
+ #include "base/memory/ref_counted.h"
++#include "base/optional.h"
+ #include "base/sequence_checker.h"
+ #include "base/strings/string_piece.h"
+ #include "base/synchronization/atomic_flag.h"
+diff --git a/base/task/thread_pool/tracked_ref.h b/base/task/thread_pool/tracked_ref.h
+index 483cbdccae..569c14b522 100644
+--- a/base/task/thread_pool/tracked_ref.h
++++ b/base/task/thread_pool/tracked_ref.h
+@@ -9,6 +9,7 @@
+ #include "base/check.h"
+ #include "base/gtest_prod_util.h"
+ #include "base/memory/ptr_util.h"
++#include "base/optional.h"
+ #include "base/synchronization/waitable_event.h"
+ #include "base/template_util.h"
+ #include "third_party/abseil-cpp/absl/types/optional.h"
+diff --git a/base/threading/scoped_thread_priority.h b/base/threading/scoped_thread_priority.h
+index b02bcb44b3..024883e003 100644
+--- a/base/threading/scoped_thread_priority.h
++++ b/base/threading/scoped_thread_priority.h
+@@ -11,6 +11,7 @@
+ #include "base/compiler_specific.h"
+ #include "base/location.h"
+ #include "base/macros.h"
++#include "base/optional.h"
+ #include "build/build_config.h"
+ #include "third_party/abseil-cpp/absl/types/optional.h"
+ 
+diff --git a/base/time/time.h b/base/time/time.h
+index a872f4302e..12200aa9af 100644
+--- a/base/time/time.h
++++ b/base/time/time.h
+@@ -72,6 +72,7 @@
+ #include "base/check_op.h"
+ #include "base/compiler_specific.h"
+ #include "base/numerics/safe_math.h"
++#include "base/optional.h"
+ #include "build/build_config.h"
+ #include "build/chromeos_buildflags.h"
+ 
+diff --git a/base/token.h b/base/token.h
+index df981afec6..a6c2c035b5 100644
+--- a/base/token.h
++++ b/base/token.h
+@@ -12,6 +12,7 @@
+ 
+ #include "base/base_export.h"
+ #include "base/hash/hash.h"
++#include "base/optional.h"
+ #include "third_party/abseil-cpp/absl/types/optional.h"
+ 
+ namespace base {
+diff --git a/base/util/values/values_util.h b/base/util/values/values_util.h
+index 3352fbf420..c18dafcf13 100644
+--- a/base/util/values/values_util.h
++++ b/base/util/values/values_util.h
+@@ -5,6 +5,7 @@
+ #ifndef BASE_UTIL_VALUES_VALUES_UTIL_H_
+ #define BASE_UTIL_VALUES_VALUES_UTIL_H_
+ 
++#include "base/optional.h"
+ #include "base/values.h"
+ #include "third_party/abseil-cpp/absl/types/optional.h"
+ 
+diff --git a/base/values.h b/base/values.h
+index da0339da90..1c4b1d2d1e 100644
+--- a/base/values.h
++++ b/base/values.h
+@@ -37,6 +37,7 @@
+ #include "base/containers/checked_range.h"
+ #include "base/containers/flat_map.h"
+ #include "base/containers/span.h"
++#include "base/optional.h"
+ #include "base/strings/string_piece.h"
+ #include "base/trace_event/base_tracing_forward.h"
+ #include "base/value_iterators.h"
+-- 
+2.33.0.153.gba50c8fa24-goog
+

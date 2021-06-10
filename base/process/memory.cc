@@ -16,7 +16,7 @@
 #include "base/debug/alias.h"
 #include "base/immediate_crash.h"
 #include "base/logging.h"
-#include "base/partition_alloc_buildflags.h"
+#include "base/stl_util.h"
 #if BUILDFLAG(USE_PARTITION_ALLOC)
 #include "base/allocator/partition_allocator/page_allocator.h"
 #endif
@@ -67,8 +67,10 @@ void TerminateBecauseOutOfMemory(size_t size) {
   internal::OnNoMemoryInternal(size);
 }
 
-// Defined in memory_mac.mm for Mac.
-#if !defined(OS_APPLE)
+// Defined in memory_mac.mm for macOS + use_allocator="none".  In case of
+// USE_PARTITION_ALLOC_AS_MALLOC, no need to route the call to the system
+// default calloc of macOS.
+#if !defined(OS_APPLE) || BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
 
 bool UncheckedCalloc(size_t num_items, size_t size, void** result) {
   const size_t alloc_size = num_items * size;
@@ -86,7 +88,7 @@ bool UncheckedCalloc(size_t num_items, size_t size, void** result) {
   return true;
 }
 
-#endif  // defined(OS_APPLE)
+#endif  // !defined(OS_APPLE) || BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
 
 namespace internal {
 bool ReleaseAddressSpaceReservation() {

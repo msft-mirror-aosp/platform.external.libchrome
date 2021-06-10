@@ -1,0 +1,38 @@
+From a8a6eaea26a305664bf47241b2b2f36fb3775c34 Mon Sep 17 00:00:00 2001
+From: hscham <hscham@chromium.org>
+Date: Thu, 30 Sep 2021 10:35:34 +0900
+Subject: [PATCH] Disable trace_event in mojo core code
+
+Change-Id: I37931d04097f90396ba3f59b1397a0a6ad6067ce
+---
+ mojo/core/channel.cc | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/mojo/core/channel.cc b/mojo/core/channel.cc
+index 24dc3742e..3e3393ba5 100644
+--- a/mojo/core/channel.cc
++++ b/mojo/core/channel.cc
+@@ -17,7 +17,8 @@
+ #include "base/memory/ptr_util.h"
+ #include "base/numerics/safe_math.h"
+ #include "base/process/process_handle.h"
+-#include "base/trace_event/typed_macros.h"
++// libchrome does not support trace events
++// #include "base/trace_event/typed_macros.h"
+ #include "build/build_config.h"
+ #include "mojo/core/configuration.h"
+ #include "mojo/core/core.h"
+@@ -840,8 +841,10 @@ bool Channel::OnReadComplete(size_t bytes_read, size_t* next_read_size_hint) {
+ Channel::DispatchResult Channel::TryDispatchMessage(
+     base::span<const char> buffer,
+     size_t* size_hint) {
++#if 0
+   TRACE_EVENT(TRACE_DISABLED_BY_DEFAULT("toplevel.ipc"),
+               "Mojo dispatch message");
++#endif
+ 
+   bool did_consume_message = false;
+ 
+-- 
+2.33.0.685.g46640cef36-goog
+

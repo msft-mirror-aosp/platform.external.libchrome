@@ -14,7 +14,6 @@
 
 #include "base/base_export.h"
 #include "base/callback.h"
-#include "base/optional.h"
 #include "base/synchronization/condition_variable.h"
 #include "base/task/common/checked_lock.h"
 #include "base/task/post_job.h"
@@ -150,6 +149,9 @@ class BASE_EXPORT JobTaskSource : public TaskSource {
     bool IsWaiting() {
       return value_.load(std::memory_order_relaxed) != kNotWaiting;
     }
+
+    // Resets the status as kNotWaiting  using std::memory_order_relaxed.
+    void Reset();
 
     // Sets the status as kWaitingForWorkerToYield using
     // std::memory_order_relaxed.

@@ -10,17 +10,17 @@
 #include <vector>
 
 #include "base/memory/scoped_refptr.h"
-#include "base/optional.h"
 #include "base/sequence_checker.h"
 #include "base/sequenced_task_runner.h"
-#include "base/time/time.h"
 #include "chromeos/lacros/lacros_chrome_service_impl.h"
 #include "components/policy/core/common/async_policy_loader.h"
+#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace policy {
 
 // A policy loader for Lacros. The data is taken from Ash and the validatity of
-// data is trusted, since they have been validated by Ash.
+// data is trusted, since they have been validated by Ash. This class loads only
+// the user policy that has to apply browser-wide (non per_profile).
 class POLICY_EXPORT PolicyLoaderLacros
     : public AsyncPolicyLoader,
       public chromeos::LacrosChromeServiceImpl::Observer {
@@ -43,8 +43,6 @@ class POLICY_EXPORT PolicyLoaderLacros
   // Loads the policy data from LacrosInitParams and populates it in the bundle
   // that is returned.
   std::unique_ptr<PolicyBundle> Load() override;
-  // Returns the last time the policy successfully loaded.
-  base::Time LastModificationTime() override;
 
   // LacrosChromeServiceDelegateImpl::Observer implementation.
   // Update and reload the policy with new data.
@@ -56,10 +54,7 @@ class POLICY_EXPORT PolicyLoaderLacros
   const scoped_refptr<base::SequencedTaskRunner> task_runner_;
 
   // Serialized blob of PolicyFetchResponse object received from the server.
-  base::Optional<std::vector<uint8_t>> policy_fetch_response_;
-
-  // The time of last modification.
-  base::Time last_modification_;
+  absl::optional<std::vector<uint8_t>> policy_fetch_response_;
 
   // Checks that the method is called on the right sequence.
   SEQUENCE_CHECKER(sequence_checker_);

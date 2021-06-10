@@ -1,0 +1,176 @@
+From 29effee4f687f40eeb9465fac36dff65593f5d6c Mon Sep 17 00:00:00 2001
+From: hscham <hscham@chromium.org>
+Date: Mon, 11 Oct 2021 15:54:38 +0900
+Subject: [PATCH] Revert "base: Linux: use sendfile when copying file contents"
+
+This reverts commit 0f21c4a1ba325ae7052160231875bd4cfda8895b.
+It introduces new use of syscall sendfile. Since it is more difficult to
+find out all services using it and add sendfile to their seccomp policy
+file, this is separated from the r890000 uprev and left as a post-uprev
+work. Please see tracking bug b/202686177.
+
+---
+ base/files/file_util.cc          | 11 ---------
+ base/files/file_util.h           | 14 -----------
+ base/files/file_util_posix.cc    | 39 -------------------------------
+ base/files/file_util_unittest.cc | 40 --------------------------------
+ 4 files changed, 104 deletions(-)
+
+diff --git a/base/files/file_util.cc b/base/files/file_util.cc
+index d2065ce95..ce5008062 100644
+--- a/base/files/file_util.cc
++++ b/base/files/file_util.cc
+@@ -52,17 +52,6 @@ bool Move(const FilePath& from_path, const FilePath& to_path) {
+ }
+ 
+ bool CopyFileContents(File& infile, File& outfile) {
+-#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
+-  bool retry_slow = false;
+-  bool res =
+-      internal::CopyFileContentsWithSendfile(infile, outfile, retry_slow);
+-  if (res || !retry_slow) {
+-    return res;
+-  }
+-  // Any failures which allow retrying using read/write will not have modified
+-  // either file offset or size.
+-#endif
+-
+   static constexpr size_t kBufferSize = 32768;
+   std::vector<char> buffer(kBufferSize);
+ 
+diff --git a/base/files/file_util.h b/base/files/file_util.h
+index f6cacc864..0773a38ac 100644
+--- a/base/files/file_util.h
++++ b/base/files/file_util.h
+@@ -661,20 +661,6 @@ BASE_EXPORT bool CopyAndDeleteDirectory(const FilePath& from_path,
+                                         const FilePath& to_path);
+ #endif  // defined(OS_WIN)
+ 
+-#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
+-// CopyFileContentsWithSendfile will use the sendfile(2) syscall to perform a
+-// file copy without moving the data between kernel and userspace. This is much
+-// more efficient than sequences of read(2)/write(2) calls. The |retry_slow|
+-// parameter instructs the caller that it should try to fall back to a normal
+-// sequences of read(2)/write(2) syscalls.
+-//
+-// The input file |infile| must be opened for reading and the output file
+-// |outfile| must be opened for writing.
+-BASE_EXPORT bool CopyFileContentsWithSendfile(File& infile,
+-                                              File& outfile,
+-                                              bool& retry_slow);
+-#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
+-
+ // Used by PreReadFile() when no kernel support for prefetching is available.
+ bool PreReadFileSlow(const FilePath& file_path, int64_t max_bytes);
+ 
+diff --git a/base/files/file_util_posix.cc b/base/files/file_util_posix.cc
+index eba70ab96..0c8269831 100644
+--- a/base/files/file_util_posix.cc
++++ b/base/files/file_util_posix.cc
+@@ -20,10 +20,6 @@
+ #include <time.h>
+ #include <unistd.h>
+ 
+-#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
+-#include <sys/sendfile.h>
+-#endif
+-
+ #include "base/base_switches.h"
+ #include "base/bits.h"
+ #include "base/command_line.h"
+@@ -1237,41 +1233,6 @@ bool MoveUnsafe(const FilePath& from_path, const FilePath& to_path) {
+   return true;
+ }
+ 
+-#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
+-bool CopyFileContentsWithSendfile(File& infile,
+-                                  File& outfile,
+-                                  bool& retry_slow) {
+-  int64_t file_size = infile.GetLength();
+-  if (file_size < 0) {
+-    return false;
+-  }
+-
+-  size_t copied = 0;
+-  ssize_t res = 0;
+-  while (file_size - copied > 0) {
+-    // Don't specify an offset and the kernel will begin reading/writing to the
+-    // current file offsets.
+-    res = HANDLE_EINTR(sendfile(outfile.GetPlatformFile(),
+-                                infile.GetPlatformFile(), /*offset=*/nullptr,
+-                                /*length=*/file_size - copied));
+-    if (res <= 0) {
+-      break;
+-    }
+-
+-    copied += res;
+-  }
+-
+-  // Fallback on non-fatal error cases. None of these errors can happen after
+-  // data has started copying, a check is included for good measure. As a result
+-  // file sizes and file offsets will not have changed. A slow fallback and
+-  // proceed without issues.
+-  retry_slow = (copied == 0 && res < 0 &&
+-                (errno == EINVAL || errno == ENOSYS || errno == EPERM));
+-
+-  return res >= 0;
+-}
+-#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
+-
+ }  // namespace internal
+ 
+ #endif  // !defined(OS_NACL_NONSFI)
+diff --git a/base/files/file_util_unittest.cc b/base/files/file_util_unittest.cc
+index 102ea7a2c..417b5506b 100644
+--- a/base/files/file_util_unittest.cc
++++ b/base/files/file_util_unittest.cc
+@@ -4256,46 +4256,6 @@ TEST(ScopedFD, ScopedFDCrashesOnCloseFailure) {
+ 
+ #endif  // defined(OS_POSIX) || defined(OS_FUCHSIA)
+ 
+-#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
+-TEST_F(FileUtilTest, CopyFileContentsWithSendfile) {
+-  // This test validates that sendfile(2) can be used to copy a file contents
+-  // and that it will honor the file offsets as CopyFileContents does.
+-  FilePath file_name_from = temp_dir_.GetPath().Append(
+-      FILE_PATH_LITERAL("copy_contents_file_in.txt"));
+-  FilePath file_name_to = temp_dir_.GetPath().Append(
+-      FILE_PATH_LITERAL("copy_contents_file_out.txt"));
+-
+-  const std::wstring from_contents(L"0123456789ABCDEF");
+-  CreateTextFile(file_name_from, from_contents);
+-  ASSERT_TRUE(PathExists(file_name_from));
+-
+-  const std::wstring to_contents(L"GHIJKL");
+-  CreateTextFile(file_name_to, to_contents);
+-  ASSERT_TRUE(PathExists(file_name_to));
+-
+-  File from(file_name_from, File::FLAG_OPEN | File::FLAG_READ);
+-  ASSERT_TRUE(from.IsValid());
+-
+-  File to(file_name_to, File::FLAG_OPEN | File::FLAG_WRITE);
+-  ASSERT_TRUE(to.IsValid());
+-
+-  // See to the 1st byte in each file.
+-  ASSERT_EQ(from.Seek(File::Whence::FROM_BEGIN, 1), 1);
+-  ASSERT_EQ(to.Seek(File::Whence::FROM_BEGIN, 1), 1);
+-
+-  bool retry_slow = false;
+-
+-  // Given the test setup there should never be a sendfile(2) failure.
+-  ASSERT_TRUE(internal::CopyFileContentsWithSendfile(from, to, retry_slow));
+-  from.Close();
+-  to.Close();
+-
+-  // Expect the output file contents to be: G123456789ABCDEF because both
+-  // file positions when we copied the file contents were at 1.
+-  EXPECT_EQ(L"G123456789ABCDEF", ReadTextFile(file_name_to));
+-}
+-#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
+-
+ }  // namespace
+ 
+ }  // namespace base
+-- 
+2.33.0.882.g93a45727a2-goog
+

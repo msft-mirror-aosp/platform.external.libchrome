@@ -11,7 +11,7 @@
 
 #if BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
 #include "base/allocator/allocator_shim_default_dispatch_to_partition_alloc.h"
-#include "base/allocator/partition_allocator/pcscan.h"
+#include "base/allocator/partition_allocator/starscan/pcscan.h"
 #endif
 
 namespace base {
@@ -30,10 +30,11 @@ void* NonScannableAllocator::Alloc(size_t size) {
   // TODO(bikineev): Change to LIKELY once PCScan is enabled by default.
   if (UNLIKELY(pcscan_enabled_.load(std::memory_order_acquire))) {
     PA_DCHECK(allocator_.get());
-    return allocator_->root()->AllocFlagsNoHooks(0, size);
+    return allocator_->root()->AllocFlagsNoHooks(0, size, PartitionPageSize());
   }
   // Otherwise, dispatch to default partition.
-  return PartitionAllocMalloc::Allocator()->AllocFlagsNoHooks(0, size);
+  return PartitionAllocMalloc::Allocator()->AllocFlagsNoHooks(
+      0, size, PartitionPageSize());
 }
 
 void NonScannableAllocator::Free(void* ptr) {
@@ -41,13 +42,13 @@ void NonScannableAllocator::Free(void* ptr) {
 }
 
 void NonScannableAllocator::EnablePCScan() {
-  allocator_ = std::make_unique<base::PartitionAllocator>();
-  allocator_->init(PartitionOptions(PartitionOptions::Alignment::kRegular,
+  allocator_.reset(MakePCScanMetadata<base::PartitionAllocator>());
+  allocator_->init(PartitionOptions(PartitionOptions::AlignedAlloc::kDisallowed,
                                     PartitionOptions::ThreadCache::kDisabled,
                                     PartitionOptions::Quarantine::kAllowed,
-                                    PartitionOptions::RefCount::kDisabled));
-  auto& pcscan = internal::PCScan<internal::ThreadSafe>::Instance();
-  pcscan.RegisterNonScannableRoot(allocator_->root());
+                                    PartitionOptions::Cookies::kAllowed,
+                                    PartitionOptions::RefCount::kDisallowed));
+  PCScan::RegisterNonScannableRoot(allocator_->root());
   pcscan_enabled_.store(true, std::memory_order_release);
 }
 #endif  // BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)

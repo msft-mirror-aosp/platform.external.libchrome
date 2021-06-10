@@ -16,7 +16,6 @@
 #include "base/logging.h"
 #include "base/memory/ptr_util.h"
 #include "base/no_destructor.h"
-#include "base/optional.h"
 #include "base/rand_util.h"
 #include "base/ranges/algorithm.h"
 #include "base/task/sequence_manager/real_time_domain.h"
@@ -31,6 +30,7 @@
 #include "base/time/tick_clock.h"
 #include "base/trace_event/base_tracing.h"
 #include "build/build_config.h"
+#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace base {
 namespace sequence_manager {
@@ -109,8 +109,13 @@ void ReclaimMemoryFromQueue(internal::TaskQueueImpl* queue,
   if (time_domain_now->find(time_domain) == time_domain_now->end())
     time_domain_now->insert(std::make_pair(time_domain, time_domain->Now()));
   queue->ReclaimMemory(time_domain_now->at(time_domain));
-  queue->delayed_work_queue()->RemoveAllCanceledTasksFromFront();
-  queue->immediate_work_queue()->RemoveAllCanceledTasksFromFront();
+  // If the queue was shut down as a side-effect of reclaiming memory, |queue|
+  // will still be valid but the work queues will have been removed by
+  // TaskQueueImpl::UnregisterTaskQueue.
+  if (queue->delayed_work_queue()) {
+    queue->delayed_work_queue()->RemoveAllCanceledTasksFromFront();
+    queue->immediate_work_queue()->RemoveAllCanceledTasksFromFront();
+  }
 }
 
 SequenceManager::MetricRecordingSettings InitializeMetricRecordingSettings(
@@ -725,7 +730,7 @@ TimeDelta SequenceManagerImpl::GetDelayTillNextDelayedTask(
 
   TimeDelta delay_till_next_task = TimeDelta::Max();
   for (TimeDomain* time_domain : main_thread_only().time_domains) {
-    Optional<TimeDelta> delay = time_domain->DelayTillNextTask(lazy_now);
+    absl::optional<TimeDelta> delay = time_domain->DelayTillNextTask(lazy_now);
     if (!delay)
       continue;
 
@@ -1005,10 +1010,17 @@ void SequenceManagerImpl::MaybeReclaimMemory() {
 
 void SequenceManagerImpl::ReclaimMemory() {
   std::map<TimeDomain*, TimeTicks> time_domain_now;
-  for (auto* const queue : main_thread_only().active_queues)
+  for (auto it = main_thread_only().active_queues.begin();
+       it != main_thread_only().active_queues.end();) {
+    auto* const queue = *it++;
     ReclaimMemoryFromQueue(queue, &time_domain_now);
-  for (const auto& pair : main_thread_only().queues_to_gracefully_shutdown)
-    ReclaimMemoryFromQueue(pair.first, &time_domain_now);
+  }
+  for (auto it = main_thread_only().queues_to_gracefully_shutdown.begin();
+       it != main_thread_only().queues_to_gracefully_shutdown.end();) {
+    auto* const queue = it->first;
+    it++;
+    ReclaimMemoryFromQueue(queue, &time_domain_now);
+  }
 }
 
 void SequenceManagerImpl::CleanUpQueues() {
@@ -1113,6 +1125,11 @@ std::unique_ptr<NativeWorkHandle> SequenceManagerImpl::OnNativeWorkPending(
   return std::make_unique<NativeWorkHandleImpl>(this, priority);
 }
 
+void SequenceManagerImpl::PrioritizeYieldingToNative(
+    base::TimeTicks prioritize_until) {
+  controller_->PrioritizeYieldingToNative(prioritize_until);
+}
+
 void SequenceManagerImpl::AddDestructionObserver(
     CurrentThread::DestructionObserver* destruction_observer) {
   main_thread_only().destruction_observers.AddObserver(destruction_observer);
@@ -1174,7 +1191,7 @@ void SequenceManagerImpl::RecordCrashKeys(const PendingTask& pending_task) {
   // this.
   //
   // See
-  // https://chromium.googlesource.com/chromium/src/+/master/docs/debugging_with_crash_keys.md
+  // https://chromium.googlesource.com/chromium/src/+/main/docs/debugging_with_crash_keys.md
   // for instructions for symbolizing these crash keys.
   //
   // TODO(skyostil): Find a way to extract the destination function address

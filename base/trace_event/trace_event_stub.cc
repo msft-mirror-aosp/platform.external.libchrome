@@ -17,6 +17,9 @@ void TracedValue::AppendAsTraceFormat(std::string* out) const {}
 
 MemoryDumpProvider::~MemoryDumpProvider() = default;
 
+// static
+constexpr const char* const MemoryDumpManager::kTraceCategory;
+
 }  // namespace trace_event
 }  // namespace base
 
@@ -30,11 +33,19 @@ TracedArray TracedValue::WriteArray() && {
   return TracedArray();
 }
 
-TracedArray TracedDictionary::AddArray(const char*) {
+TracedArray TracedDictionary::AddArray(StaticString) {
   return TracedArray();
 }
 
-TracedDictionary TracedDictionary::AddDictionary(const char*) {
+TracedArray TracedDictionary::AddArray(DynamicString) {
+  return TracedArray();
+}
+
+TracedDictionary TracedDictionary::AddDictionary(StaticString) {
+  return TracedDictionary();
+}
+
+TracedDictionary TracedDictionary::AddDictionary(DynamicString) {
   return TracedDictionary();
 }
 

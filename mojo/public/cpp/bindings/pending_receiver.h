@@ -92,7 +92,7 @@ class PendingReceiver {
     return request;
   }
 
-  // Indicates whether the PendingReceiver is valid, meaning it can ne used to
+  // Indicates whether the PendingReceiver is valid, meaning it can be used to
   // bind a Receiver that wants to begin dispatching method calls made by the
   // entangled Remote.
   bool is_valid() const { return state_.pipe.is_valid(); }
@@ -136,7 +136,8 @@ class PendingReceiver {
   // Creates a new message pipe, retaining one end in the PendingReceiver
   // (making it valid) and returning the other end as its entangled
   // PendingRemote. May only be called on an invalid PendingReceiver.
-  PendingRemote<Interface> InitWithNewPipeAndPassRemote() WARN_UNUSED_RESULT;
+  REINITIALIZES_AFTER_MOVE PendingRemote<Interface>
+  InitWithNewPipeAndPassRemote() WARN_UNUSED_RESULT;
 
   // For internal Mojo use only.
   internal::PendingReceiverState* internal_state() { return &state_; }

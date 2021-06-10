@@ -29,7 +29,15 @@ from mojom.parse import conditional_features
 
 # Disable this for easier debugging.
 # In Python 2, subprocesses just hang when exceptions are thrown :(.
-ENABLE_MULTIPROCESSING = sys.version_info[0] > 2
+_ENABLE_MULTIPROCESSING = sys.version_info[0] > 2
+
+if sys.version_info < (3, 4):
+  _MULTIPROCESSING_USES_FORK = sys.platform.startswith('linux')
+else:
+  # https://docs.python.org/3/library/multiprocessing.html#:~:text=bpo-33725
+  if __name__ == '__main__' and sys.platform == 'darwin':
+    multiprocessing.set_start_method('fork')
+  _MULTIPROCESSING_USES_FORK = multiprocessing.get_start_method() == 'fork'
 
 
 def _ResolveRelativeImportPath(path, roots):
@@ -131,7 +139,7 @@ def _EnsureInputLoaded(mojom_abspath, module_path, abs_paths, asts,
     # Already done.
     return
 
-  for dep_abspath, dep_path in dependencies[mojom_abspath]:
+  for dep_abspath, dep_path in sorted(dependencies[mojom_abspath]):
     if dep_abspath not in loaded_modules:
       _EnsureInputLoaded(dep_abspath, dep_path, abs_paths, asts, dependencies,
                          loaded_modules, module_metadata)
@@ -197,8 +205,14 @@ def _Shard(target_func, args, processes=None):
     processes = multiprocessing.cpu_count()
   # Seems optimal to have each process perform at least 2 tasks.
   processes = min(processes, len(args) // 2)
+
+  if sys.platform == 'win32':
+    # TODO(crbug.com/1190269) - we can't use more than 56
+    # cores on Windows or Python3 may hang.
+    processes = min(processes, 56)
+
   # Don't spin up processes unless there is enough work to merit doing so.
-  if not ENABLE_MULTIPROCESSING or processes < 2:
+  if not _ENABLE_MULTIPROCESSING or processes < 2:
     for result in map(target_func, args):
       yield result
     return
@@ -260,7 +274,7 @@ def _ParseMojoms(mojom_files,
     loaded_mojom_asts[mojom_abspath] = ast
 
   logging.info('Processing dependencies')
-  for mojom_abspath, ast in loaded_mojom_asts.items():
+  for mojom_abspath, ast in sorted(loaded_mojom_asts.items()):
     invalid_imports = []
     for imp in ast.import_list:
       import_abspath = _ResolveRelativeImportPath(imp.import_filename,
@@ -313,7 +327,7 @@ def _ParseMojoms(mojom_files,
   _SerializeHelper.loaded_modules = loaded_modules
   _SerializeHelper.output_root_path = output_root_path
   # Doesn't seem to help past 4. Perhaps IO bound here?
-  processes = 0 if sys.platform == 'win32' else 4
+  processes = 4 if _MULTIPROCESSING_USES_FORK else 0
   map_args = mojom_files_to_parse.items()
   for _ in _Shard(_SerializeHelper, map_args, processes=processes):
     pass

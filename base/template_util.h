@@ -12,6 +12,7 @@
 #include <utility>
 #include <vector>
 
+#include "base/compiler_specific.h"
 #include "build/build_config.h"
 
 // Some versions of libstdc++ have partial support for type_traits, but misses
@@ -146,8 +147,9 @@ using is_trivially_copyable = std::is_trivially_copyable<T>;
 #if defined(__GNUC__) && !defined(__clang__) && __GNUC__ <= 7
 // Workaround for g++7 and earlier family.
 // Due to https://gcc.gnu.org/bugzilla/show_bug.cgi?id=80654, without this
-// Optional<std::vector<T>> where T is non-copyable causes a compile error.
-// As we know it is not trivially copy constructible, explicitly declare so.
+// absl::optional<std::vector<T>> where T is non-copyable causes a compile
+// error.  As we know it is not trivially copy constructible, explicitly declare
+// so.
 template <typename T>
 struct is_trivially_copy_constructible
     : std::is_trivially_copy_constructible<T> {};
@@ -304,6 +306,37 @@ struct IsScopedEnumImpl<T, /*std::is_enum<T>::value=*/true>
 template <typename T>
 struct is_scoped_enum : internal::IsScopedEnumImpl<T> {};
 
+// Implementation of C++20's std::remove_cvref.
+//
+// References:
+// - https://en.cppreference.com/w/cpp/types/remove_cvref
+// - https://wg21.link/meta.trans.other#lib:remove_cvref
+template <typename T>
+struct remove_cvref {
+  using type = std::remove_cv_t<std::remove_reference_t<T>>;
+};
+
+// Implementation of C++20's std::remove_cvref_t.
+//
+// References:
+// - https://en.cppreference.com/w/cpp/types/remove_cvref
+// - https://wg21.link/meta.type.synop#lib:remove_cvref_t
+template <typename T>
+using remove_cvref_t = typename remove_cvref<T>::type;
+
+// Implementation of C++20's std::is_constant_evaluated.
+//
+// References:
+// - https://en.cppreference.com/w/cpp/types/is_constant_evaluated
+// - https://wg21.link/meta.const.eval
+constexpr bool is_constant_evaluated() noexcept {
+#if HAS_BUILTIN(__builtin_is_constant_evaluated)
+  return __builtin_is_constant_evaluated();
+#else
+  return false;
+#endif
+}
+
 // Simplified implementation of C++20's std::iter_value_t.
 // As opposed to std::iter_value_t, this implementation does not restrict
 // the type of `Iter` and does not consider specializations of
@@ -311,8 +344,8 @@ struct is_scoped_enum : internal::IsScopedEnumImpl<T> {};
 //
 // Reference: https://wg21.link/readable.traits#2
 template <typename Iter>
-using iter_value_t = typename std::iterator_traits<
-    std::remove_cv_t<std::remove_reference_t<Iter>>>::value_type;
+using iter_value_t =
+    typename std::iterator_traits<remove_cvref_t<Iter>>::value_type;
 
 // Simplified implementation of C++20's std::iter_reference_t.
 // As opposed to std::iter_reference_t, this implementation does not restrict
@@ -341,7 +374,7 @@ template <typename Iter,
           typename Proj,
           typename IndirectResultT = indirect_result_t<Proj, Iter>>
 struct projected {
-  using value_type = std::remove_cv_t<std::remove_reference_t<IndirectResultT>>;
+  using value_type = remove_cvref_t<IndirectResultT>;
 
   IndirectResultT operator*() const;  // not defined
 };

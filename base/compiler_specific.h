@@ -351,4 +351,52 @@ inline constexpr bool AnalyzerAssumeTrue(bool arg) {
 #define NOMERGE
 #endif
 
+// Marks a type as being eligible for the "trivial" ABI despite having a
+// non-trivial destructor or copy/move constructor. Such types can be relocated
+// after construction by simply copying their memory, which makes them eligible
+// to be passed in registers. The canonical example is std::unique_ptr.
+//
+// Use with caution; this has some subtle effects on constructor/destructor
+// ordering and will be very incorrect if the type relies on its address
+// remaining constant. When used as a function argument (by value), the value
+// may be constructed in the caller's stack frame, passed in a register, and
+// then used and destructed in the callee's stack frame. A similar thing can
+// occur when values are returned.
+//
+// TRIVIAL_ABI is not needed for types which have a trivial destructor and
+// copy/move constructors, such as base::TimeTicks and other POD.
+//
+// It is also not likely to be effective on types too large to be passed in one
+// or two registers on typical target ABIs.
+//
+// See also:
+//   https://clang.llvm.org/docs/AttributeReference.html#trivial-abi
+//   https://libcxx.llvm.org/docs/DesignDocs/UniquePtrTrivialAbi.html
+#if defined(__clang__) && __has_attribute(trivial_abi)
+#define TRIVIAL_ABI [[clang::trivial_abi]]
+#else
+#define TRIVIAL_ABI
+#endif
+
+// Marks a member function as reinitializing a moved-from variable.
+// See also
+// https://clang.llvm.org/extra/clang-tidy/checks/bugprone-use-after-move.html#reinitialization
+#if defined(__clang__) && __has_attribute(reinitializes)
+#define REINITIALIZES_AFTER_MOVE [[clang::reinitializes]]
+#else
+#define REINITIALIZES_AFTER_MOVE
+#endif
+
+// Requires constant initialization. See constinit in C++20. Allows to rely on a
+// variable being initialized before execution, and not requiring a global
+// constructor.
+#if defined(__has_attribute)
+#if __has_attribute(require_constant_initialization)
+#define CONSTINIT __attribute__((require_constant_initialization))
+#endif
+#endif
+#if !defined(CONSTINIT)
+#define CONSTINIT
+#endif
+
 #endif  // BASE_COMPILER_SPECIFIC_H_
