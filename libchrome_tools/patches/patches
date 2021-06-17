@@ -48,9 +48,5 @@ mojo-Add-ReceiverSetBase-RemoveWithReason.patch
 # CHECK* not implitly included by base/logging.h
 backward-compatibility-check.patch
 
-# Backward compatibility for seccomp issues with memfd_create
-# TODO(b/189403036): enable when thorough testing is done after libchrome uprev
-disable-Channel-SupportsChannelUpgrade.patch
-
 # Forward compatibility for 2-param base::{AppendToFile,WriteFileDescriptor} variants
 forward-compatibility-base-file-util.patch
