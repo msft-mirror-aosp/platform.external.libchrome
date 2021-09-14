@@ -40,6 +40,9 @@ Alias-base-Optional-to-absl-optional.patch
 # Remove after r900163
 mojom-parser-external-modules.patch
 
+# Remove after r910765
+jinja2-update-to-2.10.1.patch
+
 # Remove after r912107
 mojo-Add-ReceiverSetBase-RemoveWithReason.patch
 
