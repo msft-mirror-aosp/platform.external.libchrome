@@ -194,11 +194,11 @@ P224EncryptedKeyExchange::Result P224EncryptedKeyExchange::ProcessMessage(
 
   std::string client_masked_dh, server_masked_dh;
   if (is_server_) {
-    client_masked_dh = message.as_string();
+    client_masked_dh = std::string(message);
     server_masked_dh = next_message_;
   } else {
     client_masked_dh = next_message_;
-    server_masked_dh = message.as_string();
+    server_masked_dh = std::string(message);
   }
 
   // Now we calculate the hashes that each side will use to prove to the other

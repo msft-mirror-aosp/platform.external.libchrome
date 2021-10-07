@@ -60,7 +60,7 @@ CRYPTO_EXPORT bool IsTPMTokenEnabledForNSS();
 // If |callback| is non-null and the function returns false, the |callback| will
 // be run once the TPM is ready. |callback| will never be run if the function
 // returns true.
-CRYPTO_EXPORT bool IsTPMTokenReady(const base::Closure& callback)
+CRYPTO_EXPORT bool IsTPMTokenReady(base::OnceClosure callback)
     WARN_UNUSED_RESULT;
 
 // Initialize the TPM token and system slot. The |callback| will run on the same
@@ -70,7 +70,7 @@ CRYPTO_EXPORT bool IsTPMTokenReady(const base::Closure& callback)
 // |callback| has been run.
 CRYPTO_EXPORT void InitializeTPMTokenAndSystemSlot(
     int system_slot_id,
-    const base::Callback<void(bool)>& callback);
+    const base::OnceCallback<void(bool)>& callback);
 #endif
 
 // Convert a NSS PRTime value into a base::Time object.
