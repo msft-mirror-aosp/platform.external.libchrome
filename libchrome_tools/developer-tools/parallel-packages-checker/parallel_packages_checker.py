@@ -697,6 +697,12 @@ def main():
     if state.failed:
         for board, packages in state.failed.items():
             for package in packages:
+                # SYSTEM is a placeholder pacakge indicating something wrong
+                # with this checker when running task for some board.
+                # SYSTEM placeholder package doesn't have any fail log to copy.
+                # Skipping.
+                if package == 'SYSTEM':
+                    continue
                 os.makedirs(os.path.join(arg.output_directory, 'by-packages',
                                          package),
                             exist_ok=True)
