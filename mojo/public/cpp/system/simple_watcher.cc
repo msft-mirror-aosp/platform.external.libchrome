@@ -11,12 +11,11 @@
 #include "base/synchronization/lock.h"
 #include "base/task/common/task_annotator.h"
 #include "base/threading/thread_task_runner_handle.h"
-// #include "base/trace_event/heap_profiler.h"
-// #include "base/trace_event/trace_event.h"
-// #include "base/trace_event/typed_macros.h"
-#include "base/trace_event/trace_event_stub.h"
+#include "base/trace_event/heap_profiler.h"
+#include "base/trace_event/trace_event.h"
+#include "base/trace_event/typed_macros.h"
 #include "mojo/public/c/system/trap.h"
-// #include "third_party/perfetto/protos/perfetto/trace/track_event/chrome_mojo_event_info.pbzero.h"
+#include "third_party/perfetto/protos/perfetto/trace/track_event/chrome_mojo_event_info.pbzero.h"
 
 namespace mojo {
 

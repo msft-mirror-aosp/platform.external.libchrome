@@ -24,9 +24,11 @@ keep-hash-sha1-old-implementation.patch
 
 # libchrome does not support trace_event
 # Compatmentalize patches to reduce chance of failing to apply them.
-disable-trace_event-in-ipc.patch
+disable-trace_event-in-base.patch
+disable-trace_event-in-components.patch
 disable-trace_event-in-mojo-core-code.patch
-disable-trace_event-in-mojo-binding-generator-templates.patch
+disable-trace_event-in-mojo-public.patch
+disable-trace_event-in-ipc.patch
 
 # ==================== CHERRY PICKS ===========================
 # Modify mojom_parser.py to search for external Mojo modules.

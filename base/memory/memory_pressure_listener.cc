@@ -120,7 +120,6 @@ void MemoryPressureListener::SyncNotify(
 void MemoryPressureListener::NotifyMemoryPressure(
     MemoryPressureLevel memory_pressure_level) {
   DCHECK_NE(memory_pressure_level, MEMORY_PRESSURE_LEVEL_NONE);
-#if 0
   TRACE_EVENT_INSTANT(
       trace_event::MemoryDumpManager::kTraceCategory,
       "MemoryPressureListener::NotifyMemoryPressure",
@@ -130,7 +129,6 @@ void MemoryPressureListener::NotifyMemoryPressure(
         data->set_level(
             trace_event::MemoryPressureLevelToTraceEnum(memory_pressure_level));
       });
-#endif
   if (AreNotificationsSuppressed())
     return;
   DoNotifyMemoryPressure(memory_pressure_level);

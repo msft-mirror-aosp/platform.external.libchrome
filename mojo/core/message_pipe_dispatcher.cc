@@ -10,7 +10,7 @@
 #include "base/logging.h"
 #include "base/macros.h"
 #include "base/memory/ref_counted.h"
-// #include "base/trace_event/trace_event.h"
+#include "base/trace_event/trace_event.h"
 #include "base/trace_event/trace_event_stub.h"
 #include "mojo/core/core.h"
 #include "mojo/core/node_controller.h"

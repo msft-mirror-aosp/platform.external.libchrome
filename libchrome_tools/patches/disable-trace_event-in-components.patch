@@ -1,0 +1,28 @@
+From 509d1486199a12c0c27317ea004f92d2bee18c20 Mon Sep 17 00:00:00 2001
+From: hscham <hscham@chromium.org>
+Date: Thu, 14 Oct 2021 11:36:31 +0900
+Subject: [PATCH 2/2] Disable trace_event in components/
+
+Change-Id: Ia94077ad8d2c71e6989d25b333a06a69820fff2c
+---
+ components/timers/alarm_timer_chromeos.cc | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/components/timers/alarm_timer_chromeos.cc b/components/timers/alarm_timer_chromeos.cc
+index ea38de066e85..b7cc6911065a 100644
+--- a/components/timers/alarm_timer_chromeos.cc
++++ b/components/timers/alarm_timer_chromeos.cc
+@@ -17,8 +17,8 @@
+ #include "base/memory/ptr_util.h"
+ #include "base/pending_task.h"
+ #include "base/task/common/task_annotator.h"
+-#include "base/trace_event/task_execution_macros.h"
+-#include "base/trace_event/trace_event.h"
++// #include "base/trace_event/task_execution_macros.h"
++// #include "base/trace_event/trace_event.h"
+ #include "base/trace_event/trace_event_stub.h"
+ 
+ namespace timers {
+-- 
+2.33.0.882.g93a45727a2-goog
+

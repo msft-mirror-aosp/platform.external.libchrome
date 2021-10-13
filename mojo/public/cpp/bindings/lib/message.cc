@@ -18,7 +18,7 @@
 #include "base/memory/ptr_util.h"
 #include "base/numerics/safe_math.h"
 #include "base/threading/sequence_local_storage_slot.h"
-// #include "base/trace_event/trace_event.h"
+#include "base/trace_event/trace_event.h"
 #include "base/trace_event/trace_event_stub.h"
 #include "base/trace_event/trace_id_helper.h"
 #include "mojo/public/cpp/bindings/associated_group_controller.h"

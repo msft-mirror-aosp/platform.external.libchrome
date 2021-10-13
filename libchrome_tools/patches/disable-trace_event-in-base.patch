@@ -1,0 +1,60 @@
+From 5a54e4395eb8fdfb61994d7017fdc7aaef1cbf4b Mon Sep 17 00:00:00 2001
+From: hscham <hscham@chromium.org>
+Date: Thu, 14 Oct 2021 11:36:19 +0900
+Subject: [PATCH 1/2] Disable trace_event in base/
+
+Change-Id: I1f09450f46be4a01162a7fdfd5477df7a5a54a76
+---
+ base/memory/memory_pressure_listener.cc  | 2 ++
+ base/threading/thread_id_name_manager.cc | 8 +++++---
+ 2 files changed, 7 insertions(+), 3 deletions(-)
+
+diff --git a/base/memory/memory_pressure_listener.cc b/base/memory/memory_pressure_listener.cc
+index 623ae26ee44a..4c4c18d5bb49 100644
+--- a/base/memory/memory_pressure_listener.cc
++++ b/base/memory/memory_pressure_listener.cc
+@@ -120,6 +120,7 @@ void MemoryPressureListener::SyncNotify(
+ void MemoryPressureListener::NotifyMemoryPressure(
+     MemoryPressureLevel memory_pressure_level) {
+   DCHECK_NE(memory_pressure_level, MEMORY_PRESSURE_LEVEL_NONE);
++#if 0
+   TRACE_EVENT_INSTANT(
+       trace_event::MemoryDumpManager::kTraceCategory,
+       "MemoryPressureListener::NotifyMemoryPressure",
+@@ -129,6 +130,7 @@ void MemoryPressureListener::NotifyMemoryPressure(
+         data->set_level(
+             trace_event::MemoryPressureLevelToTraceEnum(memory_pressure_level));
+       });
++#endif
+   if (AreNotificationsSuppressed())
+     return;
+   DoNotifyMemoryPressure(memory_pressure_level);
+diff --git a/base/threading/thread_id_name_manager.cc b/base/threading/thread_id_name_manager.cc
+index 892fdd1c8c70..40cebb9481c6 100644
+--- a/base/threading/thread_id_name_manager.cc
++++ b/base/threading/thread_id_name_manager.cc
+@@ -14,7 +14,8 @@
+ #include "base/stl_util.h"
+ #include "base/strings/string_util.h"
+ #include "base/threading/thread_local.h"
+-#include "base/trace_event/heap_profiler_allocation_context_tracker.h"  // no-presubmit-check
++// Unsupported in libchrome.
++// #include "base/trace_event/heap_profiler_allocation_context_tracker.h"  // no-presubmit-check
+ 
+ namespace base {
+ namespace {
+@@ -103,8 +104,9 @@ void ThreadIdNameManager::SetName(const std::string& name) {
+   // call GetName(which holds a lock) during the first allocation because it can
+   // cause a deadlock when the first allocation happens in the
+   // ThreadIdNameManager itself when holding the lock.
+-  trace_event::AllocationContextTracker::SetCurrentThreadName(
+-    leaked_str->c_str());
++  // Unsupported in libchrome.
++  // trace_event::AllocationContextTracker::SetCurrentThreadName(
++  //   leaked_str->c_str());
+ }
+ 
+ const char* ThreadIdNameManager::GetName(PlatformThreadId id) {
+-- 
+2.33.0.882.g93a45727a2-goog
+

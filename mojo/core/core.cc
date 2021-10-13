@@ -22,7 +22,7 @@
 #include "base/strings/string_piece.h"
 #include "base/threading/thread_task_runner_handle.h"
 #include "base/time/time.h"
-// #include "base/trace_event/memory_dump_manager.h"
+#include "base/trace_event/memory_dump_manager.h"
 #include "build/build_config.h"
 #include "mojo/core/channel.h"
 #include "mojo/core/configuration.h"
@@ -112,8 +112,8 @@ void RunMojoProcessErrorHandler(
 
 Core::Core() {
   handles_ = std::make_unique<HandleTable>();
- //  base::trace_event::MemoryDumpManager::GetInstance()->RegisterDumpProvider(
- //      handles_.get(), "MojoHandleTable", nullptr);
+  base::trace_event::MemoryDumpManager::GetInstance()->RegisterDumpProvider(
+      handles_.get(), "MojoHandleTable", nullptr);
 }
 
 Core::~Core() {
@@ -126,8 +126,8 @@ Core::~Core() {
                              base::BindOnce(&Core::PassNodeControllerToIOThread,
                                             std::move(node_controller_)));
   }
-  // base::trace_event::MemoryDumpManager::GetInstance()
-  //     ->UnregisterAndDeleteDumpProviderSoon(std::move(handles_));
+  base::trace_event::MemoryDumpManager::GetInstance()
+      ->UnregisterAndDeleteDumpProviderSoon(std::move(handles_));
 }
 
 void Core::SetIOTaskRunner(

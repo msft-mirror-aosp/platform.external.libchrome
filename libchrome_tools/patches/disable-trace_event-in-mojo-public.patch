@@ -1,0 +1,108 @@
+From 6a01b30cf025cc4b569165d59937747bd501e2a2 Mon Sep 17 00:00:00 2001
+From: hscham <hscham@chromium.org>
+Date: Thu, 30 Sep 2021 10:40:32 +0900
+Subject: [PATCH] Disable trace_event in mojo/public/
+
+Change-Id: I8206126e5f3fa11daa3194f97486e3fea32263d3
+---
+ mojo/public/cpp/bindings/lib/connector.cc                | 6 +++---
+ mojo/public/cpp/bindings/lib/message.cc                  | 2 +-
+ mojo/public/cpp/system/simple_watcher.cc                 | 9 +++++----
+ .../bindings/generators/cpp_templates/module.cc.tmpl     | 2 +-
+ .../cpp_templates/wrapper_class_definition.tmpl          | 2 ++
+ 5 files changed, 12 insertions(+), 9 deletions(-)
+
+diff --git a/mojo/public/cpp/bindings/lib/connector.cc b/mojo/public/cpp/bindings/lib/connector.cc
+index 315fe067351f..9f56708168ca 100644
+--- a/mojo/public/cpp/bindings/lib/connector.cc
++++ b/mojo/public/cpp/bindings/lib/connector.cc
+@@ -23,8 +23,8 @@
+ #include "base/synchronization/lock.h"
+ #include "base/task/current_thread.h"
+ #include "base/threading/sequence_local_storage_slot.h"
+-#include "base/trace_event/trace_event.h"
+-#include "base/trace_event/typed_macros.h"
++// #include "base/trace_event/trace_event.h"
++// #include "base/trace_event/typed_macros.h"
+ #include "base/trace_event/trace_event_stub.h"
+ #include "mojo/public/c/system/quota.h"
+ #include "mojo/public/cpp/bindings/features.h"
+@@ -33,7 +33,7 @@
+ #include "mojo/public/cpp/bindings/mojo_buildflags.h"
+ #include "mojo/public/cpp/bindings/sync_handle_watcher.h"
+ #include "mojo/public/cpp/system/wait.h"
+-#include "third_party/perfetto/protos/perfetto/trace/track_event/chrome_mojo_event_info.pbzero.h"
++// #include "third_party/perfetto/protos/perfetto/trace/track_event/chrome_mojo_event_info.pbzero.h"
+ 
+ #if defined(ENABLE_IPC_FUZZER)
+ #include "mojo/public/cpp/bindings/message_dumper.h"
+diff --git a/mojo/public/cpp/bindings/lib/message.cc b/mojo/public/cpp/bindings/lib/message.cc
+index eb92d9368d7d..4fea9fa5a4dd 100644
+--- a/mojo/public/cpp/bindings/lib/message.cc
++++ b/mojo/public/cpp/bindings/lib/message.cc
+@@ -18,7 +18,7 @@
+ #include "base/memory/ptr_util.h"
+ #include "base/numerics/safe_math.h"
+ #include "base/threading/sequence_local_storage_slot.h"
+-#include "base/trace_event/trace_event.h"
++// #include "base/trace_event/trace_event.h"
+ #include "base/trace_event/trace_event_stub.h"
+ #include "base/trace_event/trace_id_helper.h"
+ #include "mojo/public/cpp/bindings/associated_group_controller.h"
+diff --git a/mojo/public/cpp/system/simple_watcher.cc b/mojo/public/cpp/system/simple_watcher.cc
+index 700fda474bf4..5cb4245dbcfe 100644
+--- a/mojo/public/cpp/system/simple_watcher.cc
++++ b/mojo/public/cpp/system/simple_watcher.cc
+@@ -11,11 +11,12 @@
+ #include "base/synchronization/lock.h"
+ #include "base/task/common/task_annotator.h"
+ #include "base/threading/thread_task_runner_handle.h"
+-#include "base/trace_event/heap_profiler.h"
+-#include "base/trace_event/trace_event.h"
+-#include "base/trace_event/typed_macros.h"
++// #include "base/trace_event/heap_profiler.h"
++// #include "base/trace_event/trace_event.h"
++// #include "base/trace_event/typed_macros.h"
++#include "base/trace_event/trace_event_stub.h"
+ #include "mojo/public/c/system/trap.h"
+-#include "third_party/perfetto/protos/perfetto/trace/track_event/chrome_mojo_event_info.pbzero.h"
++// #include "third_party/perfetto/protos/perfetto/trace/track_event/chrome_mojo_event_info.pbzero.h"
+ 
+ namespace mojo {
+ 
+diff --git a/mojo/public/tools/bindings/generators/cpp_templates/module.cc.tmpl b/mojo/public/tools/bindings/generators/cpp_templates/module.cc.tmpl
+index 7a24bcc31dca..bf3197cb7c21 100644
+--- a/mojo/public/tools/bindings/generators/cpp_templates/module.cc.tmpl
++++ b/mojo/public/tools/bindings/generators/cpp_templates/module.cc.tmpl
+@@ -27,7 +27,7 @@
+ #include "base/run_loop.h"
+ #include "base/strings/string_number_conversions.h"
+ #include "base/task/common/task_annotator.h"
+-#include "base/trace_event/trace_event.h"
++// #include "base/trace_event/trace_event.h"
+ #include "base/trace_event/trace_event_stub.h"
+ #include "mojo/public/cpp/bindings/lib/generated_code_util.h"
+ #include "mojo/public/cpp/bindings/lib/message_internal.h"
+diff --git a/mojo/public/tools/bindings/generators/cpp_templates/wrapper_class_definition.tmpl b/mojo/public/tools/bindings/generators/cpp_templates/wrapper_class_definition.tmpl
+index 504d46735771..8ff369c91d27 100644
+--- a/mojo/public/tools/bindings/generators/cpp_templates/wrapper_class_definition.tmpl
++++ b/mojo/public/tools/bindings/generators/cpp_templates/wrapper_class_definition.tmpl
+@@ -33,6 +33,7 @@ size_t {{struct.name}}::Hash(size_t seed) const {
+ {%- endif %}
+ 
+ void {{struct.name}}::WriteIntoTrace(perfetto::TracedValue context) const {
++#if 0
+   auto dict = std::move(context).WriteDictionary();
+ {%-  for field in struct.fields %}
+   perfetto::WriteIntoTracedValueWithFallback(
+@@ -45,6 +46,7 @@ void {{struct.name}}::WriteIntoTrace(perfetto::TracedValue context) const {
+ #endif  // BUILDFLAG(MOJO_TRACE_ENABLED)
+     );
+ {%-  endfor %}
++#endif
+ }
+ 
+ bool {{struct.name}}::Validate(
+-- 
+2.33.0.882.g93a45727a2-goog
+
