@@ -83,7 +83,7 @@ class State(threading.Thread):
             packages.update(failed)
         max_packages_len = max(len(p) for p in packages) if align else 0
         header = ' ' * max_packages_len + delimiter + delimiter.join(
-            self.failed.keys()) + '\n'
+            sorted(self.failed.keys())) + '\n'
         data = []
         for package in packages:
             line = []
