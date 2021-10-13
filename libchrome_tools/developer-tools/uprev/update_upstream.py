@@ -235,7 +235,7 @@ def main():
         assert verify_tree(
             current), 'Files must be correctly filtered before forward stage'
         pre_forward = current
-        current = forward(current, target)
+        current = forward(current, target) or current
         if current != pre_forward:
             assert verify_tree(
                 current), 'Files must be correctly filtered after forward stage'

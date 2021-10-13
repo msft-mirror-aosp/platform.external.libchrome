@@ -278,8 +278,9 @@ def process_commits(libchrome_filter, pending_commits, commits_map,
             verify_commit(libchrome_filter, commit.commit_hash,
                           treehash_after_diff_applied)
     # Verify last commit
-    verify_commit(libchrome_filter, pending_commits[-1].commit_hash,
-                  filtered_utils.get_metadata(last_commit).tree)
+    if last_commit:
+        verify_commit(libchrome_filter, pending_commits[-1].commit_hash,
+                      filtered_utils.get_metadata(last_commit).tree)
     return last_commit
 
 
@@ -432,7 +433,8 @@ def main():
             (orig_hash, new_hash, commit_meta.title[:50]),
             file=INFO))
     print(file=VERBOSE)
-    print(new_head.decode('ascii'))
+    if new_head:
+        print(new_head.decode('ascii'))
 
 
 if __name__ == '__main__':
