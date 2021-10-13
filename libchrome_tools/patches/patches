@@ -50,11 +50,6 @@ disable-partition-allocator.patch
 # std::optional
 backward-compatibility-Add-base-Optional-as-alias-of-absl-optional.patch
 
-# Backward compatibility patches for header change.
-# CHECK* not implitly included by base/logging.h
-# TODO(b/186486897): Remove when clean up is done
-backward-compatibility-check.patch
-
 # Backward compatibility patch to add support of SimpleAlarmTimer
 # TODO(b/196308068): remove after usages in shill and power_manger are removed
 backward-compatibility-add-SimpleAlarmTimer.patch
