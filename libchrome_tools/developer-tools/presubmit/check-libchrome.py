@@ -16,23 +16,18 @@ import sys
 # BAD_KEYWORDS are mapping from bad_keyword_in_regex to
 # error_msg_if_match_found.
 BAD_KEYWORDS = {
-    # r890000 uprev
+    # removal of delete ctor macros
     b'DISALLOW_COPY_AND_ASSIGN':
     'Chromium agreed to return Google C++ style. Use deleted constructor in `public:` manually. See crbug/1010217',
-    b'\.as_string\(\)':
-    'base::BasicStringPiece::as_string is deprecated. Please use std::string() instead.',
-    b'base::WriteFileDescriptor\([^(){}[\]]+,[^(){}[\]]+,[^(){}[\]]+\)':
-    '3-param base::WriteFileDescriptor is deprecated. Please use 2-param variants instead. See crrev.com/c/2895444. Please ignore this warning if this is a false positive, sorry!',
-    b'base::AppendToFile\([^(){}[\]]+,[^(){}[\]]+,[^(){}[\]]+\)':
-    '3-param base::AppendToFile is deprecated. Please use 2-param variants instead. See crrev.com/c/2893183. Please ignore this warning if this is a false positive, sorry!',
-    b'base::Align\(':
-    'base::Align would be renamed as base::AlignUp.',
     # removal of deprecated base::Value APIs
     b'base::(Dictionary|List)Value':
     'base::{Dictionary,List}Value are deprecated. Please use dictionary/list-type base::Value.',
     # removal of deprecated base::Bind APIs
     b'base::(Bind\(|Closure|Callback|CancelableCallback|CancelableClosure)':
     'Deprecated base::Bind APIs. Please use the Once or Repeating variants. See crbug/714018.',
+    # r930000 uprev
+    b'base::AdaptCallbackForRepeating':
+    'Deprecated base::Bind APIs. Please use base::OwnedRef or base::SplitOnceCallback depending on use cases. See crbug/730593.',
 }
 
 
