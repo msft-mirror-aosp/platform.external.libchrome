@@ -1,0 +1,48 @@
+From 176a99bc6dfbfdd2cd4c318f201ef169c3186c99 Mon Sep 17 00:00:00 2001
+From: hscham <hscham@chromium.org>
+Date: Fri, 5 Nov 2021 12:09:45 +0900
+Subject: [PATCH] base: Handle seq_files with CopyFileContents
+
+Cherry-pick of crrev.com/c/3257042 for handling stdin and proc files.
+
+Change-Id: Ief8edbd70d94a877a66443494ffffc2822eefaaa
+---
+ base/files/file_util_posix.cc | 22 ++++++++++++++++++++--
+ 1 file changed, 20 insertions(+), 2 deletions(-)
+
+diff --git a/base/files/file_util_posix.cc b/base/files/file_util_posix.cc
+index eba70ab96096..18558f96434d 100644
+--- a/base/files/file_util_posix.cc
++++ b/base/files/file_util_posix.cc
+@@ -1241,8 +1241,26 @@ bool MoveUnsafe(const FilePath& from_path, const FilePath& to_path) {
+ bool CopyFileContentsWithSendfile(File& infile,
+                                   File& outfile,
+                                   bool& retry_slow) {
+-  int64_t file_size = infile.GetLength();
+-  if (file_size < 0) {
++  DCHECK(infile.IsValid());
++  stat_wrapper_t in_file_info;
++  retry_slow = false;
++
++  if (base::File::Fstat(infile.GetPlatformFile(), &in_file_info)) {
++    return false;
++  }
++
++  int64_t file_size = in_file_info.st_size;
++  if (file_size == 0) {
++    // Non-regular files can return a file size of 0, things such as pipes,
++    // sockets, etc. Additionally, kernel seq_files(most procfs files) will also
++    // return 0 while still reporting as a regular file. Unfortunately, in some
++    // of these situations there are easy ways to detect them, in others there
++    // are not. No extra syscalls are needed if it's not a regular file.
++    //
++    // Because any attempt to detect it would likely require another syscall,
++    // let's just fall back to a slow copy which will invoke a single read(2) to
++    // determine if the file has contents or if it's really a zero length file.
++    retry_slow = true;
+     return false;
+   }
+ 
+-- 
+2.34.0.rc0.344.g81b53c2807-goog
+
