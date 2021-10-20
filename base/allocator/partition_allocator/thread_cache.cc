@@ -14,6 +14,7 @@
 #include "base/allocator/partition_allocator/partition_root.h"
 #include "base/base_export.h"
 #include "base/dcheck_is_on.h"
+#include "base/numerics/ranges.h"
 #include "base/threading/thread_task_runner_handle.h"
 #include "base/trace_event/base_tracing.h"
 #include "build/build_config.h"
@@ -345,10 +346,11 @@ void ThreadCache::SetGlobalLimits(PartitionRoot<ThreadSafe>* root,
 
     // Bare minimum so that malloc() / free() in a loop will not hit the central
     // allocator each time.
-    constexpr uint8_t kMinLimit = 1;
+    constexpr size_t kMinLimit = 1;
     // |PutInBucket()| is called on a full bucket, which should not overflow.
-    constexpr uint8_t kMaxLimit = std::numeric_limits<uint8_t>::max() - 1;
-    global_limits_[index] = std::max(kMinLimit, {std::min(value, {kMaxLimit})});
+    constexpr size_t kMaxLimit = std::numeric_limits<uint8_t>::max() - 1;
+    global_limits_[index] =
+        static_cast<uint8_t>(base::ClampToRange(value, kMinLimit, kMaxLimit));
     PA_DCHECK(global_limits_[index] >= kMinLimit);
     PA_DCHECK(global_limits_[index] <= kMaxLimit);
   }
@@ -553,7 +555,7 @@ void ThreadCache::ClearBucket(ThreadCache::Bucket& bucket, size_t limit) {
 
   uint8_t count_before = bucket.count;
   if (limit == 0) {
-    FreeAfter(bucket.freelist_head);
+    FreeAfter(bucket.freelist_head, bucket.slot_size);
     bucket.freelist_head = nullptr;
   } else {
     // Free the *end* of the list, not the head, since the head contains the
@@ -561,10 +563,10 @@ void ThreadCache::ClearBucket(ThreadCache::Bucket& bucket, size_t limit) {
     auto* head = bucket.freelist_head;
     size_t items = 1;  // Cannot free the freelist head.
     while (items < limit) {
-      head = head->GetNext();
+      head = head->GetNext(bucket.slot_size);
       items++;
     }
-    FreeAfter(head->GetNext());
+    FreeAfter(head->GetNext(bucket.slot_size), bucket.slot_size);
     head->SetNext(nullptr);
   }
   bucket.count = limit;
@@ -576,14 +578,14 @@ void ThreadCache::ClearBucket(ThreadCache::Bucket& bucket, size_t limit) {
   PA_DCHECK(cached_memory_ == CachedMemory());
 }
 
-void ThreadCache::FreeAfter(PartitionFreelistEntry* head) {
+void ThreadCache::FreeAfter(PartitionFreelistEntry* head, size_t slot_size) {
   // Acquire the lock once. Deallocation from the same bucket are likely to be
   // hitting the same cache lines in the central allocator, and lock
   // acquisitions can be expensive.
   internal::ScopedGuard<internal::ThreadSafe> guard(root_->lock_);
   while (head) {
     void* ptr = head;
-    head = head->GetNext();
+    head = head->GetNext(slot_size);
     root_->RawFreeLocked(ptr);
   }
 }

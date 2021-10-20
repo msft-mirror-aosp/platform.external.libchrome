@@ -31,9 +31,6 @@ void WriteIpcMessageIdAsProtozero(uint32_t message_id,
     case NaClMsgStart:
       message_class = ChromeLegacyIpc::CLASS_NACL;
       break;
-    case GpuChannelMsgStart:
-      message_class = ChromeLegacyIpc::CLASS_GPU_CHANNEL;
-      break;
     case MediaMsgStart:
       message_class = ChromeLegacyIpc::CLASS_MEDIA;
       break;
@@ -55,9 +52,6 @@ void WriteIpcMessageIdAsProtozero(uint32_t message_id,
       break;
     case GinJavaBridgeMsgStart:
       message_class = ChromeLegacyIpc::CLASS_GIN_JAVA_BRIDGE;
-      break;
-    case ChromeUtilityPrintingMsgStart:
-      message_class = ChromeLegacyIpc::CLASS_CHROME_UTILITY_PRINTING;
       break;
     case ExtensionsGuestViewMsgStart:
       message_class = ChromeLegacyIpc::CLASS_EXTENSIONS_GUEST_VIEW;

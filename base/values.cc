@@ -22,12 +22,12 @@
 #include "base/check_op.h"
 #include "base/containers/checked_iterators.h"
 #include "base/containers/contains.h"
+#include "base/cxx17_backports.h"
 #include "base/json/json_writer.h"
 #include "base/macros.h"
 #include "base/memory/ptr_util.h"
 #include "base/notreached.h"
 #include "base/ranges/algorithm.h"
-#include "base/stl_util.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/trace_event/base_tracing.h"
@@ -1652,10 +1652,6 @@ bool ListValue::Insert(size_t index, std::unique_ptr<Value> in_value) {
 
   list().insert(list().begin() + index, std::move(*in_value));
   return true;
-}
-
-ListValue::const_iterator ListValue::Find(const Value& value) const {
-  return ranges::find(GetList(), value);
 }
 
 void ListValue::Swap(ListValue* other) {

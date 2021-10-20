@@ -14,6 +14,7 @@
 #include "base/allocator/partition_allocator/partition_alloc_forward.h"
 #include "base/allocator/partition_allocator/partition_direct_map_extent.h"
 #include "base/allocator/partition_allocator/partition_root.h"
+#include "base/allocator/partition_allocator/reservation_offset_table.h"
 #include "base/bits.h"
 #include "base/dcheck_is_on.h"
 #include "base/feature_list.h"
@@ -45,27 +46,19 @@ PartitionDirectUnmap(SlotSpanMetadata<thread_safe>* slot_span) {
   // The actual decommit is deferred, when releasing the reserved memory region.
   root->DecreaseCommittedPages(slot_span->bucket->slot_size);
 
-  size_t reserved_size =
-      extent->map_size + extent->padding_for_alignment +
-      PartitionRoot<thread_safe>::GetDirectMapMetadataAndGuardPagesSize();
-  PA_DCHECK(!(reserved_size & DirectMapAllocationGranularityOffsetMask()));
-  PA_DCHECK(root->total_size_of_direct_mapped_pages >= reserved_size);
-  root->total_size_of_direct_mapped_pages -= reserved_size;
-  PA_DCHECK(!(reserved_size & DirectMapAllocationGranularityOffsetMask()));
+  size_t reservation_size = extent->reservation_size;
+  PA_DCHECK(!(reservation_size & DirectMapAllocationGranularityOffsetMask()));
+  PA_DCHECK(root->total_size_of_direct_mapped_pages >= reservation_size);
+  root->total_size_of_direct_mapped_pages -= reservation_size;
 
-  char* ptr = reinterpret_cast<char*>(
+  char* reservation_start = reinterpret_cast<char*>(
       SlotSpanMetadata<thread_safe>::ToSlotSpanStartPtr(slot_span));
   // The mapping may start at an unspecified location within a super page, but
   // we always reserve memory aligned to super page size.
-  ptr = bits::AlignDown(ptr, kSuperPageSize);
+  reservation_start = bits::AlignDown(reservation_start, kSuperPageSize);
 
-  // Make the same GigaCage pool choice as PartitionDirectMap().
-#if BUILDFLAG(ENABLE_BRP_DIRECTMAP_SUPPORT)
-  pool_handle pool = root->UseBRPPool() ? GetBRPPool() : GetNonBRPPool();
-#else
-  pool_handle pool = GetNonBRPPool();
-#endif
-  return {ptr, reserved_size, pool == GetBRPPool()};
+  return {reservation_start, reservation_size,
+          root->ChooseGigaCagePool(/* is_direct_map= */ true)};
 }
 
 template <bool thread_safe>
@@ -138,7 +131,7 @@ DeferredUnmap SlotSpanMetadata<thread_safe>::FreeSlowPath() {
       return PartitionDirectUnmap(this);
     }
 #if DCHECK_IS_ON()
-    freelist_head->CheckFreeList();
+    freelist_head->CheckFreeList(bucket->slot_size);
 #endif
     // If it's the current active slot span, change it. We bounce the slot span
     // to the empty list as a force towards defragmentation.
@@ -218,25 +211,28 @@ void SlotSpanMetadata<thread_safe>::DecommitIfPossible(
 }
 
 void DeferredUnmap::Unmap() {
-  PA_DCHECK(ptr && size > 0);
-
-  // Make sure the reservation is in the expected pool.
-  // In 32-bit mode, the beginning of a reservation may be excluded from the BRP
-  // pool, so shift the pointer. Non-BRP pool doesn't have logic.
-  PA_DCHECK(use_brp_pool == IsManagedByPartitionAllocBRPPool(
+  PA_DCHECK(reservation_start && reservation_size > 0);
+  if (giga_cage_pool == GetBRPPool()) {
+    // In 32-bit mode, the beginning of a reservation may be excluded from the
+    // BRP pool, so shift the pointer. Non-BRP pool doesn't have logic.
+    PA_DCHECK(IsManagedByPartitionAllocBRPPool(
 #if defined(PA_HAS_64_BITS_POINTERS)
-                                ptr
+        reservation_start
 #else
-                reinterpret_cast<char*>(ptr) +
-                AddressPoolManagerBitmap::kBytesPer1BitOfBRPPoolBitmap *
-                    AddressPoolManagerBitmap::kGuardOffsetOfBRPPoolBitmap
+        reinterpret_cast<char*>(reservation_start) +
+        AddressPoolManagerBitmap::kBytesPer1BitOfBRPPoolBitmap *
+            AddressPoolManagerBitmap::kGuardOffsetOfBRPPoolBitmap
 #endif
-                                ));
-  PA_DCHECK(use_brp_pool != IsManagedByPartitionAllocNonBRPPool(ptr));
+        ));
+  } else {
+    PA_DCHECK(giga_cage_pool == GetNonBRPPool());
+    // Non-BRP pool doesn't need adjustment that BRP needs in 32-bit mode.
+    PA_DCHECK(IsManagedByPartitionAllocNonBRPPool(reservation_start));
+  }
 
-  uintptr_t ptr_as_uintptr = reinterpret_cast<uintptr_t>(ptr);
+  uintptr_t ptr_as_uintptr = reinterpret_cast<uintptr_t>(reservation_start);
   PA_DCHECK((ptr_as_uintptr & kSuperPageOffsetMask) == 0);
-  uintptr_t ptr_end = ptr_as_uintptr + size;
+  uintptr_t ptr_end = ptr_as_uintptr + reservation_size;
   auto* offset_ptr = ReservationOffsetPointer(ptr_as_uintptr);
   // Reset the offset table entries for the given memory before unreserving
   // it. Since the memory is not unreserved and not available for other
@@ -245,15 +241,15 @@ void DeferredUnmap::Unmap() {
   // condition.
   uint16_t i = 0;
   while (ptr_as_uintptr < ptr_end) {
-    PA_DCHECK(offset_ptr < EndOfReservationOffsetTable());
+    PA_DCHECK(offset_ptr < GetReservationOffsetTableEnd());
     PA_DCHECK(*offset_ptr == i++);
-    *offset_ptr++ = NotInDirectMapOffsetTag();
+    *offset_ptr++ = kOffsetTagNotAllocated;
     ptr_as_uintptr += kSuperPageSize;
   }
 
   // After resetting the table entries, unreserve and decommit the memory.
   AddressPoolManager::GetInstance()->UnreserveAndDecommit(
-      use_brp_pool ? GetBRPPool() : GetNonBRPPool(), ptr, size);
+      giga_cage_pool, reservation_start, reservation_size);
 }
 
 template struct SlotSpanMetadata<ThreadSafe>;

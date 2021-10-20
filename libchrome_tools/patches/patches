@@ -1,5 +1,14 @@
 # This file will be used by emerge in libchrome-XXXX.ebuild to determine the
 # order of applying patches.
+#
+# Support selectively applying patch by use flag, examples:
+# * To apply foo.patch to every board, add
+#   `foo.patch`
+# * To apply foo.patch to board bar only, add
+#   `foo.patch board_use_bar`
+# * To apply foo.patch to board installing package baz only, add
+#   `foo.patch board_use_baz`
+# Note: add flag to IUSE in libchrome ebuild if it is not already there.
 
 # ========= LONG TERM PATCHES =========================
 
@@ -70,3 +79,15 @@ backward-compatibility-disable-CopyFileContentsWithSendfile.patch
 # base::to_address
 # Remove after uprev to >896181
 forward-compatibility-add-cxx20_erase.h-stub-header.patch
+
+# Backward compatibility patch to temporarily add base::AdaptCallbackForRepeating
+# TODO(b/204383858): Remove the patch when usage in mri_package is removed
+backward-compatibility-add-base-AdaptCallbackForRepaeting.patch board_use_endeavour
+
+# Backward compatibility patches for mistral board only
+# TODO(b/206056111): Remove when they accepts changes or mistral is not using
+# main branch or mistral is not on libchrome CQ
+# Backward compatibility patch to add base/logging.h for webserver
+Include-base-logging.h-for-webserver-on-mistral.patch board_use_mistral
+# Backward compatibility patch to add base/scoped_observer.h for ap-daemons
+backward-compatibility-add-base-ScopedObserver-for-mistral.patch board_use_mistral

@@ -116,6 +116,7 @@ libbase_sublibs = [
       "base/allocator/partition_allocator/partition_root.cc",
       "base/allocator/partition_allocator/partition_stats.cc",
       "base/allocator/partition_allocator/random.cc",
+      "base/allocator/partition_allocator/reservation_offset_table.cc",
       "base/allocator/partition_allocator/spinning_mutex.cc",
       "base/allocator/partition_allocator/starscan/metadata_allocator.cc",
       "base/allocator/partition_allocator/starscan/pcscan.cc",

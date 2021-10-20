@@ -33,6 +33,7 @@
 #include <atomic>
 
 #include "base/allocator/buildflags.h"
+#include "base/allocator/partition_allocator/address_pool_manager_types.h"
 #include "base/allocator/partition_allocator/page_allocator.h"
 #include "base/allocator/partition_allocator/page_allocator_constants.h"
 #include "base/allocator/partition_allocator/partition_address_space.h"
@@ -48,6 +49,7 @@
 #include "base/allocator/partition_allocator/partition_oom.h"
 #include "base/allocator/partition_allocator/partition_page.h"
 #include "base/allocator/partition_allocator/partition_ref_count.h"
+#include "base/allocator/partition_allocator/reservation_offset_table.h"
 #include "base/allocator/partition_allocator/starscan/pcscan.h"
 #include "base/allocator/partition_allocator/thread_cache.h"
 #include "base/bits.h"
@@ -368,15 +370,23 @@ struct BASE_EXPORT PartitionRoot {
     return total_size_of_committed_pages.load(std::memory_order_relaxed);
   }
 
-  bool UseBRPPool() const {
-#if BUILDFLAG(USE_BACKUP_REF_PTR)
-    return allow_ref_count;
-#else
-    // This is counterintuitive, but when BRP isn't used, make all normal bucket
-    // allocations fall into the same pool, and BRP pool is a good place for
-    // that. PCScan requires this.
-    return true;
+  internal::pool_handle ChooseGigaCagePool(bool is_direct_map) const {
+#if !BUILDFLAG(ENABLE_BRP_DIRECTMAP_SUPPORT)
+    // If this is a direct map request and BRP support for direct map isn't on,
+    // use non-BRP pool. This is true regardless of BRP support.
+    if (is_direct_map) {
+      return internal::GetNonBRPPool();
+    }
 #endif
+
+#if BUILDFLAG(USE_BACKUP_REF_PTR)
+    return allow_ref_count ? internal::GetBRPPool() : internal::GetNonBRPPool();
+#else
+    // This is counterintuitive, but when BRP isn't used, make all allocations
+    // fall into the same pool, and BRP pool is a good place for that. PCScan
+    // requires this.
+    return internal::GetBRPPool();
+#endif  // BUILDFLAG(USE_BACKUP_REF_PTR)
   }
 
   ALWAYS_INLINE bool IsQuarantineAllowed() const {
@@ -421,7 +431,8 @@ struct BASE_EXPORT PartitionRoot {
     return bits::AlignUp(raw_size, SystemPageSize());
   }
 
-  static ALWAYS_INLINE size_t GetDirectMapReservedSize(size_t padded_raw_size) {
+  static ALWAYS_INLINE size_t
+  GetDirectMapReservationSize(size_t padded_raw_size) {
     // Caller must check that the size is not above the MaxDirectMapped()
     // limit before calling. This also guards against integer overflow in the
     // calculation here.
@@ -986,7 +997,7 @@ ALWAYS_INLINE void* PartitionRoot<thread_safe>::AllocFromBucket(
     PA_DCHECK(!slot_span->CanStoreRawSize());
     PA_DCHECK(!slot_span->bucket->is_direct_mapped());
     internal::PartitionFreelistEntry* new_head =
-        slot_span->freelist_head->GetNext();
+        slot_span->freelist_head->GetNext(bucket->slot_size);
     slot_span->SetFreelistHead(new_head);
     slot_span->num_allocated_slots++;
 
@@ -1222,7 +1233,8 @@ template <bool thread_safe>
 ALWAYS_INLINE void PartitionRoot<thread_safe>::RawFreeLocked(void* slot_start) {
   SlotSpan* slot_span = SlotSpan::FromSlotStartPtr(slot_start);
   auto deferred_unmap = slot_span->Free(slot_start);
-  PA_DCHECK(!deferred_unmap.ptr);  // Only used with bucketed allocations.
+  // Only used with bucketed allocations.
+  PA_DCHECK(!deferred_unmap.reservation_start);
   deferred_unmap.Run();
 }
 

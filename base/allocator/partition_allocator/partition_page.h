@@ -17,6 +17,7 @@
 #include "base/allocator/partition_allocator/partition_alloc_forward.h"
 #include "base/allocator/partition_allocator/partition_bucket.h"
 #include "base/allocator/partition_allocator/partition_freelist_entry.h"
+#include "base/allocator/partition_allocator/reservation_offset_table.h"
 #include "base/allocator/partition_allocator/starscan/object_bitmap.h"
 #include "base/base_export.h"
 #include "base/compiler_specific.h"
@@ -47,12 +48,13 @@ static_assert(
 // released. Callers of SlotSpanMetadata::Free() must invoke Run().
 // TODO(1061437): Reconsider once the new locking mechanism is implemented.
 struct DeferredUnmap {
-  void* ptr = nullptr;
-  size_t size = 0;
-  bool use_brp_pool = false;
+  void* reservation_start = nullptr;
+  size_t reservation_size = 0;
+  pool_handle giga_cage_pool;
 
-  // In most cases there is no page to unmap and ptr == nullptr. This function
-  // is inlined to avoid the overhead of a function call in the common case.
+  // In most cases there is no page to unmap and reservation_start == nullptr.
+  // This function is inlined to avoid the overhead of a function call in the
+  // common case.
   ALWAYS_INLINE void Run();
 
  private:
@@ -560,7 +562,8 @@ SlotSpanMetadata<thread_safe>::Free(void* slot_start) {
   // Catches an immediate double free.
   PA_CHECK(slot_start != freelist_head);
   // Look for double free one level deeper in debug.
-  PA_DCHECK(!freelist_head || slot_start != freelist_head->GetNext());
+  PA_DCHECK(!freelist_head ||
+            slot_start != freelist_head->GetNext(bucket->slot_size));
   auto* entry = static_cast<internal::PartitionFreelistEntry*>(slot_start);
   entry->SetNext(freelist_head);
   SetFreelistHead(entry);
@@ -621,7 +624,7 @@ ALWAYS_INLINE void SlotSpanMetadata<thread_safe>::Reset() {
 }
 
 ALWAYS_INLINE void DeferredUnmap::Run() {
-  if (UNLIKELY(ptr)) {
+  if (UNLIKELY(reservation_start)) {
     Unmap();
   }
 }

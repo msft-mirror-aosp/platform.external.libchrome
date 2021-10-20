@@ -1,0 +1,43 @@
+From bd7c48ec499e7219d4f8bfa3c2361f918273a28a Mon Sep 17 00:00:00 2001
+From: hscham <hscham@chromium.org>
+Date: Thu, 28 Oct 2021 10:51:29 +0900
+Subject: [PATCH] Add base::AdaptCallbackForRepeating
+
+This would be a temporary (backward compatibility) patch until the usage
+in media_perception is removed, pending approval from owners.
+
+Change-Id: I9fd2f789c6c31dacbb901d28c0d20a984b2e9162
+---
+ base/callback_helpers.h | 16 ++++++++++++++++
+ 1 file changed, 16 insertions(+)
+
+diff --git a/base/callback_helpers.h b/base/callback_helpers.h
+index 864296839..20b3436d5 100644
+--- a/base/callback_helpers.h
++++ b/base/callback_helpers.h
+@@ -94,6 +94,22 @@ class OnceCallbackHolder final {
+ 
+ }  // namespace internal
+ 
++// Wraps the given OnceCallback into a RepeatingCallback that relays its
++// invocation to the original OnceCallback on the first invocation. The
++// following invocations are just ignored.
++//
++// Note that this deliberately subverts the Once/Repeating paradigm of Callbacks
++// but helps ease the migration from old-style Callbacks. Avoid if possible; use
++// if necessary for migration. TODO(tzik): Remove it. https://crbug.com/730593
++template <typename... Args>
++RepeatingCallback<void(Args...)> AdaptCallbackForRepeating(
++    OnceCallback<void(Args...)> callback) {
++  using Helper = internal::OnceCallbackHolder<Args...>;
++  return base::BindRepeating(
++      &Helper::Run, std::make_unique<Helper>(std::move(callback),
++                                             /*ignore_extra_runs=*/true));
++}
++
+ // Wraps the given OnceCallback and returns two OnceCallbacks with an identical
+ // signature. On first invokation of either returned callbacks, the original
+ // callback is invoked. Invoking the remaining callback results in a crash.
+-- 
+2.33.1.1089.g2158813163f-goog
+
