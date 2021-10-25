@@ -64,8 +64,13 @@ backward-compatibility-add-deprecated-base-Bind-APIs.patch
 # since it introduces new syscall uname.
 # TODO(b/202361491): Remove the patch when tested thoroughly.
 backward-compatibility-disable-KernelVersionNumbers.patch
-#
+
 # Backward compatibility patch to temporarily disable CopyFileContentsWithSendfile
 # since it introduces new syscall sendfile.
 # TODO(b/202686177): Remove the patch when tested thoroughly.
 backward-compatibility-disable-CopyFileContentsWithSendfile.patch
+
+# Forward compatibility for using new header files for base::Erase{,If} and
+# base::to_address
+# Remove after uprev to >896181
+forward-compatibility-add-cxx20_erase.h-stub-header.patch
