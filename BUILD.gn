@@ -97,6 +97,12 @@ libbase_sublibs = [
     configs = [ ":base_core_config", ":base_export_config" ]
     sources = [
       "base/allocator/allocator_extension.cc",
+      "base/allocator/partition_allocator/address_space_randomization.cc",
+      "base/allocator/partition_allocator/oom_callback.cc",
+      "base/allocator/partition_allocator/page_allocator.cc",
+      "base/allocator/partition_allocator/page_allocator_internals_posix.cc",
+      "base/allocator/partition_allocator/random.cc",
+      "base/allocator/partition_allocator/spinning_mutex.cc",
       "base/at_exit.cc",
       "base/barrier_closure.cc",
       "base/base64.cc",

@@ -42,10 +42,6 @@ jinja2-update-to-2.10.1.patch
 mojo-Add-ReceiverSetBase-RemoveWithReason.patch
 
 # ==================== BACKWARD / FORWARD COMPATIBILITY PATCHES FOR UPREVS ===
-# libchrome does not support PartitionAllocator yet
-# TODO(b/202362183): Remove when enabled
-disable-partition-allocator.patch
-
 # TODO(b/192529039): Remove when all base::Optional usages are migrated to
 # std::optional
 backward-compatibility-Add-base-Optional-as-alias-of-absl-optional.patch
