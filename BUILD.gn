@@ -84,6 +84,7 @@ libbase_sublibs = [
   {
     name = "base-core"
     libs = [
+      "dl",
       "double-conversion",
       "pthread",
       "rt",
@@ -97,6 +98,8 @@ libbase_sublibs = [
     configs = [ ":base_core_config", ":base_export_config" ]
     sources = [
       "base/allocator/allocator_extension.cc",
+      "base/allocator/allocator_shim.cc",
+      "base/allocator/allocator_shim_default_dispatch_to_glibc.cc",
       "base/allocator/partition_allocator/address_space_randomization.cc",
       "base/allocator/partition_allocator/oom_callback.cc",
       "base/allocator/partition_allocator/page_allocator.cc",
@@ -207,6 +210,8 @@ libbase_sublibs = [
       "base/metrics/sample_vector.cc",
       "base/metrics/sparse_histogram.cc",
       "base/metrics/statistics_recorder.cc",
+      "base/native_library.cc",
+      "base/native_library_posix.cc",
       "base/notreached.cc",
       "base/observer_list_internal.cc",
       "base/observer_list_threadsafe.cc",
@@ -242,6 +247,7 @@ libbase_sublibs = [
       "base/rand_util.cc",
       "base/rand_util_posix.cc",
       "base/run_loop.cc",
+      "base/scoped_native_library.cc",
       "base/sequence_checker_impl.cc",
       "base/sequence_token.cc",
       "base/sequenced_task_runner.cc",
@@ -300,10 +306,10 @@ libbase_sublibs = [
       "base/task/sequence_manager/work_queue.cc",
       "base/task/sequence_manager/work_queue_sets.cc",
       "base/task/simple_task_executor.cc",
+      "base/task/single_thread_task_executor.cc",
       "base/task/task_executor.cc",
       "base/task/task_features.cc",
       "base/task/task_traits.cc",
-      "base/task/single_thread_task_executor.cc",
       "base/task/thread_pool.cc",
       "base/task/thread_pool/delayed_task_manager.cc",
       "base/task/thread_pool/environment_config.cc",
@@ -374,20 +380,6 @@ libbase_sublibs = [
   },
 
   {
-    name = "base-dl"
-    deps = [ ":base-core" ]
-    libs = [ "dl" ]
-    configs = [ ":base_export_config" ]
-    sources = [
-      "base/allocator/allocator_shim.cc",
-      "base/allocator/allocator_shim_default_dispatch_to_glibc.cc",
-      "base/native_library.cc",
-      "base/native_library_posix.cc",
-      "base/scoped_native_library.cc",
-    ]
-  },
-
-  {
     name = "base-policy"
     deps = [ ":base-core" ]
     libs = [ "re2" ]
@@ -426,7 +418,6 @@ if (use.crypto) {
       name = "base-crypto"
       deps = [
         ":base-core",
-        ":base-dl",
       ]
       libs = [
         "dl",
@@ -747,7 +738,6 @@ if (use.mojo) {
     deps = [
       ":base-core",
       ":base-crypto",
-      ":base-dl",
       ":mojom_bindings_gen",
       # ":mojom_bindings_native_gen",
       # ":mojom_type_mappings",
