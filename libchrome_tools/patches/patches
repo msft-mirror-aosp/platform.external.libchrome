@@ -50,6 +50,9 @@ jinja2-update-to-2.10.1.patch
 # Remove after r912107
 mojo-Add-ReceiverSetBase-RemoveWithReason.patch
 
+# Remove after r943984
+libchrome-Query-spaced-for-free-total-disk-space.patch
+
 # ==================== BACKWARD / FORWARD COMPATIBILITY PATCHES FOR UPREVS ===
 # TODO(b/192529039): Remove when all base::Optional usages are migrated to
 # std::optional

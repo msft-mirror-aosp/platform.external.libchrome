@@ -1,0 +1,291 @@
+From 9359a543b1f95bb30832d0e0216235e723b57151 Mon Sep 17 00:00:00 2001
+From: Sarthak Kukreti <sarthakkukreti@google.com>
+Date: Mon, 22 Nov 2021 08:55:31 +0000
+Subject: [PATCH] Reland "Query spaced for free/total disk space"
+
+This is a reland of 5082d819e3110642e0aa0ccf8dfa730820db855a
+
+This reland CL contains no changes because the issues listed
+below have been resolved.
+
+The change was reverted due to two reasons:
+1. b/206260036 resulted in the change getting tested with older
+release images. This has since been fixed.
+2. crbug.com/1270613: A larger query time added performance regressions
+in copy/move semantics, which has now been mitigated via
+https://crrev.com/c/3289568
+
+Original change's description:
+> Query spaced for free/total disk space
+>
+> On ChromeOS, spaced is the central source-of-truth for free
+> disk space information. Spaced accounts for the available
+> extents on the underlying thinpool on thinly provisioned filesystems
+> so that clients can accurately know the true amount of disk space
+> available on the device.
+>
+> BUG=b:177966496
+> TEST=test Storage Management page on ChromeOS reflects the correct
+> values.
+> TEST=unittests
+>
+> Change-Id: Iabe6f7a704813d90deb3cfd6886b25f541c49ceb
+> Reviewed-on:
+> https://chromium-review.googlesource.com/c/chromium/src/+/3171506
+> Commit-Queue: Sarthak Kukreti <sarthakkukreti@chromium.org>
+> Reviewed-by: Lei Zhang <thestig@chromium.org>
+> Cr-Commit-Position: refs/heads/main@{#939202}
+
+Conflicts: extra headers on ToT.
+
+Bug: b:177966496
+Change-Id: Ida266fffe48a4cb0bcacbe08e499c1f39d19d55b
+Reviewed-on:
+https://chromium-review.googlesource.com/c/chromium/src/+/3293987
+Commit-Queue: Sarthak Kukreti <sarthakkukreti@chromium.org>
+Reviewed-by: Lei Zhang <thestig@chromium.org>
+Cr-Commit-Position: refs/heads/main@{#943984}
+---
+ base/system/sys_info.h           | 24 ++++++++++++++++
+ base/system/sys_info_chromeos.cc | 44 +++++++++++++++++++++++++++++
+ base/system/sys_info_posix.cc    | 13 +++++++++
+ base/system/sys_info_unittest.cc | 48 ++++++++++++++++++++++++++++++++
+ 4 files changed, 129 insertions(+)
+
+diff --git a/base/system/sys_info.h b/base/system/sys_info.h
+index ff02931ed2..2887dfff06 100644
+--- a/base/system/sys_info.h
++++ b/base/system/sys_info.h
+@@ -24,6 +24,7 @@ namespace debug {
+ FORWARD_DECLARE_TEST(SystemMetricsTest, ParseMeminfo);
+ }
+ 
++class CommandLine;
+ class FilePath;
+ struct SystemMemoryInfoKB;
+ 
+@@ -66,6 +67,21 @@ class BASE_EXPORT SysInfo {
+   // on failure.
+   static int64_t AmountOfTotalDiskSpace(const FilePath& path);
+ 
++#if defined(OS_CHROMEOS)
++  // On ChromeOS, spaced is the central source-of-truth for disk space
++  // information. Spaced takes into account the available extents on the
++  // underlying thinpool to make sure that thinly provisioned filesystems
++  // return only the available physical extents as the free space.
++  //
++  // Return the available disk space in bytes on the volume containing |path|,
++  // or -1 on failure.
++  static int64_t GetFreeDiskSpaceFromSpaced(const FilePath& path);
++
++  // Return the total disk space in bytes on the volume containing |path|, or -1
++  // on failure.
++  static int64_t GetTotalDiskSpaceFromSpaced(const FilePath& path);
++#endif
++
+ #if defined(OS_FUCHSIA)
+   // Sets the total amount of disk space to report under the specified |path|.
+   // If |bytes| is -ve then any existing entry for |path| is removed.
+@@ -167,6 +183,14 @@ class BASE_EXPORT SysInfo {
+   // Undoes the function above.
+   static void ResetChromeOSVersionInfoForTest();
+ 
++  // Overrides the command runner for running commands. Overrides cannot be
++  // nested. Users must call SetChromeOSGetAppOutputForTest(nullptr) to revert
++  // the test function.
++  using GetAppOutputCallback =
++      RepeatingCallback<bool(const CommandLine&, std::string*)>;
++
++  static void SetChromeOSGetAppOutputForTest(GetAppOutputCallback* callback);
++
+   // Returns the kernel version of the host operating system.
+   static std::string KernelVersion();
+ 
+diff --git a/base/system/sys_info_chromeos.cc b/base/system/sys_info_chromeos.cc
+index 188552e6f1..5c1cfa8719 100644
+--- a/base/system/sys_info_chromeos.cc
++++ b/base/system/sys_info_chromeos.cc
+@@ -8,6 +8,8 @@
+ #include <stdint.h>
+ #include <sys/utsname.h>
+ 
++#include "base/callback.h"
++#include "base/command_line.h"
+ #include "base/cxx17_backports.h"
+ #include "base/environment.h"
+ #include "base/files/file.h"
+@@ -15,6 +17,7 @@
+ #include "base/files/file_util.h"
+ #include "base/no_destructor.h"
+ #include "base/notreached.h"
++#include "base/process/launch.h"
+ #include "base/strings/string_number_conversions.h"
+ #include "base/strings/string_piece.h"
+ #include "base/strings/string_split.h"
+@@ -46,6 +49,10 @@ const char kLsbReleaseSourceKey[] = "lsb-release";
+ const char kLsbReleaseSourceEnv[] = "env";
+ const char kLsbReleaseSourceFile[] = "file";
+ 
++const char kSpacedCliPath[] = "/usr/sbin/spaced_cli";
++const char kSpacedGetFreeDiskSpaceAction[] = "get_free_disk_space";
++const char kSpacedGetTotalDiskSpaceAction[] = "get_total_disk_space";
++
+ class ChromeOSVersionInfo {
+  public:
+   ChromeOSVersionInfo() {
+@@ -168,6 +175,28 @@ ChromeOSVersionInfo& GetChromeOSVersionInfo() {
+   return *version_info;
+ }
+ 
++SysInfo::GetAppOutputCallback* g_chromeos_get_app_output_for_test = nullptr;
++
++int64_t GetInfoFromSpaced(StringPiece action, const base::FilePath& path) {
++  CommandLine command((base::FilePath(kSpacedCliPath)));
++  command.AppendSwitchPath(action, path);
++
++  std::string output;
++  bool ret;
++  if (g_chromeos_get_app_output_for_test) {
++    ret = g_chromeos_get_app_output_for_test->Run(command, &output);
++  } else {
++    ret = GetAppOutput(command, &output);
++  }
++
++  int64_t result;
++  if (!ret || !StringToInt64(output, &result) || result < 0) {
++    return -1;
++  }
++
++  return result;
++}
++
+ }  // namespace
+ 
+ // static
+@@ -248,6 +277,11 @@ void SysInfo::ResetChromeOSVersionInfoForTest() {
+   g_chromeos_version_info_for_test = nullptr;
+ }
+ 
++// static
++void SysInfo::SetChromeOSGetAppOutputForTest(GetAppOutputCallback* callback) {
++  g_chromeos_get_app_output_for_test = callback;
++}
++
+ // static
+ void SysInfo::CrashIfChromeOSNonTestImage() {
+   if (!IsRunningOnChromeOS())
+@@ -265,4 +299,14 @@ void SysInfo::CrashIfChromeOSNonTestImage() {
+   CHECK_NE(track.find(kTestImageRelease), std::string::npos);
+ }
+ 
++// static
++int64_t SysInfo::GetFreeDiskSpaceFromSpaced(const base::FilePath& path) {
++  return GetInfoFromSpaced(kSpacedGetFreeDiskSpaceAction, path);
++}
++
++// static
++int64_t SysInfo::GetTotalDiskSpaceFromSpaced(const base::FilePath& path) {
++  return GetInfoFromSpaced(kSpacedGetTotalDiskSpaceAction, path);
++}
++
+ }  // namespace base
+diff --git a/base/system/sys_info_posix.cc b/base/system/sys_info_posix.cc
+index 674618a277..fb754459c3 100644
+--- a/base/system/sys_info_posix.cc
++++ b/base/system/sys_info_posix.cc
+@@ -161,10 +161,16 @@ int64_t SysInfo::AmountOfVirtualMemory() {
+ int64_t SysInfo::AmountOfFreeDiskSpace(const FilePath& path) {
+   base::ScopedBlockingCall scoped_blocking_call(FROM_HERE,
+                                                 base::BlockingType::MAY_BLOCK);
++#if defined(OS_CHROMEOS)
++  int64_t ret = GetFreeDiskSpaceFromSpaced(path);
++  if (ret != -1)
++    return ret;
++#endif
+ 
+   int64_t available;
+   if (!GetDiskSpaceInfo(path, &available, nullptr))
+     return -1;
++
+   return available;
+ }
+ 
+@@ -173,9 +179,16 @@ int64_t SysInfo::AmountOfTotalDiskSpace(const FilePath& path) {
+   base::ScopedBlockingCall scoped_blocking_call(FROM_HERE,
+                                                 base::BlockingType::MAY_BLOCK);
+ 
++#if defined(OS_CHROMEOS)
++  int64_t ret = GetTotalDiskSpaceFromSpaced(path);
++  if (ret != -1)
++    return ret;
++#endif
++
+   int64_t total;
+   if (!GetDiskSpaceInfo(path, nullptr, &total))
+     return -1;
++
+   return total;
+ }
+ 
+diff --git a/base/system/sys_info_unittest.cc b/base/system/sys_info_unittest.cc
+index 64b6b31e10..097e96d9b1 100644
+--- a/base/system/sys_info_unittest.cc
++++ b/base/system/sys_info_unittest.cc
+@@ -431,6 +431,54 @@ TEST_F(SysInfoTest, ScopedRunningOnChromeOS) {
+   EXPECT_EQ(was_running, SysInfo::IsRunningOnChromeOS());
+ }
+ 
++SysInfo::GetAppOutputCallback MockGetAppOutputTestCallback(
++    const std::string& mock_output,
++    bool mock_ret) {
++  return BindRepeating(
++      [](const std::string& expected_output, bool return_value,
++         const CommandLine& cl, std::string* out) -> bool {
++        *out = expected_output;
++        return return_value;
++      },
++      mock_output, mock_ret);
++}
++
++TEST_F(SysInfoTest, SpacedValidQuery) {
++  FilePath dummy_path("/a/b/c");
++  auto mock_get_app_output = MockGetAppOutputTestCallback("1234", true);
++  SysInfo::SetChromeOSGetAppOutputForTest(&mock_get_app_output);
++  EXPECT_EQ(SysInfo::GetTotalDiskSpaceFromSpaced(dummy_path), 1234);
++  EXPECT_EQ(SysInfo::GetFreeDiskSpaceFromSpaced(dummy_path), 1234);
++  SysInfo::SetChromeOSGetAppOutputForTest(nullptr);
++}
++
++TEST_F(SysInfoTest, SpacedInternalFailure) {
++  FilePath dummy_path("/a/b/c");
++  auto mock_get_app_output = MockGetAppOutputTestCallback("-1", true);
++  SysInfo::SetChromeOSGetAppOutputForTest(&mock_get_app_output);
++  EXPECT_EQ(SysInfo::GetTotalDiskSpaceFromSpaced(dummy_path), -1);
++  EXPECT_EQ(SysInfo::GetFreeDiskSpaceFromSpaced(dummy_path), -1);
++  SysInfo::SetChromeOSGetAppOutputForTest(nullptr);
++}
++
++TEST_F(SysInfoTest, SpacedFailedInvocation) {
++  FilePath dummy_path("/a/b/c");
++  auto mock_get_app_output = MockGetAppOutputTestCallback("5", false);
++  SysInfo::SetChromeOSGetAppOutputForTest(&mock_get_app_output);
++  EXPECT_EQ(SysInfo::GetTotalDiskSpaceFromSpaced(dummy_path), -1);
++  EXPECT_EQ(SysInfo::GetFreeDiskSpaceFromSpaced(dummy_path), -1);
++  SysInfo::SetChromeOSGetAppOutputForTest(nullptr);
++}
++
++TEST_F(SysInfoTest, SpacedInvalidOutput) {
++  FilePath dummy_path("/a/b/c");
++  auto mock_get_app_output = MockGetAppOutputTestCallback("foo", true);
++  SysInfo::SetChromeOSGetAppOutputForTest(&mock_get_app_output);
++  EXPECT_EQ(SysInfo::GetTotalDiskSpaceFromSpaced(dummy_path), -1);
++  EXPECT_EQ(SysInfo::GetFreeDiskSpaceFromSpaced(dummy_path), -1);
++  SysInfo::SetChromeOSGetAppOutputForTest(nullptr);
++}
++
+ #endif  // BUILDFLAG(IS_CHROMEOS_ASH) || BUILDFLAG(IS_CHROMEOS_LACROS)
+ 
+ }  // namespace base
+-- 
+2.31.0
+
