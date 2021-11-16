@@ -104,6 +104,7 @@ libbase_sublibs = [
       "base/allocator/partition_allocator/address_pool_manager_bitmap.cc",
       "base/allocator/partition_allocator/address_space_randomization.cc",
       "base/allocator/partition_allocator/memory_reclaimer.cc",
+      "base/allocator/partition_allocator/oom.cc",
       "base/allocator/partition_allocator/oom_callback.cc",
       "base/allocator/partition_allocator/page_allocator.cc",
       "base/allocator/partition_allocator/page_allocator_internals_posix.cc",

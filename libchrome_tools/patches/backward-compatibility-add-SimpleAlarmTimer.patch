@@ -1,6 +1,6 @@
-From ecd7667c21281aded1fa27d7b723147071c48ead Mon Sep 17 00:00:00 2001
+From db113d7fe037027bb34e51953b96a90d1dffb95a Mon Sep 17 00:00:00 2001
 From: hscham <hscham@chromium.org>
-Date: Mon, 28 Jun 2021 12:11:38 +0900
+Date: Tue, 2 Nov 2021 10:05:59 +0900
 Subject: [PATCH] Keep SimpleAlarmTimer available to shill and power_manager
 
 SimpleAlarmTimer is removed upstream but still in use in Chrome OS. This
@@ -15,27 +15,26 @@ could be introduced.
 BUG=b:196308068
 Change-Id: If605736e0c9565b6412151f399d9f7eba84cc7a4
 
-Change-Id: I930eba43c2783ca02f06ba2efc7bd5d02d80b180
+Change-Id: I9bfa00c6b18d27ae94a950002ad21773f1c1dd2e
 ---
  BUILD.gn                                  |  17 +
- base/timer/timer.cc                       |  10 +-
- base/timer/timer.h                        |  16 +-
+ base/timer/timer.h                        |  23 +-
  components/timers/DIR_METADATA            |   3 +
  components/timers/README                  |   3 +
  components/timers/alarm_timer_chromeos.cc |   1 +
  components/timers/alarm_timer_chromeos.h  | 119 +++++++
  components/timers/alarm_timer_unittest.cc | 366 ++++++++++++++++++++++
- 8 files changed, 526 insertions(+), 9 deletions(-)
+ 7 files changed, 528 insertions(+), 4 deletions(-)
  create mode 100644 components/timers/DIR_METADATA
  create mode 100644 components/timers/README
  create mode 100644 components/timers/alarm_timer_chromeos.h
  create mode 100644 components/timers/alarm_timer_unittest.cc
 
 diff --git a/BUILD.gn b/BUILD.gn
-index 44ba43c3ef..f4cad0dd26 100644
+index 26d2afb4c1..61658c4c34 100644
 --- a/BUILD.gn
 +++ b/BUILD.gn
-@@ -509,6 +509,23 @@ if (use.dbus) {
+@@ -508,6 +508,23 @@ if (use.dbus) {
    ]
  }
  
@@ -59,54 +58,33 @@ index 44ba43c3ef..f4cad0dd26 100644
  # Generate static/shared libraries.
  foreach(attr, libbase_sublibs) {
    if (defined(attr.pkg_deps)) {
-diff --git a/base/timer/timer.cc b/base/timer/timer.cc
-index 7e6071456d..44c36f1cef 100644
---- a/base/timer/timer.cc
-+++ b/base/timer/timer.cc
-@@ -140,6 +140,11 @@ void TimerBase::Reset() {
-   ScheduleNewTask(delay_);
- }
- 
-+TimeTicks TimerBase::Now() const {
-+  DCHECK(origin_sequence_checker_.CalledOnValidSequence());
-+  return tick_clock_ ? tick_clock_->NowTicks() : TimeTicks::Now();
-+}
-+
- void TimerBase::ScheduleNewTask(TimeDelta delay) {
-   DCHECK(origin_sequence_checker_.CalledOnValidSequence());
-   DCHECK(!task_destruction_detector_);
-@@ -168,11 +173,6 @@ scoped_refptr<SequencedTaskRunner> TimerBase::GetTaskRunner() {
-   return task_runner_.get() ? task_runner_ : SequencedTaskRunnerHandle::Get();
- }
- 
--TimeTicks TimerBase::Now() const {
--  DCHECK(origin_sequence_checker_.CalledOnValidSequence());
--  return tick_clock_ ? tick_clock_->NowTicks() : TimeTicks::Now();
--}
--
- void TimerBase::AbandonScheduledTask() {
-   DCHECK(origin_sequence_checker_.CalledOnValidSequence());
-   if (task_destruction_detector_) {
 diff --git a/base/timer/timer.h b/base/timer/timer.h
-index 475b2d4aa0..d66b18157f 100644
+index 70344e9302..d50659543f 100644
 --- a/base/timer/timer.h
 +++ b/base/timer/timer.h
-@@ -140,6 +140,14 @@ class BASE_EXPORT TimerBase {
+@@ -143,6 +143,21 @@ class BASE_EXPORT TimerBase {
    virtual void OnStop() = 0;
    virtual void RunUserTask() = 0;
  
 +  // Returns the current tick count.
 +  TimeTicks Now() const;
 +
-+  void set_desired_run_time(TimeTicks desired) { desired_run_time_ = desired; }
-+  void set_is_running(bool running) { is_running_ = running; }
++  void set_desired_run_time(TimeTicks desired) {
++    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++    desired_run_time_ = desired;
++  }
++
++  void set_is_running(bool running) {
++    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++    is_running_ = running;
++  }
 +
 +  const Location& posted_from() const { return posted_from_; }
 +
    // The task runner on which the task should be scheduled. If it is null, the
    // task runner for the current sequence will be used.
    scoped_refptr<SequencedTaskRunner> task_runner_;
-@@ -164,10 +172,7 @@ class BASE_EXPORT TimerBase {
+@@ -167,10 +182,7 @@ class BASE_EXPORT TimerBase {
    // sequence is returned.
    scoped_refptr<SequencedTaskRunner> GetTaskRunner();
  
@@ -118,7 +96,7 @@ index 475b2d4aa0..d66b18157f 100644
    // to this object.
    void AbandonScheduledTask();
  
-@@ -333,6 +338,9 @@ class BASE_EXPORT RetainingOneShotTimer : public internal::TimerBase {
+@@ -344,6 +356,9 @@ class BASE_EXPORT RetainingOneShotTimer : public internal::TimerBase {
  
    const RepeatingClosure& user_task() const { return user_task_; }
  
@@ -147,7 +125,7 @@ index 0000000000..0b2b4e37f8
 +lives in this directory is not allowed to depend on anything other than base/
 +because Chrome OS only pulls in and depends on base/ as a library.
 diff --git a/components/timers/alarm_timer_chromeos.cc b/components/timers/alarm_timer_chromeos.cc
-index b7cc691106..c2ad166656 100644
+index ea38de066e..229db7c647 100644
 --- a/components/timers/alarm_timer_chromeos.cc
 +++ b/components/timers/alarm_timer_chromeos.cc
 @@ -89,6 +89,7 @@ void SimpleAlarmTimer::Reset() {
@@ -656,5 +634,5 @@ index 0000000000..c8b5224ed4
 +}  // namespace
 +}  // namespace timers
 -- 
-2.32.0.605.g8dce9f2422-goog
+2.34.0.rc0.344.g81b53c2807-goog
 
