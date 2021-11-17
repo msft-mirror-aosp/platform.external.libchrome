@@ -6,9 +6,9 @@
 
 #include <stddef.h>
 
+#include <iterator>
 #include <memory>
 
-#include "base/stl_util.h"
 #include "crypto/secure_hash.h"
 
 namespace crypto {
@@ -21,7 +21,7 @@ void SHA256HashString(const base::StringPiece& str, void* output, size_t len) {
 
 std::string SHA256HashString(const base::StringPiece& str) {
   std::string output(kSHA256Length, 0);
-  SHA256HashString(str, base::data(output), output.size());
+  SHA256HashString(str, std::data(output), output.size());
   return output;
 }
 
