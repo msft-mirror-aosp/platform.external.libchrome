@@ -77,7 +77,7 @@ forward-compatibility-add-cxx20_erase.h-stub-header.patch
 
 # Backward compatibility patch to temporarily add base::AdaptCallbackForRepeating
 # TODO(b/204383858): Remove the patch when usage in mri_package is removed
-backward-compatibility-add-base-AdaptCallbackForRepaeting.patch board_use_endeavour
+backward-compatibility-add-base-AdaptCallbackForRepaeting.patch media_perception
 
 # Backward compatibility patches for mistral board only
 # TODO(b/206056111): Remove when they accepts changes or mistral is not using
