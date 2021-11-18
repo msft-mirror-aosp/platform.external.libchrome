@@ -18,13 +18,13 @@ Change-Id: If605736e0c9565b6412151f399d9f7eba84cc7a4
 Change-Id: I9bfa00c6b18d27ae94a950002ad21773f1c1dd2e
 ---
  BUILD.gn                                  |  17 +
- base/timer/timer.h                        |  23 +-
+ base/timer/timer.h                        |  16 +-
  components/timers/DIR_METADATA            |   3 +
  components/timers/README                  |   3 +
  components/timers/alarm_timer_chromeos.cc |   1 +
  components/timers/alarm_timer_chromeos.h  | 119 +++++++
  components/timers/alarm_timer_unittest.cc | 366 ++++++++++++++++++++++
- 7 files changed, 528 insertions(+), 4 deletions(-)
+ 7 files changed, 521 insertions(+), 4 deletions(-)
  create mode 100644 components/timers/DIR_METADATA
  create mode 100644 components/timers/README
  create mode 100644 components/timers/alarm_timer_chromeos.h

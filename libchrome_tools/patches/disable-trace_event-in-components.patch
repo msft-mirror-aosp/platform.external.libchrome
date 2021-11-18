@@ -1,7 +1,7 @@
-From 509d1486199a12c0c27317ea004f92d2bee18c20 Mon Sep 17 00:00:00 2001
+From 3724d7d07d225a31456c73f6e3a7b90898b8f349 Mon Sep 17 00:00:00 2001
 From: hscham <hscham@chromium.org>
 Date: Thu, 14 Oct 2021 11:36:31 +0900
-Subject: [PATCH 2/2] Disable trace_event in components/
+Subject: [PATCH 2/4] Disable trace_event in components/
 
 Change-Id: Ia94077ad8d2c71e6989d25b333a06a69820fff2c
 ---
@@ -24,5 +24,5 @@ index ea38de066e85..b7cc6911065a 100644
  
  namespace timers {
 -- 
-2.33.0.882.g93a45727a2-goog
+2.34.1.400.ga245620fadb-goog
 

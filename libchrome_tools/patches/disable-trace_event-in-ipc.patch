@@ -1,7 +1,7 @@
-From 1fe1e2f32cf376db0de71238aa04f82c93eb1949 Mon Sep 17 00:00:00 2001
+From 5d912d3c3823b4ac6bdaec7441075f56b24afd8a Mon Sep 17 00:00:00 2001
 From: hscham <hscham@chromium.org>
 Date: Thu, 11 Nov 2021 15:50:00 +0900
-Subject: [PATCH 2/3] Fix ipc build with enable_base_tracing=false
+Subject: [PATCH 4/4] Fix ipc build with enable_base_tracing=false
 
 This is the second CL in a series of CL that will fix base, ipc, mojo
 build with base tracing disabled.
@@ -87,7 +87,7 @@ index dc49e2e9800e..2b5bec402211 100644
  #include "build/build_config.h"
  #include "ipc/ipc_message.h"
 diff --git a/ipc/ipc_mojo_bootstrap.cc b/ipc/ipc_mojo_bootstrap.cc
-index 4fe1d9f617b3..d153c221e895 100644
+index 18b4dc9be5bf..df3d26dc372e 100644
 --- a/ipc/ipc_mojo_bootstrap.cc
 +++ b/ipc/ipc_mojo_bootstrap.cc
 @@ -29,9 +29,7 @@
@@ -162,5 +162,4 @@ index 44d4792cf942..8a8eaf382505 100644
 +
  #endif  // IPC_TRACE_IPC_MESSAGE_H_
 -- 
-2.34.0.rc1.387.gb447b232ab-goog
-
+2.34.1.400.ga245620fadb-goog

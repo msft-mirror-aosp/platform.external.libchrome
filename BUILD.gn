@@ -123,6 +123,7 @@ libbase_sublibs = [
       "base/allocator/partition_allocator/starscan/pcscan.cc",
       "base/allocator/partition_allocator/starscan/pcscan_internal.cc",
       "base/allocator/partition_allocator/starscan/pcscan_scheduling.cc",
+      "base/allocator/partition_allocator/starscan/snapshot.cc",
       "base/allocator/partition_allocator/starscan/stack/stack.cc",
       "base/allocator/partition_allocator/starscan/stats_collector.cc",
       "base/allocator/partition_allocator/starscan/write_protector.cc",

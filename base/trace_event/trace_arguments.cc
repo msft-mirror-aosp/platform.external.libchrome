@@ -10,6 +10,7 @@
 #include <string.h>
 
 #include <cmath>
+#include <ostream>
 
 #include "base/check_op.h"
 #include "base/json/string_escape.h"
@@ -183,10 +184,9 @@ void TraceValue::Append(unsigned char type,
       this->as_convertable->AppendAsTraceFormat(out);
       break;
     case TRACE_VALUE_TYPE_PROTO:
-      if (as_json)
-        EscapeJSONString(this->as_proto->SerializeAsString(), true, out);
-      else
-        *out += this->as_proto->SerializeAsString();
+      DCHECK(as_json);
+      // Typed protobuf arguments aren't representable in JSON.
+      *out += "\"Unsupported (crbug.com/1225176)\"";
       break;
     default:
       NOTREACHED() << "Don't know how to print this value";

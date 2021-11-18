@@ -39,10 +39,6 @@ disable-trace_event-in-mojo.patch
 disable-trace_event-in-ipc.patch
 
 # ==================== CHERRY PICKS ===========================
-# Modify mojom_parser.py to search for external Mojo modules.
-# Remove after r900163
-mojom-parser-external-modules.patch
-
 # Remove after r910765
 jinja2-update-to-2.10.1.patch
 
@@ -75,11 +71,3 @@ backward-compatibility-disable-CopyFileContentsWithSendfile.patch
 # Backward compatibility patch to temporarily add base::AdaptCallbackForRepeating
 # TODO(b/204383858): Remove the patch when usage in mri_package is removed
 backward-compatibility-add-base-AdaptCallbackForRepaeting.patch media_perception
-
-# Backward compatibility patches for mistral board only
-# TODO(b/206056111): Remove when they accepts changes or mistral is not using
-# main branch or mistral is not on libchrome CQ
-# Backward compatibility patch to add base/logging.h for webserver
-Include-base-logging.h-for-webserver-on-mistral.patch board_use_mistral
-# Backward compatibility patch to add base/scoped_observer.h for ap-daemons
-backward-compatibility-add-base-ScopedObserver-for-mistral.patch board_use_mistral

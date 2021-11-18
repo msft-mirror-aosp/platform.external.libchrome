@@ -10,6 +10,7 @@
 
 #include "base/allocator/partition_allocator/partition_alloc_config.h"
 #include "base/allocator/partition_allocator/partition_alloc_forward.h"
+#include "base/allocator/partition_allocator/partition_bucket_lookup.h"
 #include "base/allocator/partition_allocator/partition_freelist_entry.h"
 #include "base/allocator/partition_allocator/partition_lock.h"
 #include "base/allocator/partition_allocator/partition_stats.h"
@@ -51,13 +52,8 @@ extern BASE_EXPORT PartitionTlsKey g_thread_cache_key;
 //       base::internal::g_thread_cache
 //   libbase.dylib`base::internal::ThreadCache::Get()
 // where tlv_allocate_and_initialize_for_key performs memory allocation.
-//
-// On Chrome OS, dlopen() on ARM fails with "cannot allocate memory in static
-// TLS block", which can arise when using static TLS in a dynamic context, that
-// is "thread_local" in a dynamic library.
 #if !(defined(OS_WIN) && defined(COMPONENT_BUILD)) && !defined(OS_ANDROID) && \
-    !(defined(OS_APPLE) && BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)) &&       \
-    !(defined(OS_CHROMEOS) && defined(ARCH_CPU_ARM_FAMILY))
+    !(defined(OS_APPLE) && BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC))
 #define PA_THREAD_CACHE_FAST_TLS
 #endif
 
@@ -139,15 +135,6 @@ constexpr ThreadCacheRegistry::ThreadCacheRegistry() = default;
   } while (0)
 #define GET_COUNTER(counter) 0
 #endif  // defined(PA_THREAD_CACHE_ENABLE_STATISTICS)
-
-ALWAYS_INLINE static constexpr int ConstexprLog2(size_t n) {
-  return n < 1 ? -1 : (n < 2 ? 0 : (1 + ConstexprLog2(n >> 1)));
-}
-
-ALWAYS_INLINE static constexpr uint16_t BucketIndexForSize(size_t size) {
-  return ((ConstexprLog2(size) - kMinBucketedOrder + 1)
-          << kNumBucketsPerOrderBits);
-}
 
 #if DCHECK_IS_ON()
 class ReentrancyGuard {
@@ -311,8 +298,14 @@ class BASE_EXPORT ThreadCache {
   static void SetGlobalLimits(PartitionRoot<ThreadSafe>* root,
                               float multiplier);
 
+#if defined(OS_NACL)
+  // The thread cache is never used with NaCl, but its compiler doesn't
+  // understand enough constexpr to handle the code below.
+  static constexpr uint16_t kBucketCount = 1;
+#else
   static constexpr uint16_t kBucketCount =
-      BucketIndexForSize(kLargeSizeThreshold) + 1;
+      internal::BucketIndexLookup::GetIndex(kLargeSizeThreshold) + 1;
+#endif
   static_assert(
       kBucketCount < kNumBuckets,
       "Cannot have more cached buckets than what the allocator supports");
