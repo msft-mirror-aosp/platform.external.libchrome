@@ -1,0 +1,282 @@
+From 13995d252669a60f4e9cc6d8fc2bd34d9e1c556f Mon Sep 17 00:00:00 2001
+From: hscham <hscham@chromium.org>
+Date: Thu, 18 Nov 2021 11:05:51 +0900
+Subject: [PATCH 3/3] Fix mojo build with enable_base_tracing=false
+
+This is the second CL in a series of CL that will fix base, ipc, mojo
+build with base tracing disabled.
+
+trace_event is not supported in libchrome, and local patches are
+currently applied to replace trace_event headers by stub or commenting
+out relevant lines manually, although there is a build flag
+enable_base_tracing which could be used for disabling it.
+
+Fix the build in libchrome components on chromium upstream when the flag
+is set to false, so that libchrome does not need to maintain the
+divergence.
+
+Most of the compile errors are caused by redefinition of classes or
+functions when both the stub and real headers are included, and can be
+fixed by including the proxy header base/trace_event/base_tracing.h
+instead.
+
+Bug: b:204714883
+Test: autoninja -C out/Default chrome (ENABLE_BASE_TRACING=true)
+Test: autoninja -C out/Default base ipc mojo/{core/embedder,public} \
+      (ENABLE_BASE_TRACING=false)
+Change-Id: Ia35cbc39c2d07deb8b6d529019da9aacfbbf976f
+---
+ mojo/core/channel.cc                                       | 2 +-
+ mojo/core/core.cc                                          | 2 +-
+ mojo/core/handle_table.cc                                  | 4 +++-
+ mojo/core/handle_table.h                                   | 2 +-
+ mojo/core/message_pipe_dispatcher.cc                       | 3 +--
+ mojo/core/user_message_impl.cc                             | 5 +----
+ mojo/public/cpp/bindings/lib/connector.cc                  | 5 +++--
+ mojo/public/cpp/bindings/lib/message.cc                    | 4 +---
+ mojo/public/cpp/bindings/struct_ptr.h                      | 1 -
+ mojo/public/cpp/system/simple_watcher.cc                   | 7 ++++---
+ .../generators/cpp_templates/module-shared.cc.tmpl         | 2 +-
+ .../bindings/generators/cpp_templates/module-shared.h.tmpl | 2 +-
+ .../tools/bindings/generators/cpp_templates/module.cc.tmpl | 4 +---
+ .../tools/bindings/generators/cpp_templates/module.h.tmpl  | 2 +-
+ .../generators/cpp_templates/wrapper_class_definition.tmpl | 2 ++
+ 15 files changed, 22 insertions(+), 25 deletions(-)
+
+diff --git a/mojo/core/channel.cc b/mojo/core/channel.cc
+index 24dc3742ef81..885dbf698b31 100644
+--- a/mojo/core/channel.cc
++++ b/mojo/core/channel.cc
+@@ -17,7 +17,7 @@
+ #include "base/memory/ptr_util.h"
+ #include "base/numerics/safe_math.h"
+ #include "base/process/process_handle.h"
+-#include "base/trace_event/typed_macros.h"
++#include "base/trace_event/base_tracing.h"
+ #include "build/build_config.h"
+ #include "mojo/core/configuration.h"
+ #include "mojo/core/core.h"
+diff --git a/mojo/core/core.cc b/mojo/core/core.cc
+index 35a3d3c477aa..b62a4290a6df 100644
+--- a/mojo/core/core.cc
++++ b/mojo/core/core.cc
+@@ -22,7 +22,7 @@
+ #include "base/strings/string_piece.h"
+ #include "base/threading/thread_task_runner_handle.h"
+ #include "base/time/time.h"
+-#include "base/trace_event/memory_dump_manager.h"
++#include "base/trace_event/base_tracing.h"
+ #include "build/build_config.h"
+ #include "mojo/core/channel.h"
+ #include "mojo/core/configuration.h"
+diff --git a/mojo/core/handle_table.cc b/mojo/core/handle_table.cc
+index 9426281d73f0..73bc6f338565 100644
+--- a/mojo/core/handle_table.cc
++++ b/mojo/core/handle_table.cc
+@@ -7,8 +7,10 @@
+ #include <stdint.h>
+ 
+ #include <limits>
++#include <map>
+ 
+-#include "base/trace_event/memory_dump_manager.h"
++#include "base/trace_event/base_tracing.h"
++#include "base/notreached.h"
+ 
+ namespace mojo {
+ namespace core {
+diff --git a/mojo/core/handle_table.h b/mojo/core/handle_table.h
+index 7a810357b14b..011b0ee4abae 100644
+--- a/mojo/core/handle_table.h
++++ b/mojo/core/handle_table.h
+@@ -13,7 +13,7 @@
+ #include "base/gtest_prod_util.h"
+ #include "base/macros.h"
+ #include "base/synchronization/lock.h"
+-#include "base/trace_event/memory_dump_provider.h"
++#include "base/trace_event/base_tracing.h"
+ #include "mojo/core/dispatcher.h"
+ #include "mojo/core/system_impl_export.h"
+ #include "mojo/public/c/system/types.h"
+diff --git a/mojo/core/message_pipe_dispatcher.cc b/mojo/core/message_pipe_dispatcher.cc
+index 3b057ec39b8b..a95633adc15a 100644
+--- a/mojo/core/message_pipe_dispatcher.cc
++++ b/mojo/core/message_pipe_dispatcher.cc
+@@ -10,8 +10,7 @@
+ #include "base/logging.h"
+ #include "base/macros.h"
+ #include "base/memory/ref_counted.h"
+-#include "base/trace_event/trace_event.h"
+-#include "base/trace_event/trace_event_stub.h"
++#include "base/trace_event/base_tracing.h"
+ #include "mojo/core/core.h"
+ #include "mojo/core/node_controller.h"
+ #include "mojo/core/ports/event.h"
+diff --git a/mojo/core/user_message_impl.cc b/mojo/core/user_message_impl.cc
+index ec0686b629d1..0dafc3db2c03 100644
+--- a/mojo/core/user_message_impl.cc
++++ b/mojo/core/user_message_impl.cc
+@@ -13,10 +13,7 @@
+ #include "base/no_destructor.h"
+ #include "base/numerics/safe_conversions.h"
+ #include "base/numerics/safe_math.h"
+-#include "base/trace_event/memory_allocator_dump.h"
+-#include "base/trace_event/memory_dump_manager.h"
+-#include "base/trace_event/memory_dump_provider.h"
+-#include "base/trace_event/trace_event.h"
++#include "base/trace_event/base_tracing.h"
+ #include "mojo/core/configuration.h"
+ #include "mojo/core/core.h"
+ #include "mojo/core/node_channel.h"
+diff --git a/mojo/public/cpp/bindings/lib/connector.cc b/mojo/public/cpp/bindings/lib/connector.cc
+index 315fe067351f..519e847fe2bb 100644
+--- a/mojo/public/cpp/bindings/lib/connector.cc
++++ b/mojo/public/cpp/bindings/lib/connector.cc
+@@ -23,8 +23,7 @@
+ #include "base/synchronization/lock.h"
+ #include "base/task/current_thread.h"
+ #include "base/threading/sequence_local_storage_slot.h"
+-#include "base/trace_event/trace_event.h"
+-#include "base/trace_event/typed_macros.h"
++#include "base/trace_event/base_tracing.h"
+ #include "base/trace_event/trace_event_stub.h"
+ #include "mojo/public/c/system/quota.h"
+ #include "mojo/public/cpp/bindings/features.h"
+@@ -33,7 +32,9 @@
+ #include "mojo/public/cpp/bindings/mojo_buildflags.h"
+ #include "mojo/public/cpp/bindings/sync_handle_watcher.h"
+ #include "mojo/public/cpp/system/wait.h"
++#if BUILDFLAG(ENABLE_BASE_TRACING)
+ #include "third_party/perfetto/protos/perfetto/trace/track_event/chrome_mojo_event_info.pbzero.h"
++#endif
+ 
+ #if defined(ENABLE_IPC_FUZZER)
+ #include "mojo/public/cpp/bindings/message_dumper.h"
+diff --git a/mojo/public/cpp/bindings/lib/message.cc b/mojo/public/cpp/bindings/lib/message.cc
+index eb92d9368d7d..c373ca24a4ee 100644
+--- a/mojo/public/cpp/bindings/lib/message.cc
++++ b/mojo/public/cpp/bindings/lib/message.cc
+@@ -18,9 +18,7 @@
+ #include "base/memory/ptr_util.h"
+ #include "base/numerics/safe_math.h"
+ #include "base/threading/sequence_local_storage_slot.h"
+-#include "base/trace_event/trace_event.h"
+-#include "base/trace_event/trace_event_stub.h"
+-#include "base/trace_event/trace_id_helper.h"
++#include "base/trace_event/base_tracing.h"
+ #include "mojo/public/cpp/bindings/associated_group_controller.h"
+ #include "mojo/public/cpp/bindings/lib/array_internal.h"
+ #include "mojo/public/cpp/bindings/lib/message_fragment.h"
+diff --git a/mojo/public/cpp/bindings/struct_ptr.h b/mojo/public/cpp/bindings/struct_ptr.h
+index ea7ceeea140d..16e3b6939fbc 100644
+--- a/mojo/public/cpp/bindings/struct_ptr.h
++++ b/mojo/public/cpp/bindings/struct_ptr.h
+@@ -16,7 +16,6 @@
+ #include "mojo/public/cpp/bindings/lib/hash_util.h"
+ #include "mojo/public/cpp/bindings/type_converter.h"
+ #include "third_party/abseil-cpp/absl/types/optional.h"
+-#include "third_party/perfetto/include/perfetto/tracing/traced_value_forward.h"
+ 
+ namespace mojo {
+ namespace internal {
+diff --git a/mojo/public/cpp/system/simple_watcher.cc b/mojo/public/cpp/system/simple_watcher.cc
+index 700fda474bf4..898926341cb2 100644
+--- a/mojo/public/cpp/system/simple_watcher.cc
++++ b/mojo/public/cpp/system/simple_watcher.cc
+@@ -11,11 +11,12 @@
+ #include "base/synchronization/lock.h"
+ #include "base/task/common/task_annotator.h"
+ #include "base/threading/thread_task_runner_handle.h"
+-#include "base/trace_event/heap_profiler.h"
+-#include "base/trace_event/trace_event.h"
+-#include "base/trace_event/typed_macros.h"
++#include "base/trace_event/base_tracing.h"
+ #include "mojo/public/c/system/trap.h"
++
++#if BUILDFLAG(ENABLE_BASE_TRACING)
+ #include "third_party/perfetto/protos/perfetto/trace/track_event/chrome_mojo_event_info.pbzero.h"
++#endif
+ 
+ namespace mojo {
+ 
+diff --git a/mojo/public/tools/bindings/generators/cpp_templates/module-shared.cc.tmpl b/mojo/public/tools/bindings/generators/cpp_templates/module-shared.cc.tmpl
+index 6d4cff4bdd2c..2493f3f1fbab 100644
+--- a/mojo/public/tools/bindings/generators/cpp_templates/module-shared.cc.tmpl
++++ b/mojo/public/tools/bindings/generators/cpp_templates/module-shared.cc.tmpl
+@@ -11,10 +11,10 @@
+ 
+ #include "base/compiler_specific.h"
+ #include "base/strings/stringprintf.h"
++#include "base/trace_event/base_tracing.h"
+ #include "mojo/public/cpp/bindings/lib/validate_params.h"
+ #include "mojo/public/cpp/bindings/lib/validation_errors.h"
+ #include "mojo/public/cpp/bindings/lib/validation_util.h"
+-#include "third_party/perfetto/include/perfetto/tracing/traced_value.h"
+ 
+ #include "{{module.path}}-params-data.h"
+ 
+diff --git a/mojo/public/tools/bindings/generators/cpp_templates/module-shared.h.tmpl b/mojo/public/tools/bindings/generators/cpp_templates/module-shared.h.tmpl
+index 8f9fad74bdc3..4b79cdc1da2a 100644
+--- a/mojo/public/tools/bindings/generators/cpp_templates/module-shared.h.tmpl
++++ b/mojo/public/tools/bindings/generators/cpp_templates/module-shared.h.tmpl
+@@ -53,7 +53,7 @@ namespace {{namespace}} {
+ #include "mojo/public/cpp/bindings/string_data_view.h"
+ {%- endif %}
+ 
+-#include "third_party/perfetto/include/perfetto/tracing/traced_value_forward.h"
++#include "base/trace_event/base_tracing.h"
+ 
+ #include "{{module.path}}-shared-internal.h"
+ {%- for import in imports %}
+diff --git a/mojo/public/tools/bindings/generators/cpp_templates/module.cc.tmpl b/mojo/public/tools/bindings/generators/cpp_templates/module.cc.tmpl
+index 7a24bcc31dca..9347ea7b5e01 100644
+--- a/mojo/public/tools/bindings/generators/cpp_templates/module.cc.tmpl
++++ b/mojo/public/tools/bindings/generators/cpp_templates/module.cc.tmpl
+@@ -27,8 +27,7 @@
+ #include "base/run_loop.h"
+ #include "base/strings/string_number_conversions.h"
+ #include "base/task/common/task_annotator.h"
+-#include "base/trace_event/trace_event.h"
+-#include "base/trace_event/trace_event_stub.h"
++#include "base/trace_event/base_tracing.h"
+ #include "mojo/public/cpp/bindings/lib/generated_code_util.h"
+ #include "mojo/public/cpp/bindings/lib/message_internal.h"
+ #include "mojo/public/cpp/bindings/lib/serialization_util.h"
+@@ -37,7 +36,6 @@
+ #include "mojo/public/cpp/bindings/lib/validation_errors.h"
+ #include "mojo/public/cpp/bindings/mojo_buildflags.h"
+ #include "mojo/public/interfaces/bindings/interface_control_messages.mojom.h"
+-#include "third_party/perfetto/include/perfetto/tracing/traced_value.h"
+ 
+ #include "{{module.path}}-params-data.h"
+ #include "{{module.path}}-shared-message-ids.h"
+diff --git a/mojo/public/tools/bindings/generators/cpp_templates/module.h.tmpl b/mojo/public/tools/bindings/generators/cpp_templates/module.h.tmpl
+index 58bbb17d1a02..064c37c7a015 100644
+--- a/mojo/public/tools/bindings/generators/cpp_templates/module.h.tmpl
++++ b/mojo/public/tools/bindings/generators/cpp_templates/module.h.tmpl
+@@ -59,7 +59,7 @@ namespace {{variant}} {
+ #include "mojo/public/cpp/bindings/union_traits.h"
+ {%- endif %}
+ 
+-#include "third_party/perfetto/include/perfetto/tracing/traced_value_forward.h"
++#include "base/trace_event/base_tracing.h"
+ 
+ #include "{{module.path}}-shared.h"
+ #include "{{variant_path}}-forward.h"
+diff --git a/mojo/public/tools/bindings/generators/cpp_templates/wrapper_class_definition.tmpl b/mojo/public/tools/bindings/generators/cpp_templates/wrapper_class_definition.tmpl
+index 504d46735771..25284e0c0816 100644
+--- a/mojo/public/tools/bindings/generators/cpp_templates/wrapper_class_definition.tmpl
++++ b/mojo/public/tools/bindings/generators/cpp_templates/wrapper_class_definition.tmpl
+@@ -33,7 +33,9 @@ size_t {{struct.name}}::Hash(size_t seed) const {
+ {%- endif %}
+ 
+ void {{struct.name}}::WriteIntoTrace(perfetto::TracedValue context) const {
++{%- if struct.fields %}
+   auto dict = std::move(context).WriteDictionary();
++{%- endif %}
+ {%-  for field in struct.fields %}
+   perfetto::WriteIntoTracedValueWithFallback(
+     dict.AddItem(
+-- 
+2.34.0.rc1.387.gb447b232ab-goog
+

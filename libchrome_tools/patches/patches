@@ -35,8 +35,7 @@ keep-hash-sha1-old-implementation.patch
 # Compatmentalize patches to reduce chance of failing to apply them.
 disable-trace_event-in-base.patch
 disable-trace_event-in-components.patch
-disable-trace_event-in-mojo-core-code.patch
-disable-trace_event-in-mojo-public.patch
+disable-trace_event-in-mojo.patch
 disable-trace_event-in-ipc.patch
 
 # ==================== CHERRY PICKS ===========================

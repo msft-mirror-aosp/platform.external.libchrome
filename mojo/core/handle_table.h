@@ -21,7 +21,8 @@
 namespace mojo {
 namespace core {
 
-class MOJO_SYSTEM_IMPL_EXPORT HandleTable {
+class MOJO_SYSTEM_IMPL_EXPORT HandleTable
+    : public base::trace_event::MemoryDumpProvider {
  public:
   HandleTable();
   ~HandleTable();
@@ -59,7 +60,7 @@ class MOJO_SYSTEM_IMPL_EXPORT HandleTable {
  private:
   FRIEND_TEST_ALL_PREFIXES(HandleTableTest, OnMemoryDump);
 
-  MemoryDumpProvider implementation.
+  // MemoryDumpProvider implementation.
   bool OnMemoryDump(const base::trace_event::MemoryDumpArgs& args,
                     base::trace_event::ProcessMemoryDump* pmd) override;
 

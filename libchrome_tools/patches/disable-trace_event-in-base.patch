@@ -1,60 +1,248 @@
-From 5a54e4395eb8fdfb61994d7017fdc7aaef1cbf4b Mon Sep 17 00:00:00 2001
+From 2c41326facdd18ff0c60eda9709dad989a1a5c91 Mon Sep 17 00:00:00 2001
 From: hscham <hscham@chromium.org>
-Date: Thu, 14 Oct 2021 11:36:19 +0900
-Subject: [PATCH 1/2] Disable trace_event in base/
+Date: Thu, 11 Nov 2021 16:12:20 +0900
+Subject: [PATCH] Add mock implementations to
+ base/trace_event/trace_event_stub.h
 
-Change-Id: I1f09450f46be4a01162a7fdfd5477df7a5a54a76
+This is the first of a series of CLs which will fix the base, ipc, mojo
+build with ENABLE_BASE_TRACING disabled.
+(Splitted from crrev.com/c/3251806).
+
+trace_event is not supported in libchrome, and local patches are
+currently applied to replace trace_event headers by stub or commenting
+out relevant lines manually, although there is a build flag
+enable_base_tracing which could be used for disabling it.
+
+Fix the build in libchrome components on chromium upstream when the flag
+is set to false, so that libchrome does not need to maintain the
+divergence.
+
+Most of the compile errors are caused by redefinition of classes or
+functions when both the stub and real headers are included, and can be
+fixed by including the proxy header base/trace_event/base_tracing.h
+instead.
+
+This CL adds functions and classes to the trace_event_stub.{h,cc} which
+will be used by the mojo or ipc files.
+
+Bug: b:204714883
+Test: autoninja -C out/Default chrome (ENABLE_BASE_TRACING=true)
+Test: autoninja -C out/Default base (ENABLE_BASE_TRACING=false)
+Change-Id: Ia862c5955aa3b5cf2ad61716cd2edb749408a07d
 ---
- base/memory/memory_pressure_listener.cc  | 2 ++
- base/threading/thread_id_name_manager.cc | 8 +++++---
- 2 files changed, 7 insertions(+), 3 deletions(-)
+ base/trace_event/base_tracing.h      |   1 +
+ base/trace_event/trace_event_stub.cc |   9 +++
+ base/trace_event/trace_event_stub.h  | 103 +++++++++++++++++++++++++--
+ 3 files changed, 109 insertions(+), 4 deletions(-)
 
-diff --git a/base/memory/memory_pressure_listener.cc b/base/memory/memory_pressure_listener.cc
-index 623ae26ee44a..4c4c18d5bb49 100644
---- a/base/memory/memory_pressure_listener.cc
-+++ b/base/memory/memory_pressure_listener.cc
-@@ -120,6 +120,7 @@ void MemoryPressureListener::SyncNotify(
- void MemoryPressureListener::NotifyMemoryPressure(
-     MemoryPressureLevel memory_pressure_level) {
-   DCHECK_NE(memory_pressure_level, MEMORY_PRESSURE_LEVEL_NONE);
-+#if 0
-   TRACE_EVENT_INSTANT(
-       trace_event::MemoryDumpManager::kTraceCategory,
-       "MemoryPressureListener::NotifyMemoryPressure",
-@@ -129,6 +130,7 @@ void MemoryPressureListener::NotifyMemoryPressure(
-         data->set_level(
-             trace_event::MemoryPressureLevelToTraceEnum(memory_pressure_level));
-       });
-+#endif
-   if (AreNotificationsSuppressed())
-     return;
-   DoNotifyMemoryPressure(memory_pressure_level);
-diff --git a/base/threading/thread_id_name_manager.cc b/base/threading/thread_id_name_manager.cc
-index 892fdd1c8c70..40cebb9481c6 100644
---- a/base/threading/thread_id_name_manager.cc
-+++ b/base/threading/thread_id_name_manager.cc
-@@ -14,7 +14,8 @@
- #include "base/stl_util.h"
- #include "base/strings/string_util.h"
- #include "base/threading/thread_local.h"
--#include "base/trace_event/heap_profiler_allocation_context_tracker.h"  // no-presubmit-check
-+// Unsupported in libchrome.
-+// #include "base/trace_event/heap_profiler_allocation_context_tracker.h"  // no-presubmit-check
+diff --git a/base/trace_event/base_tracing.h b/base/trace_event/base_tracing.h
+index 6fe702e4b3eb..f20bff7d4977 100644
+--- a/base/trace_event/base_tracing.h
++++ b/base/trace_event/base_tracing.h
+@@ -23,6 +23,7 @@
+ #include "base/trace_event/memory_dump_provider.h"        // nogncheck
+ #include "base/trace_event/task_execution_macros.h"       // nogncheck
+ #include "base/trace_event/trace_event.h"                 // nogncheck
++#include "base/trace_event/trace_id_helper.h"             // nogncheck
+ #include "base/trace_event/traced_value.h"                // nogncheck
+ #include "base/trace_event/typed_macros.h"                // nogncheck
+ #include "third_party/perfetto/include/perfetto/tracing/traced_value.h"  // nogncheck
+diff --git a/base/trace_event/trace_event_stub.cc b/base/trace_event/trace_event_stub.cc
+index f227101ea4db..2e2e102beb2e 100644
+--- a/base/trace_event/trace_event_stub.cc
++++ b/base/trace_event/trace_event_stub.cc
+@@ -6,6 +6,8 @@
+ 
+ #include <string>
+ 
++#include "base/memory/scoped_refptr.h"
++#include "base/single_thread_task_runner.h"
+ #include "base/trace_event/trace_event_stub.h"
  
  namespace base {
- namespace {
-@@ -103,8 +104,9 @@ void ThreadIdNameManager::SetName(const std::string& name) {
-   // call GetName(which holds a lock) during the first allocation because it can
-   // cause a deadlock when the first allocation happens in the
-   // ThreadIdNameManager itself when holding the lock.
--  trace_event::AllocationContextTracker::SetCurrentThreadName(
--    leaked_str->c_str());
-+  // Unsupported in libchrome.
-+  // trace_event::AllocationContextTracker::SetCurrentThreadName(
-+  //   leaked_str->c_str());
- }
+@@ -16,6 +18,13 @@ ConvertableToTraceFormat::~ConvertableToTraceFormat() = default;
+ void TracedValue::AppendAsTraceFormat(std::string* out) const {}
  
- const char* ThreadIdNameManager::GetName(PlatformThreadId id) {
+ MemoryDumpProvider::~MemoryDumpProvider() = default;
++void MemoryDumpManager::RegisterDumpProvider(
++    MemoryDumpProvider* mdp, const char* name,
++    scoped_refptr<SingleThreadTaskRunner> task_runner) {}
++void MemoryDumpManager::RegisterDumpProvider(
++    MemoryDumpProvider* mdp, const char* name,
++    scoped_refptr<SingleThreadTaskRunner> task_runner,
++    MemoryDumpProvider::Options options) {}
+ 
+ // static
+ constexpr const char* const MemoryDumpManager::kTraceCategory;
+diff --git a/base/trace_event/trace_event_stub.h b/base/trace_event/trace_event_stub.h
+index 45bdde27e36c..6a289edf1964 100644
+--- a/base/trace_event/trace_event_stub.h
++++ b/base/trace_event/trace_event_stub.h
+@@ -75,9 +75,17 @@ struct IgnoredValue {
+ #define TRACE_EVENT_INSTANT(category, name, ...) \
+   INTERNAL_TRACE_IGNORE(category, name)
+ 
++template <class T>
++class scoped_refptr;
++
+ namespace base {
++
++class SingleThreadTaskRunner;
++
+ namespace trace_event {
+ 
++BASE_EXPORT uint64_t GetNextGlobalTraceId();
++
+ class BASE_EXPORT ConvertableToTraceFormat {
+  public:
+   ConvertableToTraceFormat() = default;
+@@ -157,10 +165,55 @@ class BASE_EXPORT BlameContext {
+ };
+ 
+ struct MemoryDumpArgs;
+-class ProcessMemoryDump;
++enum class MemoryDumpLevelOfDetail : uint32_t;
++
++class BASE_EXPORT MemoryAllocatorDump {
++ public:
++  struct BASE_EXPORT Entry {};
++  MemoryAllocatorDump(const std::string& absolute_name,
++                      MemoryDumpLevelOfDetail,
++                      const MemoryAllocatorDumpGuid&) {}
++  MemoryAllocatorDump(const MemoryAllocatorDump&) = delete;
++  MemoryAllocatorDump& operator=(const MemoryAllocatorDump&) = delete;
++  ~MemoryAllocatorDump();
++  static const char kNameSize[];
++  static const char kNameObjectCount[];
++  static const char kUnitsBytes[];
++  static const char kUnitsObjects[];
++  static const char kTypeScalar[];
++  static const char kTypeString[];
++  void AddScalar(const char* name, const char* units, uint64_t value) {}
++  void AddString(const char* name,
++                 const char* units,
++                 const std::string& value) {}
++  void AsValueInto(TracedValue* value) const {}
++  uint64_t GetSizeInternal() const { return 0; }
++  void set_flags(int flags) {}
++  void clear_flags(int flags) {}
++  int flags() const { return 0; }
++};
++
++class BASE_EXPORT ProcessMemoryDump {
++ public:
++  explicit ProcessMemoryDump(const MemoryDumpArgs& dump_args) {}
++  ProcessMemoryDump(ProcessMemoryDump&&) {}
++  ~ProcessMemoryDump() {}
++
++  ProcessMemoryDump& operator=(ProcessMemoryDump&&);
++
++  MemoryAllocatorDump* CreateAllocatorDump(const std::string& absolute_name) {
++    return nullptr;
++  }
++  MemoryAllocatorDump* CreateAllocatorDump(
++      const std::string& absolute_name,
++      const MemoryAllocatorDumpGuid& guid) {
++    return nullptr;
++  }
++};
+ 
+ class BASE_EXPORT MemoryDumpProvider {
+  public:
++  struct Options {};
+   MemoryDumpProvider(const MemoryDumpProvider&) = delete;
+   MemoryDumpProvider& operator=(const MemoryDumpProvider&) = delete;
+   virtual ~MemoryDumpProvider();
+@@ -176,6 +229,38 @@ class BASE_EXPORT MemoryDumpManager {
+  public:
+   static constexpr const char* const kTraceCategory =
+       TRACE_DISABLED_BY_DEFAULT("memory-infra");
++  static MemoryDumpManager* GetInstance() { return nullptr; }
++
++  MemoryDumpManager(const MemoryDumpManager&) = delete;
++  MemoryDumpManager& operator=(const MemoryDumpManager&) = delete;
++
++  void RegisterDumpProvider(MemoryDumpProvider* mdp,
++                            const char* name,
++                            scoped_refptr<SingleThreadTaskRunner> task_runner);
++  void RegisterDumpProvider(MemoryDumpProvider* mdp,
++                            const char* name,
++                            scoped_refptr<SingleThreadTaskRunner> task_runner,
++                            MemoryDumpProvider::Options options);
++  void UnregisterDumpProvider(MemoryDumpProvider* mdp) {}
++  void UnregisterAndDeleteDumpProviderSoon(
++      std::unique_ptr<MemoryDumpProvider> mdp) {}
++
++ private:
++  MemoryDumpManager() {}
++  virtual ~MemoryDumpManager();
++};
++
++class BASE_EXPORT TraceLog : public MemoryDumpProvider {
++ public:
++  static TraceLog* GetInstance() { return nullptr; }
++
++  TraceLog(const TraceLog&) = delete;
++  TraceLog& operator=(const TraceLog&) = delete;
++
++  int process_id() const { return 0; }
++
++ private:
++  explicit TraceLog(int generation) {}
+ };
+ 
+ }  // namespace trace_event
+@@ -185,6 +270,11 @@ class BASE_EXPORT MemoryDumpManager {
+ // perfetto::StaticString/ThreadTrack/TracedValue/TracedDictionary/TracedArray.
+ namespace perfetto {
+ 
++namespace internal {
++template <typename T>
++class has_traced_value_support {};
++}  // namespace internal
++
+ class TracedArray;
+ class TracedDictionary;
+ 
+@@ -200,7 +290,7 @@ class DynamicString {
+   explicit DynamicString(T) {}
+ };
+ 
+-class TracedValue {
++class BASE_EXPORT TracedValue {
+  public:
+   void WriteInt64(int64_t) && {}
+   void WriteUInt64(uint64_t) && {}
+@@ -215,7 +305,7 @@ class TracedValue {
+   TracedArray WriteArray() &&;
+ };
+ 
+-class TracedDictionary {
++class BASE_EXPORT TracedDictionary {
+  public:
+   TracedValue AddItem(StaticString) { return TracedValue(); }
+   TracedValue AddItem(DynamicString) { return TracedValue(); }
+@@ -231,7 +321,7 @@ class TracedDictionary {
+   TracedArray AddArray(DynamicString);
+ };
+ 
+-class TracedArray {
++class BASE_EXPORT TracedArray {
+  public:
+   TracedValue AppendItem() { return TracedValue(); }
+ 
+@@ -245,6 +335,11 @@ class TracedArray {
+ template <class T>
+ void WriteIntoTracedValue(TracedValue, T&&) {}
+ 
++template <typename T>
++void WriteIntoTracedValueWithFallback(TracedValue context,
++                                      T&& value,
++                                      const std::string&) {}
++
+ }  // namespace perfetto
+ 
+ #endif  // BASE_TRACE_EVENT_TRACE_EVENT_STUB_H_
 -- 
-2.33.0.882.g93a45727a2-goog
+2.34.0.rc2.393.gf8c9666880-goog
 
