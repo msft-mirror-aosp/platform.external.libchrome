@@ -190,6 +190,16 @@ class CheckOneBoard:
             return
         self.state.update(self.board, 'setup_board', 'setup_board completed.')
 
+    def cros_workon_start(self, packages):
+        """
+        Runs cros_workon start for selected client packages.
+        Ignore any failing messsage since the package might not be used on all
+        the boards.
+        """
+        self.state.update(self.board, 'cros_workon start', packages)
+        for package in packages.split():
+          self._cros_workon('start', package, fail_silent=True)
+
     def build_packages(self):
         """Runs build_packages"""
         # cros_workon stop libchrome
@@ -343,7 +353,7 @@ class CheckOneBoard:
                len(self.passing_emerge), len(
                    self.failed_emerge), len(self.packages_to_verify)))
 
-    def _cros_workon(self, action, package):
+    def _cros_workon(self, action, package, fail_silent=False):
         """
         Runs cros_workon-$BOARD, and update state.
 
@@ -355,7 +365,7 @@ class CheckOneBoard:
         proc = subprocess.run(['cros_workon-' + self.board, action, package],
                               stdout=subprocess.DEVNULL,
                               stderr=subprocess.DEVNULL)
-        if proc.returncode != 0:
+        if proc.returncode != 0 and not fail_silent:
             self.state.update(
                 self.board, 'failed',
                 'cros_workon-$BOARD %s %s failed. further steps skipped.' %
@@ -576,6 +586,12 @@ def main():
         'Maximum parallization for emerge(s). Default to %d (or %d when --unittest)'
         % (_MAX_EMERGES_WITHOUT_UNITTEST, _MAX_EMERGES),
         type=int)
+    parser.add_argument('-p',
+        '--cros-workon-packages',
+        metavar='cros_workon_packages',
+        help='Packages to use 9999 ebuild. A string of list of packages space-separated. Default to None (libchrome only).',
+        type=str,
+        default='')
 
     arg = parser.parse_args(sys.argv[1:])
 
@@ -628,6 +644,12 @@ def main():
                 task = executor.submit(work.setup_board)
                 task.add_done_callback(
                     handle_exception(work.board, state, 'setup_board'))
+
+    if arg.cros_workon_packages:
+      with concurrent.futures.ThreadPoolExecutor(
+              max_workers=max_build_packages) as executor:
+          for work in work_list:
+                task = executor.submit(work.cros_workon_start, arg.cros_workon_packages)
 
     if not arg.skip_first_pass_build_packages:
         with concurrent.futures.ThreadPoolExecutor(
@@ -716,6 +738,8 @@ def main():
             f.write(state.failed_matrix(delimiter='     '))
         with open(os.path.join(arg.output_directory, 'matrix.csv'), 'w') as f:
             f.write(state.failed_matrix(delimiter=','))
+
+    print("Completed. See logs at ", arg.output_directory)
 
 
 if __name__ == '__main__':
