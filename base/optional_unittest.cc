@@ -1995,7 +1995,7 @@ TEST(OptionalTest, MakeOptional) {
 
 TEST(OptionalTest, NonMemberSwap_bothNoValue) {
   absl::optional<TestObject> a, b;
-  absl::swap(a, b);
+  std::swap(a, b);
 
   EXPECT_FALSE(!!a);
   EXPECT_FALSE(!!b);
@@ -2006,7 +2006,7 @@ TEST(OptionalTest, NonMemberSwap_bothNoValue) {
 TEST(OptionalTest, NonMemberSwap_inHasValue) {
   absl::optional<TestObject> a(TestObject(1, 0.3));
   absl::optional<TestObject> b;
-  absl::swap(a, b);
+  std::swap(a, b);
 
   EXPECT_FALSE(!!a);
   EXPECT_TRUE(!!b);
@@ -2017,7 +2017,7 @@ TEST(OptionalTest, NonMemberSwap_inHasValue) {
 TEST(OptionalTest, NonMemberSwap_outHasValue) {
   absl::optional<TestObject> a;
   absl::optional<TestObject> b(TestObject(1, 0.3));
-  absl::swap(a, b);
+  std::swap(a, b);
 
   EXPECT_TRUE(!!a);
   EXPECT_FALSE(!!b);
@@ -2028,7 +2028,7 @@ TEST(OptionalTest, NonMemberSwap_outHasValue) {
 TEST(OptionalTest, NonMemberSwap_bothValue) {
   absl::optional<TestObject> a(TestObject(0, 0.1));
   absl::optional<TestObject> b(TestObject(1, 0.3));
-  absl::swap(a, b);
+  std::swap(a, b);
 
   EXPECT_TRUE(!!a);
   EXPECT_TRUE(!!b);

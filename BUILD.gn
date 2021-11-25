@@ -17,6 +17,9 @@ group("all") {
   if (use.mojo) {
     deps += [ ":libmojo" ]
   }
+  if (use.test) {
+    deps += [ ":optional_unittests" ]
+  }
 }
 
 config("libchrome_config") {
@@ -921,6 +924,24 @@ if (use.mojo) {
       "-I/usr/include/libchrome",
       "-Wno-cast-qual",
       "-Wno-cast-align",
+    ]
+  }
+}
+
+if (use.test) {
+  executable("optional_unittests") {
+    sources = [
+      "base/optional_unittest.cc",
+      "base/test/gtest_util.cc",
+    ]
+    configs += [
+      "//common-mk:test",
+      ":libchrome_config",
+    ]
+    libs = [ "gtest_main" ]
+    deps = [
+      ":base-core",
+      "//common-mk/testrunner:testrunner",
     ]
   }
 }
