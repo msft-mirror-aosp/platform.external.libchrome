@@ -70,11 +70,6 @@ backward-compatibility-add-deprecated-base-Bind-APIs.patch
 # TODO(b/202686177): Remove the patch when tested thoroughly.
 backward-compatibility-disable-CopyFileContentsWithSendfile.patch
 
-# Forward compatibility for using new header files for base::Erase{,If} and
-# base::to_address
-# Remove after uprev to >896181
-forward-compatibility-add-cxx20_erase.h-stub-header.patch
-
 # Backward compatibility patch to temporarily add base::AdaptCallbackForRepeating
 # TODO(b/204383858): Remove the patch when usage in mri_package is removed
 backward-compatibility-add-base-AdaptCallbackForRepaeting.patch media_perception

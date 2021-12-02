@@ -10,6 +10,7 @@
 
 #include "base/allocator/allocator_extension.h"
 #include "base/allocator/buildflags.h"
+#include "base/allocator/partition_allocator/partition_alloc_config.h"
 #include "base/debug/profiler.h"
 #include "base/format_macros.h"
 #include "base/memory/nonscannable_memory.h"
@@ -26,6 +27,10 @@
 #endif
 #if defined(OS_WIN)
 #include <windows.h>
+#endif
+
+#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
+#include <features.h>
 #endif
 
 #if BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
@@ -204,7 +209,16 @@ bool MallocDumpProvider::OnMemoryDump(const MemoryDumpArgs& args,
 #elif defined(OS_FUCHSIA)
 // TODO(fuchsia): Port, see https://crbug.com/706592.
 #else
+#if defined(__GLIBC__) && defined(__GLIBC_PREREQ)
+#if __GLIBC_PREREQ(2, 33)
+#define MALLINFO2_FOUND_IN_LIBC
+  struct mallinfo2 info = mallinfo2();
+#endif
+#endif  // defined(__GLIBC__) && defined(__GLIBC_PREREQ)
+#if !defined(MALLINFO2_FOUND_IN_LIBC)
   struct mallinfo info = mallinfo();
+#endif
+#undef MALLINFO2_FOUND_IN_LIBC
   // In case of Android's jemalloc |arena| is 0 and the outer pages size is
   // reported by |hblkhd|. In case of dlmalloc the total is given by
   // |arena| + |hblkhd|. For more details see link: http://goo.gl/fMR8lF.

@@ -128,10 +128,8 @@ class QuarantineCardTable final {
   }
 
  private:
-  static constexpr size_t kCardSize =
-      AddressPoolManager::kBRPPoolMaxSize / kSuperPageSize;
-  static constexpr size_t kBytes =
-      AddressPoolManager::kBRPPoolMaxSize / kCardSize;
+  static constexpr size_t kCardSize = kPoolMaxSize / kSuperPageSize;
+  static constexpr size_t kBytes = kPoolMaxSize / kCardSize;
 
   QuarantineCardTable() = default;
 
@@ -168,12 +166,6 @@ using MetadataHashMap =
                        std::hash<K>,
                        std::equal_to<>,
                        MetadataAllocator<std::pair<const K, V>>>;
-
-void LogStats(size_t swept_bytes, size_t last_size, size_t new_size) {
-  VLOG(2) << "quarantine size: " << last_size << " -> " << new_size
-          << ", swept bytes: " << swept_bytes
-          << ", survival rate: " << static_cast<double>(new_size) / last_size;
-}
 
 ALWAYS_INLINE uintptr_t GetObjectStartInSuperPage(uintptr_t maybe_ptr,
                                                   const PCScan::Root& root) {
@@ -367,7 +359,7 @@ class PCScanTask final : public base::RefCountedThreadSafe<PCScanTask>,
                          public AllocatedOnPCScanMetadataPartition {
  public:
   // Creates and initializes a PCScan state.
-  explicit PCScanTask(PCScan& pcscan);
+  PCScanTask(PCScan& pcscan, size_t quarantine_last_size);
 
   PCScanTask(PCScanTask&&) noexcept = delete;
   PCScanTask& operator=(PCScanTask&&) noexcept = delete;
@@ -512,6 +504,7 @@ class PCScanTask final : public base::RefCountedThreadSafe<PCScanTask>,
   std::atomic<size_t> number_of_scanning_threads_{0u};
   // We can unprotect only once to reduce context-switches.
   std::once_flag unprotect_once_flag_;
+  bool immediatelly_free_objects_{false};
   PCScan& pcscan_;
 };
 
@@ -573,6 +566,9 @@ PCScanTask::TryMarkObjectInNormalBuckets(uintptr_t maybe_ptr) const {
   const size_t usable_size = target_slot_span->GetUsableSize(root);
   // Range check for inner pointers.
   if (maybe_ptr >= base + usable_size)
+    return 0;
+
+  if (UNLIKELY(immediatelly_free_objects_))
     return 0;
 
   // Now we are certain that |maybe_ptr| is a dangling pointer. Mark it again in
@@ -689,9 +685,11 @@ class PCScanTask::StackVisitor final : public internal::StackVisitor {
   size_t quarantine_size_ = 0;
 };
 
-PCScanTask::PCScanTask(PCScan& pcscan)
+PCScanTask::PCScanTask(PCScan& pcscan, size_t quarantine_last_size)
     : pcscan_epoch_(pcscan.epoch()),
-      stats_(PCScanInternal::Instance().process_name()),
+      stats_(PCScanInternal::Instance().process_name(), quarantine_last_size),
+      immediatelly_free_objects_(
+          PCScanInternal::Instance().IsImmediateFreeingEnabled()),
       pcscan_(pcscan) {}
 
 void PCScanTask::ScanStack() {
@@ -797,10 +795,6 @@ void PCScanTask::SweepQuarantine() {
 
 void PCScanTask::FinishScanner() {
   stats_.ReportTracesAndHists();
-  LogStats(
-      stats_.swept_size(),
-      pcscan_.scheduler_.scheduling_backend().GetQuarantineData().last_size,
-      stats_.survived_quarantine_size());
 
   pcscan_.scheduler_.scheduling_backend().UpdateScheduleAfterScan(
       stats_.survived_quarantine_size(), stats_.GetOverallTime(),
@@ -1033,10 +1027,11 @@ void PCScanInternal::PerformScan(PCScan::InvocationMode invocation_mode) {
       return;
   }
 
-  frontend.scheduler_.scheduling_backend().ScanStarted();
+  const size_t last_quarantine_size =
+      frontend.scheduler_.scheduling_backend().ScanStarted();
 
   // Create PCScan task and set it as current.
-  auto task = base::MakeRefCounted<PCScanTask>(frontend);
+  auto task = base::MakeRefCounted<PCScanTask>(frontend, last_quarantine_size);
   PCScanInternal::Instance().SetCurrentPCScanTask(task);
 
   if (UNLIKELY(invocation_mode ==

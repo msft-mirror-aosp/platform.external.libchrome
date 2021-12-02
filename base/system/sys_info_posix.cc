@@ -105,8 +105,8 @@ bool IsStatsZeroIfUnlimited(const base::FilePath& path) {
   // largest possible unsigned integer type to avoid it.
   switch (static_cast<uintmax_t>(stats.f_type)) {
     case TMPFS_MAGIC:
-    case HUGETLBFS_MAGIC:
-    case RAMFS_MAGIC:
+    case static_cast<int>(HUGETLBFS_MAGIC):
+    case static_cast<int>(RAMFS_MAGIC):
       return true;
   }
   return false;

@@ -12,8 +12,8 @@
 #include "base/allocator/partition_allocator/memory_reclaimer.h"
 #include "base/allocator/partition_allocator/partition_alloc.h"
 #include "base/allocator/partition_allocator/partition_alloc_check.h"
+#include "base/allocator/partition_allocator/partition_alloc_config.h"
 #include "base/allocator/partition_allocator/partition_alloc_constants.h"
-#include "base/allocator/partition_allocator/partition_alloc_features.h"
 #include "base/allocator/partition_allocator/partition_root.h"
 #include "base/allocator/partition_allocator/partition_stats.h"
 #include "base/bits.h"
@@ -25,6 +25,10 @@
 
 #if defined(OS_LINUX) || defined(OS_CHROMEOS)
 #include <malloc.h>
+#endif
+
+#if defined(OS_WIN) && defined(ARCH_CPU_X86)
+#include <windows.h>
 #endif
 
 using base::allocator::AllocatorDispatch;

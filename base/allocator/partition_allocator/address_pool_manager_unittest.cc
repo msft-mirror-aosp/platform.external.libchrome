@@ -110,6 +110,60 @@ TEST_F(PartitionAllocAddressPoolManagerTest, PagesFragmented) {
   }
 }
 
+TEST_F(PartitionAllocAddressPoolManagerTest, GetUsedSuperpages) {
+  char* base_ptr = reinterpret_cast<char*>(base_address_);
+  void* addrs[kPageCnt];
+  for (size_t i = 0; i < kPageCnt; ++i) {
+    addrs[i] = GetAddressPoolManager()->Reserve(pool_, nullptr, kSuperPageSize);
+    EXPECT_EQ(addrs[i], base_ptr + i * kSuperPageSize);
+  }
+  EXPECT_EQ(GetAddressPoolManager()->Reserve(pool_, nullptr, kSuperPageSize),
+            nullptr);
+
+  std::bitset<base::kMaxSuperPages> used_super_pages;
+  GetAddressPoolManager()->GetPoolUsedSuperPages(pool_, used_super_pages);
+
+  // We expect every bit to be set.
+  for (size_t i = 0; i < kPageCnt; ++i) {
+    ASSERT_TRUE(used_super_pages.test(i));
+  }
+
+  // Free every other super page, so that we have plenty of free space, but none
+  // of the empty spaces can fit 2 super pages.
+  for (size_t i = 1; i < kPageCnt; i += 2) {
+    GetAddressPoolManager()->UnreserveAndDecommit(pool_, addrs[i],
+                                                  kSuperPageSize);
+  }
+
+  EXPECT_EQ(
+      GetAddressPoolManager()->Reserve(pool_, nullptr, 2 * kSuperPageSize),
+      nullptr);
+
+  GetAddressPoolManager()->GetPoolUsedSuperPages(pool_, used_super_pages);
+
+  // We expect every other bit to be set.
+  for (size_t i = 0; i < kPageCnt; i++) {
+    if (i % 2 == 0) {
+      ASSERT_TRUE(used_super_pages.test(i));
+    } else {
+      ASSERT_FALSE(used_super_pages.test(i));
+    }
+  }
+
+  // Free the even numbered super pages.
+  for (size_t i = 0; i < kPageCnt; i += 2) {
+    GetAddressPoolManager()->UnreserveAndDecommit(pool_, addrs[i],
+                                                  kSuperPageSize);
+  }
+
+  // Finally check to make sure all bits are zero in the used superpage bitset.
+  GetAddressPoolManager()->GetPoolUsedSuperPages(pool_, used_super_pages);
+
+  for (size_t i = 0; i < kPageCnt; i++) {
+    ASSERT_FALSE(used_super_pages.test(i));
+  }
+}
+
 TEST_F(PartitionAllocAddressPoolManagerTest, IrregularPattern) {
   char* base_ptr = reinterpret_cast<char*>(base_address_);
 
@@ -198,6 +252,10 @@ TEST(PartitionAllocAddressPoolManagerTest, IsManagedByNonBRPPool) {
     EXPECT_TRUE(addrs[i]);
     EXPECT_TRUE(
         !(reinterpret_cast<uintptr_t>(addrs[i]) & kSuperPageOffsetMask));
+    AddressPoolManager::GetInstance()->MarkUsed(
+        GetNonBRPPool(), addrs[i],
+        AddressPoolManagerBitmap::kBytesPer1BitOfNonBRPPoolBitmap *
+            kNumPages[i]);
   }
   for (size_t i = 0; i < kAllocCount; ++i) {
     const char* ptr = reinterpret_cast<const char*>(addrs[i]);
@@ -218,6 +276,10 @@ TEST(PartitionAllocAddressPoolManagerTest, IsManagedByNonBRPPool) {
     }
   }
   for (size_t i = 0; i < kAllocCount; ++i) {
+    AddressPoolManager::GetInstance()->MarkUnused(
+        GetNonBRPPool(), addrs[i],
+        AddressPoolManagerBitmap::kBytesPer1BitOfNonBRPPoolBitmap *
+            kNumPages[i]);
     AddressPoolManager::GetInstance()->UnreserveAndDecommit(
         GetNonBRPPool(), addrs[i],
         AddressPoolManagerBitmap::kBytesPer1BitOfNonBRPPoolBitmap *
@@ -238,6 +300,8 @@ TEST(PartitionAllocAddressPoolManagerTest, IsManagedByBRPPool) {
     EXPECT_TRUE(addrs[i]);
     EXPECT_TRUE(
         !(reinterpret_cast<uintptr_t>(addrs[i]) & kSuperPageOffsetMask));
+    AddressPoolManager::GetInstance()->MarkUsed(GetBRPPool(), addrs[i],
+                                                kSuperPageSize * kNumPages[i]);
   }
 
   constexpr size_t first_guard_size =
@@ -266,6 +330,8 @@ TEST(PartitionAllocAddressPoolManagerTest, IsManagedByBRPPool) {
     }
   }
   for (size_t i = 0; i < kAllocCount; ++i) {
+    AddressPoolManager::GetInstance()->MarkUnused(
+        GetBRPPool(), addrs[i], kSuperPageSize * kNumPages[i]);
     AddressPoolManager::GetInstance()->UnreserveAndDecommit(
         GetBRPPool(), addrs[i], kSuperPageSize * kNumPages[i]);
     EXPECT_FALSE(AddressPoolManager::IsManagedByNonBRPPool(addrs[i]));

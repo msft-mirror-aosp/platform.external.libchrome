@@ -8,7 +8,7 @@
 // build time. Try not to raise this limit unless absolutely necessary. See
 // https://chromium.googlesource.com/chromium/src/+/HEAD/docs/wmax_tokens.md
 #ifndef NACL_TC_REV
-#pragma clang max_tokens_here 547000
+#pragma clang max_tokens_here 550000
 #endif
 
 #include <algorithm>
@@ -68,7 +68,7 @@ std::unique_ptr<Value> CopyListWithoutEmptyChildren(const Value& list) {
 std::unique_ptr<DictionaryValue> CopyDictionaryWithoutEmptyChildren(
     const DictionaryValue& dict) {
   std::unique_ptr<DictionaryValue> copy;
-  for (const auto& it : dict.DictItems()) {
+  for (auto it : dict.DictItems()) {
     std::unique_ptr<Value> child_copy = CopyWithoutEmptyChildren(it.second);
     if (child_copy) {
       if (!copy)
@@ -346,7 +346,7 @@ Value::ConstListView Value::GetList() const {
   return list();
 }
 
-Value::ListStorage Value::TakeList() {
+Value::ListStorage Value::TakeList() && {
   return std::exchange(list(), {});
 }
 
@@ -694,7 +694,7 @@ const Value* Value::FindPath(std::initializer_list<StringPiece> path) const {
 
 const Value* Value::FindPath(span<const StringPiece> path) const {
   const Value* cur = this;
-  for (const StringPiece component : path) {
+  for (const StringPiece& component : path) {
     if (!cur->is_dict() || (cur = cur->FindKey(component)) == nullptr)
       return nullptr;
   }
@@ -767,7 +767,7 @@ Value::const_dict_iterator_proxy Value::DictItems() const {
   return const_dict_iterator_proxy(&dict());
 }
 
-Value::DictStorage Value::TakeDict() {
+Value::DictStorage Value::TakeDict() && {
   DictStorage storage;
   storage.reserve(dict().size());
   for (auto& pair : dict()) {
@@ -1040,7 +1040,7 @@ void Value::WriteIntoTrace(perfetto::TracedValue context) const {
       return;
     case Type::DICTIONARY: {
       perfetto::TracedDictionary dict = std::move(context).WriteDictionary();
-      for (const auto& kv : DictItems())
+      for (auto kv : DictItems())
         dict.Add(perfetto::DynamicString{kv.first}, kv.second);
       return;
     }
@@ -1333,15 +1333,6 @@ bool DictionaryValue::GetList(StringPiece path, ListValue** out_value) {
                                  const_cast<const ListValue**>(out_value));
 }
 
-bool DictionaryValue::GetDoubleWithoutPathExpansion(StringPiece key,
-                                                    double* out_value) const {
-  const Value* value = FindKey(key);
-  if (!value)
-    return false;
-
-  return value->GetAsDouble(out_value);
-}
-
 bool DictionaryValue::GetStringWithoutPathExpansion(
     StringPiece key,
     std::string* out_value) const {
@@ -1599,30 +1590,6 @@ bool ListValue::GetList(size_t index, const ListValue** out_value) const {
 bool ListValue::GetList(size_t index, ListValue** out_value) {
   return as_const(*this).GetList(index,
                                  const_cast<const ListValue**>(out_value));
-}
-
-bool ListValue::Remove(size_t index, std::unique_ptr<Value>* out_value) {
-  if (index >= list().size())
-    return false;
-
-  if (out_value)
-    *out_value = std::make_unique<Value>(std::move(list()[index]));
-
-  list().erase(list().begin() + index);
-  return true;
-}
-
-bool ListValue::Remove(const Value& value, size_t* index) {
-  auto it = ranges::find(list(), value);
-
-  if (it == list().end())
-    return false;
-
-  if (index)
-    *index = std::distance(list().begin(), it);
-
-  list().erase(it);
-  return true;
 }
 
 void ListValue::Append(std::unique_ptr<Value> in_value) {
