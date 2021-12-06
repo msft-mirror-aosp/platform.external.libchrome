@@ -24,6 +24,7 @@ namespace base {
 
 namespace {
 
+#if 0
 // Returns the length of the given null terminated c-string.
 constexpr size_t StrLen(const char* str) {
   size_t str_len = 0;
@@ -68,6 +69,12 @@ constexpr bool StrEndsWith(const char* name,
 
 static_assert(StrEndsWith(__FILE__, kStrippedPrefixLength, "base/location.cc"),
               "The file name does not match the expected prefix format.");
+
+#else
+
+constexpr size_t kStrippedPrefixLength = 0;
+
+#endif
 
 }  // namespace
 
