@@ -262,6 +262,7 @@ def CheckOutput(args,
   if not cwd:
     cwd = os.getcwd()
 
+  logging.info('CheckOutput: %s', ' '.join(args))
   child = subprocess.Popen(args,
       stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd, env=env)
   stdout, stderr = child.communicate()

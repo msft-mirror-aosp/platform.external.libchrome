@@ -12,8 +12,8 @@
 #include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "base/memory/scoped_refptr.h"
-#include "base/single_thread_task_runner.h"
 #include "base/task/sequence_manager/thread_controller_power_monitor.h"
+#include "base/task/single_thread_task_runner_forward.h"
 #include "base/test/bind.h"
 #include "base/test/mock_callback.h"
 #include "base/test/simple_test_tick_clock.h"
@@ -127,19 +127,19 @@ class FakeSequencedTaskSource : public internal::SequencedTaskSource {
 
   void DidRunTask() override { running_stack_.pop_back(); }
 
-  TimeDelta DelayTillNextTask(LazyNow* lazy_now,
-                              SelectTaskOption option) const override {
+  TimeTicks GetNextTaskTime(LazyNow* lazy_now,
+                            SelectTaskOption option) const override {
     if (tasks_.empty())
-      return TimeDelta::Max();
+      return TimeTicks::Max();
     if (option == SequencedTaskSource::SelectTaskOption::kSkipDelayedTask &&
         !tasks_.front().delayed_run_time.is_null()) {
-      return TimeDelta::Max();
+      return TimeTicks::Max();
     }
     if (tasks_.front().delayed_run_time.is_null())
-      return TimeDelta();
+      return TimeTicks();
     if (lazy_now->Now() > tasks_.front().delayed_run_time)
-      return TimeDelta();
-    return tasks_.front().delayed_run_time - lazy_now->Now();
+      return TimeTicks();
+    return tasks_.front().delayed_run_time;
   }
 
   void AddTask(Location posted_from,
@@ -170,11 +170,11 @@ class FakeSequencedTaskSource : public internal::SequencedTaskSource {
 };
 
 TimeTicks Seconds(int seconds) {
-  return TimeTicks() + TimeDelta::FromSeconds(seconds);
+  return TimeTicks() + base::Seconds(seconds);
 }
 
 TimeTicks Days(int seconds) {
-  return TimeTicks() + TimeDelta::FromDays(seconds);
+  return TimeTicks() + base::Days(seconds);
 }
 
 }  // namespace
@@ -703,7 +703,7 @@ TEST_F(ThreadControllerWithMessagePumpTest, RunWithTimeout) {
         EXPECT_CALL(*message_pump_, Quit());
         EXPECT_FALSE(thread_controller_.DoIdleWork());
       }));
-  thread_controller_.Run(true, TimeDelta::FromSeconds(15));
+  thread_controller_.Run(true, base::Seconds(15));
 }
 
 #if defined(OS_WIN)

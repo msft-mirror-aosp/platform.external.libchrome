@@ -21,12 +21,17 @@ struct TestPendingTask {
   enum TestNestability { NESTABLE, NON_NESTABLE };
 
   TestPendingTask();
-  TestPendingTask(TestPendingTask&& other);
   TestPendingTask(const Location& location,
                   OnceClosure task,
                   TimeTicks post_time,
                   TimeDelta delay,
                   TestNestability nestability);
+
+  TestPendingTask(const TestPendingTask&) = delete;
+  TestPendingTask& operator=(const TestPendingTask&) = delete;
+
+  TestPendingTask(TestPendingTask&& other);
+
   ~TestPendingTask();
 
   TestPendingTask& operator=(TestPendingTask&& other);
@@ -66,9 +71,6 @@ struct TestPendingTask {
   std::unique_ptr<base::trace_event::ConvertableToTraceFormat> AsValue() const;
 #endif
   std::string ToString() const;
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(TestPendingTask);
 };
 
 // gtest helpers which allow pretty printing of the tasks, very useful in unit

@@ -19,7 +19,6 @@
 #include "mojo/core/system_impl_export.h"
 #include "mojo/public/c/system/message_pipe.h"
 #include "mojo/public/c/system/types.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace mojo {
 namespace core {
@@ -45,6 +44,9 @@ class MOJO_SYSTEM_IMPL_EXPORT UserMessageImpl : public ports::UserMessage {
     // in the message.
     kAbort,
   };
+
+  UserMessageImpl(const UserMessageImpl&) = delete;
+  UserMessageImpl& operator=(const UserMessageImpl&) = delete;
 
   ~UserMessageImpl() override;
 
@@ -214,8 +216,6 @@ class MOJO_SYSTEM_IMPL_EXPORT UserMessageImpl : public ports::UserMessage {
   // The node name from which this message was received, iff it came from
   // out-of-process and the source is known.
   ports::NodeName source_node_ = ports::kInvalidNodeName;
-
-  DISALLOW_COPY_AND_ASSIGN(UserMessageImpl);
 };
 
 }  // namespace core

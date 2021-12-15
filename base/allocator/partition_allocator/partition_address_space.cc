@@ -21,80 +21,93 @@ namespace internal {
 
 #if defined(PA_HAS_64_BITS_POINTERS)
 
-constexpr std::array<size_t, 2> PartitionAddressSpace::kPoolSizes;
+constexpr std::array<size_t, 2> PartitionAddressSpace::kGigaCagePoolSizes;
 
-uintptr_t PartitionAddressSpace::reserved_base_address_ = 0;
-// Before PartitionAddressSpace::Init(), no allocation are allocated from a
-// reserved address space. Therefore, set *_pool_base_address_ initially to
-// k*PoolOffsetMask, so that PartitionAddressSpace::IsIn*Pool() always returns
-// false.
-uintptr_t PartitionAddressSpace::non_brp_pool_base_address_ =
-    kNonBRPPoolOffsetMask;
-uintptr_t PartitionAddressSpace::brp_pool_base_address_ = kBRPPoolOffsetMask;
-
-pool_handle PartitionAddressSpace::non_brp_pool_ = 0;
-pool_handle PartitionAddressSpace::brp_pool_ = 0;
+alignas(64) PartitionAddressSpace::GigaCageSetup PartitionAddressSpace::setup_;
 
 void PartitionAddressSpace::Init() {
   if (IsInitialized())
     return;
 
-  GigaCageProperties properties = CalculateGigaCageProperties(kPoolSizes);
+  GigaCageProperties properties =
+      CalculateGigaCageProperties(kGigaCagePoolSizes);
 
-  reserved_base_address_ =
+  setup_.reserved_base_address_ =
       reinterpret_cast<uintptr_t>(AllocPagesWithAlignOffset(
           nullptr, properties.size, properties.alignment,
           properties.alignment_offset, base::PageInaccessible,
           PageTag::kPartitionAlloc));
-  PA_CHECK(reserved_base_address_);
+  PA_CHECK(setup_.reserved_base_address_);
 
-  uintptr_t current = reserved_base_address_;
+  uintptr_t current = setup_.reserved_base_address_;
 
-  non_brp_pool_base_address_ = current;
-  PA_DCHECK(!(non_brp_pool_base_address_ & (kNonBRPPoolSize - 1)));
-  non_brp_pool_ = internal::AddressPoolManager::GetInstance()->Add(
+  setup_.non_brp_pool_base_address_ = current;
+  PA_DCHECK(!(setup_.non_brp_pool_base_address_ & (kNonBRPPoolSize - 1)));
+  setup_.non_brp_pool_ = internal::AddressPoolManager::GetInstance()->Add(
       current, kNonBRPPoolSize);
-  PA_DCHECK(non_brp_pool_);
+  PA_CHECK(setup_.non_brp_pool_ == kNonBRPPoolHandle);
   PA_DCHECK(!IsInNonBRPPool(reinterpret_cast<void*>(current - 1)));
   PA_DCHECK(IsInNonBRPPool(reinterpret_cast<void*>(current)));
   current += kNonBRPPoolSize;
   PA_DCHECK(IsInNonBRPPool(reinterpret_cast<void*>(current - 1)));
   PA_DCHECK(!IsInNonBRPPool(reinterpret_cast<void*>(current)));
 
-  brp_pool_base_address_ = current;
-  PA_DCHECK(!(brp_pool_base_address_ & (kBRPPoolSize - 1)));
-  brp_pool_ =
+  setup_.brp_pool_base_address_ = current;
+  PA_DCHECK(!(setup_.brp_pool_base_address_ & (kBRPPoolSize - 1)));
+  setup_.brp_pool_ =
       internal::AddressPoolManager::GetInstance()->Add(current, kBRPPoolSize);
-  PA_DCHECK(brp_pool_);
+  PA_CHECK(setup_.brp_pool_ == kBRPPoolHandle);
   PA_DCHECK(!IsInBRPPool(reinterpret_cast<void*>(current - 1)));
   PA_DCHECK(IsInBRPPool(reinterpret_cast<void*>(current)));
   current += kBRPPoolSize;
   PA_DCHECK(IsInBRPPool(reinterpret_cast<void*>(current - 1)));
   PA_DCHECK(!IsInBRPPool(reinterpret_cast<void*>(current)));
 
-#if defined(PA_ALLOW_PCSCAN)
+#if PA_STARSCAN_USE_CARD_TABLE
   // Reserve memory for PCScan quarantine card table.
-  void* requested_address = reinterpret_cast<void*>(brp_pool_base_address_);
+  void* requested_address = reinterpret_cast<void*>(non_brp_pool_base_address_);
   char* actual_address = internal::AddressPoolManager::GetInstance()->Reserve(
-      brp_pool_, requested_address, kSuperPageSize);
+      non_brp_pool_, requested_address, kSuperPageSize);
   PA_CHECK(requested_address == actual_address)
       << "QuarantineCardTable is required to be allocated in the beginning of "
-         "the BRPPool";
-  SetSystemPagesAccess(actual_address, kSuperPageSize, PageInaccessible);
-#endif  // defined(PA_ALLOW_PCSCAN)
+         "the non-BRP pool";
+#endif  // PA_STARSCAN_USE_CARD_TABLE
 
-  PA_DCHECK(reserved_base_address_ + properties.size == current);
+  PA_DCHECK(setup_.reserved_base_address_ + properties.size == current);
+}
+
+void PartitionAddressSpace::InitConfigurablePool(void* address, size_t size) {
+  // The ConfigurablePool must only be initialized once.
+  PA_CHECK(!IsConfigurablePoolInitialized());
+
+  // The other Pools must be initialized first.
+  Init();
+
+  PA_CHECK(address);
+  PA_CHECK(size == kConfigurablePoolSize);
+  PA_CHECK(bits::IsPowerOfTwo(size));
+  PA_CHECK(reinterpret_cast<uintptr_t>(address) % size == 0);
+
+  setup_.configurable_pool_base_address_ = reinterpret_cast<uintptr_t>(address);
+
+  setup_.configurable_pool_ = internal::AddressPoolManager::GetInstance()->Add(
+      setup_.configurable_pool_base_address_, size);
+  PA_CHECK(setup_.configurable_pool_ == kConfigurablePoolHandle);
 }
 
 void PartitionAddressSpace::UninitForTesting() {
-  GigaCageProperties properties = CalculateGigaCageProperties(kPoolSizes);
+  GigaCageProperties properties =
+      CalculateGigaCageProperties(kGigaCagePoolSizes);
 
-  FreePages(reinterpret_cast<void*>(reserved_base_address_), properties.size);
-  reserved_base_address_ = 0;
-  non_brp_pool_base_address_ = kNonBRPPoolOffsetMask;
-  brp_pool_base_address_ = kBRPPoolOffsetMask;
-  non_brp_pool_ = 0;
-  brp_pool_ = 0;
+  FreePages(reinterpret_cast<void*>(setup_.reserved_base_address_),
+            properties.size);
+  setup_.reserved_base_address_ = 0;
+  setup_.non_brp_pool_base_address_ = kNonBRPPoolOffsetMask;
+  setup_.brp_pool_base_address_ = kBRPPoolOffsetMask;
+  setup_.configurable_pool_base_address_ = kConfigurablePoolOffsetMask;
+  setup_.non_brp_pool_ = 0;
+  setup_.brp_pool_ = 0;
+  setup_.configurable_pool_ = 0;
   internal::AddressPoolManager::GetInstance()->ResetForTesting();
 }
 

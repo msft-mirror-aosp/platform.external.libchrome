@@ -19,7 +19,7 @@
 #include "base/macros.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/no_destructor.h"
-#include "base/single_thread_task_runner.h"
+#include "base/task/single_thread_task_runner_forward.h"
 #include "base/threading/platform_thread.h"
 #include "base/time/time_override.h"
 #include "base/trace_event/category_registry.h"
@@ -77,6 +77,9 @@ class BASE_EXPORT TraceLog :
 
   static TraceLog* GetInstance();
 
+  TraceLog(const TraceLog&) = delete;
+  TraceLog& operator=(const TraceLog&) = delete;
+
   // Retrieves a copy (for thread-safety) of the current TraceConfig.
   TraceConfig GetCurrentTraceConfig() const;
 
@@ -93,6 +96,14 @@ class BASE_EXPORT TraceLog :
   // Conversely to RECORDING_MODE, FILTERING_MODE doesn't support upgrading,
   // i.e. filters can only be enabled if not previously enabled.
   void SetEnabled(const TraceConfig& trace_config, uint8_t modes_to_enable);
+
+#if BUILDFLAG(USE_PERFETTO_CLIENT_LIBRARY)
+  // Enable tracing using a customized Perfetto trace config. This allows, for
+  // example, enabling additional data sources and enabling protobuf output
+  // instead of the legacy JSON trace format.
+  void SetEnabled(const TraceConfig& trace_config,
+                  const perfetto::TraceConfig& perfetto_config);
+#endif
 
   // TODO(ssid): Remove the default SetEnabled and IsEnabled. They should take
   // Mode as argument.
@@ -197,6 +208,9 @@ class BASE_EXPORT TraceLog :
   void SetMetadataFilterPredicate(
       const MetadataFilterPredicate& metadata_filter_predicate);
   MetadataFilterPredicate GetMetadataFilterPredicate() const;
+
+  void SetRecordHostAppPackageName(bool record_host_app_package_name);
+  bool ShouldRecordHostAppPackageName() const;
 
   // Flush all collected events to the given output callback. The callback will
   // be called one or more times either synchronously or asynchronously from
@@ -375,10 +389,7 @@ class BASE_EXPORT TraceLog :
   void SetProcessSortIndex(int sort_index);
 
   // Sets the name of the process.
-  void set_process_name(const std::string& process_name) {
-    AutoLock lock(lock_);
-    process_name_ = process_name;
-  }
+  void set_process_name(const std::string& process_name);
 
   bool IsProcessNameEmpty() const {
     AutoLock lock(lock_);
@@ -419,6 +430,10 @@ class BASE_EXPORT TraceLog :
   void SetTraceBufferForTesting(std::unique_ptr<TraceBuffer> trace_buffer);
 
 #if BUILDFLAG(USE_PERFETTO_CLIENT_LIBRARY)
+  void InitializePerfettoIfNeeded();
+  void SetEnabledImpl(const TraceConfig& trace_config,
+                      const perfetto::TraceConfig& perfetto_config);
+
   // perfetto::TrackEventSessionObserver implementation.
   void OnSetup(const perfetto::DataSourceBase::SetupArgs&) override;
   void OnStart(const perfetto::DataSourceBase::StartArgs&) override;
@@ -464,7 +479,7 @@ class BASE_EXPORT TraceLog :
   class OptionalAutoLock;
   struct RegisteredAsyncObserver;
 
-  TraceLog();
+  explicit TraceLog(int generation);
   ~TraceLog() override;
   void AddMetadataEventsWhileLocked() EXCLUSIVE_LOCKS_REQUIRED(lock_);
   template <typename T>
@@ -606,6 +621,7 @@ class BASE_EXPORT TraceLog :
   scoped_refptr<SequencedTaskRunner> flush_task_runner_;
   ArgumentFilterPredicate argument_filter_predicate_;
   MetadataFilterPredicate metadata_filter_predicate_;
+  bool record_host_app_package_name_{false};
   subtle::AtomicWord generation_;
   bool use_worker_thread_;
   std::atomic<AddTraceEventOverrideFunction> add_trace_event_override_{nullptr};
@@ -615,10 +631,12 @@ class BASE_EXPORT TraceLog :
 #if BUILDFLAG(USE_PERFETTO_CLIENT_LIBRARY)
   std::unique_ptr<::base::tracing::PerfettoPlatform> perfetto_platform_;
   std::unique_ptr<perfetto::TracingSession> tracing_session_;
+  perfetto::TraceConfig perfetto_config_;
 #if !defined(OS_NACL)
   std::unique_ptr<perfetto::trace_processor::TraceProcessorStorage>
       trace_processor_;
   std::unique_ptr<JsonStringOutputWriter> json_output_writer_;
+  OutputCallback proto_output_callback_;
 #endif  // !defined(OS_NACL)
 #endif  // BUILDFLAG(USE_PERFETTO_CLIENT_LIBRARY)
 
@@ -627,8 +645,6 @@ class BASE_EXPORT TraceLog :
 #if defined(OS_ANDROID)
   absl::optional<TraceConfig> atrace_startup_config_;
 #endif
-
-  DISALLOW_COPY_AND_ASSIGN(TraceLog);
 };
 
 }  // namespace trace_event

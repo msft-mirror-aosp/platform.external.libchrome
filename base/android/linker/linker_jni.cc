@@ -205,7 +205,6 @@ bool FindRegionInOpenFile(int fd, uintptr_t* out_address, size_t* out_size) {
     pos = kMaxLineLength;
     bytes_requested = kReadSize;
   }
-  return false;
 }
 
 }  // namespace
@@ -263,6 +262,21 @@ Java_org_chromium_base_library_1loader_LinkerJni_nativeReserveMemoryForLibrary(
   s_lib_info_fields.GetLoadInfo(env, lib_info_obj, &address, &size);
   ReserveAddressWithHint(address, &address, &size);
   s_lib_info_fields.SetLoadInfo(env, lib_info_obj, address, size);
+}
+
+// Performs as described in Linker.java.
+JNI_GENERATOR_EXPORT jboolean
+Java_org_chromium_base_library_1loader_LinkerJni_nativeFindRegionReservedByWebViewZygote(
+    JNIEnv* env,
+    jclass clazz,
+    jobject lib_info_obj) {
+  LOG_INFO("Entering");
+  uintptr_t address;
+  size_t size;
+  if (!FindWebViewReservation(&address, &size))
+    return false;
+  s_lib_info_fields.SetLoadInfo(env, lib_info_obj, address, size);
+  return true;
 }
 
 }  // namespace chromium_android_linker

@@ -1,0 +1,53 @@
+From d5f186c5f69f6adf702c81df8d260fd71b9d990d Mon Sep 17 00:00:00 2001
+From: hscham <hscham@google.com>
+Date: Wed, 15 Dec 2021 12:35:45 +0900
+Subject: [PATCH] Do not use boringssl in base::UnguessableToken
+
+Not supported in libchrome.
+
+Change-Id: I89657abfebc86671af5e55ec6f89047fcd576652
+---
+ base/unguessable_token.cc | 18 +++++++++---------
+ 1 file changed, 9 insertions(+), 9 deletions(-)
+
+diff --git a/base/unguessable_token.cc b/base/unguessable_token.cc
+index d156be5597..9e94ffa0cb 100644
+--- a/base/unguessable_token.cc
++++ b/base/unguessable_token.cc
+@@ -10,9 +10,9 @@
+ #include "base/rand_util.h"
+ #include "build/build_config.h"
+ 
+-#if !defined(OS_NACL)
+-#include "third_party/boringssl/src/include/openssl/mem.h"
+-#endif
++// #if !defined(OS_NACL)
++// #include "third_party/boringssl/src/include/openssl/mem.h"
++// #endif
+ 
+ namespace base {
+ 
+@@ -41,14 +41,14 @@ UnguessableToken UnguessableToken::Deserialize(uint64_t high, uint64_t low) {
+ }
+ 
+ bool UnguessableToken::operator==(const UnguessableToken& other) const {
+-#if defined(OS_NACL)
++// #if defined(OS_NACL)
+   // BoringSSL is unavailable for NaCl builds so it remains timing dependent.
+   return token_ == other.token_;
+-#else
+-  auto bytes = token_.AsBytes();
+-  auto other_bytes = other.token_.AsBytes();
+-  return CRYPTO_memcmp(bytes.data(), other_bytes.data(), bytes.size()) == 0;
+-#endif
++// #else
++//   auto bytes = token_.AsBytes();
++//   auto other_bytes = other.token_.AsBytes();
++//   return CRYPTO_memcmp(bytes.data(), other_bytes.data(), bytes.size()) == 0;
++// #endif
+ }
+ 
+ std::ostream& operator<<(std::ostream& out, const UnguessableToken& token) {
+-- 
+2.34.1.173.g76aa8bc2d0-goog
+

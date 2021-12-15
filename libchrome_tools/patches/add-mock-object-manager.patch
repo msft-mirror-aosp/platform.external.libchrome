@@ -1,6 +1,20 @@
+From 678fb1a7e277ec15e663b8c4fe521d59bc0249b0 Mon Sep 17 00:00:00 2001
+From: hscham <hscham@chromium.org>
+Date: Tue, 2 Nov 2021 14:04:39 +0900
+Subject: [PATCH] Add mock object manager
+
+Change-Id: I9d40b2af0c2e03d9acbc4544fb4585aa3fee0777
+---
+ dbus/mock_object_manager.cc | 17 +++++++++++++++
+ dbus/mock_object_manager.h  | 41 +++++++++++++++++++++++++++++++++++++
+ dbus/object_manager.h       | 21 ++++++++++---------
+ 3 files changed, 69 insertions(+), 10 deletions(-)
+ create mode 100644 dbus/mock_object_manager.cc
+ create mode 100644 dbus/mock_object_manager.h
+
 diff --git a/dbus/mock_object_manager.cc b/dbus/mock_object_manager.cc
 new file mode 100644
-index 000000000..3f0c0a174
+index 0000000000..3f0c0a1744
 --- /dev/null
 +++ b/dbus/mock_object_manager.cc
 @@ -0,0 +1,17 @@
@@ -23,7 +37,7 @@ index 000000000..3f0c0a174
 +}  // namespace dbus
 diff --git a/dbus/mock_object_manager.h b/dbus/mock_object_manager.h
 new file mode 100644
-index 000000000..6eb95de9a
+index 0000000000..6eb95de9a4
 --- /dev/null
 +++ b/dbus/mock_object_manager.h
 @@ -0,0 +1,41 @@
@@ -69,7 +83,7 @@ index 000000000..6eb95de9a
 +
 +#endif  // DBUS_MOCK_OBJECT_MANAGER_H_
 diff --git a/dbus/object_manager.h b/dbus/object_manager.h
-index 05388de8e..6d1f5ab9d 100644
+index ada1fd0a7a..dad5252226 100644
 --- a/dbus/object_manager.h
 +++ b/dbus/object_manager.h
 @@ -136,7 +136,7 @@ class Signal;
@@ -81,7 +95,7 @@ index 05388de8e..6d1f5ab9d 100644
      : public base::RefCountedThreadSafe<ObjectManager> {
   public:
    // ObjectManager::Interface must be implemented by any class wishing to have
-@@ -192,35 +192,35 @@ class CHROME_DBUS_EXPORT ObjectManager final
+@@ -192,38 +192,38 @@ class CHROME_DBUS_EXPORT ObjectManager final
    // interface named in |interface_name|. That object's CreateProperties()
    // method will be used to create instances of dbus::PropertySet* when
    // required.
@@ -95,6 +109,9 @@ index 05388de8e..6d1f5ab9d 100644
    // ignored.
 -  void UnregisterInterface(const std::string& interface_name);
 +  virtual void UnregisterInterface(const std::string& interface_name);
+ 
+   // Checks whether an interface is registered.
+   bool IsInterfaceRegisteredForTesting(const std::string& interface_name) const;
  
    // Returns a list of object paths, in an undefined order, of objects known
    // to this manager.
@@ -125,7 +142,7 @@ index 05388de8e..6d1f5ab9d 100644
  
    // Instructs the object manager to refresh its list of managed objects;
    // automatically called by the D-Bus thread manager, there should never be
-@@ -235,11 +235,12 @@ class CHROME_DBUS_EXPORT ObjectManager final
+@@ -238,11 +238,12 @@ class CHROME_DBUS_EXPORT ObjectManager final
  
   private:
    friend class base::RefCountedThreadSafe<ObjectManager>;
@@ -139,3 +156,6 @@ index 05388de8e..6d1f5ab9d 100644
  
    // Called from the constructor to add a match rule for PropertiesChanged
    // signals on the D-Bus thread and set up a corresponding filter function.
+-- 
+2.33.1.1089.g2158813163f-goog
+

@@ -1,0 +1,98 @@
+From 0f327afee28352f533075b6d7065673f1e297557 Mon Sep 17 00:00:00 2001
+From: hscham <hscham@google.com>
+Date: Thu, 13 Jan 2022 09:41:03 +0900
+Subject: [PATCH] Revert "[base/allocator] Support max alloc size with
+ use_allocator = "none"."
+
+This reverts commit 324e03c9fba0fd78a721524032eeac43c80dd1db.
+---
+ ...llocator_shim_default_dispatch_to_glibc.cc | 35 +------------------
+ 1 file changed, 1 insertion(+), 34 deletions(-)
+
+diff --git a/base/allocator/allocator_shim_default_dispatch_to_glibc.cc b/base/allocator/allocator_shim_default_dispatch_to_glibc.cc
+index a4c67e351d..014ee05115 100644
+--- a/base/allocator/allocator_shim_default_dispatch_to_glibc.cc
++++ b/base/allocator/allocator_shim_default_dispatch_to_glibc.cc
+@@ -2,12 +2,8 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#include <limits>
+-
+ #include "base/allocator/allocator_shim.h"
+ #include "base/compiler_specific.h"
+-#include "base/numerics/checked_math.h"
+-#include "base/process/memory.h"
+ 
+ #include <dlfcn.h>
+ #include <malloc.h>
+@@ -28,26 +24,7 @@ namespace {
+ 
+ using base::allocator::AllocatorDispatch;
+ 
+-// Strictly speaking, it would make more sense to not subtract amything, but
+-// other shims limit to something lower than INT_MAX (which is 0x7FFFFFFF on
+-// most platforms), and tests expect that.
+-constexpr size_t kMaxAllowedSize = std::numeric_limits<int>::max() - (1 << 12);
+-
+ void* GlibcMalloc(const AllocatorDispatch*, size_t size, void* context) {
+-  // Cannot force glibc's malloc() to crash when a large size is requested, do
+-  // it in the shim instead.
+-  if (UNLIKELY(size >= kMaxAllowedSize))
+-    base::TerminateBecauseOutOfMemory(size);
+-
+-  return __libc_malloc(size);
+-}
+-
+-void* GlibcUncheckedMalloc(const AllocatorDispatch*,
+-                           size_t size,
+-                           void* context) {
+-  if (UNLIKELY(size >= kMaxAllowedSize))
+-    return nullptr;
+-
+   return __libc_malloc(size);
+ }
+ 
+@@ -55,10 +32,6 @@ void* GlibcCalloc(const AllocatorDispatch*,
+                   size_t n,
+                   size_t size,
+                   void* context) {
+-  const auto total = base::CheckMul(n, size);
+-  if (UNLIKELY(!total.IsValid() || total.ValueOrDie() >= kMaxAllowedSize))
+-    base::TerminateBecauseOutOfMemory(size * n);
+-
+   return __libc_calloc(n, size);
+ }
+ 
+@@ -66,9 +39,6 @@ void* GlibcRealloc(const AllocatorDispatch*,
+                    void* address,
+                    size_t size,
+                    void* context) {
+-  if (UNLIKELY(size >= kMaxAllowedSize))
+-    base::TerminateBecauseOutOfMemory(size);
+-
+   return __libc_realloc(address, size);
+ }
+ 
+@@ -76,9 +46,6 @@ void* GlibcMemalign(const AllocatorDispatch*,
+                     size_t alignment,
+                     size_t size,
+                     void* context) {
+-  if (UNLIKELY(size >= kMaxAllowedSize))
+-    base::TerminateBecauseOutOfMemory(size);
+-
+   return __libc_memalign(alignment, size);
+ }
+ 
+@@ -106,7 +73,7 @@ size_t GlibcGetSizeEstimate(const AllocatorDispatch*,
+ 
+ const AllocatorDispatch AllocatorDispatch::default_dispatch = {
+     &GlibcMalloc,          /* alloc_function */
+-    &GlibcUncheckedMalloc, /* alloc_unchecked_function */
++    &GlibcMalloc,          /* alloc_unchecked_function */
+     &GlibcCalloc,          /* alloc_zero_initialized_function */
+     &GlibcMemalign,        /* alloc_aligned_function */
+     &GlibcRealloc,         /* realloc_function */
+-- 
+2.34.1.575.g55b058a8bb-goog
+

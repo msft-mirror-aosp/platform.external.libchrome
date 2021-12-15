@@ -66,7 +66,7 @@ index f253fba9c31d..13c86dea1007 100644
 +++ b/ipc/ipc_message_pipe_reader.cc
 @@ -16,7 +16,7 @@
  #include "base/macros.h"
- #include "base/single_thread_task_runner.h"
+ #include "base/task/single_thread_task_runner_forward.h"
  #include "base/threading/thread_task_runner_handle.h"
 -#include "base/trace_event/trace_event.h"
 +#include "base/trace_event/base_tracing.h"
@@ -106,7 +106,7 @@ index da220c2aac4d..2ff4f5a2cdec 100644
 --- a/ipc/ipc_sync_channel.cc
 +++ b/ipc/ipc_sync_channel.cc
 @@ -20,7 +20,7 @@
- #include "base/synchronization/waitable_event.h"
+ #include "base/task/sequenced_task_runner_forward.h"
  #include "base/threading/thread_local.h"
  #include "base/threading/thread_task_runner_handle.h"
 -#include "base/trace_event/trace_event.h"
