@@ -140,9 +140,9 @@ index 65ca0e80f6..63fa755966 100644
 --- a/base/stl_util.h
 +++ b/base/stl_util.h
 @@ -24,6 +24,7 @@
+ #include <utility>
  
  #include "base/check.h"
- #include "base/cxx17_backports.h"
 +#include "base/optional.h"
  #include "base/ranges/algorithm.h"
  #include "third_party/abseil-cpp/absl/types/optional.h"
@@ -344,7 +344,7 @@ index da0339da90..1c4b1d2d1e 100644
 --- a/base/values.h
 +++ b/base/values.h
 @@ -37,6 +37,7 @@
- #include "base/containers/checked_range.h"
+ #include "base/containers/cxx20_erase_vector.h"
  #include "base/containers/flat_map.h"
  #include "base/containers/span.h"
 +#include "base/optional.h"

@@ -1,6 +1,6 @@
-From 13995d252669a60f4e9cc6d8fc2bd34d9e1c556f Mon Sep 17 00:00:00 2001
+From 6cabfae679080e4088b0a790d422f2c1b06faa0c Mon Sep 17 00:00:00 2001
 From: hscham <hscham@chromium.org>
-Date: Thu, 18 Nov 2021 11:05:51 +0900
+Date: Fri, 3 Dec 2021 15:50:05 +0900
 Subject: [PATCH 3/3] Fix mojo build with enable_base_tracing=false
 
 This is the second CL in a series of CL that will fix base, ipc, mojo
@@ -24,15 +24,19 @@ Bug: b:204714883
 Test: autoninja -C out/Default chrome (ENABLE_BASE_TRACING=true)
 Test: autoninja -C out/Default base ipc mojo/{core/embedder,public} \
       (ENABLE_BASE_TRACING=false)
-Change-Id: Ia35cbc39c2d07deb8b6d529019da9aacfbbf976f
+
+Change-Id: Ib256ebdce26d54ce2c4e5c4e7eb4e4c94a7d2613
 ---
  mojo/core/channel.cc                                       | 2 +-
  mojo/core/core.cc                                          | 2 +-
+ mojo/core/data_pipe_consumer_dispatcher.cc                 | 2 +-
+ mojo/core/data_pipe_producer_dispatcher.cc                 | 2 +-
  mojo/core/handle_table.cc                                  | 4 +++-
- mojo/core/handle_table.h                                   | 2 +-
+ mojo/core/handle_table.h                                   | 5 +++--
  mojo/core/message_pipe_dispatcher.cc                       | 3 +--
  mojo/core/user_message_impl.cc                             | 5 +----
- mojo/public/cpp/bindings/lib/connector.cc                  | 5 +++--
+ .../memory_allocator_dump_cross_process_uid_mojom_traits.h | 2 +-
+ mojo/public/cpp/bindings/lib/connector.cc                  | 6 +++---
  mojo/public/cpp/bindings/lib/message.cc                    | 4 +---
  mojo/public/cpp/bindings/struct_ptr.h                      | 1 -
  mojo/public/cpp/system/simple_watcher.cc                   | 7 ++++---
@@ -41,10 +45,10 @@ Change-Id: Ia35cbc39c2d07deb8b6d529019da9aacfbbf976f
  .../tools/bindings/generators/cpp_templates/module.cc.tmpl | 4 +---
  .../tools/bindings/generators/cpp_templates/module.h.tmpl  | 2 +-
  .../generators/cpp_templates/wrapper_class_definition.tmpl | 2 ++
- 15 files changed, 22 insertions(+), 25 deletions(-)
+ 18 files changed, 27 insertions(+), 30 deletions(-)
 
 diff --git a/mojo/core/channel.cc b/mojo/core/channel.cc
-index 24dc3742ef81..885dbf698b31 100644
+index 918ccfd9ef90..9dea42288892 100644
 --- a/mojo/core/channel.cc
 +++ b/mojo/core/channel.cc
 @@ -17,7 +17,7 @@
@@ -69,8 +73,34 @@ index 35a3d3c477aa..b62a4290a6df 100644
  #include "build/build_config.h"
  #include "mojo/core/channel.h"
  #include "mojo/core/configuration.h"
+diff --git a/mojo/core/data_pipe_consumer_dispatcher.cc b/mojo/core/data_pipe_consumer_dispatcher.cc
+index e64ac7eccdf8..4ce155f77c44 100644
+--- a/mojo/core/data_pipe_consumer_dispatcher.cc
++++ b/mojo/core/data_pipe_consumer_dispatcher.cc
+@@ -14,7 +14,7 @@
+ #include "base/bind.h"
+ #include "base/logging.h"
+ #include "base/memory/ref_counted.h"
+-#include "base/trace_event/trace_event.h"
++#include "base/trace_event/base_tracing.h"
+ #include "mojo/core/core.h"
+ #include "mojo/core/data_pipe_control_message.h"
+ #include "mojo/core/node_controller.h"
+diff --git a/mojo/core/data_pipe_producer_dispatcher.cc b/mojo/core/data_pipe_producer_dispatcher.cc
+index 80ff8ee2ac46..7d64cd29ca84 100644
+--- a/mojo/core/data_pipe_producer_dispatcher.cc
++++ b/mojo/core/data_pipe_producer_dispatcher.cc
+@@ -12,7 +12,7 @@
+ #include "base/bind.h"
+ #include "base/logging.h"
+ #include "base/memory/ref_counted.h"
+-#include "base/trace_event/trace_event.h"
++#include "base/trace_event/base_tracing.h"
+ #include "mojo/core/configuration.h"
+ #include "mojo/core/core.h"
+ #include "mojo/core/data_pipe_control_message.h"
 diff --git a/mojo/core/handle_table.cc b/mojo/core/handle_table.cc
-index 9426281d73f0..73bc6f338565 100644
+index 9426281d73f0..b4e1920a2126 100644
 --- a/mojo/core/handle_table.cc
 +++ b/mojo/core/handle_table.cc
 @@ -7,8 +7,10 @@
@@ -80,13 +110,13 @@ index 9426281d73f0..73bc6f338565 100644
 +#include <map>
  
 -#include "base/trace_event/memory_dump_manager.h"
-+#include "base/trace_event/base_tracing.h"
 +#include "base/notreached.h"
++#include "base/trace_event/base_tracing.h"
  
  namespace mojo {
  namespace core {
 diff --git a/mojo/core/handle_table.h b/mojo/core/handle_table.h
-index 7a810357b14b..011b0ee4abae 100644
+index 90555d8bdd7e..a1dbd547136c 100644
 --- a/mojo/core/handle_table.h
 +++ b/mojo/core/handle_table.h
 @@ -13,7 +13,7 @@
@@ -128,25 +158,39 @@ index ec0686b629d1..0dafc3db2c03 100644
  #include "mojo/core/configuration.h"
  #include "mojo/core/core.h"
  #include "mojo/core/node_channel.h"
+diff --git a/mojo/public/cpp/base/memory_allocator_dump_cross_process_uid_mojom_traits.h b/mojo/public/cpp/base/memory_allocator_dump_cross_process_uid_mojom_traits.h
+index e2ee25b22dee..e1296e45fb27 100644
+--- a/mojo/public/cpp/base/memory_allocator_dump_cross_process_uid_mojom_traits.h
++++ b/mojo/public/cpp/base/memory_allocator_dump_cross_process_uid_mojom_traits.h
+@@ -6,7 +6,7 @@
+ #define MOJO_PUBLIC_CPP_BASE_MEMORY_ALLOCATOR_DUMP_CROSS_PROCESS_UID_MOJOM_TRAITS_H_
+ 
+ #include "base/component_export.h"
+-#include "base/trace_event/memory_allocator_dump_guid.h"
++#include "base/trace_event/base_tracing.h"
+ #include "mojo/public/mojom/base/memory_allocator_dump_cross_process_uid.mojom-shared.h"
+ 
+ namespace mojo {
 diff --git a/mojo/public/cpp/bindings/lib/connector.cc b/mojo/public/cpp/bindings/lib/connector.cc
-index 315fe067351f..519e847fe2bb 100644
+index 51e80d48bf28..58763ed1d4e3 100644
 --- a/mojo/public/cpp/bindings/lib/connector.cc
 +++ b/mojo/public/cpp/bindings/lib/connector.cc
-@@ -23,8 +23,7 @@
+@@ -22,9 +22,7 @@
  #include "base/synchronization/lock.h"
  #include "base/task/current_thread.h"
  #include "base/threading/sequence_local_storage_slot.h"
 -#include "base/trace_event/trace_event.h"
 -#include "base/trace_event/typed_macros.h"
+-#include "base/trace_event/trace_event_stub.h"
 +#include "base/trace_event/base_tracing.h"
- #include "base/trace_event/trace_event_stub.h"
  #include "mojo/public/c/system/quota.h"
  #include "mojo/public/cpp/bindings/features.h"
-@@ -33,7 +32,9 @@
+ #include "mojo/public/cpp/bindings/lib/may_auto_lock.h"
+@@ -32,7 +30,9 @@
  #include "mojo/public/cpp/bindings/mojo_buildflags.h"
  #include "mojo/public/cpp/bindings/sync_handle_watcher.h"
  #include "mojo/public/cpp/system/wait.h"
-+#if BUILDFLAG(ENABLE_BASE_TRACING)
++#if defined(ENABLE_BASE_TRACING)
  #include "third_party/perfetto/protos/perfetto/trace/track_event/chrome_mojo_event_info.pbzero.h"
 +#endif
  
@@ -216,7 +260,7 @@ index 6d4cff4bdd2c..2493f3f1fbab 100644
  #include "{{module.path}}-params-data.h"
  
 diff --git a/mojo/public/tools/bindings/generators/cpp_templates/module-shared.h.tmpl b/mojo/public/tools/bindings/generators/cpp_templates/module-shared.h.tmpl
-index 8f9fad74bdc3..4b79cdc1da2a 100644
+index 8f9fad74bdc3..9891cf93d6ce 100644
 --- a/mojo/public/tools/bindings/generators/cpp_templates/module-shared.h.tmpl
 +++ b/mojo/public/tools/bindings/generators/cpp_templates/module-shared.h.tmpl
 @@ -53,7 +53,7 @@ namespace {{namespace}} {
@@ -251,7 +295,7 @@ index 7a24bcc31dca..9347ea7b5e01 100644
  #include "{{module.path}}-params-data.h"
  #include "{{module.path}}-shared-message-ids.h"
 diff --git a/mojo/public/tools/bindings/generators/cpp_templates/module.h.tmpl b/mojo/public/tools/bindings/generators/cpp_templates/module.h.tmpl
-index 58bbb17d1a02..064c37c7a015 100644
+index 60d30f4326eb..dcae9c289e88 100644
 --- a/mojo/public/tools/bindings/generators/cpp_templates/module.h.tmpl
 +++ b/mojo/public/tools/bindings/generators/cpp_templates/module.h.tmpl
 @@ -59,7 +59,7 @@ namespace {{variant}} {
@@ -278,5 +322,4 @@ index 504d46735771..25284e0c0816 100644
    perfetto::WriteIntoTracedValueWithFallback(
      dict.AddItem(
 -- 
-2.34.0.rc1.387.gb447b232ab-goog
-
+2.34.1.400.ga245620fadb-goog

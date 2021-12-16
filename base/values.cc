@@ -8,7 +8,7 @@
 // build time. Try not to raise this limit unless absolutely necessary. See
 // https://chromium.googlesource.com/chromium/src/+/HEAD/docs/wmax_tokens.md
 #ifndef NACL_TC_REV
-#pragma clang max_tokens_here 550000
+#pragma clang max_tokens_here 400000
 #endif
 
 #include <algorithm>
@@ -1423,25 +1423,6 @@ bool DictionaryValue::RemoveWithoutPathExpansion(
   return true;
 }
 
-bool DictionaryValue::RemovePath(StringPiece path,
-                                 std::unique_ptr<Value>* out_value) {
-  bool result = false;
-  size_t delimiter_position = path.find('.');
-
-  if (delimiter_position == std::string::npos)
-    return RemoveWithoutPathExpansion(path, out_value);
-
-  StringPiece subdict_path = path.substr(0, delimiter_position);
-  DictionaryValue* subdict = nullptr;
-  if (!GetDictionary(subdict_path, &subdict))
-    return false;
-  result = subdict->RemovePath(path.substr(delimiter_position + 1), out_value);
-  if (result && subdict->DictEmpty())
-    RemoveKey(subdict_path);
-
-  return result;
-}
-
 std::unique_ptr<DictionaryValue> DictionaryValue::DeepCopyWithoutEmptyChildren()
     const {
   std::unique_ptr<DictionaryValue> copy =
@@ -1573,23 +1554,6 @@ bool ListValue::GetDictionary(size_t index,
 bool ListValue::GetDictionary(size_t index, DictionaryValue** out_value) {
   return as_const(*this).GetDictionary(
       index, const_cast<const DictionaryValue**>(out_value));
-}
-
-bool ListValue::GetList(size_t index, const ListValue** out_value) const {
-  const Value* value;
-  bool result = Get(index, &value);
-  if (!result || !value->is_list())
-    return false;
-
-  if (out_value)
-    *out_value = static_cast<const ListValue*>(value);
-
-  return true;
-}
-
-bool ListValue::GetList(size_t index, ListValue** out_value) {
-  return as_const(*this).GetList(index,
-                                 const_cast<const ListValue**>(out_value));
 }
 
 void ListValue::Append(std::unique_ptr<Value> in_value) {

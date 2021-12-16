@@ -1489,9 +1489,9 @@ TEST(ValuesTest, StringValue) {
 TEST(ValuesTest, ListDeletion) {
   ListValue list;
   list.Append(std::make_unique<Value>());
-  EXPECT_FALSE(list.empty());
+  EXPECT_FALSE(list.GetList().empty());
   list.Clear();
-  EXPECT_TRUE(list.empty());
+  EXPECT_TRUE(list.GetList().empty());
 }
 
 TEST(ValuesTest, DictionaryDeletion) {
@@ -1637,31 +1637,6 @@ TEST(ValuesTest, DictionaryWithoutPathExpansionDeprecated) {
   Value* value4 = dict.FindKey("this.isnt.expanded");
   ASSERT_TRUE(value4);
   EXPECT_EQ(Value::Type::NONE, value4->type());
-}
-
-TEST(ValuesTest, DictionaryRemovePath) {
-  DictionaryValue dict;
-  dict.SetInteger("a.long.way.down", 1);
-  dict.SetBoolean("a.long.key.path", true);
-
-  std::unique_ptr<Value> removed_item;
-  EXPECT_TRUE(dict.RemovePath("a.long.way.down", &removed_item));
-  ASSERT_TRUE(removed_item);
-  EXPECT_TRUE(removed_item->is_int());
-  EXPECT_FALSE(dict.HasKey("a.long.way.down"));
-  EXPECT_FALSE(dict.HasKey("a.long.way"));
-  EXPECT_TRUE(dict.Get("a.long.key.path", nullptr));
-
-  removed_item.reset();
-  EXPECT_FALSE(dict.RemovePath("a.long.way.down", &removed_item));
-  EXPECT_FALSE(removed_item);
-  EXPECT_TRUE(dict.Get("a.long.key.path", nullptr));
-
-  removed_item.reset();
-  EXPECT_TRUE(dict.RemovePath("a.long.key.path", &removed_item));
-  ASSERT_TRUE(removed_item);
-  EXPECT_TRUE(removed_item->is_bool());
-  EXPECT_TRUE(dict.DictEmpty());
 }
 
 TEST(ValuesTest, DeepCopy) {
@@ -2067,10 +2042,10 @@ TEST(ValuesTest, RemoveEmptyChildren) {
 
     ListValue* inner_value;
     EXPECT_TRUE(root->GetList("list_with_empty_children", &inner_value));
-    EXPECT_EQ(1U, inner_value->GetSize());  // Dictionary was pruned.
-    ListValue* inner_value2;
-    EXPECT_TRUE(inner_value->GetList(0, &inner_value2));
-    EXPECT_EQ(1U, inner_value2->GetSize());
+    ASSERT_EQ(1U, inner_value->GetSize());  // Dictionary was pruned.
+    const Value& inner_value2 = inner_value->GetList()[0];
+    ASSERT_TRUE(inner_value2.is_list());
+    EXPECT_EQ(1U, inner_value2.GetList().size());
   }
 }
 
@@ -2481,15 +2456,6 @@ TEST(ValuesTest, GetWithNullOutValue) {
   EXPECT_TRUE(main_list.GetDictionary(5, nullptr));
   EXPECT_FALSE(main_list.GetDictionary(6, nullptr));
   EXPECT_FALSE(main_list.GetDictionary(7, nullptr));
-
-  EXPECT_FALSE(main_list.GetList(0, nullptr));
-  EXPECT_FALSE(main_list.GetList(1, nullptr));
-  EXPECT_FALSE(main_list.GetList(2, nullptr));
-  EXPECT_FALSE(main_list.GetList(3, nullptr));
-  EXPECT_FALSE(main_list.GetList(4, nullptr));
-  EXPECT_FALSE(main_list.GetList(5, nullptr));
-  EXPECT_TRUE(main_list.GetList(6, nullptr));
-  EXPECT_FALSE(main_list.GetList(7, nullptr));
 }
 
 TEST(ValuesTest, SelfSwap) {

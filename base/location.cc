@@ -80,6 +80,7 @@ constexpr size_t kStrippedPrefixLength = 0;
 
 Location::Location() = default;
 Location::Location(const Location& other) = default;
+Location& Location::operator=(const Location& other) = default;
 
 Location::Location(const char* file_name, const void* program_counter)
     : file_name_(file_name), program_counter_(program_counter) {}

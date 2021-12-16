@@ -107,7 +107,7 @@ constexpr base::FeatureParam<int> kUIThreadLogLevel{
     static_cast<int>(LoggingLevel::kUmaOnly)};
 constexpr base::FeatureParam<int> kThreadPoolLogLevel{
     &kEnableHangWatcher, "threadpool_log_level",
-    static_cast<int>(LoggingLevel::kNone)};
+    static_cast<int>(LoggingLevel::kUmaOnly)};
 
 // static
 const base::TimeDelta WatchHangsInScope::kDefaultHangWatchTime =
@@ -190,6 +190,12 @@ WatchHangsInScope::~WatchHangsInScope() {
   // If hang watching was not enabled at construction time there is nothing to
   // validate or undo.
   if (!took_effect_) {
+    return;
+  }
+
+  // If the thread was unregistered since construction there is also nothing to
+  // do .
+  if (!current_hang_watch_state) {
     return;
   }
 

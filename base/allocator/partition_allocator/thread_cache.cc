@@ -13,6 +13,7 @@
 #include "base/allocator/partition_allocator/partition_alloc_constants.h"
 #include "base/allocator/partition_allocator/partition_root.h"
 #include "base/base_export.h"
+#include "base/compiler_specific.h"
 #include "base/dcheck_is_on.h"
 #include "base/numerics/ranges.h"
 #include "base/threading/thread_task_runner_handle.h"
@@ -31,7 +32,22 @@ ThreadCacheRegistry g_instance;
 
 BASE_EXPORT PartitionTlsKey g_thread_cache_key;
 #if defined(PA_THREAD_CACHE_FAST_TLS)
-BASE_EXPORT thread_local ThreadCache* g_thread_cache;
+BASE_EXPORT
+// On ARM Chrome OS, libwidevinecdm.so is loaded dynamically. It includes a
+// static relocation added by tcmalloc. This relocation requests an alignment of
+// 64 bytes, which is not provided by glibc by default, contrary to x86_64 for
+// instance.  This makes the library load fail, and in turn Chrome fails to play
+// any DRM'd content. A very hacky solution is to make sure that glibc supports
+// a 64 byte alignment in its static TLS block, which is what the directive
+// below achieves. See b/191314803 for details.
+//
+// TODO(lizeb): This is a temporary hack. It will be removed as soon as
+// libwidevinecdm.so is changed. This is intended to provide bot coverage on ARM
+// Chrome OS in the meantime.
+#if defined(OS_CHROMEOS) && defined(ARCH_CPU_ARM_FAMILY)
+ALIGNAS(64)
+#endif
+thread_local ThreadCache* g_thread_cache;
 #endif
 
 namespace {
@@ -63,7 +79,7 @@ uint8_t ThreadCache::global_limits_[ThreadCache::kBucketCount];
 
 // Start with the normal size, not the maximum one.
 uint16_t ThreadCache::largest_active_bucket_index_ =
-    BucketIndexForSize(kDefaultSizeThreshold);
+    BucketIndexLookup::GetIndex(kDefaultSizeThreshold);
 
 // static
 ThreadCacheRegistry& ThreadCacheRegistry::Instance() {
@@ -294,6 +310,9 @@ void ThreadCache::EnsureThreadSpecificDataInitialized() {
 
 // static
 void ThreadCache::Init(PartitionRoot<ThreadSafe>* root) {
+#if defined(OS_NACL)
+  IMMEDIATE_CRASH();
+#endif
   PA_CHECK(root->buckets[kBucketCount - 1].slot_size == kLargeSizeThreshold);
   PA_CHECK(root->buckets[largest_active_bucket_index_].slot_size ==
            kDefaultSizeThreshold);

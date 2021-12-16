@@ -27,8 +27,8 @@ public class JankMetricUMARecorder {
         switch (scenario) {
             case JankScenario.PERIODIC_REPORTING:
                 return "Total";
-            case JankScenario.OMNIBOX:
-                return "Omnibox";
+            case JankScenario.OMNIBOX_FOCUS:
+                return "OmniboxFocus";
             case JankScenario.NEW_TAB_PAGE:
                 return "NewTabPage";
             case JankScenario.STARTUP:
@@ -37,6 +37,10 @@ public class JankMetricUMARecorder {
                 return "TabSwitcher";
             case JankScenario.OPEN_LINK_IN_NEW_TAB:
                 return "OpenLinkInNewTab";
+            case JankScenario.START_SURFACE_HOMEPAGE:
+                return "StartSurfaceHomepage";
+            case JankScenario.START_SURFACE_TAB_SWITCHER:
+                return "StartSurfaceTabSwitcher";
             default:
                 throw new IllegalArgumentException("Invalid scenario value");
         }

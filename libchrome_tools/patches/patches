@@ -39,10 +39,6 @@ disable-trace_event-in-mojo.patch
 disable-trace_event-in-ipc.patch
 
 # ==================== CHERRY PICKS ===========================
-# Modify mojom_parser.py to search for external Mojo modules.
-# Remove after r900163
-mojom-parser-external-modules.patch
-
 # Remove after r910765
 jinja2-update-to-2.10.1.patch
 
