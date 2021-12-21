@@ -203,7 +203,7 @@ index eb6f48d60f..332be8ce26 100644
 +
  class TracedArray;
  class TracedDictionary;
- 
+ class EventContext;
 @@ -202,7 +292,7 @@ class DynamicString {
    explicit DynamicString(T) {}
  };

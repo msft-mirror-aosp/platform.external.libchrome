@@ -24,7 +24,9 @@
 #include "base/bits.h"
 #include "base/compiler_specific.h"
 #include "base/dcheck_is_on.h"
+#include "base/memory/tagging.h"
 #include "base/thread_annotations.h"
+#include "build/build_config.h"
 
 #if BUILDFLAG(PUT_REF_COUNT_IN_PREVIOUS_SLOT)
 #include "base/allocator/partition_allocator/partition_ref_count.h"
@@ -49,7 +51,7 @@ static_assert(
     sizeof(PartitionSuperPageExtentEntry<ThreadSafe>) <= kPageMetadataSize,
     "PartitionSuperPageExtentEntry must be able to fit in a metadata slot");
 static_assert(
-    kMaxSuperPages / kSuperPageSize <=
+    kMaxSuperPagesInPool / kSuperPageSize <=
         std::numeric_limits<
             decltype(PartitionSuperPageExtentEntry<
                      ThreadSafe>::number_of_consecutive_super_pages)>::max(),
@@ -112,10 +114,16 @@ using AllocationStateMap =
 //   from the empty/decommitted list on to the active list.
 template <bool thread_safe>
 struct __attribute__((packed)) SlotSpanMetadata {
+ private:
   PartitionFreelistEntry* freelist_head = nullptr;
+
+ public:
   SlotSpanMetadata<thread_safe>* next_slot_span = nullptr;
   PartitionBucket<thread_safe>* const bucket = nullptr;
 
+  // TODO(lizeb): Make as many fields as possible private or const, to
+  // encapsulate things more clearly.
+  //
   // Deliberately signed, 0 for empty or decommitted slot spans, -n for full
   // slot spans:
   int16_t num_allocated_slots = 0;
@@ -123,19 +131,38 @@ struct __attribute__((packed)) SlotSpanMetadata {
   // -1 if not in the empty cache. < kMaxFreeableSpans.
   int16_t empty_cache_index : kEmptyCacheIndexBits;
   uint16_t can_store_raw_size : 1;
-  uint16_t unused : (16 - kEmptyCacheIndexBits - 1);
+  uint16_t freelist_is_sorted : 1;
+  uint16_t unused : (16 - kEmptyCacheIndexBits - 1 - 1);
   // Cannot use the full 64 bits in this bitfield, as this structure is embedded
   // in PartitionPage, which has other fields as well, and must fit in 32 bytes.
+
+  // CHECK()ed in AllocNewSlotSpan().
+#if defined(PA_HAS_64_BITS_POINTERS) && defined(OS_APPLE)
+  // System page size is not a constant on Apple OSes, but is either 4 or 16kiB
+  // (1 << 12 or 1 << 14), as checked in PartitionRoot::Init(). And
+  // PartitionPageSize() is 4 times the OS page size.
+  static constexpr int16_t kMaxSlotsPerSlotSpan =
+      4 * (1 << 14) / kSmallestBucket;
+#else
+  // A slot span can "span" multiple PartitionPages, but then its slot size is
+  // larger, so it doesn't have as many slots.
+  static constexpr int16_t kMaxSlotsPerSlotSpan =
+      PartitionPageSize() / kSmallestBucket;
+#endif  // defined(PA_HAS_64_BITS_POINTERS) && defined(OS_APPLE)
 
   explicit SlotSpanMetadata(PartitionBucket<thread_safe>* bucket);
 
   // Public API
   // Note the matching Alloc() functions are in PartitionPage.
   BASE_EXPORT NOINLINE void FreeSlowPath();
+  ALWAYS_INLINE PartitionFreelistEntry* PopForAlloc(size_t size);
   ALWAYS_INLINE void Free(void* ptr);
 
   void Decommit(PartitionRoot<thread_safe>* root);
   void DecommitIfPossible(PartitionRoot<thread_safe>* root);
+
+  // Sorts the freelist in ascending addresses order.
+  void SortFreelist();
 
   // Pointer manipulation functions. These must be static as the input
   // |slot_span| pointer may be the result of an offset calculation and
@@ -156,6 +183,9 @@ struct __attribute__((packed)) SlotSpanMetadata {
   ALWAYS_INLINE void SetRawSize(size_t raw_size);
   ALWAYS_INLINE size_t GetRawSize() const;
 
+  ALWAYS_INLINE PartitionFreelistEntry* get_freelist_head() const {
+    return freelist_head;
+  }
   ALWAYS_INLINE void SetFreelistHead(PartitionFreelistEntry* new_head);
 
   // Returns size of the region used within a slot. The used region comprises
@@ -174,7 +204,7 @@ struct __attribute__((packed)) SlotSpanMetadata {
 
   // This includes padding due to rounding done at allocation; we don't know the
   // requested size at deallocation, so we use this in both places.
-  ALWAYS_INLINE size_t GetSizeForBookkeeping() const {
+  ALWAYS_INLINE size_t GetSlotSizeForBookkeeping() const {
     // This could be more precise for allocations where CanStoreRawSize()
     // returns true (large allocations). However this is called for *every*
     // allocation, so we don't want an extra branch there.
@@ -239,7 +269,10 @@ struct __attribute__((packed)) SlotSpanMetadata {
   static SlotSpanMetadata sentinel_slot_span_;
   // For the sentinel.
   constexpr SlotSpanMetadata() noexcept
-      : empty_cache_index(0), can_store_raw_size(false), unused(0) {}
+      : empty_cache_index(0),
+        can_store_raw_size(false),
+        freelist_is_sorted(true),
+        unused(0) {}
 };
 static_assert(sizeof(SlotSpanMetadata<ThreadSafe>) <= kPageMetadataSize,
               "SlotSpanMetadata must fit into a Page Metadata slot.");
@@ -411,6 +444,7 @@ ALWAYS_INLINE void PartitionSuperPageExtentEntry<
 // a valid slot span. It merely ensures it doesn't fall in a meta-data region
 // that would surely never contain user data.
 ALWAYS_INLINE bool IsWithinSuperPagePayload(void* ptr, bool with_quarantine) {
+  ptr = memory::UnmaskPtr(ptr);
   PA_DCHECK(IsManagedByNormalBuckets(ptr));
   char* super_page_base = reinterpret_cast<char*>(
       reinterpret_cast<uintptr_t>(ptr) & kSuperPageBaseMask);
@@ -511,6 +545,7 @@ ALWAYS_INLINE void* SlotSpanMetadata<thread_safe>::ToSlotSpanStartPtr(
 template <bool thread_safe>
 ALWAYS_INLINE SlotSpanMetadata<thread_safe>*
 SlotSpanMetadata<thread_safe>::FromSlotInnerPtr(void* ptr) {
+  ptr = memory::UnmaskPtr(ptr);
   auto* page = PartitionPage<thread_safe>::FromPtr(ptr);
   PA_DCHECK(page->is_valid);
   // Partition pages in the same slot span share the same slot span metadata
@@ -544,9 +579,10 @@ SlotSpanMetadata<thread_safe>::FromSlotStartPtr(void* slot_start) {
   auto* slot_span = FromSlotInnerPtr(slot_start);
   // Checks that the pointer is a multiple of slot size.
   auto* slot_span_start = ToSlotSpanStartPtr(slot_span);
-  PA_DCHECK(!((reinterpret_cast<uintptr_t>(slot_start) -
-               reinterpret_cast<uintptr_t>(slot_span_start)) %
-              slot_span->bucket->slot_size));
+  PA_DCHECK(
+      !((reinterpret_cast<uintptr_t>(memory::UnmaskPtr(slot_start)) -
+         reinterpret_cast<uintptr_t>(memory::UnmaskPtr(slot_span_start))) %
+        slot_span->bucket->slot_size));
   return slot_span;
 }
 
@@ -572,6 +608,23 @@ ALWAYS_INLINE void SlotSpanMetadata<thread_safe>::SetFreelistHead(
             (reinterpret_cast<uintptr_t>(this) & kSuperPageBaseMask) ==
                 (reinterpret_cast<uintptr_t>(new_head) & kSuperPageBaseMask));
   freelist_head = new_head;
+  // Inserted something new in the freelist, assume that it is not sorted
+  // anymore.
+  freelist_is_sorted = false;
+}
+
+template <bool thread_safe>
+ALWAYS_INLINE PartitionFreelistEntry*
+SlotSpanMetadata<thread_safe>::PopForAlloc(size_t size) {
+  // Not using bucket->slot_size directly as the compiler doesn't know that
+  // |bucket->slot_size| is the same as |size|.
+  PA_DCHECK(size == bucket->slot_size);
+  PartitionFreelistEntry* result = freelist_head;
+  // Not setting freelist_is_sorted to false since this doesn't destroy
+  // ordering.
+  freelist_head = freelist_head->GetNext(size);
+  num_allocated_slots++;
+  return result;
 }
 
 template <bool thread_safe>

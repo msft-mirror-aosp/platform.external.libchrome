@@ -80,7 +80,7 @@ bool PathProviderPosix(int key, FilePath* result) {
     }
 // Following paths are not supported in libchrome/libmojo.
 #if 0
-    case DIR_SOURCE_ROOT: {
+    case DIR_SRC_TEST_DATA_ROOT: {
       // Allow passing this in the environment, for more flexibility in build
       // tree configurations (sub-project builds, gyp --output_dir, etc.)
       std::unique_ptr<Environment> env(Environment::Create());

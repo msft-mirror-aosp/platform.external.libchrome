@@ -16,7 +16,7 @@
 #include "base/memory/ref_counted.h"
 #include "base/synchronization/lock.h"
 #include "base/synchronization/waitable_event.h"
-#include "base/task/single_thread_task_runner_forward.h"
+#include "base/task/single_thread_task_runner.h"
 #include "base/test/bind.h"
 #include "base/test/gtest_util.h"
 #include "base/test/scoped_run_loop_timeout.h"
@@ -69,7 +69,7 @@ class SimpleSingleThreadTaskRunner : public SingleThreadTaskRunner {
   bool PostDelayedTask(const Location& from_here,
                        OnceClosure task,
                        base::TimeDelta delay) override {
-    if (delay > base::TimeDelta())
+    if (delay.is_positive())
       return false;
     AutoLock auto_lock(tasks_lock_);
     pending_tasks_.push(std::move(task));

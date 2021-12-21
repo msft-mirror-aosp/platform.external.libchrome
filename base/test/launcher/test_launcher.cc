@@ -44,7 +44,7 @@
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/system/sys_info.h"
-#include "base/task/single_thread_task_runner_forward.h"
+#include "base/task/single_thread_task_runner.h"
 #include "base/task/thread_pool.h"
 #include "base/task/thread_pool/thread_pool_instance.h"
 #include "base/test/gtest_util.h"
@@ -86,11 +86,9 @@
 #include <lib/zx/job.h>
 #include <lib/zx/time.h>
 #include "base/atomic_sequence_num.h"
-#include "base/base_paths_fuchsia.h"
 #include "base/fuchsia/default_job.h"
 #include "base/fuchsia/file_utils.h"
 #include "base/fuchsia/fuchsia_logging.h"
-#include "base/path_service.h"
 #endif
 
 namespace base {

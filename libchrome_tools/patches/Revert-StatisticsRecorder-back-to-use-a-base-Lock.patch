@@ -1,0 +1,360 @@
+From 1b156f63b8cae4cb628e1b5c0d1ebcf9478505a6 Mon Sep 17 00:00:00 2001
+From: Alexei Svitkine <asvitkine@chromium.org>
+Date: Mon, 14 Feb 2022 16:48:01 -0800
+Subject: [PATCH] Revert StatisticsRecorder back to use a base::Lock.
+
+This reverts the CL to use an absl R/W lock:
+https://chromium-review.googlesource.com/c/chromium/src/+/3216667
+
+As well as the follow up change on top of that:
+https://chromium-review.googlesource.com/c/chromium/src/+/3378925
+
+Reason for revert: We're seeing 10+ second hangs on iOS, unclear why,
+appears to be starvation issues, despite that being unexpected. Needs
+more investigation, reverting to fix the hangs to merge to iOS stable.
+
+This CL bundles the changes together to revert.
+
+Bug: 1284513, 1123627
+Change-Id: I65405a7b444d31a6187884b5095fae20f3b1291b
+Reviewed-on: https://chromium-review.googlesource.com/c/chromium/src/+/3459839
+Reviewed-by: Justin Cohen <justincohen@chromium.org>
+Commit-Queue: Alexei Svitkine <asvitkine@chromium.org>
+Cr-Commit-Position: refs/heads/main@{#970942}
+
+CrOS-Libchrome-Original-Commit: 501d8927b54030ae2d4b044bf1d58e475f2f3cef
+---
+ base/metrics/statistics_recorder.cc          | 64 +++++++++-----------
+ base/metrics/statistics_recorder.h           | 27 +++++----
+ base/metrics/statistics_recorder_unittest.cc | 21 +------
+ 3 files changed, 46 insertions(+), 66 deletions(-)
+
+diff --git a/base/metrics/statistics_recorder.cc b/base/metrics/statistics_recorder.cc
+index b2a2cae2d6..c1fc3fa012 100644
+--- a/base/metrics/statistics_recorder.cc
++++ b/base/metrics/statistics_recorder.cc
+@@ -32,7 +32,7 @@ bool HistogramNameLesser(const base::HistogramBase* a,
+ }  // namespace
+ 
+ // static
+-LazyInstance<absl::Mutex>::Leaky StatisticsRecorder::lock_;
++LazyInstance<Lock>::Leaky StatisticsRecorder::lock_;
+ 
+ // static
+ StatisticsRecorder* StatisticsRecorder::top_ = nullptr;
+@@ -78,14 +78,14 @@ void StatisticsRecorder::ScopedHistogramSampleObserver::RunCallback(
+ }
+ 
+ StatisticsRecorder::~StatisticsRecorder() {
+-  const absl::MutexLock auto_lock(lock_.Pointer());
++  const AutoLock auto_lock(lock_.Get());
+   DCHECK_EQ(this, top_);
+   top_ = previous_;
+ }
+ 
+ // static
+ void StatisticsRecorder::EnsureGlobalRecorderWhileLocked() {
+-  lock_.Get().AssertHeld();
++  lock_.Get().AssertAcquired();
+   if (top_)
+     return;
+ 
+@@ -98,7 +98,7 @@ void StatisticsRecorder::EnsureGlobalRecorderWhileLocked() {
+ // static
+ void StatisticsRecorder::RegisterHistogramProvider(
+     const WeakPtr<HistogramProvider>& provider) {
+-  const absl::MutexLock auto_lock(lock_.Pointer());
++  const AutoLock auto_lock(lock_.Get());
+   EnsureGlobalRecorderWhileLocked();
+   top_->providers_.push_back(provider);
+ }
+@@ -108,7 +108,7 @@ HistogramBase* StatisticsRecorder::RegisterOrDeleteDuplicate(
+     HistogramBase* histogram) {
+   // Declared before |auto_lock| to ensure correct destruction order.
+   std::unique_ptr<HistogramBase> histogram_deleter;
+-  const absl::MutexLock auto_lock(lock_.Pointer());
++  const AutoLock auto_lock(lock_.Get());
+   EnsureGlobalRecorderWhileLocked();
+ 
+   const char* const name = histogram->histogram_name();
+@@ -144,7 +144,7 @@ const BucketRanges* StatisticsRecorder::RegisterOrDeleteDuplicateRanges(
+ 
+   // Declared before |auto_lock| to ensure correct destruction order.
+   std::unique_ptr<const BucketRanges> ranges_deleter;
+-  const absl::MutexLock auto_lock(lock_.Pointer());
++  const AutoLock auto_lock(lock_.Get());
+   EnsureGlobalRecorderWhileLocked();
+ 
+   const BucketRanges* const registered = *top_->ranges_.insert(ranges).first;
+@@ -190,7 +190,7 @@ std::string StatisticsRecorder::ToJSON(JSONVerbosityLevel verbosity_level) {
+ // static
+ std::vector<const BucketRanges*> StatisticsRecorder::GetBucketRanges() {
+   std::vector<const BucketRanges*> out;
+-  const absl::MutexLock auto_lock(lock_.Pointer());
++  const AutoLock auto_lock(lock_.Get());
+   EnsureGlobalRecorderWhileLocked();
+   out.reserve(top_->ranges_.size());
+   out.assign(top_->ranges_.begin(), top_->ranges_.end());
+@@ -199,28 +199,22 @@ std::vector<const BucketRanges*> StatisticsRecorder::GetBucketRanges() {
+ 
+ // static
+ HistogramBase* StatisticsRecorder::FindHistogram(base::StringPiece name) {
+-  // This must be called *before* the lock is acquired below because it may
+-  // call back into StatisticsRecorder to register histograms. Those called
+-  // methods will acquire the lock at that time.
++  // This must be called *before* the lock is acquired below because it will
++  // call back into this object to register histograms. Those called methods
++  // will acquire the lock at that time.
+   ImportGlobalPersistentHistograms();
+ 
+-  // Acquire the lock in "read" mode since we're only reading the data, not
+-  // modifying anything. This allows multiple readers to look up histograms
+-  // concurrently.
+-  const absl::ReaderMutexLock auto_lock(lock_.Pointer());
+-  if (top_) {
+-    const HistogramMap::const_iterator it = top_->histograms_.find(name);
+-    return it != top_->histograms_.end() ? it->second : nullptr;
+-  }
+-  // If we're here, |top_| was null (no StatisticsRecorder instance), so the
+-  // histogram also doesn't exist.
+-  return nullptr;
++  const AutoLock auto_lock(lock_.Get());
++  EnsureGlobalRecorderWhileLocked();
++
++  const HistogramMap::const_iterator it = top_->histograms_.find(name);
++  return it != top_->histograms_.end() ? it->second : nullptr;
+ }
+ 
+ // static
+ StatisticsRecorder::HistogramProviders
+ StatisticsRecorder::GetHistogramProviders() {
+-  const absl::MutexLock auto_lock(lock_.Pointer());
++  const AutoLock auto_lock(lock_.Get());
+   EnsureGlobalRecorderWhileLocked();
+   return top_->providers_;
+ }
+@@ -251,7 +245,7 @@ void StatisticsRecorder::PrepareDeltas(
+ 
+ // static
+ void StatisticsRecorder::InitLogOnShutdown() {
+-  const absl::MutexLock auto_lock(lock_.Pointer());
++  const AutoLock auto_lock(lock_.Get());
+   InitLogOnShutdownWhileLocked();
+ }
+ 
+@@ -260,7 +254,7 @@ void StatisticsRecorder::AddHistogramSampleObserver(
+     const std::string& name,
+     StatisticsRecorder::ScopedHistogramSampleObserver* observer) {
+   DCHECK(observer);
+-  const absl::MutexLock auto_lock(lock_.Pointer());
++  const AutoLock auto_lock(lock_.Get());
+   EnsureGlobalRecorderWhileLocked();
+ 
+   scoped_refptr<HistogramSampleObserverList> observers;
+@@ -285,7 +279,7 @@ void StatisticsRecorder::AddHistogramSampleObserver(
+ void StatisticsRecorder::RemoveHistogramSampleObserver(
+     const std::string& name,
+     StatisticsRecorder::ScopedHistogramSampleObserver* observer) {
+-  const absl::MutexLock auto_lock(lock_.Pointer());
++  const AutoLock auto_lock(lock_.Get());
+   EnsureGlobalRecorderWhileLocked();
+ 
+   auto iter = top_->observers_.find(name);
+@@ -313,7 +307,7 @@ void StatisticsRecorder::FindAndRunHistogramCallbacks(
+     const char* histogram_name,
+     uint64_t name_hash,
+     HistogramBase::Sample sample) {
+-  const absl::MutexLock auto_lock(lock_.Pointer());
++  const AutoLock auto_lock(lock_.Get());
+   EnsureGlobalRecorderWhileLocked();
+ 
+   auto it = top_->observers_.find(histogram_name);
+@@ -330,7 +324,7 @@ void StatisticsRecorder::FindAndRunHistogramCallbacks(
+ // static
+ void StatisticsRecorder::SetGlobalSampleCallback(
+     const GlobalSampleCallback& new_global_sample_callback) {
+-  const absl::MutexLock auto_lock(lock_.Pointer());
++  const AutoLock auto_lock(lock_.Get());
+   EnsureGlobalRecorderWhileLocked();
+ 
+   DCHECK(!global_sample_callback() || !new_global_sample_callback);
+@@ -343,14 +337,14 @@ void StatisticsRecorder::SetGlobalSampleCallback(
+ 
+ // static
+ size_t StatisticsRecorder::GetHistogramCount() {
+-  const absl::MutexLock auto_lock(lock_.Pointer());
++  const AutoLock auto_lock(lock_.Get());
+   EnsureGlobalRecorderWhileLocked();
+   return top_->histograms_.size();
+ }
+ 
+ // static
+ void StatisticsRecorder::ForgetHistogramForTesting(base::StringPiece name) {
+-  const absl::MutexLock auto_lock(lock_.Pointer());
++  const AutoLock auto_lock(lock_.Get());
+   EnsureGlobalRecorderWhileLocked();
+ 
+   const HistogramMap::iterator found = top_->histograms_.find(name);
+@@ -372,21 +366,21 @@ void StatisticsRecorder::ForgetHistogramForTesting(base::StringPiece name) {
+ // static
+ std::unique_ptr<StatisticsRecorder>
+ StatisticsRecorder::CreateTemporaryForTesting() {
+-  const absl::MutexLock auto_lock(lock_.Pointer());
++  const AutoLock auto_lock(lock_.Get());
+   return WrapUnique(new StatisticsRecorder());
+ }
+ 
+ // static
+ void StatisticsRecorder::SetRecordChecker(
+     std::unique_ptr<RecordHistogramChecker> record_checker) {
+-  const absl::MutexLock auto_lock(lock_.Pointer());
++  const AutoLock auto_lock(lock_.Get());
+   EnsureGlobalRecorderWhileLocked();
+   top_->record_checker_ = std::move(record_checker);
+ }
+ 
+ // static
+ bool StatisticsRecorder::ShouldRecordHistogram(uint32_t histogram_hash) {
+-  const absl::MutexLock auto_lock(lock_.Pointer());
++  const AutoLock auto_lock(lock_.Get());
+   EnsureGlobalRecorderWhileLocked();
+   return !top_->record_checker_ ||
+          top_->record_checker_->ShouldRecord(histogram_hash);
+@@ -401,7 +395,7 @@ StatisticsRecorder::Histograms StatisticsRecorder::GetHistograms() {
+ 
+   Histograms out;
+ 
+-  const absl::MutexLock auto_lock(lock_.Pointer());
++  const AutoLock auto_lock(lock_.Get());
+   EnsureGlobalRecorderWhileLocked();
+ 
+   out.reserve(top_->histograms_.size());
+@@ -456,7 +450,7 @@ void StatisticsRecorder::ImportGlobalPersistentHistograms() {
+ }
+ 
+ StatisticsRecorder::StatisticsRecorder() {
+-  lock_.Get().AssertHeld();
++  lock_.Get().AssertAcquired();
+   previous_ = top_;
+   top_ = this;
+   InitLogOnShutdownWhileLocked();
+@@ -464,7 +458,7 @@ StatisticsRecorder::StatisticsRecorder() {
+ 
+ // static
+ void StatisticsRecorder::InitLogOnShutdownWhileLocked() {
+-  lock_.Get().AssertHeld();
++  lock_.Get().AssertAcquired();
+   if (!is_vlog_initialized_ && VLOG_IS_ON(1)) {
+     is_vlog_initialized_ = true;
+     const auto dump_to_vlog = [](void*) {
+diff --git a/base/metrics/statistics_recorder.h b/base/metrics/statistics_recorder.h
+index 921d717765..fa07a14e34 100644
+--- a/base/metrics/statistics_recorder.h
++++ b/base/metrics/statistics_recorder.h
+@@ -29,9 +29,8 @@
+ #include "base/metrics/record_histogram_checker.h"
+ #include "base/observer_list_threadsafe.h"
+ #include "base/strings/string_piece.h"
+-#include "base/thread_annotations.h"
++#include "base/synchronization/lock.h"
+ #include "base/types/pass_key.h"
+-#include "third_party/abseil-cpp/absl/synchronization/mutex.h"
+ 
+ namespace base {
+ 
+@@ -325,8 +324,9 @@ class BASE_EXPORT StatisticsRecorder {
+ 
+   // Initializes the global recorder if it doesn't already exist. Safe to call
+   // multiple times.
+-  static void EnsureGlobalRecorderWhileLocked()
+-      EXCLUSIVE_LOCKS_REQUIRED(lock_.Pointer());
++  //
++  // Precondition: The global lock is already acquired.
++  static void EnsureGlobalRecorderWhileLocked();
+ 
+   // Gets histogram providers.
+   //
+@@ -336,8 +336,7 @@ class BASE_EXPORT StatisticsRecorder {
+   // Imports histograms from global persistent memory.
+   //
+   // Precondition: The global lock must not be held during this call.
+-  static void ImportGlobalPersistentHistograms()
+-      LOCKS_EXCLUDED(lock_.Pointer());
++  static void ImportGlobalPersistentHistograms();
+ 
+   // Constructs a new StatisticsRecorder and sets it as the current global
+   // recorder.
+@@ -345,12 +344,15 @@ class BASE_EXPORT StatisticsRecorder {
+   // This singleton instance should be started during the single-threaded
+   // portion of startup and hence it is not thread safe. It initializes globals
+   // to provide support for all future calls.
+-  StatisticsRecorder() EXCLUSIVE_LOCKS_REQUIRED(lock_.Pointer());
++  //
++  // Precondition: The global lock is already acquired.
++  StatisticsRecorder();
+ 
+   // Initialize implementation but without lock. Caller should guard
+   // StatisticsRecorder by itself if needed (it isn't in unit tests).
+-  static void InitLogOnShutdownWhileLocked()
+-      EXCLUSIVE_LOCKS_REQUIRED(lock_.Pointer());
++  //
++  // Precondition: The global lock is already acquired.
++  static void InitLogOnShutdownWhileLocked();
+ 
+   HistogramMap histograms_;
+   ObserverMap observers_;
+@@ -361,14 +363,13 @@ class BASE_EXPORT StatisticsRecorder {
+   // Previous global recorder that existed when this one was created.
+   StatisticsRecorder* previous_ = nullptr;
+ 
+-  // Global lock for internal synchronization. Uses an absl::Mutex to
+-  // support read/write lock semantics.
+-  static LazyInstance<absl::Mutex>::Leaky lock_;
++  // Global lock for internal synchronization.
++  static LazyInstance<Lock>::Leaky lock_;
+ 
+   // Current global recorder. This recorder is used by static methods. When a
+   // new global recorder is created by CreateTemporaryForTesting(), then the
+   // previous global recorder is referenced by top_->previous_.
+-  static StatisticsRecorder* top_ GUARDED_BY(lock_.Pointer());
++  static StatisticsRecorder* top_;
+ 
+   // Tracks whether InitLogOnShutdownWhileLocked() has registered a logging
+   // function that will be called when the program finishes.
+diff --git a/base/metrics/statistics_recorder_unittest.cc b/base/metrics/statistics_recorder_unittest.cc
+index 28fcdfbecd..0364bab09c 100644
+--- a/base/metrics/statistics_recorder_unittest.cc
++++ b/base/metrics/statistics_recorder_unittest.cc
+@@ -94,26 +94,11 @@ class StatisticsRecorderTest : public testing::TestWithParam<bool> {
+   // NotInitialized to ensure a clean global state.
+   void UninitializeStatisticsRecorder() {
+     statistics_recorder_.reset();
+-
+-    // Grab the lock, so we can access |top_| to satisfy locking annotations.
+-    // Normally, this wouldn't be OK (we're taking a pointer to |top_| and then
+-    // freeing it outside the lock), but in this case, it's benign because the
+-    // test is single-threaded.
+-    //
+-    // Note: We can't clear |top_| in the locked block, because the
+-    // StatitisticsRecorder destructor expects |this == top_|.
+-    {
+-      const absl::MutexLock auto_lock(StatisticsRecorder::lock_.Pointer());
+-      statistics_recorder_.reset(StatisticsRecorder::top_);
+-    }
+-    statistics_recorder_.reset();
+-    DCHECK(!HasGlobalRecorder());
++    delete StatisticsRecorder::top_;
++    DCHECK(!StatisticsRecorder::top_);
+   }
+ 
+-  bool HasGlobalRecorder() {
+-    const absl::ReaderMutexLock auto_lock(StatisticsRecorder::lock_.Pointer());
+-    return StatisticsRecorder::top_ != nullptr;
+-  }
++  bool HasGlobalRecorder() { return StatisticsRecorder::top_ != nullptr; }
+ 
+   Histogram* CreateHistogram(const char* name,
+                              HistogramBase::Sample min,
+-- 
+2.36.0.rc2.479.g8af0fa9b8e-goog
+

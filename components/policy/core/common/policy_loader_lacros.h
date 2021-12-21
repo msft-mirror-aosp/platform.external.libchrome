@@ -11,7 +11,7 @@
 
 #include "base/memory/scoped_refptr.h"
 #include "base/sequence_checker.h"
-#include "base/task/sequenced_task_runner_forward.h"
+#include "base/task/sequenced_task_runner.h"
 #include "chromeos/lacros/lacros_service.h"
 #include "components/policy/core/common/async_policy_loader.h"
 #include "components/policy/core/common/policy_proto_decoders.h"
@@ -55,6 +55,9 @@ class POLICY_EXPORT PolicyLoaderLacros
   // Returns if the main user is managed or not.
   // TODO(crbug/1245077): Remove once Lacros handles all profiles the same way.
   static bool IsMainUserManaged();
+
+  // Return if the main user is affiliated or not.
+  static bool IsMainUserAffiliated();
 
   // Returns the policy data corresponding to the main user to be used by
   // Enterprise Connector policies.

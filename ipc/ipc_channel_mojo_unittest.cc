@@ -28,7 +28,7 @@
 #include "base/pickle.h"
 #include "base/run_loop.h"
 #include "base/synchronization/waitable_event.h"
-#include "base/task/single_thread_task_runner_forward.h"
+#include "base/task/single_thread_task_runner.h"
 #include "base/test/bind.h"
 #include "base/test/task_environment.h"
 #include "base/test/test_io_thread.h"
@@ -795,6 +795,9 @@ class ChannelProxyRunner {
                         base::WaitableEvent::InitialState::NOT_SIGNALED) {
   }
 
+  ChannelProxyRunner(const ChannelProxyRunner&) = delete;
+  ChannelProxyRunner& operator=(const ChannelProxyRunner&) = delete;
+
   void CreateProxy(IPC::Listener* listener) {
     io_thread_.StartWithOptions(
         base::Thread::Options(base::MessagePumpType::IO, 0));
@@ -826,8 +829,6 @@ class ChannelProxyRunner {
   base::Thread io_thread_;
   base::WaitableEvent never_signaled_;
   std::unique_ptr<IPC::ChannelProxy> proxy_;
-
-  DISALLOW_COPY_AND_ASSIGN(ChannelProxyRunner);
 };
 
 class IPCChannelProxyMojoTest : public IPCChannelMojoTestBase {

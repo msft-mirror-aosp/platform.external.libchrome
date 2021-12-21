@@ -24,14 +24,15 @@
 #include "base/strings/stringprintf.h"
 #include "base/synchronization/lock.h"
 #include "base/task/common/task_annotator.h"
-#include "base/task/sequenced_task_runner_forward.h"
-#include "base/task/single_thread_task_runner_forward.h"
+#include "base/task/sequenced_task_runner.h"
+#include "base/task/single_thread_task_runner.h"
 #include "base/threading/thread_checker.h"
 #include "base/threading/thread_local.h"
 #include "base/threading/thread_task_runner_handle.h"
 #include "base/trace_event/memory_allocator_dump.h"
 #include "base/trace_event/memory_dump_manager.h"
 #include "base/trace_event/memory_dump_provider.h"
+#include "base/trace_event/typed_macros.h"
 #include "ipc/ipc_channel.h"
 #include "mojo/public/cpp/bindings/associated_group.h"
 #include "mojo/public/cpp/bindings/associated_group_controller.h"
@@ -41,10 +42,12 @@
 #include "mojo/public/cpp/bindings/interface_id.h"
 #include "mojo/public/cpp/bindings/message.h"
 #include "mojo/public/cpp/bindings/message_header_validator.h"
+#include "mojo/public/cpp/bindings/mojo_buildflags.h"
 #include "mojo/public/cpp/bindings/pipe_control_message_handler.h"
 #include "mojo/public/cpp/bindings/pipe_control_message_handler_delegate.h"
 #include "mojo/public/cpp/bindings/pipe_control_message_proxy.h"
 #include "mojo/public/cpp/bindings/sequence_local_sync_event_watcher.h"
+#include "mojo/public/cpp/bindings/tracing_helpers.h"
 
 namespace IPC {
 
@@ -152,6 +155,11 @@ class ChannelAssociatedGroupController
 
     GetMemoryDumpProvider().AddController(this);
   }
+
+  ChannelAssociatedGroupController(const ChannelAssociatedGroupController&) =
+      delete;
+  ChannelAssociatedGroupController& operator=(
+      const ChannelAssociatedGroupController&) = delete;
 
   size_t GetQueuedMessageCount() {
     base::AutoLock lock(outgoing_messages_lock_);
@@ -471,6 +479,9 @@ class ChannelAssociatedGroupController
     Endpoint(ChannelAssociatedGroupController* controller, mojo::InterfaceId id)
         : controller_(controller), id_(id) {}
 
+    Endpoint(const Endpoint&) = delete;
+    Endpoint& operator=(const Endpoint&) = delete;
+
     mojo::InterfaceId id() const { return id_; }
 
     bool closed() const {
@@ -687,8 +698,6 @@ class ChannelAssociatedGroupController
     std::unique_ptr<mojo::SequenceLocalSyncEventWatcher> sync_watcher_;
     base::queue<std::pair<uint32_t, MessageWrapper>> sync_messages_;
     uint32_t next_sync_message_id_ = 0;
-
-    DISALLOW_COPY_AND_ASSIGN(Endpoint);
   };
 
   class ControlMessageProxyThunk : public MessageReceiver {
@@ -697,6 +706,10 @@ class ChannelAssociatedGroupController
         ChannelAssociatedGroupController* controller)
         : controller_(controller) {}
 
+    ControlMessageProxyThunk(const ControlMessageProxyThunk&) = delete;
+    ControlMessageProxyThunk& operator=(const ControlMessageProxyThunk&) =
+        delete;
+
    private:
     // MessageReceiver:
     bool Accept(mojo::Message* message) override {
@@ -704,8 +717,6 @@ class ChannelAssociatedGroupController
     }
 
     ChannelAssociatedGroupController* controller_;
-
-    DISALLOW_COPY_AND_ASSIGN(ControlMessageProxyThunk);
   };
 
   ~ChannelAssociatedGroupController() override {
@@ -969,9 +980,19 @@ class ChannelAssociatedGroupController
     if (!client)
       return;
 
-    // Using client->interface_name() is safe here because this is a static
-    // string defined for each mojo interface.
-    TRACE_EVENT0("mojom", client->interface_name());
+    TRACE_EVENT(
+        TRACE_CATEGORY_OR_DISABLED_BY_DEFAULT_MOJOM("mojom"),
+        // Using client->interface_name() is safe here because this is a static
+        // string defined for each mojo interface.
+        perfetto::StaticString(client->interface_name()),
+        [&](perfetto::EventContext& ctx) {
+          static const uint8_t* toplevel_flow_enabled =
+              TRACE_EVENT_API_GET_CATEGORY_GROUP_ENABLED("toplevel.flow");
+          if (!*toplevel_flow_enabled)
+            return;
+
+          perfetto::Flow::Global(message.GetTraceId())(ctx);
+        });
     DCHECK(endpoint->task_runner()->RunsTasksInCurrentSequence() ||
            proxy_task_runner_->RunsTasksInCurrentSequence());
 
@@ -1086,8 +1107,6 @@ class ChannelAssociatedGroupController
   uint32_t next_interface_id_ = 2;
 
   std::map<uint32_t, scoped_refptr<Endpoint>> endpoints_;
-
-  DISALLOW_COPY_AND_ASSIGN(ChannelAssociatedGroupController);
 };
 
 bool ControllerMemoryDumpProvider::OnMemoryDump(

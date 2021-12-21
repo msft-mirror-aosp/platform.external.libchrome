@@ -21,7 +21,7 @@
 #include "base/task/sequence_manager/test/test_task_queue.h"
 #include "base/task/sequence_manager/test/test_task_time_observer.h"
 #include "base/task/sequence_manager/thread_controller_with_message_pump_impl.h"
-#include "base/task/single_thread_task_runner_forward.h"
+#include "base/task/single_thread_task_runner.h"
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
 #include "base/task/thread_pool/thread_pool_impl.h"
@@ -65,7 +65,7 @@ class PerfTestTimeDomain : public MockTimeDomain {
     if (!wake_up)
       return base::TimeTicks::Max();
     // Check if we have a task that should be running now.
-    if (wake_up->time <= Now())
+    if (wake_up->time <= NowTicks())
       return base::TimeTicks();
 
     // Rely on MaybeFastForwardToNextTask to be called to advance
