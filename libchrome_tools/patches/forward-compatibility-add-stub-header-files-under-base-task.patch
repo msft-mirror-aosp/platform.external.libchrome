@@ -1,0 +1,85 @@
+From 7b136b1d2e6648afe792692e3923e44beaaa930a Mon Sep 17 00:00:00 2001
+From: hscham <hscham@chromium.org>
+Date: Wed, 22 Dec 2021 15:27:34 +0900
+Subject: [PATCH] add stub header files under base/task/
+
+The files are moved from base/ to base/task/ in r930627
+(crrev.com/c/3216953).
+
+Change-Id: Iaed50dfa9276d76c1cc6c4ae2b9c4feca9dfb807
+---
+ base/task/bind_post_task.h            | 6 ++++++
+ base/task/sequenced_task_runner.h     | 6 ++++++
+ base/task/single_thread_task_runner.h | 6 ++++++
+ base/task/task_runner.h               | 6 ++++++
+ base/task/task_runner_util.h          | 6 ++++++
+ 5 files changed, 30 insertions(+)
+ create mode 100644 base/task/bind_post_task.h
+ create mode 100644 base/task/sequenced_task_runner.h
+ create mode 100644 base/task/single_thread_task_runner.h
+ create mode 100644 base/task/task_runner.h
+ create mode 100644 base/task/task_runner_util.h
+
+diff --git a/base/task/bind_post_task.h b/base/task/bind_post_task.h
+new file mode 100644
+index 000000000..f4078668d
+--- /dev/null
++++ b/base/task/bind_post_task.h
+@@ -0,0 +1,6 @@
++#ifndef BASE_TASK_BIND_POST_TASK_H_
++#define BASE_TASK_BIND_POST_TASK_H_
++
++#include "base/bind_post_task.h"
++
++#endif  // BASE_TASK_BIND_POST_TASK_H_
+diff --git a/base/task/sequenced_task_runner.h b/base/task/sequenced_task_runner.h
+new file mode 100644
+index 000000000..dcc33343c
+--- /dev/null
++++ b/base/task/sequenced_task_runner.h
+@@ -0,0 +1,6 @@
++#ifndef BASE_TASK_SEQUENCED_TASK_RUNNER_H_
++#define BASE_TASK_SEQUENCED_TASK_RUNNER_H_
++
++#include "base/sequenced_task_runner.h"
++
++#endif  // BASE_TASK_SEQUENCED_TASK_RUNNER_H_
+diff --git a/base/task/single_thread_task_runner.h b/base/task/single_thread_task_runner.h
+new file mode 100644
+index 000000000..2b1fbebf5
+--- /dev/null
++++ b/base/task/single_thread_task_runner.h
+@@ -0,0 +1,6 @@
++#ifndef BASE_TASK_SINGLE_THREAD_TASK_RUNNER_H_
++#define BASE_TASK_SINGLE_THREAD_TASK_RUNNER_H_
++
++#include "base/single_thread_task_runner.h"
++
++#endif  // BASE_TASK_SINGLE_THREAD_TASK_RUNNER_H_
+diff --git a/base/task/task_runner.h b/base/task/task_runner.h
+new file mode 100644
+index 000000000..244a36d2a
+--- /dev/null
++++ b/base/task/task_runner.h
+@@ -0,0 +1,6 @@
++#ifndef BASE_TASK_TASK_RUNNER_H_
++#define BASE_TASK_TASK_RUNNER_H_
++
++#include "base/task/task_runner.h"
++
++#endif  // BASE_TASK_TASK_RUNNER_H_
+diff --git a/base/task/task_runner_util.h b/base/task/task_runner_util.h
+new file mode 100644
+index 000000000..cf27a4863
+--- /dev/null
++++ b/base/task/task_runner_util.h
+@@ -0,0 +1,6 @@
++#ifndef BASE_TASK_TASK_RUNNER_UTIL_H_
++#define BASE_TASK_TASK_RUNNER_UTIL_H_
++
++#include "base/task_runner_util.h"
++
++#endif  // BASE_TASK_TASK_RUNNER_UTIL_H_
+-- 
+2.34.1.307.g9b7440fafd-goog
+

@@ -77,3 +77,14 @@ backward-compatibility-disable-CopyFileContentsWithSendfile.patch
 # Backward compatibility patch to temporarily add base::AdaptCallbackForRepeating
 # TODO(b/204383858): Remove the patch when usage in mri_package is removed
 backward-compatibility-add-base-AdaptCallbackForRepaeting.patch media_perception
+
+# Forward compatibility for >r930627 uprev to add stub header files for those
+# moved from base/ to base/task/
+forward-compatibility-add-stub-header-files-under-base-task.patch
+
+# Forward compatibility for >r931363 uprev to rename base::Handing{L=>M}RUCache
+forward-compatibility-add-base-HashingLRUCache-as-alias-of-base-HashingMRU.patch
+
+# Forward compatibility for >r935463 uprev to migrate
+# base::TaskAnnotator::RunTask from taking pending task as ptr to as ref
+forward-compatibility-base-TaskAnnotator-RunTask-takes-pending-task-as-ref.patch
