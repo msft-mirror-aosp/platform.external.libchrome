@@ -150,7 +150,7 @@ class State(threading.Thread):
 class CheckOneBoard:
     """Threads for one board checker"""
 
-    def __init__(self, board, state, log_dir):
+    def __init__(self, board, state, log_dir, run_unittest):
         """
         Initializes CheckOneBoard.
 
@@ -164,6 +164,7 @@ class CheckOneBoard:
         self.state = state
         self.state.update(board, 'pending')
         self.log_dir = log_dir
+        self.run_unittest = run_unittest
 
         self.dependency_graph = None
         self.packages_to_verify = None
@@ -347,7 +348,8 @@ class CheckOneBoard:
     def _update_emerge_state(self):
         """Updates state for emerge stage."""
         self.state.update(
-            self.board, 'emerge',
+            self.board,
+            'FEATURES=test emerge' if self.run_unittest else 'emerge',
             'Queued/Running:%d, Completed:%d (Passing:%d, Failed:%d), Total:%d'
             % (len(self.scheduled_emerge), len(self.completed_emerge),
                len(self.passing_emerge), len(
@@ -422,6 +424,8 @@ class CheckOneBoard:
                          update_state=True):
         """
         Emerges a package, and update state.
+        Run unittests (prepending FEATURES=test) if user requested. Note
+        packages without test will be emerged normally.
 
         Returns True on sucess, False otherwise.
 
@@ -430,17 +434,25 @@ class CheckOneBoard:
         """
         if update_state:
             self.state.update(self.board, 'emerge_' + package)
+        env = dict(os.environ)
+        if self.run_unittest:
+          env['FEATURES'] = 'test'
         proc = subprocess.run(['emerge-' + self.board, package],
                               stdout=out,
-                              stderr=out)
+                              stderr=out,
+                              env=env,
+                              )
         if proc.returncode != 0:
             if update_state:
                 self.state.update(
-                    self.board, 'failed', 'emerge-$BOARD ' + package +
+                    self.board, 'failed',
+                    ('FEATURES=test ' if self.run_unittest else '') +
+                    'emerge-$BOARD ' + package +
                     ' failed. further steps skipped.')
             return False
         if update_state:
             self.state.update(self.board, 'emerge_' + package,
+                              ('FEATURES=test ' if self.run_unittest else '') +
                               'emerge-$BOARD ' + package + ' completed.')
         return True
 
@@ -603,7 +615,6 @@ def main():
     if arg.max_emerges:
         max_emerges = arg.max_emerges
 
-    assert not arg.unittest, '--unittest is not implemented'
     if arg.skip_first_pass_build_packages:
         assert arg.skip_setup_board, '--skip-setup-board must be set for --skip-first-pass-build-packages'
     if arg.force_clean_buildroot:
@@ -631,7 +642,7 @@ def main():
     for board in boards:
         log_dir = os.path.join(arg.output_directory, 'by-board', board)
         os.makedirs(log_dir, exist_ok=arg.allow_output_directory_exists)
-        work = CheckOneBoard(board, state, log_dir)
+        work = CheckOneBoard(board, state, log_dir, arg.unittest)
         work_list.append(work)
 
     state.start()
