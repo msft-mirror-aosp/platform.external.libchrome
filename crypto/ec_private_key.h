@@ -11,7 +11,6 @@
 #include <string>
 #include <vector>
 
-#include "base/macros.h"
 #include "build/build_config.h"
 #include "crypto/crypto_export.h"
 
@@ -35,6 +34,9 @@ namespace crypto {
 // tricky.)
 class CRYPTO_EXPORT ECPrivateKey {
  public:
+  ECPrivateKey(const ECPrivateKey&) = delete;
+  ECPrivateKey& operator=(const ECPrivateKey&) = delete;
+
   ~ECPrivateKey();
 
   // Creates a new random instance. Can return NULL if initialization fails.
@@ -107,8 +109,6 @@ class CRYPTO_EXPORT ECPrivateKey {
   SECKEYPrivateKey* key_;
   SECKEYPublicKey* public_key_;
 #endif
-
-  DISALLOW_COPY_AND_ASSIGN(ECPrivateKey);
 };
 
 

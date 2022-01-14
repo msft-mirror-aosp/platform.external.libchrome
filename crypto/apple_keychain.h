@@ -7,7 +7,6 @@
 
 #include <Security/Security.h>
 
-#include "base/macros.h"
 #include "build/build_config.h"
 #include "crypto/crypto_export.h"
 
@@ -30,6 +29,9 @@ namespace crypto {
 class CRYPTO_EXPORT AppleKeychain {
  public:
   AppleKeychain();
+  AppleKeychain(const AppleKeychain&) = delete;
+  AppleKeychain& operator=(const AppleKeychain&) = delete;
+
   virtual ~AppleKeychain();
 
   virtual OSStatus FindGenericPassword(CFTypeRef keychainOrArray,
@@ -99,9 +101,6 @@ class CRYPTO_EXPORT AppleKeychain {
   // Calls CFRelease on the given ref, after checking that |ref| is non-NULL.
   virtual void Free(CFTypeRef ref) const;
 #endif  // !defined(OS_IOS)
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(AppleKeychain);
 };
 
 }  // namespace crypto

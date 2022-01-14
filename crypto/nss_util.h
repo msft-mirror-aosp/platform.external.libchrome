@@ -10,7 +10,6 @@
 #include <string>
 #include "base/callback.h"
 #include "base/compiler_specific.h"
-#include "base/macros.h"
 #include "crypto/crypto_export.h"
 
 namespace base {
@@ -97,10 +96,12 @@ base::Lock* GetNSSWriteLock();
 class CRYPTO_EXPORT AutoNSSWriteLock {
  public:
   AutoNSSWriteLock();
+  AutoNSSWriteLock(const AutoNSSWriteLock&) = delete;
+  AutoNSSWriteLock& operator=(const AutoNSSWriteLock&) = delete;
+
   ~AutoNSSWriteLock();
  private:
   base::Lock *lock_;
-  DISALLOW_COPY_AND_ASSIGN(AutoNSSWriteLock);
 };
 #endif  // defined(USE_NSS_CERTS)
 

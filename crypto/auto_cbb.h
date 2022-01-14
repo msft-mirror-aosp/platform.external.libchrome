@@ -7,8 +7,6 @@
 
 #include <openssl/bytestring.h>
 
-#include "base/macros.h"
-
 namespace crypto {
 
 // AutoCBB is a wrapper over OpenSSL's CBB type that automatically releases
@@ -16,6 +14,9 @@ namespace crypto {
 class AutoCBB {
  public:
   AutoCBB() { CBB_zero(&cbb_); }
+  AutoCBB(const AutoCBB&) = delete;
+  AutoCBB& operator=(const AutoCBB&) = delete;
+
   ~AutoCBB() { CBB_cleanup(&cbb_); }
 
   CBB* get() { return &cbb_; }
@@ -27,7 +28,6 @@ class AutoCBB {
 
  private:
   CBB cbb_;
-  DISALLOW_COPY_AND_ASSIGN(AutoCBB);
 };
 
 }  // namespace crypto

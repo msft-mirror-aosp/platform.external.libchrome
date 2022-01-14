@@ -9,7 +9,6 @@
 
 #include <string>
 
-#include "base/macros.h"
 #include "build/build_config.h"
 #include "crypto/crypto_export.h"
 
@@ -34,6 +33,9 @@ class CRYPTO_EXPORT SymmetricKey {
     AES,
     HMAC_SHA1,
   };
+
+  SymmetricKey(const SymmetricKey&) = delete;
+  SymmetricKey& operator=(const SymmetricKey&) = delete;
 
   virtual ~SymmetricKey();
 
@@ -95,8 +97,6 @@ class CRYPTO_EXPORT SymmetricKey {
   explicit SymmetricKey(PK11SymKey* key);
   ScopedPK11SymKey key_;
 #endif
-
-  DISALLOW_COPY_AND_ASSIGN(SymmetricKey);
 };
 
 }  // namespace crypto

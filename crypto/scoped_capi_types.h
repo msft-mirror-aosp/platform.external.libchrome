@@ -10,7 +10,6 @@
 #include <algorithm>
 
 #include "base/logging.h"
-#include "base/macros.h"
 #include "crypto/wincrypt_shim.h"
 
 namespace crypto {
@@ -49,6 +48,9 @@ template <class CAPIHandle, typename FreeProc>
 class ScopedCAPIHandle {
  public:
   explicit ScopedCAPIHandle(CAPIHandle handle = NULL) : handle_(handle) {}
+
+  ScopedCAPIHandle(const ScopedCAPIHandle&) = delete;
+  ScopedCAPIHandle& operator=(const ScopedCAPIHandle&) = delete;
 
   ~ScopedCAPIHandle() {
     reset();
@@ -92,8 +94,6 @@ class ScopedCAPIHandle {
 
  private:
   CAPIHandle handle_;
-
-  DISALLOW_COPY_AND_ASSIGN(ScopedCAPIHandle);
 };
 
 template<class CH, typename FP> inline

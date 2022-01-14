@@ -7,7 +7,6 @@
 
 #include <memory>
 
-#include "base/macros.h"
 #include "crypto/crypto_export.h"
 
 // Forward declaration, from <pk11pub.h>
@@ -28,6 +27,8 @@ class ScopedTestNSSDB;
 class CRYPTO_EXPORT ScopedTestSystemNSSKeySlot {
  public:
   explicit ScopedTestSystemNSSKeySlot();
+  ScopedTestSystemNssKeySlot(const ScopedTestSystemNssKeySlot&) = delete;
+  ScopedTestSystemNssKeySlot& operator=(const ScopedTestSystemNssKeySlot&) = delete;
   ~ScopedTestSystemNSSKeySlot();
 
   bool ConstructedSuccessfully() const;
@@ -35,8 +36,6 @@ class CRYPTO_EXPORT ScopedTestSystemNSSKeySlot {
 
  private:
   std::unique_ptr<ScopedTestNSSDB> test_db_;
-
-  DISALLOW_COPY_AND_ASSIGN(ScopedTestSystemNSSKeySlot);
 };
 
 }  // namespace crypto

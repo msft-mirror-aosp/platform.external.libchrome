@@ -8,7 +8,6 @@
 #include <stddef.h>
 
 #include "base/location.h"
-#include "base/macros.h"
 #include "crypto/crypto_export.h"
 
 namespace crypto {
@@ -27,6 +26,9 @@ class ScopedOpenSSLSafeSizeBuffer {
       : output_(output),
         output_len_(output_len) {
   }
+
+  ScopedOpenSSLSafeSizeBuffer(const ScopedOpenSSLSafeSizeBuffer&) = delete;
+  ScopedOpenSSLSafeSizeBuffer& operator=(const ScopedOpenSSLSafeSizeBuffer&) = delete;
 
   ~ScopedOpenSSLSafeSizeBuffer() {
     if (output_len_ < MIN_SIZE) {
@@ -49,8 +51,6 @@ class ScopedOpenSSLSafeSizeBuffer {
   // Temporary buffer writen into in the case where the caller's
   // buffer is not of sufficient size.
   unsigned char min_sized_buffer_[MIN_SIZE];
-
-  DISALLOW_COPY_AND_ASSIGN(ScopedOpenSSLSafeSizeBuffer);
 };
 
 // Initialize OpenSSL if it isn't already initialized. This must be called
@@ -76,14 +76,17 @@ class OpenSSLErrStackTracer {
       : location_(location) {
     EnsureOpenSSLInit();
   }
+
+  OpenSSLErrStackTracer() = delete;
+  OpenSSLErrStackTracer(const OpenSSLErrStackTracer&) = delete;
+  OpenSSLErrStackTracer& operator=(const OpenSSLErrStackTracer&) = delete;
+
   ~OpenSSLErrStackTracer() {
     ClearOpenSSLERRStack(location_);
   }
 
  private:
   const base::Location location_;
-
-  DISALLOW_IMPLICIT_CONSTRUCTORS(OpenSSLErrStackTracer);
 };
 
 }  // namespace crypto

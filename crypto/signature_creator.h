@@ -9,7 +9,6 @@
 
 #include <vector>
 
-#include "base/macros.h"
 #include "build/build_config.h"
 #include "crypto/crypto_export.h"
 
@@ -34,6 +33,9 @@ class CRYPTO_EXPORT SignatureCreator {
     SHA1,
     SHA256,
   };
+
+  SignatureCreator(const SignatureCreator&) = delete;
+  SignatureCreator& operator=(const SignatureCreator&) = delete;
 
   ~SignatureCreator();
 
@@ -66,8 +68,6 @@ class CRYPTO_EXPORT SignatureCreator {
 #elif defined(USE_NSS_CERTS) || defined(OS_WIN) || defined(OS_MACOSX)
   SGNContextStr* sign_context_;
 #endif
-
-  DISALLOW_COPY_AND_ASSIGN(SignatureCreator);
 };
 
 }  // namespace crypto

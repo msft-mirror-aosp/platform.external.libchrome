@@ -9,7 +9,6 @@
 
 #include "base/callback.h"
 #include "base/compiler_specific.h"
-#include "base/macros.h"
 #include "crypto/crypto_export.h"
 #include "crypto/scoped_nss_types.h"
 
@@ -39,11 +38,13 @@ CRYPTO_EXPORT PK11SlotInfo* GetPersistentNSSKeySlot() WARN_UNUSED_RESULT;
 class CRYPTO_EXPORT AutoSECMODListReadLock {
  public:
   AutoSECMODListReadLock();
+  AutoSECMODListReadLock(const AutoSECMODListReadLock&) = delete;
+  AutoSECMODListReadLock& operator=(const AutoSECMODListReadLock&) = delete;
+
   ~AutoSECMODListReadLock();
 
  private:
   SECMODListLock* lock_;
-  DISALLOW_COPY_AND_ASSIGN(AutoSECMODListReadLock);
 };
 
 #if defined(OS_CHROMEOS)

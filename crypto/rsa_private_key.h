@@ -11,7 +11,6 @@
 #include <list>
 #include <vector>
 
-#include "base/macros.h"
 #include "build/build_config.h"
 #include "crypto/crypto_export.h"
 
@@ -47,6 +46,8 @@ class PrivateKeyInfoCodec {
   // Export() and ExportPublicKeyInfo() -- not the ASN.1 DER encoding of the
   // PrivateKeyInfo/PublicKeyInfo (which is always big-endian).
   explicit PrivateKeyInfoCodec(bool big_endian);
+  PrivateKeyInfoCodec(const PrivateKeyInfoCodec&) = delete;
+  PrivateKeyInfoCodec& operator=(const PrivateKeyInfoCodec&) = delete;
 
   ~PrivateKeyInfoCodec();
 
@@ -159,8 +160,6 @@ class PrivateKeyInfoCodec {
   std::vector<uint8_t> exponent1_;
   std::vector<uint8_t> exponent2_;
   std::vector<uint8_t> coefficient_;
-
-  DISALLOW_COPY_AND_ASSIGN(PrivateKeyInfoCodec);
 };
 
 // Encapsulates an RSA private key. Can be used to generate new keys, export
@@ -168,6 +167,8 @@ class PrivateKeyInfoCodec {
 // TODO(hclam): This class should be ref-counted so it can be reused easily.
 class CRYPTO_EXPORT RSAPrivateKey {
  public:
+  RSAPrivateKey(const RSAPrivateKey&) = delete;
+  RSAPrivateKey& operator=(const RSAPrivateKey&) = delete;
   ~RSAPrivateKey();
 
   // Create a new random instance. Can return NULL if initialization fails.
@@ -216,8 +217,6 @@ class CRYPTO_EXPORT RSAPrivateKey {
   SECKEYPrivateKey* key_;
   SECKEYPublicKey* public_key_;
 #endif
-
-  DISALLOW_COPY_AND_ASSIGN(RSAPrivateKey);
 };
 
 }  // namespace crypto

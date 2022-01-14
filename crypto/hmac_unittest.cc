@@ -6,7 +6,6 @@
 
 #include <string>
 
-#include "base/macros.h"
 #include "crypto/hmac.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
