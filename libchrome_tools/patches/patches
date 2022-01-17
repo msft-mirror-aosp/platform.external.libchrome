@@ -47,6 +47,9 @@ add-libchrome-namespace-to-trace_event-stub-perfetto.patch
 # will do.
 Revert-base-allocator-Support-max-alloc-size-with-us.patch
 
+# Avoid reintroduction of the deprecated base::Value APIs
+disable-base-Dictionary-List-Value.patch
+
 # ==================== CHERRY PICKS ===========================
 # Remove after r943984
 libchrome-Query-spaced-for-free-total-disk-space.patch
