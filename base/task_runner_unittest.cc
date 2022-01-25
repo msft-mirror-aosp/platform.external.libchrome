@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "base/task_runner_util.h"
+#include "base/task/task_runner_util_forward.h"
 
 #include <memory>
 #include <utility>
@@ -98,6 +98,19 @@ TEST_F(TaskRunnerTest, PostTaskAndReplyWithResult) {
   test::SingleThreadTaskEnvironment task_environment;
   ThreadTaskRunnerHandle::Get()->PostTaskAndReplyWithResult(
       FROM_HERE, BindOnce(&ReturnFourtyTwo), BindOnce(&StoreValue, &result));
+
+  RunLoop().RunUntilIdle();
+
+  EXPECT_EQ(42, result);
+}
+
+TEST_F(TaskRunnerTest, PostTaskAndReplyWithResultRepeatingCallbacks) {
+  int result = 0;
+
+  test::SingleThreadTaskEnvironment task_environment;
+  ThreadTaskRunnerHandle::Get()->PostTaskAndReplyWithResult(
+      FROM_HERE, BindRepeating(&ReturnFourtyTwo),
+      BindRepeating(&StoreValue, &result));
 
   RunLoop().RunUntilIdle();
 

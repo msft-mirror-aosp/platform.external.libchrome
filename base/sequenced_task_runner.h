@@ -9,8 +9,8 @@
 
 #include "base/base_export.h"
 #include "base/callback.h"
-#include "base/sequenced_task_runner_helpers.h"
-#include "base/task_runner.h"
+#include "base/task/sequenced_task_runner_helpers_forward.h"
+#include "base/task/task_runner_forward.h"
 
 namespace base {
 
@@ -128,7 +128,8 @@ class BASE_EXPORT SequencedTaskRunner : public TaskRunner {
 
   template <class T>
   bool DeleteSoon(const Location& from_here, std::unique_ptr<T> object) {
-    return DeleteSoon(from_here, object.release());
+    return DeleteOrReleaseSoonInternal(
+        from_here, &DeleteUniquePtrHelper<T>::DoDelete, object.release());
   }
 
   // Submits a non-nestable task to release the given object.

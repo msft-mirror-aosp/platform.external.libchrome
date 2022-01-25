@@ -13,8 +13,8 @@
 #include "base/debug/dump_without_crashing.h"
 #include "base/memory/ptr_util.h"
 #include "base/run_loop.h"
-#include "base/sequenced_task_runner.h"
 #include "base/task/post_task.h"
+#include "base/task/sequenced_task_runner_forward.h"
 #include "base/task/thread_pool.h"
 #include "base/test/bind.h"
 #include "base/test/task_environment.h"
@@ -530,11 +530,11 @@ TEST(StrongConnectorTest, Math) {
   {
     MathCalculatorUI calculator_ui(std::move(calc));
 
-    base::RunLoop run_loop, run_loop2;
-    calculator_ui.Add(2.0, run_loop.QuitClosure());
-    calculator_ui.Multiply(5.0, run_loop2.QuitClosure());
-    run_loop.Run();
+    base::RunLoop run_loop2, run_loop3;
+    calculator_ui.Add(2.0, run_loop2.QuitClosure());
+    calculator_ui.Multiply(5.0, run_loop3.QuitClosure());
     run_loop2.Run();
+    run_loop3.Run();
 
     EXPECT_EQ(10.0, calculator_ui.GetOutput());
     EXPECT_FALSE(disconnected);
@@ -602,11 +602,11 @@ TEST(WeakConnectorTest, Math) {
     MathCalculatorUI calculator_ui(
         PendingRemote<math::Calculator>(std::move(pipe.handle1), 0u));
 
-    base::RunLoop run_loop, run_loop2;
-    calculator_ui.Add(2.0, run_loop.QuitClosure());
-    calculator_ui.Multiply(5.0, run_loop2.QuitClosure());
-    run_loop.Run();
+    base::RunLoop run_loop2, run_loop3;
+    calculator_ui.Add(2.0, run_loop2.QuitClosure());
+    calculator_ui.Multiply(5.0, run_loop3.QuitClosure());
     run_loop2.Run();
+    run_loop3.Run();
 
     EXPECT_EQ(10.0, calculator_ui.GetOutput());
     EXPECT_FALSE(disconnected);
@@ -1104,7 +1104,8 @@ TEST_P(RemoteTest, SharedRemoteSyncCallWithPendingEventOnSameThread) {
   EXPECT_EQ(0, next_expected_value);
 }
 
-TEST_P(RemoteTest, DisconnectDuringOffThreadSyncWaitWithUnprocessedTasks) {
+// Flaky on all platforms. https://crbug.com/1224768
+TEST_P(RemoteTest, DISABLED_DisconnectDuringOffThreadSyncWaitWithUnprocessedTasks) {
   // Regression test for https://crbug.com/1223628.
   //
   // This tests a fairly obscure edge case where one or more message tasks is

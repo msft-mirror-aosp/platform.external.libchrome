@@ -39,48 +39,6 @@ namespace policy {
 
 namespace {
 
-const char* kProxyPolicies[] = {
-    key::kProxyMode,   key::kProxyServerMode, key::kProxyServer,
-    key::kProxyPacUrl, kProxyPacMandatory,    key::kProxyBypassList,
-};
-
-// Maps the separate policies for proxy settings into a single Dictionary
-// policy. This allows to keep the logic of merging policies from different
-// sources simple, as all separate proxy policies should be considered as a
-// single whole during merging.
-void RemapProxyPolicies(PolicyMap* policies) {
-  // The highest (level, scope) pair for an existing proxy policy is determined
-  // first, and then only policies with those exact attributes are merged.
-  PolicyMap::Entry current_priority;  // Defaults to the lowest priority.
-  PolicySource inherited_source = POLICY_SOURCE_ENTERPRISE_DEFAULT;
-  base::Value proxy_settings(base::Value::Type::DICTIONARY);
-  for (size_t i = 0; i < base::size(kProxyPolicies); ++i) {
-    const PolicyMap::Entry* entry = policies->Get(kProxyPolicies[i]);
-    if (entry) {
-      if (entry->has_higher_priority_than(current_priority)) {
-        proxy_settings = base::Value(base::Value::Type::DICTIONARY);
-        current_priority = entry->DeepCopy();
-        if (entry->source > inherited_source)  // Higher priority?
-          inherited_source = entry->source;
-      }
-      if (!entry->has_higher_priority_than(current_priority) &&
-          !current_priority.has_higher_priority_than(*entry)) {
-        proxy_settings.SetKey(kProxyPolicies[i], entry->value()->Clone());
-      }
-      policies->Erase(kProxyPolicies[i]);
-    }
-  }
-  // Sets the new |proxy_settings| if kProxySettings isn't set yet, or if the
-  // new priority is higher.
-  const PolicyMap::Entry* existing = policies->Get(key::kProxySettings);
-  if (!proxy_settings.DictEmpty() &&
-      (!existing || current_priority.has_higher_priority_than(*existing))) {
-    policies->Set(key::kProxySettings, current_priority.level,
-                  current_priority.scope, inherited_source,
-                  std::move(proxy_settings), nullptr);
-  }
-}
-
 // Maps the separate renamed policies into a single Dictionary policy. This
 // allows to keep the logic of merging policies from different sources simple,
 // as all separate renamed policies should be considered as a single whole
@@ -113,9 +71,11 @@ void RemapRenamedPolicies(PolicyMap* policies) {
       {policy::key::kNativeMessagingWhitelist,
        policy::key::kNativeMessagingAllowlist},
 #endif  // BUILDFLAG(ENABLE_EXTENSIONS)
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if defined(OS_CHROMEOS)
       {policy::key::kAttestationExtensionWhitelist,
        policy::key::kAttestationExtensionAllowlist},
+#endif  // defined(OS_CHROMEOS)
+#if BUILDFLAG(IS_CHROMEOS_ASH)
       {policy::key::kExternalPrintServersWhitelist,
        policy::key::kExternalPrintServersAllowlist},
       {policy::key::kNativePrintersBulkBlacklist,
@@ -137,8 +97,8 @@ void RemapRenamedPolicies(PolicyMap* policies) {
   for (const auto& policy_pair : renamed_policies) {
     PolicyMap::Entry* old_policy = policies->GetMutable(policy_pair.first);
     const PolicyMap::Entry* new_policy = policies->Get(policy_pair.second);
-    if (old_policy &&
-        (!new_policy || old_policy->has_higher_priority_than(*new_policy))) {
+    if (old_policy && (!new_policy || policies->EntryHasHigherPriority(
+                                          *old_policy, *new_policy))) {
       PolicyMap::Entry policy_entry = old_policy->DeepCopy();
       policy_entry.AddMessage(PolicyMap::MessageType::kWarning,
                               IDS_POLICY_MIGRATED_NEW_POLICY,
@@ -280,6 +240,8 @@ bool PolicyServiceImpl::IsFirstPolicyLoadComplete(PolicyDomain domain) const {
 void PolicyServiceImpl::RefreshPolicies(base::OnceClosure callback) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
+  VLOG(2) << "Policy refresh starting";
+
   if (!callback.is_null())
     refresh_callbacks_.push_back(std::move(callback));
 
@@ -290,6 +252,8 @@ void PolicyServiceImpl::RefreshPolicies(base::OnceClosure callback) {
     base::SequencedTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(&PolicyServiceImpl::MergeAndTriggerUpdates,
                                   update_task_ptr_factory_.GetWeakPtr()));
+
+    VLOG(2) << "Policy refresh has no providers";
   } else {
     // Some providers might invoke OnUpdatePolicy synchronously while handling
     // RefreshPolicies. Mark all as pending before refreshing.
@@ -371,7 +335,6 @@ void PolicyServiceImpl::MergeAndTriggerUpdates() {
   for (auto* provider : providers_) {
     PolicyBundle provided_bundle;
     provided_bundle.CopyFrom(provider->policies());
-    RemapProxyPolicies(&provided_bundle.Get(chrome_namespace));
     RemapRenamedPolicies(&provided_bundle.Get(chrome_namespace));
     DowngradeMetricsReportingToRecommendedPolicy(
         &provided_bundle.Get(chrome_namespace));
@@ -396,10 +359,8 @@ void PolicyServiceImpl::MergeAndTriggerUpdates() {
   bool atomic_policy_group_enabled =
       atomic_policy_group_enabled_policy_value &&
       atomic_policy_group_enabled_policy_value->value()->GetBool() &&
-      !((atomic_policy_group_enabled_policy_value->source ==
-             POLICY_SOURCE_CLOUD ||
-         atomic_policy_group_enabled_policy_value->source ==
-             POLICY_SOURCE_PRIORITY_CLOUD) &&
+      !(atomic_policy_group_enabled_policy_value->source ==
+            POLICY_SOURCE_CLOUD &&
         atomic_policy_group_enabled_policy_value->scope == POLICY_SCOPE_USER);
 
   PolicyListMerger policy_list_merger(std::move(policy_lists_to_merge));
@@ -407,14 +368,14 @@ void PolicyServiceImpl::MergeAndTriggerUpdates() {
       std::move(policy_dictionaries_to_merge));
 
   // Pass affiliation and CloudUserPolicyMerge values to both mergers.
-  const bool is_affiliated = chrome_policies.IsUserAffiliated();
+  const bool is_user_affiliated = chrome_policies.IsUserAffiliated();
   const bool is_user_cloud_merging_enabled =
       chrome_policies.GetValue(key::kCloudUserPolicyMerge) &&
       chrome_policies.GetValue(key::kCloudUserPolicyMerge)->GetBool();
   policy_list_merger.SetAllowUserCloudPolicyMerging(
-      is_affiliated && is_user_cloud_merging_enabled);
+      is_user_affiliated && is_user_cloud_merging_enabled);
   policy_dictionary_merger.SetAllowUserCloudPolicyMerging(
-      is_affiliated && is_user_cloud_merging_enabled);
+      is_user_affiliated && is_user_cloud_merging_enabled);
 
   std::vector<PolicyMerger*> mergers{&policy_list_merger,
                                      &policy_dictionary_merger};
@@ -545,6 +506,10 @@ void PolicyServiceImpl::MaybeNotifyPolicyDomainStatusChange(
 }
 
 void PolicyServiceImpl::CheckRefreshComplete() {
+  if (refresh_pending_.empty()) {
+    VLOG(2) << "Policy refresh complete";
+  }
+
   // Invoke all the callbacks if a refresh has just fully completed.
   if (refresh_pending_.empty() && !refresh_callbacks_.empty()) {
     std::vector<base::OnceClosure> callbacks;

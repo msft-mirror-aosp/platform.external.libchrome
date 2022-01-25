@@ -7,7 +7,6 @@
 #include <atomic>
 #include <string>
 #include <utility>
-#include <vector>
 
 #include "base/base_switches.h"
 #include "base/callback.h"
@@ -66,7 +65,7 @@ class TaskTracingInfo : public trace_event::ConvertableToTraceFormat {
 };
 
 void TaskTracingInfo::AppendAsTraceFormat(std::string* out) const {
-  DictionaryValue dict;
+  Value dict(Value::Type::DICTIONARY);
 
   dict.SetStringKey("task_priority",
                     base::TaskPriorityToString(task_traits_.priority()));
@@ -456,14 +455,15 @@ void TaskTracker::RunTask(Task task,
 
   const auto environment = task_source->GetExecutionEnvironment();
 
-  const bool previous_singleton_allowed =
-      ThreadRestrictions::SetSingletonAllowed(
-          traits.shutdown_behavior() !=
-          TaskShutdownBehavior::CONTINUE_ON_SHUTDOWN);
-  const bool previous_io_allowed =
-      ThreadRestrictions::SetIOAllowed(traits.may_block());
-  const bool previous_wait_allowed =
-      ThreadRestrictions::SetWaitAllowed(traits.with_base_sync_primitives());
+  absl::optional<ScopedDisallowSingleton> disallow_singleton;
+  absl::optional<ScopedDisallowBlocking> disallow_blocking;
+  absl::optional<ScopedDisallowBaseSyncPrimitives> disallow_sync_primitives;
+  if (traits.shutdown_behavior() == TaskShutdownBehavior::CONTINUE_ON_SHUTDOWN)
+    disallow_singleton.emplace();
+  if (!traits.may_block())
+    disallow_blocking.emplace();
+  if (!traits.with_base_sync_primitives())
+    disallow_sync_primitives.emplace();
 
   {
     DCHECK(environment.token.IsValid());
@@ -528,10 +528,6 @@ void TaskTracker::RunTask(Task task,
     // scope in which the callback runs.
     task.task = OnceClosure();
   }
-
-  ThreadRestrictions::SetWaitAllowed(previous_wait_allowed);
-  ThreadRestrictions::SetIOAllowed(previous_io_allowed);
-  ThreadRestrictions::SetSingletonAllowed(previous_singleton_allowed);
 }
 
 void TaskTracker::BeginCompleteShutdown(base::WaitableEvent& shutdown_event) {

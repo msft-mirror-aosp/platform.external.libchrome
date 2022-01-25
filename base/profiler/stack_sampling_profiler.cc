@@ -160,6 +160,9 @@ class StackSamplingProfiler::SamplingThread : public Thread {
   // Gets the single instance of this class.
   static SamplingThread* GetInstance();
 
+  SamplingThread(const SamplingThread&) = delete;
+  SamplingThread& operator=(const SamplingThread&) = delete;
+
   // Adds a new CollectionContext to the thread. This can be called externally
   // from any thread. This returns a collection id that can later be used to
   // stop the sampling.
@@ -271,8 +274,6 @@ class StackSamplingProfiler::SamplingThread : public Thread {
   // vars, this must be accessed while holding |thread_execution_state_lock_|.
   int thread_execution_state_add_events_
       GUARDED_BY(thread_execution_state_lock_) = 0;
-
-  DISALLOW_COPY_AND_ASSIGN(SamplingThread);
 };
 
 // static
@@ -548,7 +549,7 @@ void StackSamplingProfiler::SamplingThread::ScheduleShutdownIfIdle() {
   GetTaskRunnerOnSamplingThread()->PostDelayedTask(
       FROM_HERE,
       BindOnce(&SamplingThread::ShutdownTask, Unretained(this), add_events),
-      TimeDelta::FromSeconds(60));
+      Seconds(60));
 }
 
 void StackSamplingProfiler::SamplingThread::AddAuxUnwinderTask(
@@ -749,8 +750,9 @@ TimeTicks StackSamplingProfiler::TestPeer::GetNextSampleTime(
 // The profiler is currently supported for Windows x64, MacOSX x64, and Android
 // ARM32.
 bool StackSamplingProfiler::IsSupportedForCurrentPlatform() {
-#if (defined(OS_WIN) && defined(ARCH_CPU_X86_64)) || \
-    (defined(OS_MAC) && defined(ARCH_CPU_X86_64)) || \
+#if (defined(OS_WIN) && defined(ARCH_CPU_X86_64)) ||  \
+    (defined(OS_MAC) && defined(ARCH_CPU_X86_64)) ||  \
+    (defined(OS_IOS) && defined(ARCH_CPU_64_BITS)) || \
     (defined(OS_ANDROID) && BUILDFLAG(ENABLE_ARM_CFI_TABLE))
 #if defined(OS_MAC)
   // TODO(https://crbug.com/1098119): Fix unwinding on macOS 11. The OS has

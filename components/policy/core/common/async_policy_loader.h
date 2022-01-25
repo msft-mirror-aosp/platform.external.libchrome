@@ -8,10 +8,10 @@
 #include <memory>
 
 #include "base/callback.h"
-#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "base/time/time.h"
+#include "build/build_config.h"
 #include "components/policy/core/common/schema_map.h"
 #include "components/policy/policy_export.h"
 
@@ -21,6 +21,7 @@ class SequencedTaskRunner;
 
 namespace policy {
 
+class ManagementService;
 class PolicyBundle;
 
 // Base implementation for platform-specific policy loaders. Together with the
@@ -40,6 +41,12 @@ class POLICY_EXPORT AsyncPolicyLoader {
   explicit AsyncPolicyLoader(
       const scoped_refptr<base::SequencedTaskRunner>& task_runner,
       bool periodic_updates);
+  explicit AsyncPolicyLoader(
+      const scoped_refptr<base::SequencedTaskRunner>& task_runner,
+      ManagementService* management_service,
+      bool periodic_updates);
+  AsyncPolicyLoader(const AsyncPolicyLoader&) = delete;
+  AsyncPolicyLoader& operator=(const AsyncPolicyLoader&) = delete;
   virtual ~AsyncPolicyLoader();
 
   // Gets a SequencedTaskRunner backed by the background thread.
@@ -76,6 +83,9 @@ class POLICY_EXPORT AsyncPolicyLoader {
   // if the update events aren't triggered.
   void Reload(bool force);
 
+  // Returns `true` iif the platform is not managed by a trusted source.
+  bool ShouldFilterSensitivePolicies();
+
   const scoped_refptr<SchemaMap>& schema_map() const { return schema_map_; }
 
  private:
@@ -104,6 +114,8 @@ class POLICY_EXPORT AsyncPolicyLoader {
   // Task runner for running background jobs.
   const scoped_refptr<base::SequencedTaskRunner> task_runner_;
 
+  ManagementService* management_service_;
+
   // Whether the loader will schedule periodic updates for policy data.
   const bool periodic_updates_;
 
@@ -124,8 +136,6 @@ class POLICY_EXPORT AsyncPolicyLoader {
 
   // Used to get WeakPtrs for the periodic reload task.
   base::WeakPtrFactory<AsyncPolicyLoader> weak_factory_{this};
-
-  DISALLOW_COPY_AND_ASSIGN(AsyncPolicyLoader);
 };
 
 }  // namespace policy

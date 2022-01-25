@@ -27,11 +27,11 @@
 #include "base/memory/ref_counted_memory.h"
 #include "base/memory/singleton.h"
 #include "base/process/process_handle.h"
-#include "base/single_thread_task_runner.h"
 #include "base/stl_util.h"
 #include "base/strings/pattern.h"
 #include "base/strings/stringprintf.h"
 #include "base/synchronization/waitable_event.h"
+#include "base/task/single_thread_task_runner_forward.h"
 #include "base/threading/platform_thread.h"
 #include "base/threading/thread.h"
 #include "base/time/time.h"
@@ -325,7 +325,7 @@ bool TraceEventTestFixture::FindNonMatchingValue(const char* key,
 }
 
 bool IsStringInDict(const char* string_to_match, const Value* dict) {
-  for (const auto& pair : dict->DictItems()) {
+  for (const auto pair : dict->DictItems()) {
     if (pair.first.find(string_to_match) != std::string::npos)
       return true;
 
@@ -2798,8 +2798,13 @@ TEST_F(TraceEventTestFixture, ContextLambda) {
   const Value* args_dict = dict->FindDictKey("args");
   ASSERT_TRUE(args_dict);
 
+#if BUILDFLAG(USE_PERFETTO_CLIENT_LIBRARY)
+  EXPECT_EQ(*args_dict->FindStringKey("arg"), "foobar");
+#else
+  // Pre-client-lib, these types of TracedValues can't be serialized to JSON.
   EXPECT_EQ(*args_dict->FindStringKey("arg"),
             "Unsupported (crbug.com/1225176)");
+#endif
 }
 
 }  // namespace trace_event

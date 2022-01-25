@@ -18,18 +18,20 @@
 #include "base/trace_event/base_tracing_forward.h"
 #include "build/build_config.h"
 
-#if defined(OS_POSIX) || defined(OS_FUCHSIA)
-#include <sys/stat.h>
+#if defined(OS_BSD) || defined(OS_APPLE) || defined(OS_NACL) || \
+    defined(OS_FUCHSIA) || (defined(OS_ANDROID) && __ANDROID_API__ < 21)
+struct stat;
+namespace base {
+typedef struct stat stat_wrapper_t;
+}
+#elif defined(OS_POSIX)
+struct stat64;
+namespace base {
+typedef struct stat64 stat_wrapper_t;
+}
 #endif
 
 namespace base {
-
-#if defined(OS_BSD) || defined(OS_APPLE) || defined(OS_NACL) || \
-    defined(OS_FUCHSIA) || (defined(OS_ANDROID) && __ANDROID_API__ < 21)
-typedef struct stat stat_wrapper_t;
-#elif defined(OS_POSIX)
-typedef struct stat64 stat_wrapper_t;
-#endif
 
 // Thin wrapper around an OS-level file.
 // Note that this class does not provide any support for asynchronous IO, other
@@ -61,18 +63,18 @@ class BASE_EXPORT File {
     FLAG_READ = 1 << 5,
     FLAG_WRITE = 1 << 6,
     FLAG_APPEND = 1 << 7,
-    FLAG_EXCLUSIVE_READ = 1 << 8,  // EXCLUSIVE is opposite of Windows SHARE.
-    FLAG_EXCLUSIVE_WRITE = 1 << 9,
+    FLAG_EXCLUSIVE_READ = 1 << 8,   // Windows only. Opposite of Windows SHARE.
+    FLAG_EXCLUSIVE_WRITE = 1 << 9,  // Windows only. Opposite of Windows SHARE.
     FLAG_ASYNC = 1 << 10,
-    FLAG_TEMPORARY = 1 << 11,  // Used on Windows only.
-    FLAG_HIDDEN = 1 << 12,     // Used on Windows only.
+    FLAG_TEMPORARY = 1 << 11,  // Windows only.
+    FLAG_HIDDEN = 1 << 12,     // Windows only.
     FLAG_DELETE_ON_CLOSE = 1 << 13,
-    FLAG_WRITE_ATTRIBUTES = 1 << 14,     // Used on Windows only.
-    FLAG_SHARE_DELETE = 1 << 15,         // Used on Windows only.
+    FLAG_WRITE_ATTRIBUTES = 1 << 14,     // Windows only.
+    FLAG_SHARE_DELETE = 1 << 15,         // Windows only.
     FLAG_TERMINAL_DEVICE = 1 << 16,      // Serial port flags.
-    FLAG_BACKUP_SEMANTICS = 1 << 17,     // Used on Windows only.
-    FLAG_EXECUTE = 1 << 18,              // Used on Windows only.
-    FLAG_SEQUENTIAL_SCAN = 1 << 19,      // Used on Windows only.
+    FLAG_BACKUP_SEMANTICS = 1 << 17,     // Windows only.
+    FLAG_EXECUTE = 1 << 18,              // Windows only.
+    FLAG_SEQUENTIAL_SCAN = 1 << 19,      // Windows only.
     FLAG_CAN_DELETE_ON_CLOSE = 1 << 20,  // Requests permission to delete a file
                                          // via DeleteOnClose() (Windows only).
                                          // See DeleteOnClose() for details.
@@ -179,8 +181,8 @@ class BASE_EXPORT File {
   void Initialize(const FilePath& path, uint32_t flags);
 
   // Returns |true| if the handle / fd wrapped by this object is valid.  This
-  // method doesn't interact with the file system (and is safe to be called from
-  // ThreadRestrictions::SetIOAllowed(false) threads).
+  // method doesn't interact with the file system and is thus safe to be called
+  // from threads that disallow blocking.
   bool IsValid() const;
 
   // Returns true if a new file was created (or an old one truncated to zero

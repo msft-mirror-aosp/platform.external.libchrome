@@ -11,6 +11,7 @@
 #pragma clang max_tokens_here 390000
 #endif  // defined(OS_LINUX)
 
+#include <atomic>
 #include <cmath>
 #include <limits>
 #include <ostream>
@@ -27,16 +28,17 @@ namespace base {
 
 namespace internal {
 
-TimeNowFunction g_time_now_function = &subtle::TimeNowIgnoringOverride;
+std::atomic<TimeNowFunction> g_time_now_function{
+    &subtle::TimeNowIgnoringOverride};
 
-TimeNowFunction g_time_now_from_system_time_function =
-    &subtle::TimeNowFromSystemTimeIgnoringOverride;
+std::atomic<TimeNowFunction> g_time_now_from_system_time_function{
+    &subtle::TimeNowFromSystemTimeIgnoringOverride};
 
-TimeTicksNowFunction g_time_ticks_now_function =
-    &subtle::TimeTicksNowIgnoringOverride;
+std::atomic<TimeTicksNowFunction> g_time_ticks_now_function{
+    &subtle::TimeTicksNowIgnoringOverride};
 
-ThreadTicksNowFunction g_thread_ticks_now_function =
-    &subtle::ThreadTicksNowIgnoringOverride;
+std::atomic<ThreadTicksNowFunction> g_thread_ticks_now_function{
+    &subtle::ThreadTicksNowIgnoringOverride};
 
 }  // namespace internal
 
@@ -130,13 +132,14 @@ std::ostream& operator<<(std::ostream& os, TimeDelta time_delta) {
 
 // static
 Time Time::Now() {
-  return internal::g_time_now_function();
+  return internal::g_time_now_function.load(std::memory_order_relaxed)();
 }
 
 // static
 Time Time::NowFromSystemTime() {
   // Just use g_time_now_function because it returns the system time.
-  return internal::g_time_now_from_system_time_function();
+  return internal::g_time_now_from_system_time_function.load(
+      std::memory_order_relaxed)();
 }
 
 // static
@@ -145,7 +148,7 @@ Time Time::FromDeltaSinceWindowsEpoch(TimeDelta delta) {
 }
 
 TimeDelta Time::ToDeltaSinceWindowsEpoch() const {
-  return TimeDelta::FromMicroseconds(us_);
+  return Microseconds(us_);
 }
 
 // static
@@ -154,7 +157,7 @@ Time Time::FromTimeT(time_t tt) {
     return Time();  // Preserve 0 so we can tell it doesn't exist.
   return (tt == std::numeric_limits<time_t>::max())
              ? Max()
-             : (UnixEpoch() + TimeDelta::FromSeconds(tt));
+             : (UnixEpoch() + Seconds(tt));
 }
 
 time_t Time::ToTimeT() const {
@@ -170,9 +173,7 @@ time_t Time::ToTimeT() const {
 // static
 Time Time::FromDoubleT(double dt) {
   // Preserve 0 so we can tell it doesn't exist.
-  return (dt == 0 || std::isnan(dt))
-             ? Time()
-             : (UnixEpoch() + TimeDelta::FromSecondsD(dt));
+  return (dt == 0 || std::isnan(dt)) ? Time() : (UnixEpoch() + Seconds(dt));
 }
 
 double Time::ToDoubleT() const {
@@ -196,7 +197,7 @@ Time Time::FromTimeSpec(const timespec& ts) {
 Time Time::FromJsTime(double ms_since_epoch) {
   // The epoch is a valid time, so this constructor doesn't interpret 0 as the
   // null time.
-  return UnixEpoch() + TimeDelta::FromMillisecondsD(ms_since_epoch);
+  return UnixEpoch() + Milliseconds(ms_since_epoch);
 }
 
 double Time::ToJsTime() const {
@@ -213,7 +214,7 @@ double Time::ToJsTimeIgnoringNull() const {
 }
 
 Time Time::FromJavaTime(int64_t ms_since_epoch) {
-  return UnixEpoch() + TimeDelta::FromMilliseconds(ms_since_epoch);
+  return UnixEpoch() + Milliseconds(ms_since_epoch);
 }
 
 int64_t Time::ToJavaTime() const {
@@ -269,7 +270,7 @@ bool Time::FromStringInternal(const char* time_string,
   if (result != PR_SUCCESS)
     return false;
 
-  *parsed_time = UnixEpoch() + TimeDelta::FromMicroseconds(result_time);
+  *parsed_time = UnixEpoch() + Microseconds(result_time);
   return true;
 }
 
@@ -328,7 +329,7 @@ std::ostream& operator<<(std::ostream& os, Time time) {
 
 // static
 TimeTicks TimeTicks::Now() {
-  return internal::g_time_ticks_now_function();
+  return internal::g_time_ticks_now_function.load(std::memory_order_relaxed)();
 }
 
 // static
@@ -367,7 +368,8 @@ std::ostream& operator<<(std::ostream& os, TimeTicks time_ticks) {
 
 // static
 ThreadTicks ThreadTicks::Now() {
-  return internal::g_thread_ticks_now_function();
+  return internal::g_thread_ticks_now_function.load(
+      std::memory_order_relaxed)();
 }
 
 std::ostream& operator<<(std::ostream& os, ThreadTicks thread_ticks) {

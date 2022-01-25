@@ -30,6 +30,7 @@ revert-crbug-1001171.patch
 
 # libchrome does not support boringssl.
 keep-hash-sha1-old-implementation.patch
+Do-not-use-boringssl-in-base-UnguessableToken.patch
 
 # libchrome does not support trace_event
 # Compatmentalize patches to reduce chance of failing to apply them.
@@ -37,14 +38,16 @@ disable-trace_event-in-base.patch
 disable-trace_event-in-components.patch
 disable-trace_event-in-mojo.patch
 disable-trace_event-in-ipc.patch
+# To avoid redefinition error when client packages uses real perfetto
+add-libchrome-namespace-to-trace_event-stub-perfetto.patch
+
+# Revert of r921558
+# When malloc of more than (or close to) max size is called, it should return
+# nullptr (and handled by caller) instead of crashing as the original patch
+# will do.
+Revert-base-allocator-Support-max-alloc-size-with-us.patch
 
 # ==================== CHERRY PICKS ===========================
-# Remove after r910765
-jinja2-update-to-2.10.1.patch
-
-# Remove after r912107
-mojo-Add-ReceiverSetBase-RemoveWithReason.patch
-
 # Remove after r943984
 libchrome-Query-spaced-for-free-total-disk-space.patch
 

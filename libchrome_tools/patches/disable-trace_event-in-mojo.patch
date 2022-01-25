@@ -61,7 +61,7 @@ index 918ccfd9ef90..9dea42288892 100644
  #include "mojo/core/configuration.h"
  #include "mojo/core/core.h"
 diff --git a/mojo/core/core.cc b/mojo/core/core.cc
-index 35a3d3c477aa..b62a4290a6df 100644
+index 69b61785eb..4684206b67 100644
 --- a/mojo/core/core.cc
 +++ b/mojo/core/core.cc
 @@ -22,7 +22,7 @@
@@ -74,7 +74,7 @@ index 35a3d3c477aa..b62a4290a6df 100644
  #include "mojo/core/channel.h"
  #include "mojo/core/configuration.h"
 diff --git a/mojo/core/data_pipe_consumer_dispatcher.cc b/mojo/core/data_pipe_consumer_dispatcher.cc
-index e64ac7eccdf8..4ce155f77c44 100644
+index 4e76209bb5..ae5c58d1cb 100644
 --- a/mojo/core/data_pipe_consumer_dispatcher.cc
 +++ b/mojo/core/data_pipe_consumer_dispatcher.cc
 @@ -14,7 +14,7 @@
@@ -87,7 +87,7 @@ index e64ac7eccdf8..4ce155f77c44 100644
  #include "mojo/core/data_pipe_control_message.h"
  #include "mojo/core/node_controller.h"
 diff --git a/mojo/core/data_pipe_producer_dispatcher.cc b/mojo/core/data_pipe_producer_dispatcher.cc
-index 80ff8ee2ac46..7d64cd29ca84 100644
+index 65f72611ee..db3d6ffbc8 100644
 --- a/mojo/core/data_pipe_producer_dispatcher.cc
 +++ b/mojo/core/data_pipe_producer_dispatcher.cc
 @@ -12,7 +12,7 @@
@@ -100,7 +100,7 @@ index 80ff8ee2ac46..7d64cd29ca84 100644
  #include "mojo/core/core.h"
  #include "mojo/core/data_pipe_control_message.h"
 diff --git a/mojo/core/handle_table.cc b/mojo/core/handle_table.cc
-index 9426281d73f0..b4e1920a2126 100644
+index 9426281d73..b4e1920a21 100644
 --- a/mojo/core/handle_table.cc
 +++ b/mojo/core/handle_table.cc
 @@ -7,8 +7,10 @@
@@ -116,7 +116,7 @@ index 9426281d73f0..b4e1920a2126 100644
  namespace mojo {
  namespace core {
 diff --git a/mojo/core/handle_table.h b/mojo/core/handle_table.h
-index 90555d8bdd7e..a1dbd547136c 100644
+index 616eacd625..124cb77def 100644
 --- a/mojo/core/handle_table.h
 +++ b/mojo/core/handle_table.h
 @@ -13,7 +13,7 @@
@@ -129,7 +129,7 @@ index 90555d8bdd7e..a1dbd547136c 100644
  #include "mojo/core/system_impl_export.h"
  #include "mojo/public/c/system/types.h"
 diff --git a/mojo/core/message_pipe_dispatcher.cc b/mojo/core/message_pipe_dispatcher.cc
-index 3b057ec39b8b..a95633adc15a 100644
+index b47bc2bacc..52dfdb5536 100644
 --- a/mojo/core/message_pipe_dispatcher.cc
 +++ b/mojo/core/message_pipe_dispatcher.cc
 @@ -10,8 +10,7 @@
@@ -143,7 +143,7 @@ index 3b057ec39b8b..a95633adc15a 100644
  #include "mojo/core/node_controller.h"
  #include "mojo/core/ports/event.h"
 diff --git a/mojo/core/user_message_impl.cc b/mojo/core/user_message_impl.cc
-index ec0686b629d1..0dafc3db2c03 100644
+index 33fdbf5c20..4b73f7bca5 100644
 --- a/mojo/core/user_message_impl.cc
 +++ b/mojo/core/user_message_impl.cc
 @@ -13,10 +13,7 @@
@@ -172,7 +172,7 @@ index e2ee25b22dee..e1296e45fb27 100644
  
  namespace mojo {
 diff --git a/mojo/public/cpp/bindings/lib/connector.cc b/mojo/public/cpp/bindings/lib/connector.cc
-index 51e80d48bf28..58763ed1d4e3 100644
+index ec1c967c34..244e352d52 100644
 --- a/mojo/public/cpp/bindings/lib/connector.cc
 +++ b/mojo/public/cpp/bindings/lib/connector.cc
 @@ -22,9 +22,7 @@
@@ -197,7 +197,7 @@ index 51e80d48bf28..58763ed1d4e3 100644
  #if defined(ENABLE_IPC_FUZZER)
  #include "mojo/public/cpp/bindings/message_dumper.h"
 diff --git a/mojo/public/cpp/bindings/lib/message.cc b/mojo/public/cpp/bindings/lib/message.cc
-index eb92d9368d7d..c373ca24a4ee 100644
+index 03f6c19366..2f82bb81a9 100644
 --- a/mojo/public/cpp/bindings/lib/message.cc
 +++ b/mojo/public/cpp/bindings/lib/message.cc
 @@ -18,9 +18,7 @@
@@ -216,9 +216,9 @@ index ea7ceeea140d..16e3b6939fbc 100644
 --- a/mojo/public/cpp/bindings/struct_ptr.h
 +++ b/mojo/public/cpp/bindings/struct_ptr.h
 @@ -16,7 +16,6 @@
+ #include "base/template_util.h"
  #include "mojo/public/cpp/bindings/lib/hash_util.h"
  #include "mojo/public/cpp/bindings/type_converter.h"
- #include "third_party/abseil-cpp/absl/types/optional.h"
 -#include "third_party/perfetto/include/perfetto/tracing/traced_value_forward.h"
  
  namespace mojo {
@@ -228,8 +228,8 @@ index 700fda474bf4..898926341cb2 100644
 --- a/mojo/public/cpp/system/simple_watcher.cc
 +++ b/mojo/public/cpp/system/simple_watcher.cc
 @@ -11,11 +11,12 @@
- #include "base/synchronization/lock.h"
  #include "base/task/common/task_annotator.h"
+ #include "base/task/sequenced_task_runner_forward.h"
  #include "base/threading/thread_task_runner_handle.h"
 -#include "base/trace_event/heap_profiler.h"
 -#include "base/trace_event/trace_event.h"
@@ -312,14 +312,14 @@ index 504d46735771..25284e0c0816 100644
 --- a/mojo/public/tools/bindings/generators/cpp_templates/wrapper_class_definition.tmpl
 +++ b/mojo/public/tools/bindings/generators/cpp_templates/wrapper_class_definition.tmpl
 @@ -33,7 +33,9 @@ size_t {{struct.name}}::Hash(size_t seed) const {
- {%- endif %}
  
- void {{struct.name}}::WriteIntoTrace(perfetto::TracedValue context) const {
+ void {{struct.name}}::WriteIntoTrace(
+     perfetto::TracedValue traced_context) const {
 +{%- if struct.fields %}
-   auto dict = std::move(context).WriteDictionary();
+   auto dict = std::move(traced_context).WriteDictionary();
 +{%- endif %}
  {%-  for field in struct.fields %}
    perfetto::WriteIntoTracedValueWithFallback(
      dict.AddItem(
 -- 
-2.34.1.400.ga245620fadb-goog
+2.34.0.rc1.387.gb447b232ab-goog

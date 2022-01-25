@@ -180,9 +180,9 @@ index 933ef4126e..d75fd662dd 100644
  
  #include "base/memory/weak_ptr.h"
 +#include "base/optional.h"
- #include "base/single_thread_task_runner.h"
  #include "base/task/common/checked_lock.h"
  #include "base/task/sequence_manager/lazy_now.h"
+ #include "base/sequence_manager/tasks.h.h"
 diff --git a/base/task/sequence_manager/test/mock_time_message_pump.h b/base/task/sequence_manager/test/mock_time_message_pump.h
 index 12423e5037..cf3ab73ef9 100644
 --- a/base/task/sequence_manager/test/mock_time_message_pump.h
@@ -212,13 +212,13 @@ index e85c411676..d88b4d74be 100644
 --- a/base/task/thread_pool/delayed_task_manager.h
 +++ b/base/task/thread_pool/delayed_task_manager.h
 @@ -9,6 +9,7 @@
- #include "base/callback.h"
+ #include "base/containers/intrusive_heap.h"
  #include "base/memory/ptr_util.h"
  #include "base/memory/ref_counted.h"
 +#include "base/optional.h"
  #include "base/synchronization/atomic_flag.h"
  #include "base/task/common/checked_lock.h"
- #include "base/task/common/intrusive_heap.h"
+ #include "base/task/thread_pool/task.h"
 diff --git a/base/task/thread_pool/job_task_source.h b/base/task/thread_pool/job_task_source.h
 index d84cd84181..0e74e77c3f 100644
 --- a/base/task/thread_pool/job_task_source.h
@@ -248,13 +248,13 @@ index 87f928a84f..43f3bcfcab 100644
 --- a/base/task/thread_pool/task_source.h
 +++ b/base/task/thread_pool/task_source.h
 @@ -10,6 +10,7 @@
- #include "base/base_export.h"
  #include "base/compiler_specific.h"
+ #include "base/containers/intrusive_heap.h"
  #include "base/memory/ref_counted.h"
 +#include "base/optional.h"
  #include "base/sequence_token.h"
  #include "base/task/common/checked_lock.h"
- #include "base/task/common/intrusive_heap.h"
+ #include "base/task/task_traits.h"
 diff --git a/base/task/thread_pool/thread_group_impl.h b/base/task/thread_pool/thread_group_impl.h
 index 597fa2a042..8380d79c70 100644
 --- a/base/task/thread_pool/thread_group_impl.h
@@ -264,9 +264,9 @@ index 597fa2a042..8380d79c70 100644
  #include "base/gtest_prod_util.h"
  #include "base/memory/ref_counted.h"
 +#include "base/optional.h"
- #include "base/sequenced_task_runner.h"
  #include "base/strings/string_piece.h"
  #include "base/synchronization/condition_variable.h"
+ #include "base/synchronization/waitable_event.h"
 diff --git a/base/task/thread_pool/thread_pool_impl.h b/base/task/thread_pool/thread_pool_impl.h
 index 80709dd3fa..3df9f7f86a 100644
 --- a/base/task/thread_pool/thread_pool_impl.h
@@ -310,7 +310,7 @@ index a872f4302e..12200aa9af 100644
 @@ -72,6 +72,7 @@
  #include "base/check_op.h"
  #include "base/compiler_specific.h"
- #include "base/numerics/safe_math.h"
+ #include "base/numerics/clamped_math.h"
 +#include "base/optional.h"
  #include "build/build_config.h"
  #include "build/chromeos_buildflags.h"
@@ -320,25 +320,82 @@ index df981afec6..a6c2c035b5 100644
 --- a/base/token.h
 +++ b/base/token.h
 @@ -12,6 +12,7 @@
- 
  #include "base/base_export.h"
+ #include "base/containers/span.h"
  #include "base/hash/hash.h"
 +#include "base/optional.h"
  #include "third_party/abseil-cpp/absl/types/optional.h"
  
  namespace base {
 diff --git a/base/util/values/values_util.h b/base/util/values/values_util.h
+new file mode 100644
 index 3352fbf420..c18dafcf13 100644
---- a/base/util/values/values_util.h
+--- /dev/null
 +++ b/base/util/values/values_util.h
-@@ -5,6 +5,7 @@
- #ifndef BASE_UTIL_VALUES_VALUES_UTIL_H_
- #define BASE_UTIL_VALUES_VALUES_UTIL_H_
- 
+@@ -0,0 +1,63 @@
++// Copyright 2019 The Chromium Authors. All rights reserved.
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef BASE_UTIL_VALUES_VALUES_UTIL_H_
++#define BASE_UTIL_VALUES_VALUES_UTIL_H_
++
 +#include "base/optional.h"
- #include "base/values.h"
- #include "third_party/abseil-cpp/absl/types/optional.h"
- 
++#include "base/values.h"
++#include "third_party/abseil-cpp/absl/types/optional.h"
++
++namespace base {
++class FilePath;
++class Time;
++class TimeDelta;
++class UnguessableToken;
++}  // namespace base
++
++namespace util {
++
++// Simple helper functions for converting between base::Value and other types.
++// The base::Value representation is stable, suitable for persistent storage
++// e.g. as JSON on disk.
++//
++// It is valid to pass nullptr to the ValueToEtc functions. They will just
++// return absl::nullopt.
++
++// Converts between an int64_t and a string-flavored base::Value (a human
++// readable string of that number).
++base::Value Int64ToValue(int64_t integer);
++absl::optional<int64_t> ValueToInt64(const base::Value* value);
++absl::optional<int64_t> ValueToInt64(const base::Value& value);
++
++// Converts between a base::TimeDelta (an int64_t number of microseconds) and a
++// string-flavored base::Value (a human readable string of that number).
++base::Value TimeDeltaToValue(base::TimeDelta time_delta);
++absl::optional<base::TimeDelta> ValueToTimeDelta(const base::Value* value);
++absl::optional<base::TimeDelta> ValueToTimeDelta(const base::Value& value);
++
++// Converts between a base::Time (an int64_t number of microseconds since the
++// Windows epoch) and a string-flavored base::Value (a human readable string of
++// that number).
++base::Value TimeToValue(base::Time time);
++absl::optional<base::Time> ValueToTime(const base::Value* value);
++absl::optional<base::Time> ValueToTime(const base::Value& value);
++
++// Converts between a base::FilePath (a std::string or std::u16string) and a
++// string-flavored base::Value (the UTF-8 representation).
++base::Value FilePathToValue(base::FilePath file_path);
++absl::optional<base::FilePath> ValueToFilePath(const base::Value* value);
++absl::optional<base::FilePath> ValueToFilePath(const base::Value& value);
++
++// Converts between a base::UnguessableToken (128 bits) and a string-flavored
++// base::Value (32 hexadecimal digits).
++base::Value UnguessableTokenToValue(base::UnguessableToken token);
++absl::optional<base::UnguessableToken> ValueToUnguessableToken(
++    const base::Value* value);
++absl::optional<base::UnguessableToken> ValueToUnguessableToken(
++    const base::Value& value);
++
++}  // namespace util
++
++#endif  // BASE_UTIL_VALUES_VALUES_UTIL_H_
 diff --git a/base/values.h b/base/values.h
 index da0339da90..1c4b1d2d1e 100644
 --- a/base/values.h

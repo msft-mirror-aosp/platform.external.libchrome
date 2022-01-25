@@ -180,6 +180,7 @@ libbase_sublibs = [
       "base/files/scoped_file.cc",
       "base/files/scoped_file_linux.cc",
       "base/files/scoped_temp_dir.cc",
+      "base/file_descriptor_posix.cc",
       "base/guid.cc",
       "base/hash/hash.cc",
       "base/hash/md5.cc",
