@@ -35,7 +35,6 @@ Do-not-use-boringssl-in-base-UnguessableToken.patch
 # libchrome does not support trace_event
 # Compatmentalize patches to reduce chance of failing to apply them.
 disable-trace_event-in-base.patch
-disable-trace_event-in-components.patch
 disable-trace_event-in-mojo.patch
 disable-trace_event-in-ipc.patch
 # To avoid redefinition error when client packages uses real perfetto
