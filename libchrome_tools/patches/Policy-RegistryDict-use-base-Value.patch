@@ -1,0 +1,480 @@
+From 080f26eba107c8d6d75bb7aaef895652ff061a00 Mon Sep 17 00:00:00 2001
+From: Austin Sullivan <asully@chromium.org>
+Date: Wed, 22 Dec 2021 10:19:39 -0800
+Subject: [PATCH] [Code Health] Refactor RegistryDict off
+ base::DictValue::CreateDeepCopy
+
+Also does some refactors of unique_ptr<Value> to Value.
+
+This change is a no-op except for the SetValue() method, which will
+no longer remove am entry if null is passed (it is no longer possible
+to pass a null value).
+
+Bug: 1187059
+Change-Id: Ib5e2a2053a72bfe801d595f466df8aef9c94b42a
+Reviewed-on: https://chromium-review.googlesource.com/c/chromium/src/+/3330021
+Reviewed-by: Nicolas Ouellet-Payeur <nicolaso@chromium.org>
+Commit-Queue: Austin Sullivan <asully@chromium.org>
+Cr-Commit-Position: refs/heads/main@{#953588}
+
+
+CrOS-Libchrome-Original-Commit: 21373e2f424ee04030bf24982a6665da06bfab7f
+---
+ components/policy/core/common/preg_parser.cc  | 12 +--
+ .../core/common/preg_parser_unittest.cc       | 14 +--
+ .../policy/core/common/registry_dict.cc       | 31 +++---
+ components/policy/core/common/registry_dict.h | 13 ++-
+ .../core/common/registry_dict_unittest.cc     | 99 ++++++++++---------
+ 5 files changed, 82 insertions(+), 87 deletions(-)
+
+diff --git a/components/policy/core/common/preg_parser.cc b/components/policy/core/common/preg_parser.cc
+index 25ca2db31b..794bfbb986 100644
+--- a/components/policy/core/common/preg_parser.cc
++++ b/components/policy/core/common/preg_parser.cc
+@@ -158,14 +158,14 @@ bool DecodePRegStringValue(const std::vector<uint8_t>& data,
+ // Decodes a value from a PReg file given as a uint8_t vector.
+ bool DecodePRegValue(uint32_t type,
+                      const std::vector<uint8_t>& data,
+-                     std::unique_ptr<base::Value>* value) {
++                     base::Value& value) {
+   std::string data_utf8;
+   switch (type) {
+     case REG_SZ:
+     case REG_EXPAND_SZ:
+       if (!DecodePRegStringValue(data, &data_utf8))
+         return false;
+-      *value = std::make_unique<base::Value>(data_utf8);
++      value = base::Value(data_utf8);
+       return true;
+     case REG_DWORD_LITTLE_ENDIAN:
+     case REG_DWORD_BIG_ENDIAN:
+@@ -175,7 +175,7 @@ bool DecodePRegValue(uint32_t type,
+           val = base::NetToHost32(val);
+         else
+           val = base::ByteSwapToLE32(val);
+-        *value = std::make_unique<base::Value>(static_cast<int>(val));
++        value = base::Value(static_cast<int>(val));
+         return true;
+       } else {
+         LOG(ERROR) << "Bad data size " << data.size();
+@@ -249,9 +249,9 @@ void HandleRecord(const std::u16string& key_name,
+   std::string value_name(base::UTF16ToUTF8(value));
+   if (!base::StartsWith(value_name, kActionTriggerPrefix,
+                         base::CompareCase::SENSITIVE)) {
+-    std::unique_ptr<base::Value> value_ptr;
+-    if (DecodePRegValue(type, data, &value_ptr))
+-      dict->SetValue(value_name, std::move(value_ptr));
++    base::Value value;
++    if (DecodePRegValue(type, data, value))
++      dict->SetValue(value_name, std::move(value));
+     return;
+   }
+ 
+diff --git a/components/policy/core/common/preg_parser_unittest.cc b/components/policy/core/common/preg_parser_unittest.cc
+index f950a5f838..3e752652d3 100644
+--- a/components/policy/core/common/preg_parser_unittest.cc
++++ b/components/policy/core/common/preg_parser_unittest.cc
+@@ -58,33 +58,33 @@ testing::AssertionResult RegistryDictEquals(const RegistryDict& a,
+   for (; iter_value_a != a.values().end() && iter_value_b != b.values().end();
+        ++iter_value_a, ++iter_value_b) {
+     if (iter_value_a->first != iter_value_b->first ||
+-        *iter_value_a->second != *iter_value_b->second) {
++        iter_value_a->second != iter_value_b->second) {
+       return testing::AssertionFailure()
+              << "Value mismatch " << iter_value_a->first << "="
+-             << *iter_value_a->second << " vs. " << iter_value_b->first << "="
+-             << *iter_value_b->second;
++             << iter_value_a->second << " vs. " << iter_value_b->first << "="
++             << iter_value_b->second;
+     }
+   }
+   if (iter_value_a != a.values().end())
+     return testing::AssertionFailure()
+            << "Value mismatch, a has extra value " << iter_value_a->first << "="
+-           << *iter_value_a->second;
++           << iter_value_a->second;
+   if (iter_value_b != b.values().end())
+     return testing::AssertionFailure()
+            << "Value mismatch, b has extra value " << iter_value_b->first << "="
+-           << *iter_value_b->second;
++           << iter_value_b->second;
+ 
+   return testing::AssertionSuccess();
+ }
+ 
+ void SetInteger(RegistryDict* dict, const std::string& name, int value) {
+-  dict->SetValue(name, base::WrapUnique<base::Value>(new base::Value(value)));
++  dict->SetValue(name, base::Value(value));
+ }
+ 
+ void SetString(RegistryDict* dict,
+                const std::string& name,
+                const std::string& value) {
+-  dict->SetValue(name, base::WrapUnique<base::Value>(new base::Value(value)));
++  dict->SetValue(name, base::Value(value));
+ }
+ 
+ class PRegParserTest : public testing::Test {
+diff --git a/components/policy/core/common/registry_dict.cc b/components/policy/core/common/registry_dict.cc
+index 329e1ca9e0..5f561918f9 100644
+--- a/components/policy/core/common/registry_dict.cc
++++ b/components/policy/core/common/registry_dict.cc
+@@ -15,6 +15,7 @@
+ #include "base/sys_byteorder.h"
+ #include "base/values.h"
+ #include "components/policy/core/common/schema.h"
++#include "third_party/abseil-cpp/absl/types/optional.h"
+ 
+ #if defined(OS_WIN)
+ #include "base/win/registry.h"
+@@ -188,27 +189,20 @@ void RegistryDict::ClearKeys() {
+ 
+ base::Value* RegistryDict::GetValue(const std::string& name) {
+   auto entry = values_.find(name);
+-  return entry != values_.end() ? entry->second.get() : nullptr;
++  return entry != values_.end() ? &entry->second : nullptr;
+ }
+ 
+ const base::Value* RegistryDict::GetValue(const std::string& name) const {
+   auto entry = values_.find(name);
+-  return entry != values_.end() ? entry->second.get() : nullptr;
++  return entry != values_.end() ? &entry->second : nullptr;
+ }
+ 
+-void RegistryDict::SetValue(const std::string& name,
+-                            std::unique_ptr<base::Value> dict) {
+-  if (!dict) {
+-    RemoveValue(name);
+-    return;
+-  }
+-
++void RegistryDict::SetValue(const std::string& name, base::Value&& dict) {
+   values_[name] = std::move(dict);
+ }
+ 
+-std::unique_ptr<base::Value> RegistryDict::RemoveValue(
+-    const std::string& name) {
+-  std::unique_ptr<base::Value> result;
++absl::optional<base::Value> RegistryDict::RemoveValue(const std::string& name) {
++  absl::optional<base::Value> result;
+   auto entry = values_.find(name);
+   if (entry != values_.end()) {
+     result = std::move(entry->second);
+@@ -231,8 +225,7 @@ void RegistryDict::Merge(const RegistryDict& other) {
+ 
+   for (auto entry(other.values_.begin()); entry != other.values_.end();
+        ++entry) {
+-    SetValue(entry->first,
+-             base::Value::ToUniquePtrValue(entry->second->Clone()));
++    SetValue(entry->first, entry->second.Clone());
+   }
+ }
+ 
+@@ -252,8 +245,7 @@ void RegistryDict::ReadRegistry(HKEY hive, const std::wstring& root) {
+     switch (it.Type()) {
+       case REG_SZ:
+       case REG_EXPAND_SZ:
+-        SetValue(name,
+-                 std::make_unique<base::Value>(base::WideToUTF8(it.Value())));
++        SetValue(name, base::Value(base::WideToUTF8(it.Value())));
+         continue;
+       case REG_DWORD_LITTLE_ENDIAN:
+       case REG_DWORD_BIG_ENDIAN:
+@@ -263,8 +255,7 @@ void RegistryDict::ReadRegistry(HKEY hive, const std::wstring& root) {
+             dword_value = base::NetToHost32(dword_value);
+           else
+             dword_value = base::ByteSwapToLE32(dword_value);
+-          SetValue(name, std::make_unique<base::Value>(
+-                             static_cast<int>(dword_value)));
++          SetValue(name, base::Value(static_cast<int>(dword_value)));
+           continue;
+         }
+         FALLTHROUGH;
+@@ -310,7 +301,7 @@ std::unique_ptr<base::Value> RegistryDict::ConvertToJSON(
+           matching_schemas.push_back(Schema());
+         for (const Schema& subschema : matching_schemas) {
+           absl::optional<base::Value> converted =
+-              ConvertRegistryValue(*entry->second, subschema);
++              ConvertRegistryValue(entry->second, subschema);
+           if (converted.has_value()) {
+             result->SetKey(entry->first, std::move(converted.value()));
+             break;
+@@ -353,7 +344,7 @@ std::unique_ptr<base::Value> RegistryDict::ConvertToJSON(
+         if (!IsKeyNumerical(entry->first))
+           continue;
+         absl::optional<base::Value> converted =
+-            ConvertRegistryValue(*entry->second, item_schema);
++            ConvertRegistryValue(entry->second, item_schema);
+         if (converted.has_value())
+           result->Append(std::move(converted.value()));
+       }
+diff --git a/components/policy/core/common/registry_dict.h b/components/policy/core/common/registry_dict.h
+index 7bbd392c95..827427910d 100644
+--- a/components/policy/core/common/registry_dict.h
++++ b/components/policy/core/common/registry_dict.h
+@@ -44,9 +44,8 @@ class POLICY_EXPORT RegistryDict {
+   using KeyMap = std::map<std::string,
+                           std::unique_ptr<RegistryDict>,
+                           CaseInsensitiveStringCompare>;
+-  using ValueMap = std::map<std::string,
+-                            std::unique_ptr<base::Value>,
+-                            CaseInsensitiveStringCompare>;
++  using ValueMap =
++      std::map<std::string, base::Value, CaseInsensitiveStringCompare>;
+ 
+   RegistryDict();
+   RegistryDict(const RegistryDict&) = delete;
+@@ -66,10 +65,10 @@ class POLICY_EXPORT RegistryDict {
+   // Returns a pointer to a value, NULL if not present.
+   base::Value* GetValue(const std::string& name);
+   const base::Value* GetValue(const std::string& name) const;
+-  // Sets a value. If |value| is NULL, removes the value.
+-  void SetValue(const std::string& name, std::unique_ptr<base::Value> value);
+-  // Removes a value. If the value doesn't exist, NULL is returned.
+-  std::unique_ptr<base::Value> RemoveValue(const std::string& name);
++  // Sets a value.
++  void SetValue(const std::string& name, base::Value&& value);
++  // Removes a value. If the value doesn't exist, nullopt is returned.
++  absl::optional<base::Value> RemoveValue(const std::string& name);
+   // Clears all values.
+   void ClearValues();
+ 
+diff --git a/components/policy/core/common/registry_dict_unittest.cc b/components/policy/core/common/registry_dict_unittest.cc
+index aa2ad406b1..bce872392b 100644
+--- a/components/policy/core/common/registry_dict_unittest.cc
++++ b/components/policy/core/common/registry_dict_unittest.cc
+@@ -9,6 +9,7 @@
+ #include <utility>
+ 
+ #include "base/values.h"
++#include "build/build_config.h"
+ #include "components/policy/core/common/schema.h"
+ #include "testing/gtest/include/gtest/gtest.h"
+ 
+@@ -21,19 +22,20 @@ TEST(RegistryDictTest, SetAndGetValue) {
+   base::Value int_value(42);
+   base::Value string_value("fortytwo");
+ 
+-  test_dict.SetValue("one", int_value.CreateDeepCopy());
++  test_dict.SetValue("one", int_value.Clone());
+   EXPECT_EQ(1u, test_dict.values().size());
+   EXPECT_EQ(int_value, *test_dict.GetValue("one"));
+   EXPECT_FALSE(test_dict.GetValue("two"));
+ 
+-  test_dict.SetValue("two", string_value.CreateDeepCopy());
++  test_dict.SetValue("two", string_value.Clone());
+   EXPECT_EQ(2u, test_dict.values().size());
+   EXPECT_EQ(int_value, *test_dict.GetValue("one"));
+   EXPECT_EQ(string_value, *test_dict.GetValue("two"));
+ 
+-  std::unique_ptr<base::Value> one(test_dict.RemoveValue("one"));
++  absl::optional<base::Value> one(test_dict.RemoveValue("one"));
++  ASSERT_TRUE(one.has_value());
+   EXPECT_EQ(1u, test_dict.values().size());
+-  EXPECT_EQ(int_value, *one);
++  EXPECT_EQ(int_value, one.value());
+   EXPECT_FALSE(test_dict.GetValue("one"));
+   EXPECT_EQ(string_value, *test_dict.GetValue("two"));
+ 
+@@ -49,7 +51,7 @@ TEST(RegistryDictTest, CaseInsensitiveButPreservingValueNames) {
+   base::Value int_value(42);
+   base::Value string_value("fortytwo");
+ 
+-  test_dict.SetValue("One", int_value.CreateDeepCopy());
++  test_dict.SetValue("One", int_value.Clone());
+   EXPECT_EQ(1u, test_dict.values().size());
+   EXPECT_EQ(int_value, *test_dict.GetValue("oNe"));
+ 
+@@ -57,12 +59,13 @@ TEST(RegistryDictTest, CaseInsensitiveButPreservingValueNames) {
+   ASSERT_NE(entry, test_dict.values().end());
+   EXPECT_EQ("One", entry->first);
+ 
+-  test_dict.SetValue("ONE", string_value.CreateDeepCopy());
++  test_dict.SetValue("ONE", string_value.Clone());
+   EXPECT_EQ(1u, test_dict.values().size());
+   EXPECT_EQ(string_value, *test_dict.GetValue("one"));
+ 
+-  std::unique_ptr<base::Value> removed_value(test_dict.RemoveValue("onE"));
+-  EXPECT_EQ(string_value, *removed_value);
++  absl::optional<base::Value> removed_value(test_dict.RemoveValue("onE"));
++  ASSERT_TRUE(removed_value.has_value());
++  EXPECT_EQ(string_value, removed_value.value());
+   EXPECT_TRUE(test_dict.values().empty());
+ }
+ 
+@@ -73,7 +76,7 @@ TEST(RegistryDictTest, SetAndGetKeys) {
+   base::Value string_value("fortytwo");
+ 
+   std::unique_ptr<RegistryDict> subdict(new RegistryDict());
+-  subdict->SetValue("one", int_value.CreateDeepCopy());
++  subdict->SetValue("one", int_value.Clone());
+   test_dict.SetKey("two", std::move(subdict));
+   EXPECT_EQ(1u, test_dict.keys().size());
+   RegistryDict* actual_subdict = test_dict.GetKey("two");
+@@ -81,7 +84,7 @@ TEST(RegistryDictTest, SetAndGetKeys) {
+   EXPECT_EQ(int_value, *actual_subdict->GetValue("one"));
+ 
+   subdict = std::make_unique<RegistryDict>();
+-  subdict->SetValue("three", string_value.CreateDeepCopy());
++  subdict->SetValue("three", string_value.Clone());
+   test_dict.SetKey("four", std::move(subdict));
+   EXPECT_EQ(2u, test_dict.keys().size());
+   actual_subdict = test_dict.GetKey("two");
+@@ -113,7 +116,7 @@ TEST(RegistryDictTest, CaseInsensitiveButPreservingKeyNames) {
+   EXPECT_EQ("One", entry->first);
+ 
+   std::unique_ptr<RegistryDict> subdict(new RegistryDict());
+-  subdict->SetValue("two", int_value.CreateDeepCopy());
++  subdict->SetValue("two", int_value.Clone());
+   test_dict.SetKey("ONE", std::move(subdict));
+   EXPECT_EQ(1u, test_dict.keys().size());
+   actual_subdict = test_dict.GetKey("One");
+@@ -133,17 +136,17 @@ TEST(RegistryDictTest, Merge) {
+   base::Value int_value(42);
+   base::Value string_value("fortytwo");
+ 
+-  dict_a.SetValue("one", int_value.CreateDeepCopy());
++  dict_a.SetValue("one", int_value.Clone());
+   std::unique_ptr<RegistryDict> subdict(new RegistryDict());
+-  subdict->SetValue("two", string_value.CreateDeepCopy());
++  subdict->SetValue("two", string_value.Clone());
+   dict_a.SetKey("three", std::move(subdict));
+ 
+-  dict_b.SetValue("four", string_value.CreateDeepCopy());
++  dict_b.SetValue("four", string_value.Clone());
+   subdict = std::make_unique<RegistryDict>();
+-  subdict->SetValue("two", int_value.CreateDeepCopy());
++  subdict->SetValue("two", int_value.Clone());
+   dict_b.SetKey("three", std::move(subdict));
+   subdict = std::make_unique<RegistryDict>();
+-  subdict->SetValue("five", int_value.CreateDeepCopy());
++  subdict->SetValue("five", int_value.Clone());
+   dict_b.SetKey("six", std::move(subdict));
+ 
+   dict_a.Merge(dict_b);
+@@ -165,9 +168,9 @@ TEST(RegistryDictTest, Swap) {
+   base::Value int_value(42);
+   base::Value string_value("fortytwo");
+ 
+-  dict_a.SetValue("one", int_value.CreateDeepCopy());
++  dict_a.SetValue("one", int_value.Clone());
+   dict_a.SetKey("two", std::make_unique<RegistryDict>());
+-  dict_b.SetValue("three", string_value.CreateDeepCopy());
++  dict_b.SetValue("three", string_value.Clone());
+ 
+   dict_a.Swap(&dict_b);
+ 
+@@ -189,19 +192,19 @@ TEST(RegistryDictTest, ConvertToJSON) {
+   base::Value string_zero("0");
+   base::Value string_dict("{ \"key\": [ \"value\" ] }");
+ 
+-  test_dict.SetValue("one", int_value.CreateDeepCopy());
++  test_dict.SetValue("one", int_value.Clone());
+   std::unique_ptr<RegistryDict> subdict(new RegistryDict());
+-  subdict->SetValue("two", string_value.CreateDeepCopy());
++  subdict->SetValue("two", string_value.Clone());
+   test_dict.SetKey("three", std::move(subdict));
+   std::unique_ptr<RegistryDict> list(new RegistryDict());
+-  list->SetValue("1", string_value.CreateDeepCopy());
++  list->SetValue("1", string_value.Clone());
+   test_dict.SetKey("dict-to-list", std::move(list));
+-  test_dict.SetValue("int-to-bool", int_value.CreateDeepCopy());
+-  test_dict.SetValue("int-to-double", int_value.CreateDeepCopy());
+-  test_dict.SetValue("string-to-bool", string_zero.CreateDeepCopy());
+-  test_dict.SetValue("string-to-double", string_zero.CreateDeepCopy());
+-  test_dict.SetValue("string-to-int", string_zero.CreateDeepCopy());
+-  test_dict.SetValue("string-to-dict", string_dict.CreateDeepCopy());
++  test_dict.SetValue("int-to-bool", int_value.Clone());
++  test_dict.SetValue("int-to-double", int_value.Clone());
++  test_dict.SetValue("string-to-bool", string_zero.Clone());
++  test_dict.SetValue("string-to-double", string_zero.Clone());
++  test_dict.SetValue("string-to-int", string_zero.Clone());
++  test_dict.SetValue("string-to-dict", string_dict.Clone());
+ 
+   std::string error;
+   Schema schema = Schema::Parse(
+@@ -251,10 +254,10 @@ TEST(RegistryDictTest, NonSequentialConvertToJSON) {
+   RegistryDict test_dict;
+ 
+   std::unique_ptr<RegistryDict> list(new RegistryDict());
+-  list->SetValue("1", base::Value("1").CreateDeepCopy());
+-  list->SetValue("2", base::Value("2").CreateDeepCopy());
+-  list->SetValue("THREE", base::Value("3").CreateDeepCopy());
+-  list->SetValue("4", base::Value("4").CreateDeepCopy());
++  list->SetValue("1", base::Value("1").Clone());
++  list->SetValue("2", base::Value("2").Clone());
++  list->SetValue("THREE", base::Value("3").Clone());
++  list->SetValue("4", base::Value("4").Clone());
+   test_dict.SetKey("dict-to-list", std::move(list));
+ 
+   std::string error;
+@@ -275,9 +278,9 @@ TEST(RegistryDictTest, NonSequentialConvertToJSON) {
+ 
+   base::DictionaryValue expected;
+   std::unique_ptr<base::ListValue> expected_list(new base::ListValue());
+-  expected_list->Append(base::Value("1").CreateDeepCopy());
+-  expected_list->Append(base::Value("2").CreateDeepCopy());
+-  expected_list->Append(base::Value("4").CreateDeepCopy());
++  expected_list->Append(base::Value("1").Clone());
++  expected_list->Append(base::Value("2").Clone());
++  expected_list->Append(base::Value("4").Clone());
+   expected.Set("dict-to-list", std::move(expected_list));
+ 
+   EXPECT_EQ(expected, *actual);
+@@ -292,15 +295,14 @@ TEST(RegistryDictTest, PatternPropertySchema) {
+   std::unique_ptr<RegistryDict> policy_dict(new RegistryDict());
+   std::unique_ptr<RegistryDict> subdict_id(new RegistryDict());
+   // Values with schema are parsed even if the schema is a regexp property.
+-  subdict_id->SetValue("runtime_blocked_hosts", string_dict.CreateDeepCopy());
+-  subdict_id->SetValue("runtime_allowed_hosts", string_dict.CreateDeepCopy());
++  subdict_id->SetValue("runtime_blocked_hosts", string_dict.Clone());
++  subdict_id->SetValue("runtime_allowed_hosts", string_dict.Clone());
+   // Regexp. validated properties are valid too.
+-  subdict_id->SetValue("minimum_version_required",
+-                       version_string.CreateDeepCopy());
++  subdict_id->SetValue("minimum_version_required", version_string.Clone());
+   policy_dict->SetKey("aaaabbbbaaaabbbbaaaabbbbaaaabbbb",
+                       std::move(subdict_id));
+   // Values that have no schema are left as strings regardless of structure.
+-  policy_dict->SetValue("invalid_key", string_dict.CreateDeepCopy());
++  policy_dict->SetValue("invalid_key", string_dict.Clone());
+   test_dict.SetKey("ExtensionSettings", std::move(policy_dict));
+ 
+   std::string error;
+@@ -346,12 +348,15 @@ TEST(RegistryDictTest, PatternPropertySchema) {
+   list_value->Append("*://*.google.com");
+   std::unique_ptr<base::DictionaryValue> restrictions_properties(
+       new base::DictionaryValue());
+-  restrictions_properties->Set("runtime_blocked_hosts",
+-                               list_value->CreateDeepCopy());
+-  restrictions_properties->Set("runtime_allowed_hosts",
+-                               list_value->CreateDeepCopy());
+-  restrictions_properties->Set("minimum_version_required",
+-                               version_string.CreateDeepCopy());
++  restrictions_properties->Set(
++      "runtime_blocked_hosts",
++      base::Value::ToUniquePtrValue(list_value->Clone()));
++  restrictions_properties->Set(
++      "runtime_allowed_hosts",
++      base::Value::ToUniquePtrValue(list_value->Clone()));
++  restrictions_properties->Set(
++      "minimum_version_required",
++      base::Value::ToUniquePtrValue(version_string.Clone()));
+   expected_extension_settings->Set("aaaabbbbaaaabbbbaaaabbbbaaaabbbb",
+                                    std::move(restrictions_properties));
+   expected_extension_settings->Set(
+@@ -370,9 +375,9 @@ TEST(RegistryDictTest, KeyValueNameClashes) {
+   base::Value int_value(42);
+   base::Value string_value("fortytwo");
+ 
+-  test_dict.SetValue("one", int_value.CreateDeepCopy());
++  test_dict.SetValue("one", int_value.Clone());
+   std::unique_ptr<RegistryDict> subdict(new RegistryDict());
+-  subdict->SetValue("two", string_value.CreateDeepCopy());
++  subdict->SetValue("two", string_value.Clone());
+   test_dict.SetKey("one", std::move(subdict));
+ 
+   EXPECT_EQ(int_value, *test_dict.GetValue("one"));
+-- 
+2.35.0.rc2.247.g8bbb082509-goog
+
