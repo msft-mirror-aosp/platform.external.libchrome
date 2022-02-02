@@ -223,6 +223,8 @@ libbase_sublibs = [
       "base/posix/safe_strerror.cc",
       "base/posix/unix_domain_socket.cc",
       "base/power_monitor/power_monitor.cc",
+      "base/power_monitor/power_monitor_device_source.cc",
+      "base/power_monitor/power_monitor_device_source_chromeos.cc",
       "base/power_monitor/power_monitor_source.cc",
       "base/process/environment_internal.cc",
       "base/process/internal_linux.cc",
