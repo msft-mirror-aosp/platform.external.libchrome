@@ -7,14 +7,14 @@ Cherry-pick of crrev.com/c/3257042 for handling stdin and proc files.
 
 Change-Id: Ief8edbd70d94a877a66443494ffffc2822eefaaa
 ---
- base/files/file_util_posix.cc | 22 ++++++++++++++++++++--
- 1 file changed, 20 insertions(+), 2 deletions(-)
+ base/files/file_util_posix.cc | 23 ++++++++++++++++++++--
+ 1 file changed, 21 insertions(+), 2 deletions(-)
 
 diff --git a/base/files/file_util_posix.cc b/base/files/file_util_posix.cc
 index eba70ab96096..18558f96434d 100644
 --- a/base/files/file_util_posix.cc
 +++ b/base/files/file_util_posix.cc
-@@ -1241,8 +1241,26 @@ bool MoveUnsafe(const FilePath& from_path, const FilePath& to_path) {
+@@ -1241,8 +1241,27 @@ bool MoveUnsafe(const FilePath& from_path, const FilePath& to_path) {
  bool CopyFileContentsWithSendfile(File& infile,
                                    File& outfile,
                                    bool& retry_slow) {
@@ -25,6 +25,7 @@ index eba70ab96096..18558f96434d 100644
 +  retry_slow = false;
 +
 +  if (base::File::Fstat(infile.GetPlatformFile(), &in_file_info)) {
++    retry_slow = true;
 +    return false;
 +  }
 +
