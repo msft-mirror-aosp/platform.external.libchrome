@@ -49,6 +49,11 @@ Revert-base-allocator-Support-max-alloc-size-with-us.patch
 # Avoid reintroduction of the deprecated base::Value APIs
 disable-base-Dictionary-List-Value.patch
 
+# Libchrome prefer to have consistent include headers across debug or
+# non-debug, since release builders have a lot delay. That may cuase our client
+# program unable to discover compilation failure at CQ/postsubmit.
+always-include-platform-thread-h.patch
+
 # ==================== CHERRY PICKS ===========================
 # For use of new base::CopyFileContentsWithSendfile
 # Remove after r938742

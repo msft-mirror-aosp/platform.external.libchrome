@@ -1,0 +1,13 @@
+diff --git a/base/synchronization/lock.h b/base/synchronization/lock.h
+index e1e25d3eb..8d3ef1099 100644
+--- a/base/synchronization/lock.h
++++ b/base/synchronization/lock.h
+@@ -12,7 +12,7 @@
+ #include "base/thread_annotations.h"
+ #include "build/build_config.h"
+ 
+-#if DCHECK_IS_ON()
++#if DCHECK_IS_ON() || 1
+ #include "base/threading/platform_thread.h"
+ #endif
+ 
