@@ -79,7 +79,7 @@ var (
 
 type mojomDowngradedFilesProperties struct {
 	// list of input files
-	Srcs []string `android:"path"`
+	Srcs []string
 }
 
 type mojomDowngradedFiles struct {
@@ -93,10 +93,14 @@ type mojomDowngradedFiles struct {
 
 var _ genrule.SourceFileGenerator = (*mojomDowngradedFiles)(nil)
 
+func (m *mojomDowngradedFiles) DepsMutator(ctx android.BottomUpMutatorContext) {
+	android.ExtractSourcesDeps(ctx, m.properties.Srcs)
+}
+
 func (m *mojomDowngradedFiles) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 	m.outDir = android.PathForModuleGen(ctx, "")
 
-	for _, in := range android.PathsForModuleSrc(ctx, m.properties.Srcs) {
+	for _, in := range ctx.ExpandSources(m.properties.Srcs, nil) {
 		if !strings.HasSuffix(in.Rel(), ".mojom") {
 			ctx.PropertyErrorf("srcs", "Source is not a .mojom file: %s", in.Rel())
 			continue
@@ -141,7 +145,7 @@ func mojomDowngradedFilesFactory() android.Module {
 
 type mojomPicklesProperties struct {
 	// list of input files
-	Srcs []string `android:"path"`
+	Srcs []string
 }
 
 type mojomPickles struct {
@@ -155,10 +159,14 @@ type mojomPickles struct {
 
 var _ genrule.SourceFileGenerator = (*mojomPickles)(nil)
 
+func (m *mojomPickles) DepsMutator(ctx android.BottomUpMutatorContext) {
+	android.ExtractSourcesDeps(ctx, m.properties.Srcs)
+}
+
 func (m *mojomPickles) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 	m.outDir = android.PathForModuleGen(ctx, "")
 
-	for _, in := range android.PathsForModuleSrc(ctx, m.properties.Srcs) {
+	for _, in := range ctx.ExpandSources(m.properties.Srcs, nil) {
 		if !strings.HasSuffix(in.Rel(), ".mojom") {
 			ctx.PropertyErrorf("srcs", "Source is not a .mojom file: %s", in.Rel())
 			continue
@@ -210,36 +218,46 @@ func mojomPicklesFactory() android.Module {
 // source and Java source modules.
 type mojomGenerationProperties struct {
 	// list of input files
-	Srcs []string `android:"path"`
+	Srcs []string
 
 	// name of the output .srcjar
 	Srcjar string
 
 	// name of the templates module
-	Templates string `android:"path"`
+	Templates string
 
 	// Additional flags to pass to the bindings generation script
 	Flags string
 
 	// list of pickles modules that will be imported
-	Pickles []string `android:"path"`
+	Pickles []string
 
 	// list of include paths
 	Includes []string
 
 	// list of typemaps modules that will be imported
-	Typemaps []string `android:"path"`
+	Typemaps []string
 
 	// If true, set --use_once_callback flag to the generator.
 	// This works only on C++ generation.
 	Use_once_callback bool
 }
 
+// extractSources adds any necessary dependencies to satisfy filegroup or
+// generated sources modules listed in the properties using ":module" syntax,
+// if any.
+func (p *mojomGenerationProperties) extractSources(ctx android.BottomUpMutatorContext) {
+	android.ExtractSourcesDeps(ctx, p.Srcs)
+	android.ExtractSourcesDeps(ctx, p.Typemaps)
+	android.ExtractSourcesDeps(ctx, p.Pickles)
+	android.ExtractSourceDeps(ctx, &p.Templates)
+}
+
 // flags generates all needed flags for the build rule.
 func (p *mojomGenerationProperties) flags(ctx android.ModuleContext) string {
 	flags := []string{}
 
-	for _, typemap := range android.PathsForModuleSrc(ctx, p.Typemaps) {
+	for _, typemap := range ctx.ExpandSources(p.Typemaps, nil) {
 		flags = append(flags, fmt.Sprintf("--typemap=%s", typemap.String()))
 	}
 	for _, include := range android.PathsForSource(ctx, p.Includes) {
@@ -251,7 +269,7 @@ func (p *mojomGenerationProperties) flags(ctx android.ModuleContext) string {
 			ctx.PropertyErrorf("pickles", "not a module: %q", m)
 			continue
 		}
-		module := android.GetModuleFromPathDep(ctx, m, "").(*mojomPickles)
+		module := ctx.GetDirectDepWithTag(m, android.SourceDepTag).(*mojomPickles)
 		flags = append(flags, fmt.Sprintf("--gen_dir=%s", module.outDir.String()))
 	}
 	if p.Flags != "" {
@@ -267,15 +285,15 @@ func (p *mojomGenerationProperties) flags(ctx android.ModuleContext) string {
 // implicitDeps collects all dependencies of the module.
 func (p *mojomGenerationProperties) implicitDeps(ctx android.ModuleContext) android.Paths {
 	deps := android.Paths{}
-	deps = append(deps, android.PathsForModuleSrc(ctx, p.Pickles)...)
-	deps = append(deps, android.PathsForModuleSrc(ctx, p.Typemaps)...)
-	deps = append(deps, android.PathsForModuleSrc(ctx, []string{p.Templates})...)
+	deps = append(deps, ctx.ExpandSources(p.Pickles, nil)...)
+	deps = append(deps, ctx.ExpandSources(p.Typemaps, nil)...)
+	deps = append(deps, ctx.ExpandSources([]string{p.Templates}, nil)...)
 	return deps
 }
 
 // templateDir returns the path where the template .zips are located.
 func (p *mojomGenerationProperties) templateDir(ctx android.ModuleContext) string {
-	srcFiles := android.PathsForModuleSrc(ctx, []string{p.Templates})
+	srcFiles := ctx.ExpandSources([]string{p.Templates}, nil)
 	if len(srcFiles) == 0 {
 		ctx.PropertyErrorf("templates", "module %s does not produce any files", p.Templates)
 		return ""
@@ -302,7 +320,7 @@ func (p *mojomGenerationProperties) generateBuildActions(
 	templateDir := p.templateDir(ctx)
 	generatedSrcs := android.Paths{}
 
-	for _, in := range android.PathsForModuleSrc(ctx, p.Srcs) {
+	for _, in := range ctx.ExpandSources(p.Srcs, nil) {
 		if !strings.HasSuffix(in.Rel(), ".mojom") {
 			ctx.PropertyErrorf("srcs", "Source is not a .mojom file: %s", in.Rel())
 			continue
@@ -347,6 +365,10 @@ type mojomHeaders struct {
 }
 
 var _ genrule.SourceFileGenerator = (*mojomHeaders)(nil)
+
+func (m *mojomHeaders) DepsMutator(ctx android.BottomUpMutatorContext) {
+	m.properties.extractSources(ctx)
+}
 
 func (m *mojomHeaders) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 	m.generatedSrcs = m.properties.generateBuildActions(
@@ -404,6 +426,10 @@ type mojomSrcs struct {
 
 var _ genrule.SourceFileGenerator = (*mojomSrcs)(nil)
 
+func (m *mojomSrcs) DepsMutator(ctx android.BottomUpMutatorContext) {
+	m.properties.extractSources(ctx)
+}
+
 func (m *mojomSrcs) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 	m.generatedSrcs = m.properties.generateBuildActions(
 		ctx,
@@ -455,6 +481,10 @@ type mojomSrcjar struct {
 }
 
 var _ genrule.SourceFileGenerator = (*mojomSrcjar)(nil)
+
+func (m *mojomSrcjar) DepsMutator(ctx android.BottomUpMutatorContext) {
+	m.properties.extractSources(ctx)
+}
 
 func (m *mojomSrcjar) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 	srcjars := m.properties.generateBuildActions(
