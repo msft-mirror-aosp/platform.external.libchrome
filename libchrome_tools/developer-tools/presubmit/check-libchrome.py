@@ -8,6 +8,7 @@ Utility to check if deprecated libchrome calls are introduced.
 
 from __future__ import print_function
 
+import argparse
 import os
 import re
 import subprocess
@@ -17,50 +18,108 @@ import sys
 # error_msg_if_match_found.
 BAD_KEYWORDS = {
     # removal of delete ctor macros
-    b'DISALLOW_COPY_AND_ASSIGN':
+    r'DISALLOW_COPY_AND_ASSIGN':
     'Chromium agreed to return Google C++ style. Use deleted constructor in `public:` manually. See crbug/1010217',
     # removal of deprecated base::Value APIs
-    b'base::(Dictionary|List)Value':
+    r'base::(Dictionary|List)Value':
     'base::{Dictionary,List}Value are deprecated. Please use dictionary/list-type base::Value.',
     # removal of deprecated base::Bind APIs
-    b'base::(Bind\(|Closure|Callback|CancelableCallback|CancelableClosure)':
+    r'base::(Bind\(|Closure|Callback|CancelableCallback|CancelableClosure)':
     'Deprecated base::Bind APIs. Please use the Once or Repeating variants. See crbug/714018.',
     # r930000 uprev
-    b'base::AdaptCallbackForRepeating':
+    r'base::AdaptCallbackForRepeating':
     'Deprecated base::Bind APIs. Please use base::OwnedRef or base::SplitOnceCallback depending on use cases. See crbug/730593.',
 }
 
+LINE_NUMBER_RE=re.compile(r'^@@ [0-9\,\+\-]+ \+([0-9]+)[ \,][0-9 ]*@@')
 
-def check(environ=os.environ, keywords=BAD_KEYWORDS):
-    files = environ['PRESUBMIT_FILES'].split('\n')
+def addedLinesFromCommit(filename, commit):
+  '''Return list of (line number, line) pairs added to file by the given commit.
+  '''
+  diff = subprocess.check_output(
+      ['git', 'show', '--oneline', commit, '--', filename]).decode(
+          sys.stdout.encoding).split('\n')
+  line_number = -1
+  lines = []
+  for line in diff:
+    m = LINE_NUMBER_RE.match(line)
+    if m:
+      line_number = int(m.groups(1)[0])-1
+      continue
+    if not line.startswith('-'):
+      line_number += 1
+    if line.startswith('+++') or not line.startswith('+'):
+      continue
+    lines.append((line_number, line[1:]))
 
-    errors = []
+  return lines
 
-    for f in files:
-        if not (f.endswith('.h') or f.endswith('.cc')):
-            continue
-        diff = subprocess.check_output(
-            ['git', 'show', '--oneline', environ['PRESUBMIT_COMMIT'], '--',
-             f]).split(b'\n')
-        for line in diff:
-            if not line.startswith(b'+'):
-                continue
-            for bad_pattern, error_message in keywords.items():
-                m = re.search(bad_pattern, line)
-                if m:
-                    errors.append('In File %s, found %s (pattern: %s), %s' %
-                                  (f, m.group(0), bad_pattern.decode('ascii'),
-                                   error_message))
-                    break
+def checkFileLines(filename, lines, keywords):
+  '''Check for forbidden patterns in given lines of a file.
 
-    return errors
+  Args:
+    filename: of the source file.
+    lines: a list of (line number, line) pairs to be checked.
+    keywords: a list of (regex, description) pairs of forbidden patterns
+
+  Returns:
+    A list of error messages reporting forbidden patterns found.
+  '''
+  errors = []
+  for line_number, line in lines:
+    for bad_pattern, error_message in keywords.items():
+      m = re.search(bad_pattern, line)
+      if m:
+        errors.append('In File %s line %s col %s, found %s (pattern: %s), %s' %
+                      (filename, line_number, m.span()[0]+1, m.group(0),
+                       bad_pattern, error_message))
+        break
+
+  return errors
+
+
+def checkFiles(files, commit, keywords=BAD_KEYWORDS):
+  '''Check for forbidden patterns from given list of files.
+
+  Args:
+    files: a list of filenames.
+    commit: hash of a commit. If given, only lines added to this commit will be
+    checked; otherwise check all lines.
+    keywords: a list of (regex, description) pairs of forbidden patterns
+
+  Returns:
+    A list of error messages reporting forbidden patterns found.
+  '''
+  errors = []
+
+  for filename in files:
+    if not (filename.endswith('.h') or filename.endswith('.cc')):
+        continue
+    if commit:
+      lines = addedLinesFromCommit(filename, commit)
+    else:
+      with open(filename) as f:
+        lines = [(i+1, line) for i, line in enumerate(f.readlines())]
+    errors += checkFileLines(filename, lines, keywords)
+
+  return errors
 
 
 def main():
-    errors = check()
-    if errors:
-        print('\n'.join(errors), file=sys.stderr)
-        sys.exit(1)
+  parser = argparse.ArgumentParser(
+      description='Check no forbidden libchrome features are used.')
+
+  parser.add_argument('--commit',
+                      help='Hash of commit to check. Only show errors on ' \
+                           'lines added in the commit if set.')
+  parser.add_argument('files', nargs='*')
+  args = parser.parse_args()
+
+  errors = checkFiles(args.files, args.commit)
+
+  if errors:
+      print('\n'.join(errors), file=sys.stderr)
+      sys.exit(1)
 
 
 if __name__ == '__main__':
