@@ -63,6 +63,10 @@ Handle-seq_files-with-base-CopyFileContents.patch
 # Policy::RegistryDict::ValueMap
 Policy-RegistryDict-use-base-Value.patch
 
+# Cherry-pick of r942723; to avoid regression on mgirating base::ReadBigEndian
+# and base::BigEndianReader to take uint8_t* input instead of char* input.
+Change-ReadBigEndian-to-take-a-uint8_t-input.patch
+
 # Remove after r943984
 libchrome-Query-spaced-for-free-total-disk-space.patch
 
@@ -91,10 +95,6 @@ forward-compatibility-add-base-HashingLRUCache-as-alias-of-base-HashingMRU.patch
 # Forward compatibility for >r935463 uprev to migrate
 # base::TaskAnnotator::RunTask from taking pending task as ptr to as ref
 forward-compatibility-base-TaskAnnotator-RunTask-takes-pending-task-as-ref.patch
-
-# Forward compatibility for >r942723 uprev to migrate base::ReadBigEndian and
-# base::BigEndianReader to take uint8_t* input instead of char* input.
-forward-compatibility-add-new-base-ReadBigEndian.patch
 
 # Forward compatibility for >r951523 uprev to use new base::JSONReader options
 forward-compatibility-add-base-JSONReader-options.patch

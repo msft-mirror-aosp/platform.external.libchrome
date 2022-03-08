@@ -17,18 +17,26 @@ import sys
 # BAD_KEYWORDS are mapping from bad_keyword_in_regex to
 # error_msg_if_match_found.
 BAD_KEYWORDS = {
-    # removal of delete ctor macros
-    r'DISALLOW_COPY_AND_ASSIGN':
-    'Chromium agreed to return Google C++ style. Use deleted constructor in `public:` manually. See crbug/1010217',
-    # removal of deprecated base::Value APIs
-    r'base::(Dictionary|List)Value':
-    'base::{Dictionary,List}Value are deprecated. Please use dictionary/list-type base::Value.',
     # removal of deprecated base::Bind APIs
     r'base::(Bind\(|Closure|Callback|CancelableCallback|CancelableClosure)':
     'Deprecated base::Bind APIs. Please use the Once or Repeating variants. See crbug/714018.',
-    # r930000 uprev
-    r'base::AdaptCallbackForRepeating':
-    'Deprecated base::Bind APIs. Please use base::OwnedRef or base::SplitOnceCallback depending on use cases. See crbug/730593.',
+    # r960000 uprev
+    # base::TimeDelta::From*
+    r'base::TimeDelta(\(\).|::)From(Days|Hours|Minutes|Seconds|Milliseconds|Microseconds|Nanoseconds)':
+    'base::TimeDelta::From* functions will be removed. Use base::<unit> instead, e.g. base::Days, base::Hours.',
+    # task related files moved to base/task/
+    r'include .base/(bind_post_task|deferred_sequence_task_runner|sequenced_task_runner|sequenced_task_runner_helpers|single_thread_task_runner|task_runner|task_runner_util).h':
+    'Task-related files will be moved to base/task/, include base/task/<filename> instead.',
+    # removal of base/macro.h
+    r'include .base/macro.h':
+    'The file will be removed after r941411. Use delete ctor for DISALLOW_* macros and std::ignore for ignore_result.',
+    # removal of delete ctor macros
+    r'DISALLOW_COPY_AND_ASSIGN':
+    'Chromium agreed to return Google C++ style. Use deleted constructor in `public:` manually. See crbug/1010217',
+    # removal of ignore_result (now in base/macro.h, to be renamed as
+    # base/ignore_result.h)
+    r'ignore_result':
+    'Will be deprecated after r863041, use std::ignore instead.',
 }
 
 LINE_NUMBER_RE=re.compile(r'^@@ [0-9\,\+\-]+ \+([0-9]+)[ \,][0-9 ]*@@')
