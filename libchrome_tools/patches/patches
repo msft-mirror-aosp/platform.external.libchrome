@@ -71,10 +71,6 @@ libchrome-Query-spaced-for-free-total-disk-space.patch
 # std::optional
 backward-compatibility-Add-base-Optional-as-alias-of-absl-optional.patch
 
-# Backward compatibility patch to add support of SimpleAlarmTimer
-# TODO(b/196308068): remove after usages in shill and power_manger are removed
-backward-compatibility-add-SimpleAlarmTimer.patch
-
 # Backward compatibility for r890000 uprev
 # Adds base::Callback, base::Bind, etc as there are still many usages in CrOS
 # TODO(crbug.com/1205291): remove when they are all migrated to Once/Repeating
