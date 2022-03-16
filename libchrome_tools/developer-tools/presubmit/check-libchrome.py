@@ -27,9 +27,6 @@ BAD_KEYWORDS = {
     # removal of base/macro.h
     r'include .base/macro.h':
     'The file will be removed after r941411. Use delete ctor for DISALLOW_* macros and std::ignore for ignore_result.',
-    # removal of delete ctor macros
-    r'DISALLOW_COPY_AND_ASSIGN':
-    'Chromium agreed to return Google C++ style. Use deleted constructor in `public:` manually. See crbug/1010217',
     # removal of ignore_result (now in base/macro.h, to be renamed as
     # base/ignore_result.h)
     r'ignore_result':

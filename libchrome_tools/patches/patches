@@ -58,6 +58,10 @@ always-include-platform-thread-h.patch
 # Forward compatibility; cherry-pick r931601 (reland of r930627)
 forward-compatibility-Move-task-related-files-from-base-to-base-task.patch
 
+# Cherry-pick of r937662 and r938612 to avoid regression on removing DISALLOW_*
+# macros; remove definition from base/macro.h as well.
+Remove-DISALLOW-macros.patch
+
 # For use of new base::CopyFileContentsWithSendfile
 # Remove after r938742
 Handle-seq_files-with-base-CopyFileContents.patch
