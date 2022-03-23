@@ -499,8 +499,11 @@ def main():
                  f'files{decorator_log}' + '\n')
 
   for filename in args.files:
+    if not filename.endswith('cc') and not filename.endswith('h'):
+      logging.info(f'Skip non-c++ file {filename}...')
+      continue
     with open(filename, 'r') as f:
-      logging.info(f'processing {filename}...')
+      logging.info(f'Processing {filename}...')
       source = f.read().splitlines()
       if args.remove:
         source, _ = RemoveHeaderFromSource(source, args.remove)
