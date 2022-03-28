@@ -55,6 +55,9 @@ disable-base-Dictionary-List-Value.patch
 always-include-platform-thread-h.patch
 
 # ==================== CHERRY PICKS ===========================
+# Forward compatibility; cherry-pick r931601 (reland of r930627)
+forward-compatibility-Move-task-related-files-from-base-to-base-task.patch
+
 # For use of new base::CopyFileContentsWithSendfile
 # Remove after r938742
 Handle-seq_files-with-base-CopyFileContents.patch
@@ -87,7 +90,7 @@ backward-compatibility-add-base-AdaptCallbackForRepaeting.patch media_perception
 
 # Forward compatibility for >r930627 uprev to add stub header files for those
 # moved from base/ to base/task/
-forward-compatibility-add-stub-header-files-under-base-task.patch
+# forward-compatibility-add-stub-header-files-under-base-task.patch
 
 # Forward compatibility for >r931363 uprev to rename base::Handing{L=>M}RUCache
 forward-compatibility-add-base-HashingLRUCache-as-alias-of-base-HashingMRU.patch

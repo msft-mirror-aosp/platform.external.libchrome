@@ -24,9 +24,6 @@ BAD_KEYWORDS = {
     # base::TimeDelta::From*
     r'base::TimeDelta(\(\).|::)From(Days|Hours|Minutes|Seconds|Milliseconds|Microseconds|Nanoseconds)':
     'base::TimeDelta::From* functions will be removed. Use base::<unit> instead, e.g. base::Days, base::Hours.',
-    # task related files moved to base/task/
-    r'include .base/(bind_post_task|deferred_sequence_task_runner|sequenced_task_runner|sequenced_task_runner_helpers|single_thread_task_runner|task_runner|task_runner_util).h':
-    'Task-related files will be moved to base/task/, include base/task/<filename> instead.',
     # removal of base/macro.h
     r'include .base/macro.h':
     'The file will be removed after r941411. Use delete ctor for DISALLOW_* macros and std::ignore for ignore_result.',

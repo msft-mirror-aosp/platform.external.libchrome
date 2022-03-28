@@ -56,7 +56,7 @@ index b84f43d11a..c827baeb45 100644
  #include <string>
  
 +#include "base/memory/scoped_refptr.h"
-+#include "base/single_thread_task_runner.h"
++#include "base/task/single_thread_task_runner.h"
  #include "base/trace_event/trace_event_stub.h"
  
  namespace base {
