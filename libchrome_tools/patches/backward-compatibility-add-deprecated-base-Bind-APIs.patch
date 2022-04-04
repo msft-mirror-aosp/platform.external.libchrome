@@ -329,12 +329,12 @@ index f6b133855c..357a90af3a 100644
 --- a/base/task/sequence_manager/thread_controller_impl.h
 +++ b/base/task/sequence_manager/thread_controller_impl.h
 @@ -121,7 +121,7 @@ class BASE_EXPORT ThreadControllerImpl : public ThreadController,
-   const TickClock* time_source_;
+   raw_ptr<const TickClock> time_source_;
    RepeatingClosure immediate_do_work_closure_;
    RepeatingClosure delayed_do_work_closure_;
 -  CancelableRepeatingClosure cancelable_delayed_do_work_closure_;
 +  CancelableClosure cancelable_delayed_do_work_closure_;
-   SequencedTaskSource* sequence_ = nullptr;  // Not owned.
+   raw_ptr<SequencedTaskSource> sequence_ = nullptr;  // Not owned.
    TaskAnnotator task_annotator_;
    WorkDeduplicator work_deduplicator_;
 diff --git a/base/test/task_environment_unittest.cc b/base/test/task_environment_unittest.cc

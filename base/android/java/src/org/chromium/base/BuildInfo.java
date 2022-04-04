@@ -91,6 +91,7 @@ public class BuildInfo {
                 isDebugAndroid() ? "1" : "0",
                 buildInfo.isTV ? "1" : "0",
                 Build.VERSION.INCREMENTAL,
+                Build.HARDWARE,
         };
     }
 
@@ -144,7 +145,8 @@ public class BuildInfo {
             try {
                 gmsPackageInfo = pm.getPackageInfo("com.google.android.gms", 0);
             } catch (NameNotFoundException e) {
-                Log.d(TAG, "GMS package is not found.");
+                // TODO(b/197112084): Re-enable the logging
+                // Log.d(TAG, "GMS package is not found.");
             }
             gmsVersionCode = gmsPackageInfo != null
                     ? String.valueOf(packageVersionCode(gmsPackageInfo))

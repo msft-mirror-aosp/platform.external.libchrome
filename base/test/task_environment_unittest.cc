@@ -25,6 +25,7 @@
 #include "base/test/mock_log.h"
 #include "base/test/scoped_run_loop_timeout.h"
 #include "base/test/test_timeouts.h"
+#include "base/test/test_waitable_event.h"
 #include "base/threading/platform_thread.h"
 #include "base/threading/sequence_local_storage_slot.h"
 #include "base/threading/sequenced_task_runner_handle.h"
@@ -39,13 +40,13 @@
 #include "testing/gtest/include/gtest/gtest-spi.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-#if defined(OS_POSIX)
+#if BUILDFLAG(IS_POSIX)
 #include <unistd.h>
 
 #include "base/files/file_descriptor_watcher_posix.h"
-#endif  // defined(OS_POSIX)
+#endif  // BUILDFLAG(IS_POSIX)
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 #include "base/win/scoped_com_initializer.h"
 #endif
 
@@ -277,11 +278,14 @@ void DelayedTasksTest(TaskEnvironment::TimeSource time_source) {
                   "set to a value inferior to the first posted task's delay.");
     task_environment.FastForwardBy(kInferiorTaskDelay);
     EXPECT_EQ(expected_value, counter);
+    // Time advances to cap even if there was no task at cap.
+    EXPECT_EQ(task_environment.NowTicks() - start_time, kInferiorTaskDelay);
 
     task_environment.FastForwardBy(kShortTaskDelay - kInferiorTaskDelay);
     expected_value += 4;
     expected_value += 128;
     EXPECT_EQ(expected_value, counter);
+    EXPECT_EQ(task_environment.NowTicks() - start_time, kShortTaskDelay);
 
     task_environment.FastForwardUntilNoTasksRemain();
     expected_value += 8;
@@ -290,7 +294,6 @@ void DelayedTasksTest(TaskEnvironment::TimeSource time_source) {
     expected_value += 512;
     expected_value += 1024;
     EXPECT_EQ(expected_value, counter);
-
     EXPECT_EQ(task_environment.NowTicks() - start_time, kLongTaskDelay * 4);
   }
 }
@@ -358,7 +361,7 @@ TEST_F(TaskEnvironmentTest, MainThreadType) {
   EXPECT_FALSE(CurrentIOThread::IsSet());
 }
 
-#if defined(OS_POSIX)
+#if BUILDFLAG(IS_POSIX)
 TEST_F(TaskEnvironmentTest, SupportsFileDescriptorWatcherOnIOMainThread) {
   TaskEnvironment task_environment(TaskEnvironment::MainThreadType::IO);
 
@@ -400,7 +403,7 @@ TEST_F(TaskEnvironmentTest,
   // fast-forward-time when idle).
   run_loop.Run();
 }
-#endif  // defined(OS_POSIX)
+#endif  // BUILDFLAG(IS_POSIX)
 
 // Verify that the TickClock returned by
 // |TaskEnvironment::GetMockTickClock| gets updated when the
@@ -843,7 +846,7 @@ TEST_F(TaskEnvironmentTest, MultiThreadedMockTimeAndThreadPoolQueuedMode) {
   EXPECT_EQ(expected_value, count);
 }
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 // Regression test to ensure that TaskEnvironment enables the MTA in the
 // thread pool (so that the test environment matches that of the browser process
 // and com_init_util.h's assertions are happy in unit tests).
@@ -853,7 +856,7 @@ TEST_F(TaskEnvironmentTest, ThreadPoolPoolAllowsMTA) {
                                            win::ComApartmentType::MTA));
   task_environment.RunUntilIdle();
 }
-#endif  // defined(OS_WIN)
+#endif  // BUILDFLAG(IS_WIN)
 
 TEST_F(TaskEnvironmentTest, SetsDefaultRunTimeout) {
   const RunLoop::RunLoopTimeout* old_run_timeout =
@@ -1121,6 +1124,53 @@ TEST_F(TaskEnvironmentTest, RunLoopDriveable) {
   EXPECT_EQ(expected_value, counter);
 }
 
+// Regression test for crbug.com/1263149
+TEST_F(TaskEnvironmentTest, RunLoopGetsTurnAfterYieldingToPool) {
+  TaskEnvironment task_environment(TaskEnvironment::TimeSource::MOCK_TIME);
+
+  base::RunLoop run_loop;
+  ThreadTaskRunnerHandle::Get()->PostDelayedTask(
+      FROM_HERE, run_loop.QuitClosure(), base::Seconds(1));
+  ThreadPool::PostTask(FROM_HERE, base::DoNothing());
+
+  run_loop.Run();
+}
+
+// Regression test for crbug.com/1263149#c4
+TEST_F(TaskEnvironmentTest, ThreadPoolAdvancesTimeUnderIdleMainThread) {
+  TaskEnvironment task_environment(TaskEnvironment::TimeSource::MOCK_TIME);
+
+  base::RunLoop run_loop;
+  ThreadPool::PostDelayedTask(FROM_HERE, base::DoNothing(), base::Seconds(1));
+  ThreadPool::PostDelayedTask(FROM_HERE, run_loop.QuitClosure(),
+                              base::Seconds(2));
+
+  run_loop.Run();
+}
+
+// Regression test for
+// https://chromium-review.googlesource.com/c/chromium/src/+/3255105/5 which
+// incorrectly tried to address crbug.com/1263149 with
+// ThreadPool::FlushForTesting(), stalling thread pool tasks that need main
+// thread collaboration.
+TEST_F(TaskEnvironmentTest, MainThreadCanContributeWhileFlushingPool) {
+  TaskEnvironment task_environment(TaskEnvironment::TimeSource::MOCK_TIME);
+
+  base::RunLoop run_loop;
+  ThreadTaskRunnerHandle::Get()->PostDelayedTask(
+      FROM_HERE, run_loop.QuitClosure(), base::Seconds(1));
+  TestWaitableEvent wait_for_collaboration;
+  ThreadPool::PostTask(FROM_HERE, BindLambdaForTesting([&]() {
+                         task_environment.GetMainThreadTaskRunner()->PostTask(
+                             FROM_HERE,
+                             BindOnce(&TestWaitableEvent::Signal,
+                                      Unretained(&wait_for_collaboration)));
+                         wait_for_collaboration.Wait();
+                       }));
+
+  run_loop.Run();
+}
+
 TEST_F(TaskEnvironmentTest, CancelPendingTask) {
   TaskEnvironment task_environment(
       TaskEnvironment::TimeSource::MOCK_TIME,
@@ -1271,7 +1321,7 @@ TEST_F(TaskEnvironmentTest, SingleThreadMockTime) {
   EXPECT_EQ(TimeTicks::Now(), start_time + kDelay);
 }
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 namespace {
 
 enum class ApartmentType {

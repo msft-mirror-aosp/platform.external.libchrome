@@ -21,10 +21,9 @@
 #include "base/bit_cast.h"
 #include "base/check_op.h"
 #include "base/containers/checked_iterators.h"
-#include "base/containers/contains.h"
 #include "base/cxx17_backports.h"
+#include "base/ignore_result.h"
 #include "base/json/json_writer.h"
-#include "base/macros.h"
 #include "base/memory/ptr_util.h"
 #include "base/notreached.h"
 #include "base/ranges/algorithm.h"
@@ -809,14 +808,6 @@ void Value::MergeDictionary(const Value* dictionary) {
   }
 }
 
-bool Value::GetAsBoolean(bool* out_value) const {
-  if (out_value && is_bool()) {
-    *out_value = GetBool();
-    return true;
-  }
-  return is_bool();
-}
-
 bool Value::GetAsString(std::string* out_value) const {
   if (out_value && is_string()) {
     *out_value = GetString();
@@ -879,10 +870,6 @@ bool Value::GetAsDictionary(const DictionaryValue** out_value) const {
     return true;
   }
   return is_dict();
-}
-
-Value* Value::DeepCopy() const {
-  return new Value(Clone());
 }
 
 std::unique_ptr<Value> Value::CreateDeepCopy() const {
@@ -1112,10 +1099,6 @@ bool DictionaryValue::HasKey(StringPiece key) const {
   return current_entry != dict().end();
 }
 
-void DictionaryValue::Clear() {
-  DictClear();
-}
-
 Value* DictionaryValue::Set(StringPiece path, std::unique_ptr<Value> in_value) {
   DCHECK(IsStringUTF8AllowingNoncharacters(path));
   DCHECK(in_value);
@@ -1167,12 +1150,6 @@ Value* DictionaryValue::SetString(StringPiece path,
   return Set(path, std::make_unique<Value>(in_value));
 }
 
-DictionaryValue* DictionaryValue::SetDictionary(
-    StringPiece path,
-    std::unique_ptr<DictionaryValue> in_value) {
-  return static_cast<DictionaryValue*>(Set(path, std::move(in_value)));
-}
-
 ListValue* DictionaryValue::SetList(StringPiece path,
                                     std::unique_ptr<ListValue> in_value) {
   return static_cast<ListValue*>(Set(path, std::move(in_value)));
@@ -1203,14 +1180,6 @@ bool DictionaryValue::Get(StringPiece path, const Value** out_value) const {
 
 bool DictionaryValue::Get(StringPiece path, Value** out_value) {
   return as_const(*this).Get(path, const_cast<const Value**>(out_value));
-}
-
-bool DictionaryValue::GetBoolean(StringPiece path, bool* bool_value) const {
-  const Value* value;
-  if (!Get(path, &value))
-    return false;
-
-  return value->GetAsBoolean(bool_value);
 }
 
 bool DictionaryValue::GetInteger(StringPiece path, int* out_value) const {
@@ -1379,17 +1348,6 @@ ListValue::ListValue(span<const Value> in_list) : Value(in_list) {}
 ListValue::ListValue(ListStorage&& in_list) noexcept
     : Value(std::move(in_list)) {}
 
-bool ListValue::Set(size_t index, std::unique_ptr<Value> in_value) {
-  if (!in_value)
-    return false;
-
-  if (index >= list().size())
-    list().resize(index + 1);
-
-  list()[index] = std::move(*in_value);
-  return true;
-}
-
 bool ListValue::Get(size_t index, const Value** out_value) const {
   if (index >= list().size())
     return false;
@@ -1402,30 +1360,6 @@ bool ListValue::Get(size_t index, const Value** out_value) const {
 
 bool ListValue::Get(size_t index, Value** out_value) {
   return as_const(*this).Get(index, const_cast<const Value**>(out_value));
-}
-
-bool ListValue::GetBoolean(size_t index, bool* bool_value) const {
-  const Value* value;
-  if (!Get(index, &value))
-    return false;
-
-  return value->GetAsBoolean(bool_value);
-}
-
-bool ListValue::GetString(size_t index, std::string* out_value) const {
-  const Value* value;
-  if (!Get(index, &value))
-    return false;
-
-  return value->GetAsString(out_value);
-}
-
-bool ListValue::GetString(size_t index, std::u16string* out_value) const {
-  const Value* value;
-  if (!Get(index, &value))
-    return false;
-
-  return value->GetAsString(out_value);
 }
 
 bool ListValue::GetDictionary(size_t index,

@@ -9,7 +9,6 @@
 
 #include <vector>
 
-#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "build/build_config.h"
 #include "ipc/ipc_message_support_export.h"
@@ -61,7 +60,7 @@ class IPC_MESSAGE_SUPPORT_EXPORT MessageAttachmentSet
   // auto-close.
   void CommitAllDescriptors();
 
-#if defined(OS_POSIX) || defined(OS_FUCHSIA)
+#if BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
   // This is the maximum number of descriptors per message. We need to know this
   // because the control message kernel interface has to be given a buffer which
   // is large enough to store all the descriptor numbers. Otherwise the kernel

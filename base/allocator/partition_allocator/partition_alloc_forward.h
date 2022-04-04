@@ -28,7 +28,8 @@ namespace base {
 // platforms, as Chrome's requirement is C++14 as of 2020.
 #if defined(__STDCPP_DEFAULT_NEW_ALIGNMENT__)
 constexpr size_t kAlignment =
-    std::max(alignof(max_align_t), __STDCPP_DEFAULT_NEW_ALIGNMENT__);
+    std::max(alignof(max_align_t),
+             static_cast<size_t>(__STDCPP_DEFAULT_NEW_ALIGNMENT__));
 #else
 constexpr size_t kAlignment = alignof(max_align_t);
 #endif
@@ -46,7 +47,7 @@ constexpr bool NotThreadSafe = false;
 
 #if (DCHECK_IS_ON() || BUILDFLAG(ENABLE_BACKUP_REF_PTR_SLOW_CHECKS)) && \
     BUILDFLAG(USE_BACKUP_REF_PTR)
-BASE_EXPORT void CheckThatSlotOffsetIsZero(void*);
+BASE_EXPORT void CheckThatSlotOffsetIsZero(uintptr_t address);
 #endif
 
 }  // namespace internal

@@ -60,21 +60,25 @@ class BASE_EXPORT AddressPoolManager {
 #endif
 
   // Reserves address space from GigaCage.
-  char* Reserve(pool_handle handle, void* requested_address, size_t length);
+  uintptr_t Reserve(pool_handle handle,
+                    uintptr_t requested_address,
+                    size_t length);
 
   // Frees address space back to GigaCage and decommits underlying system pages.
-  void UnreserveAndDecommit(pool_handle handle, void* ptr, size_t length);
+  void UnreserveAndDecommit(pool_handle handle,
+                            uintptr_t address,
+                            size_t length);
   void ResetForTesting();
 
 #if !defined(PA_HAS_64_BITS_POINTERS)
-  void MarkUsed(pool_handle handle, const void* address, size_t size);
-  void MarkUnused(pool_handle handle, const void* address, size_t size);
+  void MarkUsed(pool_handle handle, uintptr_t address, size_t size);
+  void MarkUnused(pool_handle handle, uintptr_t address, size_t size);
 
-  static bool IsManagedByRegularPool(const void* address) {
+  static bool IsManagedByRegularPool(uintptr_t address) {
     return AddressPoolManagerBitmap::IsManagedByRegularPool(address);
   }
 
-  static bool IsManagedByBRPPool(const void* address) {
+  static bool IsManagedByBRPPool(uintptr_t address) {
     return AddressPoolManagerBitmap::IsManagedByBRPPool(address);
   }
 #endif  // !defined(PA_HAS_64_BITS_POINTERS)

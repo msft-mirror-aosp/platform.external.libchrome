@@ -64,7 +64,8 @@ bool ValidateKeyValue(const Value& dict_value,
 bool ValidateTestResult(const Value* iteration_data,
                         const std::string& test_name,
                         const std::string& status,
-                        size_t result_part_count) {
+                        size_t result_part_count,
+                        bool have_running_info) {
   const Value* results = iteration_data->FindListKey(test_name);
   if (!results) {
     ADD_FAILURE() << "Cannot find result";
@@ -83,6 +84,20 @@ bool ValidateTestResult(const Value* iteration_data,
 
   if (!ValidateKeyValue(val, "status", status))
     return false;
+
+  // Verify the keys that only exists when have_running_info, if the test didn't
+  // run, it wouldn't have these information.
+  for (auto* key : {"process_num", "thread_id", "timestamp"}) {
+    bool have_key = val.FindKey(key);
+    if (have_running_info && !have_key) {
+      ADD_FAILURE() << "Result must contain '" << key << "' key";
+      return false;
+    }
+    if (!have_running_info && have_key) {
+      ADD_FAILURE() << "Result shouldn't contain '" << key << "' key";
+      return false;
+    }
+  }
 
   const Value* value = val.FindListKey("result_parts");
   if (!value) {
@@ -120,7 +135,8 @@ bool ValidateTestLocation(const Value* test_locations,
                           const std::string& test_name,
                           const std::string& file,
                           int line) {
-  const Value* val = test_locations->FindDictKey(test_name);
+  const Value* val =
+      test_locations->FindDictKey(TestNameWithoutDisabledPrefix(test_name));
   if (!val) {
     ADD_FAILURE() << "|test_locations| missing location for " << test_name;
     return false;
