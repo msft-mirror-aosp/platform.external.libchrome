@@ -344,10 +344,7 @@ class BASE_EXPORT MessageLoop : public MessagePump::Delegate,
   DISALLOW_COPY_AND_ASSIGN(MessageLoop);
 };
 
-// MessageLoopForUI is unsupported in libchrome for android target.
-// The Android UI thread is tied to the Android framework and is not used.
-// This is to avoid dependency on libandroid ALooper.
-#if !defined(OS_NACL) && !defined(OS_ANDROID)
+#if !defined(OS_NACL)
 
 //-----------------------------------------------------------------------------
 // MessageLoopForUI extends MessageLoop with methods that are particular to a
@@ -401,7 +398,7 @@ class BASE_EXPORT MessageLoopForUI : public MessageLoop {
 static_assert(sizeof(MessageLoop) == sizeof(MessageLoopForUI),
               "MessageLoopForUI should not have extra member variables");
 
-#endif  // !defined(OS_NACL) && !defined(OS_ANDROID)
+#endif  // !defined(OS_NACL)
 
 //-----------------------------------------------------------------------------
 // MessageLoopForIO extends MessageLoop with methods that are particular to a

@@ -24,21 +24,25 @@
 //   within an Android checkout.
 // - ANDROID is defined via -D when building code for either Android targets or
 //   hosts. Use __ANDROID__ and __ANDROID_HOST__ instead.
-// - OS_ANDROID is a define used to build Chrome for Android within the NDK and
-//   to build Android targets.
+// - OS_ANDROID is a Chrome-specific define used to build Chrome for Android
+//   within the NDK.
 
 // Android targets and hosts don't use tcmalloc.
 #if defined(__ANDROID__) || defined(__ANDROID_HOST__)
 #define NO_TCMALLOC
 #endif  // defined(__ANDROID__) || defined(__ANDROID_HOST__)
 
+// Use the Chrome OS version of the code for both Android targets and Chrome OS builds.
+#if !defined(__ANDROID_HOST__)
+#define OS_CHROMEOS 1
+#endif  // !defined(__ANDROID_HOST__)
+
 #if defined(__ANDROID__)  // Android targets
 
-#define OS_ANDROID 1
+#define __linux__ 1
 
 #elif !defined(__ANDROID_HOST__)  // Chrome OS
 
-#define OS_CHROMEOS 1
 // TODO: Remove these once the GLib MessageLoopForUI isn't being used:
 // https://crbug.com/361635
 #define USE_GLIB 1
@@ -58,6 +62,7 @@
 #else
 #define OS_NACL_SFI
 #endif
+// Don't set OS_ANDROID; it's only used when building Chrome for Android.
 #elif defined(__APPLE__)
 // only include TargetConditions after testing ANDROID as some android builds
 // on mac don't have this header available and it's not needed unless the target

@@ -117,7 +117,7 @@ bool MessageLoopCurrent::IsBoundToCurrentThreadInternal(
   return GetTLSMessageLoop()->Get() == message_loop;
 }
 
-#if !defined(OS_NACL) && !defined(OS_ANDROID)
+#if !defined(OS_NACL)
 
 //------------------------------------------------------------------------------
 // MessageLoopCurrentForUI
@@ -173,7 +173,7 @@ void MessageLoopCurrentForUI::Abort() {
 }
 #endif  // defined(OS_ANDROID)
 
-#endif  // !defined(OS_NACL) && !defined(OS_ANDROID)
+#endif  // !defined(OS_NACL)
 
 //------------------------------------------------------------------------------
 // MessageLoopCurrentForIO

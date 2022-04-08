@@ -38,11 +38,8 @@ void SetJavaExceptionCallback(void (*callback)(const char*)) {
 }
 
 void SetJavaException(const char* exception) {
-  // No need to print exception because they are already logged via
-  // env->ExceptionDescribe() within jni_android.cc.
-  if (g_java_exception_callback) {
-    g_java_exception_callback(exception);
-  }
+  DCHECK(g_java_exception_callback);
+  g_java_exception_callback(exception);
 }
 
 void JNI_JavaExceptionReporter_ReportJavaException(
