@@ -100,9 +100,6 @@ libbase_sublibs = [
     ]
     configs = [ ":base_core_config", ":base_export_config" ]
     sources = [
-      "base/allocator/allocator_extension.cc",
-      "base/allocator/allocator_shim.cc",
-      "base/allocator/allocator_shim_default_dispatch_to_glibc.cc",
       "base/at_exit.cc",
       "base/barrier_closure.cc",
       "base/base64.cc",
@@ -379,6 +376,15 @@ libbase_sublibs = [
       "base/version.cc",
       "base/vlog.cc",
     ]
+
+    # Enable //base/allocator shim for non-sanitizer builds.
+    if (!(use.asan || use.fuzzer || use.msan || use.ubsan)) {
+      sources += [
+        "base/allocator/allocator_extension.cc",
+        "base/allocator/allocator_shim.cc",
+        "base/allocator/allocator_shim_default_dispatch_to_glibc.cc",
+      ]
+    }
   },
 
   {
