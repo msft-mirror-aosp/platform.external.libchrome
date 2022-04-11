@@ -164,6 +164,7 @@ libbase_sublibs = [
       "base/json/json_value_converter.cc",
       "base/json/json_writer.cc",
       "base/json/string_escape.cc",
+      "base/json/values_util.cc",
       "base/lazy_instance_helpers.cc",
       "base/location.cc",
       "base/logging.cc",
