@@ -9,7 +9,6 @@
 
 #include <string>
 #include "base/callback.h"
-#include "base/compiler_specific.h"
 #include "crypto/crypto_export.h"
 
 namespace base {
@@ -59,8 +58,8 @@ CRYPTO_EXPORT bool IsTPMTokenEnabledForNSS();
 // If |callback| is non-null and the function returns false, the |callback| will
 // be run once the TPM is ready. |callback| will never be run if the function
 // returns true.
-CRYPTO_EXPORT bool IsTPMTokenReady(base::OnceClosure callback)
-    WARN_UNUSED_RESULT;
+[[nodiscard]] CRYPTO_EXPORT bool IsTPMTokenReady(base::OnceClosure callback)
+   ;
 
 // Initialize the TPM token and system slot. The |callback| will run on the same
 // thread with true if the token and slot were successfully loaded or were
