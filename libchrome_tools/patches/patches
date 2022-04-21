@@ -61,6 +61,10 @@ always-include-platform-thread-h.patch
 # Cherry-pick of r970942
 # It is a revert of r932059 and r957262, which caused crashes with ml package.
 Revert-StatisticsRecorder-back-to-use-a-base-Lock.patch
+#
+# Remove after r971651; to avoid regression of reintroducing usages of
+# base::Value::GetAsString after clean-up is done.
+Remove-deprecated-GetAsString.patch
 
 # Cherry-pick [Extensible] support for union.
 # Cherry-pick of r989706
@@ -95,3 +99,7 @@ backward-compatibility-include-unistd.patch
 # TODO(b/231676453): remove the patch when getpid has been added to all
 # necessary policy files.
 Revert-Linux-Don-t-access-TLS-in-a-pthread_atfork-ha.patch
+
+# Forward compatibility for >r970764 uprev base::FilePath::GetComponents to return by
+# value instead of by out-param
+forward-compatibility-Add-return-by-value-base-FilePath-GetComponents.patch

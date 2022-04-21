@@ -20,17 +20,15 @@ BAD_KEYWORDS = {
     # removal of deprecated base::Bind APIs
     r'base::(Bind\(|Closure|Callback|CancelableCallback|CancelableClosure)':
     'Deprecated base::Bind APIs. Please use the Once or Repeating variants. See crbug/714018.',
-    # r960000 uprev
-    # base::TimeDelta::From*
-    r'base::TimeDelta(\(\).|::)From(Days|Hours|Minutes|Seconds|Milliseconds|Microseconds|Nanoseconds)':
-    'base::TimeDelta::From* functions will be removed. Use base::<unit> instead, e.g. base::Days, base::Hours.',
-    # removal of base/macro.h
-    r'include .base/macro.h':
-    'The file will be removed after r941411. Use delete ctor for DISALLOW_* macros and std::ignore for ignore_result.',
-    # removal of ignore_result (now in base/macro.h, to be renamed as
-    # base/ignore_result.h)
-    r'ignore_result':
-    'Will be deprecated after r863041, use std::ignore instead.',
+    # removal of WARN_UNUSED_RESULT in r961763
+    r'WARN_UNUSED_RESULT':
+    'The macro will be removed after r961763, use C++17 attribute [[nodiscard]] instead, see crbug.com/1287045.',
+    # removal of return by out-param base::FilePath::GetComponents in r970764
+    r'GetComponents\(.+\)':
+    'The return by out-param version of base::FilePath::GetComponents Will be deprecated after r970764, get output directly as return value instead.',
+    # removal of base::{size,empty,data} in r979799 (crrev.com/c/3511268)
+    r'base::(size|empty|data)':
+    'The functions will be removed from base/cxx17_backports.h, use the std counterparts instead.',
 }
 
 LINE_NUMBER_RE=re.compile(r'^@@ [0-9\,\+\-]+ \+([0-9]+)[ \,][0-9 ]*@@')
