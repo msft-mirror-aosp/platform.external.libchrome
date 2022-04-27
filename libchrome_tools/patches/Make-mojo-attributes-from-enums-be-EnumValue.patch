@@ -1,0 +1,239 @@
+From 3fedfb391703b2b8573b0651316e5f32345cd583 Mon Sep 17 00:00:00 2001
+From: Alex Gough <ajgo@chromium.org>
+Date: Tue, 12 Apr 2022 08:39:34 -0700
+Subject: [PATCH 2/3] Make mojo attributes from enums be EnumValue
+
+Before this CL mojom attributes that look like enum values are
+really parsed as stored as strings. When used as service sandbox
+attributes this didn't matter as we simply translated any dots
+in the names to :: for C++ and everything worked.
+
+A new feature contemplates inspecting mojo attributes as enums
+at mojom compile time, which means mojo attributes must be
+allowed to be enums.
+
+This CL allows this by attempting to lookup attributes with
+full names as enums, falling back to the literal string if
+the enum could not be found.
+
+Attribute lookup on module.py must change to ensure that
+both enum values and constants as attributes can be used.
+
+C++ class generation must be amended to account for
+enums being returned by the service_sandbox property of
+Module.
+
+Bug: 931315
+Change-Id: I752b9a78e3798eddab4eed6b672fd286bee824ad
+Reviewed-on: https://chromium-review.googlesource.com/c/chromium/src/+/3576999
+Reviewed-by: Robert Sesek <rsesek@chromium.org>
+Commit-Queue: Alex Gough <ajgo@chromium.org>
+Cr-Commit-Position: refs/heads/main@{#991539}
+
+
+CrOS-Libchrome-Original-Commit: 61b01f80041db77e4348ef4ee1660f42c4e417ce
+---
+ .../cpp_templates/interface_declaration.tmpl  |  2 +-
+ mojo/public/tools/mojom/enum_unittest.py      | 28 ++++++++++++
+ .../tools/mojom/mojom/generate/module.py      | 11 ++++-
+ .../tools/mojom/mojom/generate/translate.py   | 43 ++++++++++++++-----
+ 4 files changed, 71 insertions(+), 13 deletions(-)
+
+diff --git a/mojo/public/tools/bindings/generators/cpp_templates/interface_declaration.tmpl b/mojo/public/tools/bindings/generators/cpp_templates/interface_declaration.tmpl
+index c4dd04adb4..47468c8c3c 100644
+--- a/mojo/public/tools/bindings/generators/cpp_templates/interface_declaration.tmpl
++++ b/mojo/public/tools/bindings/generators/cpp_templates/interface_declaration.tmpl
+@@ -21,7 +21,7 @@ class {{export_attribute}} {{interface.name}}
+                                       {{interface.uuid[1]}}ULL };
+ {%-  endif %}
+ {%- if interface.service_sandbox %}
+-{%- set sandbox_enum = "%s"|format(interface.service_sandbox|replace(".","::")) %}
++{%- set sandbox_enum = "%s"|format(interface.service_sandbox.GetSpec()|replace(".","::")) %}
+   static constexpr auto kServiceSandbox = {{ sandbox_enum }};
+ {%- endif %}
+   static constexpr uint32_t Version_ = {{interface.version}};
+diff --git a/mojo/public/tools/mojom/enum_unittest.py b/mojo/public/tools/mojom/enum_unittest.py
+index d900507867..8ced5b50eb 100644
+--- a/mojo/public/tools/mojom/enum_unittest.py
++++ b/mojo/public/tools/mojom/enum_unittest.py
+@@ -90,3 +90,31 @@ class EnumTest(MojomParserTestCase):
+     self.assertEqual('F', b.enums[0].mojom_name)
+     self.assertEqual('kFoo', b.enums[0].fields[0].mojom_name)
+     self.assertEqual(37, b.enums[0].fields[0].numeric_value)
++
++  def testEnumAttributesAreEnums(self):
++    """Verifies that enum values in attributes are really enum types."""
++    a_mojom = 'a.mojom'
++    self.WriteFile(a_mojom, 'module a; enum E { kFoo, kBar };')
++    b_mojom = 'b.mojom'
++    self.WriteFile(
++        b_mojom, 'module b;'
++        'import "a.mojom";'
++        '[MooCow=a.E.kFoo]'
++        'interface Foo { Foo(); };')
++    self.ParseMojoms([a_mojom, b_mojom])
++    b = self.LoadModule(b_mojom)
++    self.assertEqual(b.interfaces[0].attributes['MooCow'].mojom_name, 'kFoo')
++
++  def testConstantAttributes(self):
++    """Verifies that constants as attributes are translated to the constant."""
++    a_mojom = 'a.mojom'
++    self.WriteFile(
++        a_mojom, 'module a;'
++        'enum E { kFoo, kBar };'
++        'const E kB = E.kFoo;'
++        '[Attr=kB] interface Hello { Foo(); };')
++    self.ParseMojoms([a_mojom])
++    a = self.LoadModule(a_mojom)
++    self.assertEqual(a.interfaces[0].attributes['Attr'].mojom_name, 'kB')
++    self.assertEquals(a.interfaces[0].attributes['Attr'].value.mojom_name,
++                      'kFoo')
+diff --git a/mojo/public/tools/mojom/mojom/generate/module.py b/mojo/public/tools/mojom/mojom/generate/module.py
+index 3bba7dd285..2fde9fcd75 100644
+--- a/mojo/public/tools/mojom/mojom/generate/module.py
++++ b/mojo/public/tools/mojom/mojom/generate/module.py
+@@ -1211,7 +1211,16 @@ class Interface(ReferenceKind):
+   def service_sandbox(self):
+     if not self.attributes:
+       return None
+-    return self.attributes.get(ATTRIBUTE_SERVICE_SANDBOX, None)
++    service_sandbox = self.attributes.get(ATTRIBUTE_SERVICE_SANDBOX, None)
++    if service_sandbox is None:
++      return None
++    # Constants are only allowed to refer to an enum here, so replace.
++    if isinstance(service_sandbox, Constant):
++      service_sandbox = service_sandbox.value
++    if not isinstance(service_sandbox, EnumValue):
++      raise Exception("ServiceSandbox attribute on %s must be an enum value." %
++                      self.module.name)
++    return service_sandbox
+ 
+   @property
+   def stable(self):
+diff --git a/mojo/public/tools/mojom/mojom/generate/translate.py b/mojo/public/tools/mojom/mojom/generate/translate.py
+index 3e06751da4..78ee70630b 100644
+--- a/mojo/public/tools/mojom/mojom/generate/translate.py
++++ b/mojo/public/tools/mojom/mojom/generate/translate.py
+@@ -135,7 +135,26 @@ def _MapKind(kind):
+   return 'x:' + kind
+ 
+ 
+-def _AttributeListToDict(attribute_list):
++def _MapValueToEnum(module, value):
++  # True/False/None
++  if value is None:
++    return value
++  if not isinstance(value, str):
++    return value
++  # Otherwise try to find it.
++  try:
++    trial = _LookupValue(module, None, None, ('IDENTIFIER', value))
++    if isinstance(trial, mojom.ConstantValue):
++      return trial.constant
++    if isinstance(trial, mojom.EnumValue):
++      return trial
++  except ValueError:
++    pass
++  # Return the string if it did not resolve to a constant or enum.
++  return value
++
++
++def _AttributeListToDict(module, attribute_list):
+   if attribute_list is None:
+     return None
+   assert isinstance(attribute_list, ast.AttributeList)
+@@ -144,7 +163,7 @@ def _AttributeListToDict(attribute_list):
+     if attribute.key in attributes:
+       raise Exception("Duplicate key (%s) in attribute list" % attribute.key)
+     else:
+-      attributes[attribute.key] = attribute.value
++      attributes[attribute.key] = _MapValueToEnum(module, attribute.value)
+   return attributes
+ 
+ 
+@@ -349,7 +368,7 @@ def _Struct(module, parsed_struct):
+             struct.fields_data.append,
+         })
+ 
+-  struct.attributes = _AttributeListToDict(parsed_struct.attribute_list)
++  struct.attributes = _AttributeListToDict(module, parsed_struct.attribute_list)
+ 
+   # Enforce that a [Native] attribute is set to make native-only struct
+   # declarations more explicit.
+@@ -381,7 +400,7 @@ def _Union(module, parsed_union):
+   union.fields_data = []
+   _ProcessElements(parsed_union.mojom_name, parsed_union.body,
+                    {ast.UnionField: union.fields_data.append})
+-  union.attributes = _AttributeListToDict(parsed_union.attribute_list)
++  union.attributes = _AttributeListToDict(module, parsed_union.attribute_list)
+   return union
+ 
+ 
+@@ -402,7 +421,7 @@ def _StructField(module, parsed_field, struct):
+   field.ordinal = parsed_field.ordinal.value if parsed_field.ordinal else None
+   field.default = _LookupValue(module, struct, field.kind,
+                                parsed_field.default_value)
+-  field.attributes = _AttributeListToDict(parsed_field.attribute_list)
++  field.attributes = _AttributeListToDict(module, parsed_field.attribute_list)
+   return field
+ 
+ 
+@@ -427,7 +446,7 @@ def _UnionField(module, parsed_field, union):
+                      (module.mojom_namespace, union.mojom_name))
+   field.ordinal = parsed_field.ordinal.value if parsed_field.ordinal else None
+   field.default = None
+-  field.attributes = _AttributeListToDict(parsed_field.attribute_list)
++  field.attributes = _AttributeListToDict(module, parsed_field.attribute_list)
+   return field
+ 
+ 
+@@ -448,7 +467,8 @@ def _Parameter(module, parsed_param, interface):
+   parameter.ordinal = (parsed_param.ordinal.value
+                        if parsed_param.ordinal else None)
+   parameter.default = None  # TODO(tibell): We never have these. Remove field?
+-  parameter.attributes = _AttributeListToDict(parsed_param.attribute_list)
++  parameter.attributes = _AttributeListToDict(module,
++                                              parsed_param.attribute_list)
+   return parameter
+ 
+ 
+@@ -473,7 +493,7 @@ def _Method(module, parsed_method, interface):
+     method.response_parameters = list(
+         map(lambda parameter: _Parameter(module, parameter, interface),
+             parsed_method.response_parameter_list))
+-  method.attributes = _AttributeListToDict(parsed_method.attribute_list)
++  method.attributes = _AttributeListToDict(module, parsed_method.attribute_list)
+ 
+   # Enforce that only methods with response can have a [Sync] attribute.
+   if method.sync and method.response_parameters is None:
+@@ -501,7 +521,8 @@ def _Interface(module, parsed_iface):
+   interface.mojom_name = parsed_iface.mojom_name
+   interface.spec = 'x:' + module.GetNamespacePrefix() + interface.mojom_name
+   module.kinds[interface.spec] = interface
+-  interface.attributes = _AttributeListToDict(parsed_iface.attribute_list)
++  interface.attributes = _AttributeListToDict(module,
++                                              parsed_iface.attribute_list)
+   interface.enums = []
+   interface.constants = []
+   interface.methods_data = []
+@@ -531,7 +552,7 @@ def _EnumField(module, enum, parsed_field):
+   field = mojom.EnumField()
+   field.mojom_name = parsed_field.mojom_name
+   field.value = _LookupValue(module, enum, None, parsed_field.value)
+-  field.attributes = _AttributeListToDict(parsed_field.attribute_list)
++  field.attributes = _AttributeListToDict(module, parsed_field.attribute_list)
+   value = mojom.EnumValue(module, enum, field)
+   module.values[value.GetSpec()] = value
+   return field
+@@ -597,7 +618,7 @@ def _Enum(module, parsed_enum, parent_kind):
+     mojom_name = parent_kind.mojom_name + '.' + mojom_name
+   enum.spec = 'x:%s.%s' % (module.mojom_namespace, mojom_name)
+   enum.parent_kind = parent_kind
+-  enum.attributes = _AttributeListToDict(parsed_enum.attribute_list)
++  enum.attributes = _AttributeListToDict(module, parsed_enum.attribute_list)
+ 
+   if not enum.native_only:
+     enum.fields = list(
+-- 
+2.31.0
+

@@ -67,6 +67,14 @@ Policy-RegistryDict-use-base-Value.patch
 # It is a revert of r932059 and r957262, which caused crashes with ml package.
 Revert-StatisticsRecorder-back-to-use-a-base-Lock.patch
 
+# Cherry-pick [Extensible] support for union.
+# Cherry-pick of r989706
+Prevent-duplicate-attributes-in-mojo.patch
+# Cherry-pick of r991539
+Make-mojo-attributes-from-enums-be-EnumValue.patch
+# Cherry-pick of r993092
+Mojo-Extensible-union-support.patch
+
 # ==================== BACKWARD / FORWARD COMPATIBILITY PATCHES FOR UPREVS ===
 # TODO(b/192529039): Remove when all base::Optional usages are migrated to
 # std::optional
