@@ -408,7 +408,9 @@ libbase_sublibs = [
     name = "base-base_test_support"
     testonly = true
     sources = [
+      "base/test/mock_entropy_provider.cc",
       "base/test/scoped_chromeos_version_info.cc",
+      "base/test/scoped_feature_list.cc",
       "base/test/scoped_run_loop_timeout.cc",
       "base/test/simple_test_clock.cc",
       "base/test/simple_test_tick_clock.cc",
