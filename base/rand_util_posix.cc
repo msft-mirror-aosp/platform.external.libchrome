@@ -17,11 +17,11 @@
 #include "base/posix/eintr_wrapper.h"
 #include "build/build_config.h"
 
-#if (defined(OS_LINUX) || defined(OS_CHROMEOS)) && !defined(OS_NACL)
+#if (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)) && !BUILDFLAG(IS_NACL)
 // TODO(b/190018559): linux_syscall_support.h is not provided at current libchrome tree.
 // #include "third_party/lss/linux_syscall_support.h"
 #include <sys/random.h>
-#elif defined(OS_MAC)
+#elif BUILDFLAG(IS_MAC)
 // TODO(crbug.com/995996): Waiting for this header to appear in the iOS SDK.
 // (See below.)
 #include <sys/random.h>
@@ -29,7 +29,7 @@
 
 namespace {
 
-#if defined(OS_AIX)
+#if BUILDFLAG(IS_AIX)
 // AIX has no 64-bit support for O_CLOEXEC.
 static constexpr int kOpenFlags = O_RDONLY;
 #else
@@ -64,7 +64,7 @@ namespace base {
 // (https://chromium-review.googlesource.com/c/chromium/src/+/1545096) and land
 // it or some form of it.
 void RandBytes(void* output, size_t output_length) {
-#if (defined(OS_LINUX) || defined(OS_CHROMEOS)) && !defined(OS_NACL)
+#if (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)) && !BUILDFLAG(IS_NACL)
 #if 0
   // We have to call `getrandom` via Linux Syscall Support, rather than through
   // the libc wrapper, because we might not have an up-to-date libc (e.g. on
@@ -86,7 +86,7 @@ void RandBytes(void* output, size_t output_length) {
     MSAN_UNPOISON(output, output_length);
     return;
   }
-#elif defined(OS_MAC)
+#elif BUILDFLAG(IS_MAC)
   // TODO(crbug.com/995996): Enable this on iOS too, when sys/random.h arrives
   // in its SDK.
   if (__builtin_available(macOS 10.12, *)) {

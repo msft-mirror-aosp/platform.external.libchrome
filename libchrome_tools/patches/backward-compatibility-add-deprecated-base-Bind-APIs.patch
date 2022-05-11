@@ -270,16 +270,16 @@ diff --git a/base/callback_list.h b/base/callback_list.h
 index 6ce67ae084..d115e8449c 100644
 --- a/base/callback_list.h
 +++ b/base/callback_list.h
-@@ -341,6 +341,9 @@ class RepeatingCallbackList
+@@ -340,6 +340,9 @@ class RepeatingCallbackList
    }
  };
  
 +template <typename Signature>
 +using CallbackList = RepeatingCallbackList<Signature>;
 +
- // Syntactic sugar to parallel that used for Callbacks.
- // ClosureList explicitly not provided since it is not used, and CallbackList
- // is deprecated. {Once,Repeating}ClosureList should instead be used.
+ // Syntactic sugar to parallel that used for {Once,Repeating}Callbacks.
+ using OnceClosureList = OnceCallbackList<void()>;
+ using RepeatingClosureList = RepeatingCallbackList<void()>;
 diff --git a/base/callback_list_unittest.nc b/base/callback_list_unittest.nc
 index 819b842c0a..0d010c003e 100644
 --- a/base/callback_list_unittest.nc

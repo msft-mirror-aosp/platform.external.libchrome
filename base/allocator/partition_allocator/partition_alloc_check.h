@@ -12,6 +12,7 @@
 #include "base/check.h"
 #include "base/debug/alias.h"
 #include "base/immediate_crash.h"
+#include "build/build_config.h"
 
 #define PA_STRINGIFY_IMPL(s) #s
 #define PA_STRINGIFY(s) PA_STRINGIFY_IMPL(s)
@@ -96,10 +97,19 @@
 
 #endif
 
-namespace pa {
+// alignas(16) DebugKv causes breakpad_unittests and sandbox_linux_unittests
+// failures on android-marshmallow-x86-rel because of SIGSEGV.
+#if BUILDFLAG(IS_ANDROID) && defined(ARCH_CPU_X86_FAMILY) && \
+    defined(ARCH_CPU_32_BITS)
+#define PA_DEBUGKV_ALIGN alignas(8)
+#else
+#define PA_DEBUGKV_ALIGN alignas(16)
+#endif
+
+namespace partition_alloc::internal {
 
 // Used for PA_DEBUG_DATA_ON_STACK, below.
-struct alignas(16) DebugKv {
+struct PA_DEBUGKV_ALIGN DebugKv {
   // 16 bytes object aligned on 16 bytes, to make it easier to see in crash
   // reports.
   char k[8] = {};  // Not necessarily 0-terminated.
@@ -120,7 +130,8 @@ struct alignas(16) DebugKv {
     v = value;
   }
 };
-}  // namespace pa
+
+}  // namespace partition_alloc::internal
 
 #define PA_CONCAT(x, y) x##y
 #define PA_CONCAT2(x, y) PA_CONCAT(x, y)
@@ -144,8 +155,8 @@ struct alignas(16) DebugKv {
 // With gdb, one can use:
 // x/8g <STACK_POINTER>
 // to see the data. With lldb, "x <STACK_POINTER> <FRAME_POJNTER>" can be used.
-#define PA_DEBUG_DATA_ON_STACK(name, value)      \
-  pa::DebugKv PA_DEBUG_UNIQUE_NAME{name, value}; \
-  base::debug::Alias(&PA_DEBUG_UNIQUE_NAME);
+#define PA_DEBUG_DATA_ON_STACK(name, value)                               \
+  ::partition_alloc::internal::DebugKv PA_DEBUG_UNIQUE_NAME{name, value}; \
+  ::base::debug::Alias(&PA_DEBUG_UNIQUE_NAME);
 
 #endif  // BASE_ALLOCATOR_PARTITION_ALLOCATOR_PARTITION_ALLOC_CHECK_H_

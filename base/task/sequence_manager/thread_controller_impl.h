@@ -7,6 +7,7 @@
 
 #include <memory>
 
+#include "base/base_export.h"
 #include "base/cancelable_callback.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
@@ -48,7 +49,8 @@ class BASE_EXPORT ThreadControllerImpl : public ThreadController,
                      const char* task_queue_name) override;
   void ScheduleWork() override;
   void BindToCurrentThread(std::unique_ptr<MessagePump> message_pump) override;
-  void SetNextDelayedDoWork(LazyNow* lazy_now, TimeTicks run_time) override;
+  void SetNextDelayedDoWork(LazyNow* lazy_now,
+                            absl::optional<WakeUp> wake_up) override;
   void SetSequencedTaskSource(SequencedTaskSource* sequence) override;
   void SetTimerSlack(TimerSlack timer_slack) override;
   bool RunsTasksInCurrentSequence() override;

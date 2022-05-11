@@ -2,9 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// At present, none of this is used except in our Rust unit tests. Absolutely
-// all of this is therefore #[cfg(test)] to avoid 'unused' warnings.
-
 /// C++ bindings for base.
 ///
 /// This mod contains all the FFI bindings for C++ types in the base
@@ -87,12 +84,9 @@ pub(crate) mod ffi {
         fn ConstructListValue(v: Pin<&mut ValueSlot>) -> Pin<&mut Value>;
 
         fn DumpValueSlot(v: &ValueSlot) -> String;
-        // The following is enabled in Rust unit tests only. cxx does
-        // not allow us to use #[cfg(test)] attributes here. We could make a
-        // separate ffi_test mod, but (unless we put it in a different file)
-        // we would have to call the type something other than OptionalValue
-        // to avoid conflicts, and that seems a worse solution.
-        #[allow(unused)]
-        fn NewValueSlot() -> UniquePtr<ValueSlot>;
+
+        // Defined for Rust tests to crate a ValueSlot, because it requires C++ to do the creation
+        // at this time.
+        fn NewValueSlotForTesting() -> UniquePtr<ValueSlot>;
     }
 }

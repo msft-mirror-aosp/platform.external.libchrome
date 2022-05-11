@@ -60,6 +60,7 @@ const char* const kDumpProviderAllowlist[] = {
     "MojoLevelDB",
     "MojoMessages",
     "PartitionAlloc",
+    "PartitionAlloc.AddressSpace",
     "ProcessMemoryMetrics",
     "SharedContextState",
     "SharedMemoryTracker",
@@ -155,6 +156,7 @@ const char* const kAllocatorDumpNameAllowlist[] = {
     "malloc/partitions/original",
     "malloc/partitions/nonscannable",
     "malloc/partitions/nonquarantinable",
+    "malloc/sys_malloc",
     "malloc/win_heap",
 #endif
     "media/webmediaplayer/audio/player_0x?",
@@ -185,6 +187,7 @@ const char* const kAllocatorDumpNameAllowlist[] = {
     "web_cache/Encoded_size_duplicated_in_data_urls",
     "web_cache/Other_resources",
     "partition_alloc/allocated_objects",
+    "partition_alloc/address_space",
     "partition_alloc/partitions",
     "partition_alloc/partitions/array_buffer",
     "partition_alloc/partitions/buffer",

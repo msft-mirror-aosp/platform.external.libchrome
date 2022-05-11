@@ -113,8 +113,6 @@ def _MapKind(kind):
     lbracket = kind.rfind('[')
     typename = kind[0:lbracket]
     return 'a' + kind[lbracket + 1:-1] + ':' + _MapKind(typename)
-  if kind.endswith('&'):
-    return 'r:' + _MapKind(kind[0:-1])
   if kind.startswith('asso<'):
     assert kind.endswith('>')
     return 'asso:' + _MapKind(kind[5:-1])
@@ -139,9 +137,13 @@ def _AttributeListToDict(attribute_list):
   if attribute_list is None:
     return None
   assert isinstance(attribute_list, ast.AttributeList)
-  # TODO(vtl): Check for duplicate keys here.
-  return dict(
-      [(attribute.key, attribute.value) for attribute in attribute_list])
+  attributes = dict()
+  for attribute in attribute_list:
+    if attribute.key in attributes:
+      raise Exception("Duplicate key (%s) in attribute list" % attribute.key)
+    else:
+      attributes[attribute.key] = attribute.value
+  return attributes
 
 
 builtin_values = frozenset([

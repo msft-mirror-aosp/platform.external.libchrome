@@ -1,227 +1,39 @@
-From 1b22e52624e76212c2d377e4b604b12521a1713c Mon Sep 17 00:00:00 2001
+From d85bdc67f6b8791d609d9b9ac3ad0c15beabfb68 Mon Sep 17 00:00:00 2001
 From: hscham <hscham@chromium.org>
-Date: Tue, 12 Apr 2022 11:46:42 +0900
+Date: Thu, 21 Apr 2022 11:59:27 +0900
 Subject: [PATCH] Disable base::{Dictionary,List}Value
 
 All usages of the deprecated APIs in CrOS have been cleaned.
 Since they are still used internally, remove BASE_EXPORT keyword to
 strictly forbid client packages from introducing them again.
 
-Also remove unused code (cannot be upstreamed since they are used in
-chromium) for ipc/ that uses the old types.
-
-Change-Id: Ia9dfe7aa570126510934deb9b311be3ca4721dc9
+Change-Id: Ib184df47ee90ebd5bb676aee0c51325dcb1354d4
 ---
- base/values.h            |  4 +--
- ipc/ipc_message_utils.cc | 70 ++++++++--------------------------------
- ipc/ipc_message_utils.h  | 22 -------------
- 3 files changed, 15 insertions(+), 81 deletions(-)
+ base/values.h | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
 
 diff --git a/base/values.h b/base/values.h
-index 198e81e5e7ff..7a4c26f766e1 100644
+index f1b25181d2..777b995639 100644
 --- a/base/values.h
 +++ b/base/values.h
-@@ -631,7 +631,7 @@ class BASE_EXPORT Value {
+@@ -1166,7 +1166,7 @@ class BASE_EXPORT GSL_OWNER Value {
  // are std::string's and should be UTF-8 encoded.
- // DEPRECATED: Use DictStorage or base::Value(base::Value::Type::DICTIONARY)
- // instead.
+ //
+ // DEPRECATED: prefer `Value::Dict`.
 -class BASE_EXPORT DictionaryValue : public Value {
 +class DictionaryValue : public Value {
   public:
    // Returns `value` if it is a dictionary, nullptr otherwise.
    static std::unique_ptr<DictionaryValue> From(std::unique_ptr<Value> value);
-@@ -770,7 +770,7 @@ class BASE_EXPORT DictionaryValue : public Value {
- 
+@@ -1324,7 +1324,7 @@ class BASE_EXPORT DictionaryValue : public Value {
  // This type of Value represents a list of other Value values.
- // DEPRECATED: Use std::vector<base::Value> instead.
+ //
+ // DEPRECATED: prefer `base::Value::List`.
 -class BASE_EXPORT ListValue : public Value {
 +class ListValue : public Value {
   public:
    using const_iterator = ListView::const_iterator;
    using iterator = ListView::iterator;
-diff --git a/ipc/ipc_message_utils.cc b/ipc/ipc_message_utils.cc
-index 594e6ee805ac..c84b4ff780b6 100644
---- a/ipc/ipc_message_utils.cc
-+++ b/ipc/ipc_message_utils.cc
-@@ -143,36 +143,36 @@ void WriteValue(base::Pickle* m, const base::Value* value, int recursion) {
-   }
- }
- 
--// Helper for ReadValue that reads a DictionaryValue into a pre-allocated
-+// Helper for ReadValue that reads a dictionary type Value into a pre-allocated
- // object.
- bool ReadDictionaryValue(const base::Pickle* m,
-                          base::PickleIterator* iter,
--                         base::DictionaryValue* value,
-+                         base::Value* value,
-                          int recursion) {
-+  DCHECK(value->is_dict());
-   int size;
-   if (!ReadParam(m, iter, &size))
-     return false;
- 
--  std::vector<base::Value::LegacyDictStorage::value_type> entries;
-+  std::vector<base::Value::DictStorage::value_type> entries;
-   entries.resize(size);
-   for (auto& entry : entries) {
--    entry.second = std::make_unique<base::Value>();
-+    entry.second = base::Value();
-     if (!ReadParam(m, iter, &entry.first) ||
--        !ReadValue(m, iter, entry.second.get(), recursion + 1))
-+        !ReadValue(m, iter, &entry.second, recursion + 1))
-       return false;
-   }
- 
--  *value =
--      base::DictionaryValue(base::Value::LegacyDictStorage(std::move(entries)));
-+  *value = base::Value(base::Value::DictStorage(std::move(entries)));
-   return true;
- }
- 
--// Helper for ReadValue that reads a ReadListValue into a pre-allocated
--// object.
-+// Helper for ReadValue that reads a list type Value into a pre-allocated object
- bool ReadListValue(const base::Pickle* m,
-                    base::PickleIterator* iter,
--                   base::ListValue* value,
-+                   base::Value* value,
-                    int recursion) {
-+  DCHECK(value->is_list());
-   int size;
-   if (!ReadParam(m, iter, &size))
-     return false;
-@@ -183,7 +183,7 @@ bool ReadListValue(const base::Pickle* m,
-     if (!ReadValue(m, iter, &subval, recursion + 1))
-       return false;
-   }
--  *value = base::ListValue(std::move(list_storage));
-+  *value = base::Value(std::move(list_storage));
-   return true;
- }
- 
-@@ -245,14 +245,14 @@ bool ReadValue(const base::Pickle* m,
-       break;
-     }
-     case base::Value::Type::DICTIONARY: {
--      base::DictionaryValue val;
-+      base::Value val(base::Value::Type::DICTIONARY);
-       if (!ReadDictionaryValue(m, iter, &val, recursion))
-         return false;
-       *value = std::move(val);
-       break;
-     }
-     case base::Value::Type::LIST: {
--      base::ListValue val;
-+      base::Value val(base::Value::Type::LIST);
-       if (!ReadListValue(m, iter, &val, recursion))
-         return false;
-       *value = std::move(val);
-@@ -507,29 +507,6 @@ void ParamTraits<std::vector<bool> >::Log(const param_type& p, std::string* l) {
-   }
- }
- 
--void ParamTraits<base::DictionaryValue>::Write(base::Pickle* m,
--                                               const param_type& p) {
--  WriteValue(m, &p, 0);
--}
--
--bool ParamTraits<base::DictionaryValue>::Read(const base::Pickle* m,
--                                              base::PickleIterator* iter,
--                                              param_type* r) {
--  int type;
--  if (!ReadParam(m, iter, &type) ||
--      type != static_cast<int>(base::Value::Type::DICTIONARY))
--    return false;
--
--  return ReadDictionaryValue(m, iter, r, 0);
--}
--
--void ParamTraits<base::DictionaryValue>::Log(const param_type& p,
--                                             std::string* l) {
--  std::string json;
--  base::JSONWriter::Write(p, &json);
--  l->append(json);
--}
--
- #if BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
- void ParamTraits<base::FileDescriptor>::Write(base::Pickle* m,
-                                               const param_type& p) {
-@@ -1155,27 +1132,6 @@ void ParamTraits<base::FilePath>::Log(const param_type& p, std::string* l) {
-   ParamTraits<base::FilePath::StringType>::Log(p.value(), l);
- }
- 
--void ParamTraits<base::ListValue>::Write(base::Pickle* m, const param_type& p) {
--  WriteValue(m, &p, 0);
--}
--
--bool ParamTraits<base::ListValue>::Read(const base::Pickle* m,
--                                        base::PickleIterator* iter,
--                                        param_type* r) {
--  int type;
--  if (!ReadParam(m, iter, &type) ||
--      type != static_cast<int>(base::Value::Type::LIST))
--    return false;
--
--  return ReadListValue(m, iter, r, 0);
--}
--
--void ParamTraits<base::ListValue>::Log(const param_type& p, std::string* l) {
--  std::string json;
--  base::JSONWriter::Write(p, &json);
--  l->append(json);
--}
--
- void ParamTraits<base::Value>::Write(base::Pickle* m, const param_type& p) {
-   WriteValue(m, &p, 0);
- }
-diff --git a/ipc/ipc_message_utils.h b/ipc/ipc_message_utils.h
-index 1221d2bf2ac5..80fb5ba602f4 100644
---- a/ipc/ipc_message_utils.h
-+++ b/ipc/ipc_message_utils.h
-@@ -45,9 +45,7 @@
- #endif
- 
- namespace base {
--class DictionaryValue;
- class FilePath;
--class ListValue;
- class Time;
- class TimeDelta;
- class TimeTicks;
-@@ -533,16 +531,6 @@ struct ParamTraits<std::pair<A, B> > {
- 
- // Base ParamTraits ------------------------------------------------------------
- 
--template <>
--struct COMPONENT_EXPORT(IPC) ParamTraits<base::DictionaryValue> {
--  typedef base::DictionaryValue param_type;
--  static void Write(base::Pickle* m, const param_type& p);
--  static bool Read(const base::Pickle* m,
--                   base::PickleIterator* iter,
--                   param_type* r);
--  static void Log(const param_type& p, std::string* l);
--};
--
- #if BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
- // FileDescriptors may be serialised over IPC channels on POSIX. On the
- // receiving side, the FileDescriptor is a valid duplicate of the file
-@@ -702,16 +690,6 @@ struct COMPONENT_EXPORT(IPC) ParamTraits<base::FilePath> {
-   static void Log(const param_type& p, std::string* l);
- };
- 
--template <>
--struct COMPONENT_EXPORT(IPC) ParamTraits<base::ListValue> {
--  typedef base::ListValue param_type;
--  static void Write(base::Pickle* m, const param_type& p);
--  static bool Read(const base::Pickle* m,
--                   base::PickleIterator* iter,
--                   param_type* r);
--  static void Log(const param_type& p, std::string* l);
--};
--
- template <>
- struct COMPONENT_EXPORT(IPC) ParamTraits<base::Value> {
-   typedef base::Value param_type;
 -- 
-2.35.1.1178.g4f1659d476-goog
+2.36.0.rc2.479.g8af0fa9b8e-goog
 

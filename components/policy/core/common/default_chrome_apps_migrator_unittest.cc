@@ -45,6 +45,12 @@ class DefaultChromeAppsMigratorTest : public testing::Test {
     policy_map_.Set(key::kWebAppInstallForceList, POLICY_LEVEL_MANDATORY,
                     POLICY_SCOPE_USER, POLICY_SOURCE_CLOUD,
                     std::move(web_app_value), nullptr);
+
+    base::Value pinned_apps_value(base::Value::Type::LIST);
+    pinned_apps_value.Append("ffff");
+    policy_map_.Set(key::kPinnedLauncherApps, POLICY_LEVEL_MANDATORY,
+                    POLICY_SCOPE_USER, POLICY_SOURCE_CLOUD,
+                    std::move(pinned_apps_value), nullptr);
   }
 
  protected:
@@ -65,20 +71,20 @@ TEST_F(DefaultChromeAppsMigratorTest, ChromeAppWithUpdateUrl) {
   PolicyMap expected_map(policy_map_.Clone());
 
   // Add force installed chrome app that should be migrated.
-  base::Value* forcelist_value =
-      policy_map_.GetMutableValue(key::kExtensionInstallForcelist);
+  base::Value* forcelist_value = policy_map_.GetMutableValue(
+      key::kExtensionInstallForcelist, base::Value::Type::LIST);
   forcelist_value->Append(std::string(kAppId1) + ";https://example.com");
 
   // Chrome app should be blocked after migration.
-  base::Value* blocklist_value =
-      expected_map.GetMutableValue(key::kExtensionInstallBlocklist);
+  base::Value* blocklist_value = expected_map.GetMutableValue(
+      key::kExtensionInstallBlocklist, base::Value::Type::LIST);
   blocklist_value->Append(std::string(kAppId1));
 
   // Corresponding web app should be force installed after migration.
   base::Value first_app(base::Value::Type::DICTIONARY);
   first_app.SetStringKey("url", kWebAppUrl1);
-  base::Value* web_app_value =
-      expected_map.GetMutableValue(key::kWebAppInstallForceList);
+  base::Value* web_app_value = expected_map.GetMutableValue(
+      key::kWebAppInstallForceList, base::Value::Type::LIST);
   web_app_value->Append(std::move(first_app));
 
   migrator_.Migrate(&policy_map_);
@@ -90,22 +96,22 @@ TEST_F(DefaultChromeAppsMigratorTest, ChromeAppsAndExtensions) {
   PolicyMap expected_map(policy_map_.Clone());
 
   // Add two force installed chrome apps and two extensions.
-  base::Value* forcelist_value =
-      policy_map_.GetMutableValue(key::kExtensionInstallForcelist);
+  base::Value* forcelist_value = policy_map_.GetMutableValue(
+      key::kExtensionInstallForcelist, base::Value::Type::LIST);
   forcelist_value->Append("extension1");
   forcelist_value->Append(kAppId1);
   forcelist_value->Append("extension2");
   forcelist_value->Append(kAppId2);
 
   // Only extensions should be left now.
-  base::Value* expected_forcelist =
-      expected_map.GetMutableValue(key::kExtensionInstallForcelist);
+  base::Value* expected_forcelist = expected_map.GetMutableValue(
+      key::kExtensionInstallForcelist, base::Value::Type::LIST);
   expected_forcelist->Append("extension1");
   expected_forcelist->Append("extension2");
 
   // Chrome apps should be blocked after migration.
-  base::Value* blocklist_value =
-      expected_map.GetMutableValue(key::kExtensionInstallBlocklist);
+  base::Value* blocklist_value = expected_map.GetMutableValue(
+      key::kExtensionInstallBlocklist, base::Value::Type::LIST);
   blocklist_value->Append(kAppId1);
   blocklist_value->Append(kAppId2);
 
@@ -114,8 +120,8 @@ TEST_F(DefaultChromeAppsMigratorTest, ChromeAppsAndExtensions) {
   first_app.SetStringKey("url", kWebAppUrl1);
   base::Value second_app(base::Value::Type::DICTIONARY);
   second_app.SetStringKey("url", kWebAppUrl2);
-  base::Value* web_app_value =
-      expected_map.GetMutableValue(key::kWebAppInstallForceList);
+  base::Value* web_app_value = expected_map.GetMutableValue(
+      key::kWebAppInstallForceList, base::Value::Type::LIST);
   web_app_value->Append(std::move(first_app));
   web_app_value->Append(std::move(second_app));
 
@@ -131,8 +137,8 @@ TEST_F(DefaultChromeAppsMigratorTest, ExtensionBlocklistPolicyWrongType) {
   PolicyMap expected_map(policy_map_.Clone());
 
   // Add force installed chrome app.
-  base::Value* forcelist_value =
-      policy_map_.GetMutableValue(key::kExtensionInstallForcelist);
+  base::Value* forcelist_value = policy_map_.GetMutableValue(
+      key::kExtensionInstallForcelist, base::Value::Type::LIST);
   forcelist_value->Append(kAppId1);
 
   // Set ExtensionInstallBlocklist to non-list type.
@@ -151,8 +157,8 @@ TEST_F(DefaultChromeAppsMigratorTest, ExtensionBlocklistPolicyWrongType) {
   // Corresponding web app should be force installed after migration.
   base::Value first_app(base::Value::Type::DICTIONARY);
   first_app.SetStringKey("url", kWebAppUrl1);
-  base::Value* web_app_value =
-      expected_map.GetMutableValue(key::kWebAppInstallForceList);
+  base::Value* web_app_value = expected_map.GetMutableValue(
+      key::kWebAppInstallForceList, base::Value::Type::LIST);
   web_app_value->Append(std::move(first_app));
 
   migrator_.Migrate(&policy_map_);
@@ -167,8 +173,8 @@ TEST_F(DefaultChromeAppsMigratorTest, WebAppPolicyWrongType) {
   PolicyMap expected_map(policy_map_.Clone());
 
   // Add force installed chrome app.
-  base::Value* forcelist_value =
-      policy_map_.GetMutableValue(key::kExtensionInstallForcelist);
+  base::Value* forcelist_value = policy_map_.GetMutableValue(
+      key::kExtensionInstallForcelist, base::Value::Type::LIST);
   forcelist_value->Append(kAppId1);
 
   // Set WebAppInstallForceList to non-list type.
@@ -177,8 +183,8 @@ TEST_F(DefaultChromeAppsMigratorTest, WebAppPolicyWrongType) {
       ->set_value(std::move(web_app_value));
 
   // Chrome app should be blocked after migration.
-  base::Value* blocklist_value =
-      expected_map.GetMutableValue(key::kExtensionInstallBlocklist);
+  base::Value* blocklist_value = expected_map.GetMutableValue(
+      key::kExtensionInstallBlocklist, base::Value::Type::LIST);
   blocklist_value->Append(kAppId1);
 
   base::Value web_app_expected_value(base::Value::Type::LIST);
@@ -190,6 +196,41 @@ TEST_F(DefaultChromeAppsMigratorTest, WebAppPolicyWrongType) {
   web_app_expected_entry->set_value(std::move(web_app_expected_value));
   web_app_expected_entry->AddMessage(PolicyMap::MessageType::kError,
                                      IDS_POLICY_TYPE_ERROR);
+
+  migrator_.Migrate(&policy_map_);
+
+  EXPECT_TRUE(policy_map_.Equals(expected_map));
+}
+
+TEST_F(DefaultChromeAppsMigratorTest, PinnedApp) {
+  PolicyMap expected_map(policy_map_.Clone());
+
+  // Add force installed chrome app that should be migrated.
+  base::Value* forcelist_value = policy_map_.GetMutableValue(
+      key::kExtensionInstallForcelist, base::Value::Type::LIST);
+  forcelist_value->Append(std::string(kAppId1));
+
+  // Make the chrome app pinned.
+  base::Value* pinned_apps_value = policy_map_.GetMutableValue(
+      key::kPinnedLauncherApps, base::Value::Type::LIST);
+  pinned_apps_value->Append(std::string(kAppId1));
+
+  // Chrome app should be blocked after migration.
+  base::Value* blocklist_value = expected_map.GetMutableValue(
+      key::kExtensionInstallBlocklist, base::Value::Type::LIST);
+  blocklist_value->Append(std::string(kAppId1));
+
+  // Corresponding web app should be force installed after migration.
+  base::Value first_app(base::Value::Type::DICTIONARY);
+  first_app.SetStringKey("url", kWebAppUrl1);
+  base::Value* web_app_value = expected_map.GetMutableValue(
+      key::kWebAppInstallForceList, base::Value::Type::LIST);
+  web_app_value->Append(std::move(first_app));
+
+  // The corresponding Web App should be pinned.
+  base::Value* pinned_expected_value = expected_map.GetMutableValue(
+      key::kPinnedLauncherApps, base::Value::Type::LIST);
+  pinned_expected_value->Append(std::string(kWebAppUrl1));
 
   migrator_.Migrate(&policy_map_);
 

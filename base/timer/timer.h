@@ -135,7 +135,9 @@ class BASE_EXPORT TimerBase {
 
   // Detects when the scheduled task is deleted before being executed. Null when
   // there is no scheduled task.
-  raw_ptr<TaskDestructionDetector> task_destruction_detector_
+  // `task_destruction_detector_` is not a raw_ptr<...> for performance reasons
+  // (based on analysis of sampling profiler data).
+  TaskDestructionDetector* task_destruction_detector_
       GUARDED_BY_CONTEXT(sequence_checker_);
 
   // If true, |user_task_| is scheduled to run sometime in the future.
@@ -202,6 +204,10 @@ class BASE_EXPORT DelayTimerBase : public TimerBase {
   void StartInternal(const Location& posted_from, TimeDelta delay);
 
  private:
+  // DCHECKs that the user task is not null. Used to diagnose a recurring bug
+  // where Reset() is called on a OneShotTimer that has already fired.
+  virtual void EnsureNonNullUserTask() = 0;
+
   // Returns the current tick count.
   TimeTicks Now() const;
 
@@ -271,6 +277,7 @@ class BASE_EXPORT OneShotTimer : public internal::DelayTimerBase {
  private:
   void OnStop() final;
   void RunUserTask() final;
+  void EnsureNonNullUserTask() final;
 
   OnceClosure user_task_;
 };
@@ -317,8 +324,8 @@ class BASE_EXPORT RepeatingTimer : public internal::DelayTimerBase {
  private:
   // Mark this final, so that the destructor can call this safely.
   void OnStop() final;
-
   void RunUserTask() override;
+  void EnsureNonNullUserTask() final;
 
   RepeatingClosure user_task_;
 };
@@ -366,8 +373,8 @@ class BASE_EXPORT RetainingOneShotTimer : public internal::DelayTimerBase {
  private:
   // Mark this final, so that the destructor can call this safely.
   void OnStop() final;
-
   void RunUserTask() override;
+  void EnsureNonNullUserTask() final;
 
   RepeatingClosure user_task_;
 };

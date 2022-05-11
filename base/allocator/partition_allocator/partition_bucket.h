@@ -5,8 +5,7 @@
 #ifndef BASE_ALLOCATOR_PARTITION_ALLOCATOR_PARTITION_BUCKET_H_
 #define BASE_ALLOCATOR_PARTITION_ALLOCATOR_PARTITION_BUCKET_H_
 
-#include <stddef.h>
-#include <stdint.h>
+#include <cstddef>
 #include <cstdint>
 
 #include "base/allocator/partition_allocator/partition_alloc_check.h"
@@ -16,12 +15,13 @@
 #include "base/compiler_specific.h"
 #include "base/thread_annotations.h"
 
-namespace base {
-namespace internal {
+namespace partition_alloc::internal {
 
-namespace {
-constexpr int kPartitionNumSystemPagesPerSlotSpanBits = 8;
-}
+constexpr inline int kPartitionNumSystemPagesPerSlotSpanBits = 8;
+
+// Visible for testing.
+BASE_EXPORT uint8_t
+ComputeSystemPagesPerSlotSpan(size_t slot_size, bool prefer_smaller_slot_spans);
 
 template <bool thread_safe>
 struct PartitionBucket {
@@ -59,9 +59,10 @@ struct PartitionBucket {
 
   // Sets |is_already_zeroed| to true if the allocation was satisfied by
   // requesting (a) new page(s) from the operating system, or false otherwise.
-  // This enables an optimization for when callers use |PartitionAllocZeroFill|:
-  // there is no need to call memset on fresh pages; the OS has already zeroed
-  // them. (See |PartitionRoot::AllocFromBucket|.)
+  // This enables an optimization for when callers use
+  // |AllocFlags::kZeroFill|: there is no need to call memset on fresh
+  // pages; the OS has already zeroed them. (See
+  // |PartitionRoot::AllocFromBucket|.)
   //
   // Note the matching Free() functions are in SlotSpanMetadata.
   BASE_EXPORT NOINLINE uintptr_t SlowPathAlloc(PartitionRoot<thread_safe>* root,
@@ -127,6 +128,11 @@ struct PartitionBucket {
   // This is where the guts of the bucket maintenance is done!
   bool SetNewActiveSlotSpan();
 
+  // Walks the entire active slot span list, and perform regular maintenance,
+  // where empty, decommitted and full slot spans are moved to their
+  // steady-state place.
+  BASE_EXPORT void MaintainActiveList();
+
   // Returns a slot number starting from the beginning of the slot span.
   ALWAYS_INLINE size_t GetSlotNumber(size_t offset_in_slot_span) const {
     // See the static assertion for `kReciprocalShift` above.
@@ -144,16 +150,6 @@ struct PartitionBucket {
   void SortSlotSpanFreelists();
 
  private:
-  static NOINLINE void OnFull();
-
-  // Returns the number of system pages in a slot span.
-  //
-  // The calculation attempts to find the best number of system pages to
-  // allocate for the given slot_size to minimize wasted space. It uses a
-  // heuristic that looks at number of bytes wasted after the last slot and
-  // attempts to account for the PTE usage of each system page.
-  static uint8_t ComputeSystemPagesPerSlotSpan(size_t slot_size);
-
   // Allocates a new slot span with size |num_partition_pages| from the
   // current extent. Metadata within this slot span will be initialized.
   // Returns nullptr on error.
@@ -193,7 +189,14 @@ struct PartitionBucket {
       EXCLUSIVE_LOCKS_REQUIRED(root->lock_);
 };
 
-}  // namespace internal
-}  // namespace base
+}  // namespace partition_alloc::internal
+
+namespace base::internal {
+
+// TODO(https://crbug.com/1288247): Remove these 'using' declarations once
+// the migration to the new namespaces gets done.
+using ::partition_alloc::internal::PartitionBucket;
+
+}  // namespace base::internal
 
 #endif  // BASE_ALLOCATOR_PARTITION_ALLOCATOR_PARTITION_BUCKET_H_

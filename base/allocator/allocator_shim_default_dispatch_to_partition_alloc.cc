@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <map>
 #include <string>
+#include <tuple>
 
 #include "base/allocator/allocator_shim_internals.h"
 #include "base/allocator/buildflags.h"
@@ -23,7 +24,6 @@
 #include "base/bits.h"
 #include "base/compiler_specific.h"
 #include "base/feature_list.h"
-#include "base/ignore_result.h"
 #include "base/memory/nonscannable_memory.h"
 #include "base/numerics/checked_math.h"
 #include "build/build_config.h"
@@ -246,11 +246,12 @@ void* AllocateAlignedMemory(size_t alignment, size_t size) {
     PA_CHECK(base::bits::IsPowerOfTwo(alignment));
     // TODO(bartekn): See if the compiler optimizes branches down the stack on
     // Mac, where PartitionPageSize() isn't constexpr.
-    return Allocator()->AllocFlagsNoHooks(0, size, base::PartitionPageSize());
+    return Allocator()->AllocWithFlagsNoHooks(0, size,
+                                              base::PartitionPageSize());
   }
 
-  return AlignedAllocator()->AlignedAllocFlags(base::PartitionAllocNoHooks,
-                                               alignment, size);
+  return AlignedAllocator()->AlignedAllocWithFlags(
+      partition_alloc::AllocFlags::kNoHooks, alignment, size);
 }
 
 }  // namespace
@@ -258,19 +259,43 @@ void* AllocateAlignedMemory(size_t alignment, size_t size) {
 namespace base {
 namespace internal {
 
+namespace {
+#if BUILDFLAG(IS_APPLE)
+int g_alloc_flags = 0;
+#else
+constexpr int g_alloc_flags = 0;
+#endif
+}  // namespace
+
+void PartitionAllocSetCallNewHandlerOnMallocFailure(bool value) {
+#if BUILDFLAG(IS_APPLE)
+  // We generally prefer to always crash rather than returning nullptr for
+  // OOM. However, on some macOS releases, we have to locally allow it due to
+  // weirdness in OS code. See https://crbug.com/654695 for details.
+  //
+  // Apple only since it's not needed elsewhere, and there is a performance
+  // penalty.
+
+  if (value)
+    g_alloc_flags = 0;
+  else
+    g_alloc_flags = partition_alloc::AllocFlags::kReturnNull;
+#endif
+}
+
 void* PartitionMalloc(const AllocatorDispatch*, size_t size, void* context) {
   ScopedDisallowAllocations guard{};
-  return Allocator()->AllocFlagsNoHooks(0, MaybeAdjustSize(size),
-                                        PartitionPageSize());
+  return Allocator()->AllocWithFlagsNoHooks(
+      0 | g_alloc_flags, MaybeAdjustSize(size), PartitionPageSize());
 }
 
 void* PartitionMallocUnchecked(const AllocatorDispatch*,
                                size_t size,
                                void* context) {
   ScopedDisallowAllocations guard{};
-  return Allocator()->AllocFlagsNoHooks(base::PartitionAllocReturnNull,
-                                        MaybeAdjustSize(size),
-                                        PartitionPageSize());
+  return Allocator()->AllocWithFlagsNoHooks(
+      partition_alloc::AllocFlags::kReturnNull | g_alloc_flags,
+      MaybeAdjustSize(size), PartitionPageSize());
 }
 
 void* PartitionCalloc(const AllocatorDispatch*,
@@ -279,8 +304,9 @@ void* PartitionCalloc(const AllocatorDispatch*,
                       void* context) {
   ScopedDisallowAllocations guard{};
   const size_t total = base::CheckMul(n, MaybeAdjustSize(size)).ValueOrDie();
-  return Allocator()->AllocFlagsNoHooks(base::PartitionAllocZeroFill, total,
-                                        PartitionPageSize());
+  return Allocator()->AllocWithFlagsNoHooks(
+      partition_alloc::AllocFlags::kZeroFill | g_alloc_flags, total,
+      PartitionPageSize());
 }
 
 void* PartitionMemalign(const AllocatorDispatch*,
@@ -304,8 +330,8 @@ void* PartitionAlignedAlloc(const AllocatorDispatch* dispatch,
 // TODO(tasak): Expand the given memory block to the given size if possible.
 // This realloc always free the original memory block and allocates a new memory
 // block.
-// TODO(tasak): Implement PartitionRoot<thread_safe>::AlignedReallocFlags and
-// use it.
+// TODO(tasak): Implement PartitionRoot<thread_safe>::AlignedReallocWithFlags
+// and use it.
 void* PartitionAlignedRealloc(const AllocatorDispatch* dispatch,
                               void* address,
                               size_t size,
@@ -352,8 +378,9 @@ void* PartitionRealloc(const AllocatorDispatch*,
   }
 #endif  // BUILDFLAG(IS_APPLE)
 
-  return Allocator()->ReallocFlags(base::PartitionAllocNoHooks, address,
-                                   MaybeAdjustSize(size), "");
+  return Allocator()->ReallocWithFlags(
+      partition_alloc::AllocFlags::kNoHooks | g_alloc_flags, address,
+      MaybeAdjustSize(size), "");
 }
 
 #if BUILDFLAG(IS_ANDROID) && BUILDFLAG(IS_CHROMECAST)
@@ -362,16 +389,17 @@ void __real_free(void*);
 }  // extern "C"
 #endif
 
-void PartitionFree(const AllocatorDispatch*, void* address, void* context) {
+void PartitionFree(const AllocatorDispatch*, void* object, void* context) {
   ScopedDisallowAllocations guard{};
 #if BUILDFLAG(IS_APPLE)
+  // TODO(bartekn): Add MTE unmasking here (and below).
   if (UNLIKELY(!base::IsManagedByPartitionAlloc(
-                   reinterpret_cast<uintptr_t>(address)) &&
-               address)) {
+                   reinterpret_cast<uintptr_t>(object)) &&
+               object)) {
     // A memory region allocated by the system allocator is passed in this
     // function.  Forward the request to `free` which supports zone-
     // dispatching so that it appropriately selects the right zone.
-    return free(address);
+    return free(object);
   }
 #endif  // BUILDFLAG(IS_APPLE)
 
@@ -381,16 +409,16 @@ void PartitionFree(const AllocatorDispatch*, void* address, void* context) {
   // Android we have a PA_CHECK() rather than the branch here.
 #if BUILDFLAG(IS_ANDROID) && BUILDFLAG(IS_CHROMECAST)
   if (UNLIKELY(!base::IsManagedByPartitionAlloc(
-                   reinterpret_cast<uintptr_t>(address)) &&
-               address)) {
+                   reinterpret_cast<uintptr_t>(object)) &&
+               object)) {
     // A memory region allocated by the system allocator is passed in this
     // function.  Forward the request to `free()`, which is `__real_free()`
     // here.
-    return __real_free(address);
+    return __real_free(object);
   }
 #endif
 
-  base::ThreadSafePartitionRoot::FreeNoHooks(address);
+  base::ThreadSafePartitionRoot::FreeNoHooks(object);
 }
 
 #if BUILDFLAG(IS_APPLE)
@@ -439,6 +467,33 @@ size_t PartitionGetSizeEstimate(const AllocatorDispatch*,
   return size;
 }
 
+unsigned PartitionBatchMalloc(const AllocatorDispatch*,
+                              size_t size,
+                              void** results,
+                              unsigned num_requested,
+                              void* context) {
+  // No real batching: we could only acquire the lock once for instance, keep it
+  // simple for now.
+  for (unsigned i = 0; i < num_requested; i++) {
+    // No need to check the results, we crash if it fails.
+    results[i] = PartitionMalloc(nullptr, size, nullptr);
+  }
+
+  // Either all succeeded, or we crashed.
+  return num_requested;
+}
+
+void PartitionBatchFree(const AllocatorDispatch*,
+                        void** to_be_freed,
+                        unsigned num_to_be_freed,
+                        void* context) {
+  // No real batching: we could only acquire the lock once for instance, keep it
+  // simple for now.
+  for (unsigned i = 0; i < num_to_be_freed; i++) {
+    PartitionFree(nullptr, to_be_freed[i], nullptr);
+  }
+}
+
 // static
 ThreadSafePartitionRoot* PartitionAllocMalloc::Allocator() {
   return ::Allocator();
@@ -468,12 +523,14 @@ void EnablePartitionAllocMemoryReclaimer() {
   // memory. Thus, the registration to the memory reclaimer has to be done
   // some time later, when the main root is fully configured.
   // TODO(bartekn): Aligned allocator can use the regular initialization path.
-  PartitionAllocMemoryReclaimer::Instance()->RegisterPartition(Allocator());
+  ::partition_alloc::MemoryReclaimer::Instance()->RegisterPartition(
+      Allocator());
   auto* original_root = OriginalAllocator();
   if (original_root)
-    PartitionAllocMemoryReclaimer::Instance()->RegisterPartition(original_root);
+    ::partition_alloc::MemoryReclaimer::Instance()->RegisterPartition(
+        original_root);
   if (AlignedAllocator() != Allocator()) {
-    PartitionAllocMemoryReclaimer::Instance()->RegisterPartition(
+    ::partition_alloc::MemoryReclaimer::Instance()->RegisterPartition(
         AlignedAllocator());
   }
 }
@@ -489,7 +546,8 @@ alignas(base::ThreadSafePartitionRoot) uint8_t
 void ConfigurePartitions(
     EnableBrp enable_brp,
     SplitMainPartition split_main_partition,
-    UseDedicatedAlignedPartition use_dedicated_aligned_partition) {
+    UseDedicatedAlignedPartition use_dedicated_aligned_partition,
+    AlternateBucketDistribution use_alternate_bucket_distribution) {
   // BRP cannot be enabled without splitting the main partition. Furthermore, in
   // the "before allocation" mode, it can't be enabled without further splitting
   // out the aligned partition.
@@ -511,6 +569,10 @@ void ConfigurePartitions(
   auto* current_aligned_root = g_aligned_root.Get();
 
   if (!split_main_partition) {
+    if (!use_alternate_bucket_distribution) {
+      current_root->SwitchToDenserBucketDistribution();
+      current_aligned_root->SwitchToDenserBucketDistribution();
+    }
     PA_DCHECK(!enable_brp);
     PA_DCHECK(!use_dedicated_aligned_partition);
     PA_DCHECK(!current_root->with_thread_cache);
@@ -563,8 +625,13 @@ void ConfigurePartitions(
   PA_CHECK(current_aligned_root == g_original_root);
 
   // Purge memory, now that the traffic to the original partition is cut off.
-  current_root->PurgeMemory(PartitionPurgeDecommitEmptySlotSpans |
-                            PartitionPurgeDiscardUnusedSystemPages);
+  current_root->PurgeMemory(PurgeFlags::kDecommitEmptySlotSpans |
+                            PurgeFlags::kDiscardUnusedSystemPages);
+
+  if (!use_alternate_bucket_distribution) {
+    g_root.Get()->SwitchToDenserBucketDistribution();
+    g_aligned_root.Get()->SwitchToDenserBucketDistribution();
+  }
 }
 
 #if defined(PA_ALLOW_PCSCAN)
@@ -602,8 +669,8 @@ const AllocatorDispatch AllocatorDispatch::default_dispatch = {
     &base::internal::PartitionRealloc,   // realloc_function
     &base::internal::PartitionFree,      // free_function
     &base::internal::PartitionGetSizeEstimate,  // get_size_estimate_function
-    nullptr,                                    // batch_malloc_function
-    nullptr,                                    // batch_free_function
+    &base::internal::PartitionBatchMalloc,      // batch_malloc_function
+    &base::internal::PartitionBatchFree,        // batch_free_function
 #if BUILDFLAG(IS_APPLE)
     // On Apple OSes, free_definite_size() is always called from free(), since
     // get_size_estimate() is used to determine whether an allocation belongs to
@@ -696,7 +763,7 @@ void InitializeDefaultAllocatorPartitionRoot() {
   // internally, e.g. __builtin_available, and it's not easy to avoid it.
   // Thus, we initialize the PartitionRoot with using the system default
   // allocator before we intercept the system default allocator.
-  ignore_result(Allocator());
+  std::ignore = Allocator();
 }
 
 }  // namespace allocator

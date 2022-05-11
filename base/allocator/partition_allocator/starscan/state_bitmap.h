@@ -15,12 +15,11 @@
 #include <tuple>
 #include <utility>
 
+#include "base/allocator/partition_allocator/base/bits.h"
 #include "base/allocator/partition_allocator/partition_alloc_check.h"
-#include "base/bits.h"
 #include "base/compiler_specific.h"
 
-namespace base {
-namespace internal {
+namespace partition_alloc::internal {
 
 // Bitmap which tracks allocation states. An allocation can be in one of 3
 // states:
@@ -70,7 +69,7 @@ class StateBitmap final {
   using CellType = uintptr_t;
   static constexpr size_t kBitsPerCell = sizeof(CellType) * CHAR_BIT;
   static constexpr size_t kBitsNeededForAllocation =
-      bits::Log2Floor(static_cast<size_t>(State::kNumOfStates));
+      base::bits::Log2Floor(static_cast<size_t>(State::kNumOfStates));
   static constexpr CellType kStateMask = (1 << kBitsNeededForAllocation) - 1;
 
   static constexpr size_t kBitmapSize =
@@ -210,8 +209,7 @@ ALWAYS_INLINE void
 StateBitmap<PageSize, PageAlignment, AllocationAlignment>::Allocate(
     uintptr_t address) {
   PA_SCAN_DCHECK(IsFreed(address));
-  size_t cell_index, object_bit;
-  std::tie(cell_index, object_bit) = AllocationIndexAndBit(address);
+  auto [cell_index, object_bit] = AllocationIndexAndBit(address);
   const CellType mask = static_cast<CellType>(State::kAlloced) << object_bit;
   auto& cell = AsAtomicCell(cell_index);
   cell.fetch_or(mask, std::memory_order_relaxed);
@@ -230,8 +228,7 @@ StateBitmap<PageSize, PageAlignment, AllocationAlignment>::Quarantine(
                 "kQuarantined1 must be inverted kQuarantined2");
   const State quarantine_state =
       epoch & 0b1 ? State::kQuarantined1 : State::kQuarantined2;
-  size_t cell_index, object_bit;
-  std::tie(cell_index, object_bit) = AllocationIndexAndBit(address);
+  auto [cell_index, object_bit] = AllocationIndexAndBit(address);
   const CellType mask =
       ~(static_cast<CellType>(quarantine_state) << object_bit);
   auto& cell = AsAtomicCell(cell_index);
@@ -249,8 +246,7 @@ ALWAYS_INLINE bool StateBitmap<PageSize, PageAlignment, AllocationAlignment>::
                 "kQuarantined1 must be inverted kQuarantined2");
   const State quarantine_state_old =
       epoch & 0b1 ? State::kQuarantined2 : State::kQuarantined1;
-  size_t cell_index, object_bit;
-  std::tie(cell_index, object_bit) = AllocationIndexAndBit(address);
+  auto [cell_index, object_bit] = AllocationIndexAndBit(address);
   const CellType clear_mask =
       ~(static_cast<CellType>(State::kAlloced) << object_bit);
   const CellType set_mask_old = static_cast<CellType>(quarantine_state_old)
@@ -289,8 +285,7 @@ StateBitmap<PageSize, PageAlignment, AllocationAlignment>::Free(
   static_assert((~static_cast<CellType>(State::kAlloced) & kStateMask) ==
                     (static_cast<CellType>(State::kFreed) & kStateMask),
                 "kFreed must be inverted kAlloced");
-  size_t cell_index, object_bit;
-  std::tie(cell_index, object_bit) = AllocationIndexAndBit(address);
+  auto [cell_index, object_bit] = AllocationIndexAndBit(address);
   const CellType mask = ~(static_cast<CellType>(State::kAlloced) << object_bit);
   auto& cell = AsAtomicCell(cell_index);
   cell.fetch_and(mask, std::memory_order_relaxed);
@@ -343,8 +338,7 @@ StateBitmap<PageSize, PageAlignment, AllocationAlignment>::
 template <size_t PageSize, size_t PageAlignment, size_t AllocationAlignment>
 unsigned StateBitmap<PageSize, PageAlignment, AllocationAlignment>::GetBits(
     uintptr_t address) const {
-  size_t cell_index, object_bit;
-  std::tie(cell_index, object_bit) = AllocationIndexAndBit(address);
+  auto [cell_index, object_bit] = AllocationIndexAndBit(address);
   return (LoadCell(cell_index) >> object_bit) & kStateMask;
 }
 
@@ -488,7 +482,6 @@ void StateBitmap<PageSize, PageAlignment, AllocationAlignment>::Clear() {
   std::fill(bitmap_.begin(), bitmap_.end(), '\0');
 }
 
-}  // namespace internal
-}  // namespace base
+}  // namespace partition_alloc::internal
 
 #endif  // BASE_ALLOCATOR_PARTITION_ALLOCATOR_STARSCAN_STATE_BITMAP_H_

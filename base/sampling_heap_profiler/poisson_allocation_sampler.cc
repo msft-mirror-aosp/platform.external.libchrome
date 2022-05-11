@@ -473,9 +473,14 @@ bool PoissonAllocationSampler::AreHookedSamplesMuted() {
   return g_mute_hooked_samples;
 }
 
-void PoissonAllocationSampler::SetSamplingInterval(size_t sampling_interval) {
+void PoissonAllocationSampler::SetSamplingInterval(
+    size_t sampling_interval_bytes) {
   // TODO(alph): Reset the sample being collected if running.
-  g_sampling_interval = sampling_interval;
+  g_sampling_interval = sampling_interval_bytes;
+}
+
+size_t PoissonAllocationSampler::SamplingInterval() const {
+  return g_sampling_interval.load(std::memory_order_relaxed);
 }
 
 // static
@@ -634,6 +639,11 @@ PoissonAllocationSampler* PoissonAllocationSampler::Get() {
 // static
 void PoissonAllocationSampler::SuppressRandomnessForTest(bool suppress) {
   g_deterministic = suppress;
+  // The g_tls_accumulated_bytes may contain a random value from previous
+  // test runs, which would make the behaviour of the next call to
+  // RecordAlloc unpredictable.
+  if (suppress)
+    g_tls_accumulated_bytes = 0;
 }
 
 void PoissonAllocationSampler::AddSamplesObserver(SamplesObserver* observer) {

@@ -11,10 +11,12 @@
 #define BASE_CALLBACK_HELPERS_H_
 
 #include <memory>
+#include <ostream>
 #include <type_traits>
 #include <utility>
 
 #include "base/atomicops.h"
+#include "base/base_export.h"
 #include "base/bind.h"
 #include "base/callback.h"
 

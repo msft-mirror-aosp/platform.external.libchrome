@@ -1,6 +1,6 @@
-From 40c8dc86046c9c51cffae75859f99dfcc0a506af Mon Sep 17 00:00:00 2001
+From a4d2bdb9af5b79b937c3555309301a98a2fbbdcd Mon Sep 17 00:00:00 2001
 From: hscham <hscham@chromium.org>
-Date: Tue, 25 Jan 2022 12:29:00 +0900
+Date: Tue, 26 Apr 2022 12:00:26 +0900
 Subject: [PATCH] add libchrome namespace to trace_event stub perfetto
 
 chromeos-base/perfetto_simple_producer include the real perfetto as
@@ -8,15 +8,15 @@ their dependency. On the other hand, they also uses parts of libchrome
 which will be indirectly including the trace_event_stub.h and causes
 redefinition error.
 Add libchrome namspace for the stub ones used within libchrome only by
-adding the extra namespace in trace_event_stub.h,
+adding the extra namespace in trace_event_stub.{h,cc},
 base_tracing_forward.h, and mojo enum template, and running:
 ```
-for f in $(ag -l perfetto::); do
+for f in $(ag -l perfetto:: --ignore-dir libchrome_tools/patches/); do
   sed -i 's/perfetto::/perfetto::libchrome::/g' $f
 done
 ```
 
-Change-Id: I9b811e91074d20d8d02343b834b89ec3b5fd4e82
+Change-Id: I9727e7c2b6d3b5c8531c616f7b9d78135fb117bf
 ---
  base/allocator/partition_alloc_support.cc     |  12 +--
  base/android/jank_metric_uma_recorder.cc      |   6 +-
@@ -31,6 +31,8 @@ Change-Id: I9b811e91074d20d8d02343b834b89ec3b5fd4e82
  base/location.h                               |   2 +-
  base/location_unittest.cc                     |   2 +-
  base/memory/memory_pressure_listener.cc       |   8 +-
+ base/memory/raw_ptr.h                         |   6 +-
+ base/memory/raw_ptr_unittest.cc               |   8 +-
  base/task/common/task_annotator.cc            |  16 +--
  base/task/common/task_annotator.h             |  12 +--
  .../sequence_manager/sequenced_task_source.h  |   2 +-
@@ -44,7 +46,7 @@ Change-Id: I9b811e91074d20d8d02343b834b89ec3b5fd4e82
  base/task/thread_pool/task_tracker.cc         |  10 +-
  base/test/trace_test_utils.cc                 |   6 +-
  base/test/trace_test_utils.h                  |   2 +-
- base/threading/scoped_blocking_call.cc        |   8 +-
+ base/threading/scoped_blocking_call.cc        |   6 +-
  base/threading/scoped_thread_priority.cc      |   2 +-
  base/threading/thread_restrictions.cc         |   6 +-
  .../application_state_proto_android.cc        |   4 +-
@@ -55,7 +57,7 @@ Change-Id: I9b811e91074d20d8d02343b834b89ec3b5fd4e82
  base/trace_event/builtin_categories.h         |   4 +-
  base/trace_event/common/trace_event_common.h  |   6 +-
  base/trace_event/interned_args_helper.cc      |   4 +-
- base/trace_event/interned_args_helper.h       |  12 +--
+ base/trace_event/interned_args_helper.h       |  22 ++--
  base/trace_event/memory_allocator_dump.cc     |  10 +-
  base/trace_event/memory_allocator_dump.h      |   2 +-
  .../memory_pressure_level_proto.cc            |   4 +-
@@ -71,7 +73,7 @@ Change-Id: I9b811e91074d20d8d02343b834b89ec3b5fd4e82
  base/trace_event/trace_event_unittest.cc      |   4 +-
  base/trace_event/trace_log.cc                 | 102 +++++++++---------
  base/trace_event/trace_log.h                  |  22 ++--
- base/trace_event/traced_value_support.h       |  54 +++++-----
+ base/trace_event/traced_value_support.h       |  58 +++++-----
  .../traced_value_support_unittest.cc          |  42 ++++----
  base/trace_event/typed_macros.h               |  14 +--
  .../typed_macros_embedder_support.h           |   6 +-
@@ -84,6 +86,8 @@ Change-Id: I9b811e91074d20d8d02343b834b89ec3b5fd4e82
  base/tracing/perfetto_task_runner.h           |   8 +-
  base/tracing/trace_time.cc                    |   2 +-
  base/tracing/trace_time.h                     |   8 +-
+ base/types/strong_alias.h                     |   6 +-
+ base/types/strong_alias_unittest.cc           |   2 +-
  base/values.cc                                |   8 +-
  base/values.h                                 |   2 +-
  base/values_unittest.cc                       |  14 +--
@@ -93,25 +97,25 @@ Change-Id: I9b811e91074d20d8d02343b834b89ec3b5fd4e82
  .../cpp/bindings/generic_pending_receiver.cc  |   2 +-
  .../cpp/bindings/generic_pending_receiver.h   |   2 +-
  mojo/public/cpp/bindings/lib/connector.cc     |   4 +-
+ .../bindings/lib/interface_endpoint_client.cc |   6 +-
  mojo/public/cpp/bindings/lib/message.cc       |   8 +-
  .../cpp/bindings/lib/send_message_helper.cc   |   8 +-
  mojo/public/cpp/bindings/message.h            |   2 +-
  mojo/public/cpp/bindings/struct_ptr.h         |  12 +--
  mojo/public/cpp/system/simple_watcher.cc      |   2 +-
  .../generators/cpp_templates/enum_macros.tmpl |   8 +-
- .../cpp_templates/interface_definition.tmpl   |   6 +-
  .../cpp_templates/interface_macros.tmpl       |   4 +-
  .../wrapper_class_declaration.tmpl            |   2 +-
  .../wrapper_class_definition.tmpl             |   4 +-
- 85 files changed, 364 insertions(+), 354 deletions(-)
+ 89 files changed, 381 insertions(+), 371 deletions(-)
 
 diff --git a/base/allocator/partition_alloc_support.cc b/base/allocator/partition_alloc_support.cc
-index d17c557c1ec4..e6de4fde1d68 100644
+index 2d52a47f36..4259e0c19e 100644
 --- a/base/allocator/partition_alloc_support.cc
 +++ b/base/allocator/partition_alloc_support.cc
-@@ -78,9 +78,9 @@ class StatsReporterImpl final : public StatsReporter {
+@@ -88,9 +88,9 @@ class StatsReporterImpl final : public partition_alloc::StatsReporter {
+     // TRACE_EVENT_* macros below drop most parameters when tracing is
      // disabled at compile time.
-     ignore_result(tid);
      const char* tracing_id = ScannerIdToTracingString(id);
 -    TRACE_EVENT_BEGIN(kTraceCategory, perfetto::StaticString(tracing_id),
 -                      perfetto::ThreadTrack::ForThread(tid), start_time);
@@ -122,9 +126,9 @@ index d17c557c1ec4..e6de4fde1d68 100644
                      end_time);
    }
  
-@@ -92,9 +92,9 @@ class StatsReporterImpl final : public StatsReporter {
+@@ -101,9 +101,9 @@ class StatsReporterImpl final : public partition_alloc::StatsReporter {
+     // TRACE_EVENT_* macros below drop most parameters when tracing is
      // disabled at compile time.
-     ignore_result(tid);
      const char* tracing_id = MutatorIdToTracingString(id);
 -    TRACE_EVENT_BEGIN(kTraceCategory, perfetto::StaticString(tracing_id),
 -                      perfetto::ThreadTrack::ForThread(tid), start_time);
@@ -136,7 +140,7 @@ index d17c557c1ec4..e6de4fde1d68 100644
    }
  
 diff --git a/base/android/jank_metric_uma_recorder.cc b/base/android/jank_metric_uma_recorder.cc
-index ff09dabacfa8..bb9f6b547fbb 100644
+index ff09dabacf..bb9f6b547f 100644
 --- a/base/android/jank_metric_uma_recorder.cc
 +++ b/base/android/jank_metric_uma_recorder.cc
 @@ -23,12 +23,12 @@ namespace {
@@ -156,10 +160,10 @@ index ff09dabacfa8..bb9f6b547fbb 100644
                                             1000);
    });
 diff --git a/base/android/trace_event_binding.cc b/base/android/trace_event_binding.cc
-index a76730887442..974b63dade43 100644
+index 88f5d282fc..3e230a40ca 100644
 --- a/base/android/trace_event_binding.cc
 +++ b/base/android/trace_event_binding.cc
-@@ -85,8 +85,8 @@ static void JNI_TraceEvent_InitViewHierarchyDump(JNIEnv* env) {
+@@ -91,8 +91,8 @@ static void JNI_TraceEvent_InitViewHierarchyDump(JNIEnv* env) {
    SCOPED_UMA_HISTOGRAM_TIMER("Tracing.ViewHierarchyDump.DumpDuration");
    TRACE_EVENT_INSTANT(
        kAndroidViewHierarchyTraceCategory, kAndroidViewHierarchyEventName,
@@ -170,7 +174,7 @@ index a76730887442..974b63dade43 100644
          auto* dump = event->set_android_view_dump();
          Java_TraceEvent_dumpViewHierarchy(env, reinterpret_cast<jlong>(dump));
        });
-@@ -95,7 +95,7 @@ static void JNI_TraceEvent_InitViewHierarchyDump(JNIEnv* env) {
+@@ -101,7 +101,7 @@ static void JNI_TraceEvent_InitViewHierarchyDump(JNIEnv* env) {
  static jlong JNI_TraceEvent_StartActivityDump(JNIEnv* env,
                                                const JavaParamRef<jstring>& name,
                                                jlong dump_proto_ptr) {
@@ -179,7 +183,7 @@ index a76730887442..974b63dade43 100644
        dump_proto_ptr);
    auto* activity = dump->add_activity();
    activity->set_name(ConvertJavaStringToUTF8(env, name));
-@@ -111,7 +111,7 @@ static void JNI_TraceEvent_AddViewDump(
+@@ -117,7 +117,7 @@ static void JNI_TraceEvent_AddViewDump(
      const JavaParamRef<jstring>& class_name,
      const JavaParamRef<jstring>& resource_name,
      jlong activity_proto_ptr) {
@@ -189,7 +193,7 @@ index a76730887442..974b63dade43 100644
    auto* view = activity->add_view();
    view->set_id(id);
 diff --git a/base/files/file.cc b/base/files/file.cc
-index 1058b155258e..30577dae9336 100644
+index 1058b15525..30577dae93 100644
 --- a/base/files/file.cc
 +++ b/base/files/file.cc
 @@ -166,7 +166,7 @@ std::string File::ErrorToString(Error error) {
@@ -202,10 +206,10 @@ index 1058b155258e..30577dae9336 100644
    dict.Add("is_valid", IsValid());
    dict.Add("created", created_);
 diff --git a/base/files/file.h b/base/files/file.h
-index 69d582e34819..a0f289d3df6f 100644
+index 69d582e348..a0f289d3df 100644
 --- a/base/files/file.h
 +++ b/base/files/file.h
-@@ -331,7 +331,7 @@ class BASE_EXPORT File {
+@@ -321,7 +321,7 @@ class BASE_EXPORT File {
    bool async() const { return async_; }
  
    // Serialise this object into a trace.
@@ -215,10 +219,10 @@ index 69d582e34819..a0f289d3df6f 100644
  #if BUILDFLAG(IS_WIN)
    // Sets or clears the DeleteFile disposition on the file. Returns true if
 diff --git a/base/files/file_path.cc b/base/files/file_path.cc
-index f948ecf75775..b9b089b5aeec 100644
+index d0121e62c2..ebe024900a 100644
 --- a/base/files/file_path.cc
 +++ b/base/files/file_path.cc
-@@ -1379,8 +1379,8 @@ FilePath FilePath::NormalizePathSeparators() const {
+@@ -1383,8 +1383,8 @@ FilePath FilePath::NormalizePathSeparators() const {
    return NormalizePathSeparatorsTo(kSeparators[0]);
  }
  
@@ -230,10 +234,10 @@ index f948ecf75775..b9b089b5aeec 100644
  
  FilePath FilePath::NormalizePathSeparatorsTo(CharType separator) const {
 diff --git a/base/files/file_path.h b/base/files/file_path.h
-index f9a98e0f0556..a8895e6dc710 100644
+index 4eece8785c..b9b303b1a9 100644
 --- a/base/files/file_path.h
 +++ b/base/files/file_path.h
-@@ -450,7 +450,7 @@ class BASE_EXPORT FilePath {
+@@ -459,7 +459,7 @@ class BASE_EXPORT FilePath {
    }
  
    // Serialise this object into a trace.
@@ -243,10 +247,10 @@ index f9a98e0f0556..a8895e6dc710 100644
  #if BUILDFLAG(IS_APPLE)
    // Returns the string in the special canonical decomposed form as defined for
 diff --git a/base/files/file_path_unittest.cc b/base/files/file_path_unittest.cc
-index 5adf0e2535a5..1d0688cbc405 100644
+index 49433d7834..37479b9b50 100644
 --- a/base/files/file_path_unittest.cc
 +++ b/base/files/file_path_unittest.cc
-@@ -1378,7 +1378,7 @@ TEST_F(FilePathTest, PrintToOstream) {
+@@ -1429,7 +1429,7 @@ TEST_F(FilePathTest, PrintToOstream) {
  
  #if BUILDFLAG(ENABLE_BASE_TRACING)
  TEST_F(FilePathTest, TracedValueSupport) {
@@ -256,7 +260,7 @@ index 5adf0e2535a5..1d0688cbc405 100644
  #endif  // BUILDFLAG(ENABLE_BASE_TRACING)
  
 diff --git a/base/files/file_unittest.cc b/base/files/file_unittest.cc
-index 036e04a77263..ee3bfb626020 100644
+index 036e04a772..ee3bfb6260 100644
 --- a/base/files/file_unittest.cc
 +++ b/base/files/file_unittest.cc
 @@ -590,7 +590,7 @@ TEST(FileTest, TracedValueSupport) {
@@ -269,10 +273,10 @@ index 036e04a77263..ee3bfb626020 100644
  }
  #endif  // BUILDFLAG(ENABLE_BASE_TRACING)
 diff --git a/base/location.cc b/base/location.cc
-index bdb2ab731375..069a515efbd6 100644
+index 4c14038922..fd3b2a72b4 100644
 --- a/base/location.cc
 +++ b/base/location.cc
-@@ -114,7 +114,7 @@ std::string Location::ToString() const {
+@@ -116,7 +116,7 @@ std::string Location::ToString() const {
    return StringPrintf("pc:%p", program_counter_);
  }
  
@@ -282,10 +286,10 @@ index bdb2ab731375..069a515efbd6 100644
    dict.Add("function_name", function_name_);
    dict.Add("file_name", file_name_);
 diff --git a/base/location.h b/base/location.h
-index 446114764cf0..3587c17cb896 100644
+index c279be2915..75ac714462 100644
 --- a/base/location.h
 +++ b/base/location.h
-@@ -82,7 +82,7 @@ class BASE_EXPORT Location {
+@@ -88,7 +88,7 @@ class BASE_EXPORT Location {
    std::string ToString() const;
  
    // Write a representation of this object into a trace.
@@ -295,7 +299,7 @@ index 446114764cf0..3587c17cb896 100644
  #if !BUILDFLAG(FROM_HERE_USES_LOCATION_BUILTINS)
  #if !BUILDFLAG(ENABLE_LOCATION_SOURCE)
 diff --git a/base/location_unittest.cc b/base/location_unittest.cc
-index f9e84503bb5d..d836352f3bab 100644
+index f9e84503bb..d836352f3b 100644
 --- a/base/location_unittest.cc
 +++ b/base/location_unittest.cc
 @@ -45,7 +45,7 @@ TEST(LocationTest, CurrentYieldsCorrectValue) {
@@ -308,10 +312,10 @@ index f9e84503bb5d..d836352f3bab 100644
              "{function_name:func,file_name:file,line_number:42}");
  }
 diff --git a/base/memory/memory_pressure_listener.cc b/base/memory/memory_pressure_listener.cc
-index 623ae26ee44a..b0a654d45ff7 100644
+index f56866803d..732d70ce0e 100644
 --- a/base/memory/memory_pressure_listener.cc
 +++ b/base/memory/memory_pressure_listener.cc
-@@ -96,8 +96,8 @@ MemoryPressureListener::~MemoryPressureListener() {
+@@ -99,8 +99,8 @@ MemoryPressureListener::~MemoryPressureListener() {
  void MemoryPressureListener::Notify(MemoryPressureLevel memory_pressure_level) {
    TRACE_EVENT(
        "base", "MemoryPressureListener::Notify",
@@ -322,7 +326,7 @@ index 623ae26ee44a..b0a654d45ff7 100644
          auto* data = event->set_chrome_memory_pressure_notification();
          data->set_level(
              trace_event::MemoryPressureLevelToTraceEnum(memory_pressure_level));
-@@ -123,8 +123,8 @@ void MemoryPressureListener::NotifyMemoryPressure(
+@@ -125,8 +125,8 @@ void MemoryPressureListener::NotifyMemoryPressure(
    TRACE_EVENT_INSTANT(
        trace_event::MemoryDumpManager::kTraceCategory,
        "MemoryPressureListener::NotifyMemoryPressure",
@@ -333,8 +337,57 @@ index 623ae26ee44a..b0a654d45ff7 100644
          auto* data = event->set_chrome_memory_pressure_notification();
          data->set_level(
              trace_event::MemoryPressureLevelToTraceEnum(memory_pressure_level));
+diff --git a/base/memory/raw_ptr.h b/base/memory/raw_ptr.h
+index d69c0001dc..660fd58acb 100644
+--- a/base/memory/raw_ptr.h
++++ b/base/memory/raw_ptr.h
+@@ -1025,9 +1025,9 @@ class TRIVIAL_ABI GSL_POINTER raw_ptr {
+   // If T can be serialised into trace, its alias is also
+   // serialisable.
+   template <class U = T>
+-  typename perfetto::check_traced_value_support<U>::type WriteIntoTrace(
+-      perfetto::TracedValue&& context) const {
+-    perfetto::WriteIntoTracedValue(std::move(context), get());
++  typename perfetto::libchrome::check_traced_value_support<U>::type WriteIntoTrace(
++      perfetto::libchrome::TracedValue&& context) const {
++    perfetto::libchrome::WriteIntoTracedValue(std::move(context), get());
+   }
+ 
+  private:
+diff --git a/base/memory/raw_ptr_unittest.cc b/base/memory/raw_ptr_unittest.cc
+index 4c7b72e695..255c4ddcde 100644
+--- a/base/memory/raw_ptr_unittest.cc
++++ b/base/memory/raw_ptr_unittest.cc
+@@ -993,23 +993,23 @@ TEST_F(RawPtrTest, DerivedStructsComparison) {
+ #if BUILDFLAG(ENABLE_BASE_TRACING)
+ TEST_F(RawPtrTest, TracedValueSupport) {
+   // Serialise nullptr.
+-  EXPECT_EQ(perfetto::TracedValueToString(raw_ptr<int>()), "0x0");
++  EXPECT_EQ(perfetto::libchrome::TracedValueToString(raw_ptr<int>()), "0x0");
+ 
+   {
+     // If the pointer is non-null, its dereferenced value will be serialised.
+     int value = 42;
+-    EXPECT_EQ(perfetto::TracedValueToString(raw_ptr<int>(&value)), "42");
++    EXPECT_EQ(perfetto::libchrome::TracedValueToString(raw_ptr<int>(&value)), "42");
+   }
+ 
+   struct WithTraceSupport {
+-    void WriteIntoTrace(perfetto::TracedValue ctx) const {
++    void WriteIntoTrace(perfetto::libchrome::TracedValue ctx) const {
+       std::move(ctx).WriteString("result");
+     }
+   };
+ 
+   {
+     WithTraceSupport value;
+-    EXPECT_EQ(perfetto::TracedValueToString(raw_ptr<WithTraceSupport>(&value)),
++    EXPECT_EQ(perfetto::libchrome::TracedValueToString(raw_ptr<WithTraceSupport>(&value)),
+               "result");
+   }
+ }
 diff --git a/base/task/common/task_annotator.cc b/base/task/common/task_annotator.cc
-index c98daef52814..f7bf3b0c81e7 100644
+index e324358390..25b7f46633 100644
 --- a/base/task/common/task_annotator.cc
 +++ b/base/task/common/task_annotator.cc
 @@ -55,14 +55,14 @@ const PendingTask* TaskAnnotator::CurrentTaskForThread() {
@@ -362,8 +415,8 @@ index c98daef52814..f7bf3b0c81e7 100644
 +void TaskAnnotator::EmitTaskLocation(perfetto::libchrome::EventContext& ctx,
                                       const PendingTask& task) const {
    ctx.event()->set_task_execution()->set_posted_from_iid(
-       base::trace_event::InternedSourceLocation::Get(
-@@ -175,17 +175,17 @@ void TaskAnnotator::EmitTaskLocation(perfetto::EventContext& ctx,
+       base::trace_event::InternedSourceLocation::Get(&ctx, task.posted_from));
+@@ -174,17 +174,17 @@ void TaskAnnotator::EmitTaskLocation(perfetto::EventContext& ctx,
  
  // TRACE_EVENT argument helper, writing the incoming task flow information
  // into EventContext if toplevel.flow category is enabled.
@@ -384,7 +437,7 @@ index c98daef52814..f7bf3b0c81e7 100644
                                               const PendingTask& task) const {
    static const uint8_t* toplevel_ipc_enabled =
        TRACE_EVENT_API_GET_CATEGORY_GROUP_ENABLED(
-@@ -193,7 +193,7 @@ void TaskAnnotator::MaybeEmitIPCHashAndDelay(perfetto::EventContext& ctx,
+@@ -192,7 +192,7 @@ void TaskAnnotator::MaybeEmitIPCHashAndDelay(perfetto::EventContext& ctx,
    if (!*toplevel_ipc_enabled)
      return;
  
@@ -393,7 +446,7 @@ index c98daef52814..f7bf3b0c81e7 100644
    auto* annotator = event->set_chrome_task_annotator();
    annotator->set_ipc_hash(task.ipc_hash);
    if (!task.delayed_run_time.is_null()) {
-@@ -214,7 +214,7 @@ TaskAnnotator::ScopedSetIpcHash::ScopedSetIpcHash(
+@@ -213,7 +213,7 @@ TaskAnnotator::ScopedSetIpcHash::ScopedSetIpcHash(
      uint32_t ipc_hash,
      const char* ipc_interface_name) {
    TRACE_EVENT_BEGIN(
@@ -403,7 +456,7 @@ index c98daef52814..f7bf3b0c81e7 100644
          if (ipc_hash > 0)
            mojo_event->set_ipc_hash(ipc_hash);
 diff --git a/base/task/common/task_annotator.h b/base/task/common/task_annotator.h
-index 4d89c4f597ce..04c296487356 100644
+index 4d89c4f597..04c2964873 100644
 --- a/base/task/common/task_annotator.h
 +++ b/base/task/common/task_annotator.h
 @@ -45,7 +45,7 @@ class BASE_EXPORT TaskAnnotator {
@@ -450,7 +503,7 @@ index 4d89c4f597ce..04c296487356 100644
  #endif  //  BUILDFLAG(ENABLE_BASE_TRACING)
  };
 diff --git a/base/task/sequence_manager/sequenced_task_source.h b/base/task/sequence_manager/sequenced_task_source.h
-index 456b79662751..a920e661afd3 100644
+index 770713bc1c..f98205f8d9 100644
 --- a/base/task/sequence_manager/sequenced_task_source.h
 +++ b/base/task/sequence_manager/sequenced_task_source.h
 @@ -26,7 +26,7 @@ class SequencedTaskSource {
@@ -463,7 +516,7 @@ index 456b79662751..a920e661afd3 100644
    struct BASE_EXPORT SelectedTask {
      SelectedTask(const SelectedTask&);
 diff --git a/base/task/sequence_manager/task_queue.cc b/base/task/sequence_manager/task_queue.cc
-index c54c76ee2847..9ff11700138a 100644
+index c54c76ee28..9ff1170013 100644
 --- a/base/task/sequence_manager/task_queue.cc
 +++ b/base/task/sequence_manager/task_queue.cc
 @@ -315,7 +315,7 @@ const char* TaskQueue::GetName() const {
@@ -476,7 +529,7 @@ index c54c76ee2847..9ff11700138a 100644
    dict.Add("name", name_);
  }
 diff --git a/base/task/sequence_manager/task_queue.h b/base/task/sequence_manager/task_queue.h
-index e45d64cce3e9..def056ad92c1 100644
+index 8350d3fb05..13766eb467 100644
 --- a/base/task/sequence_manager/task_queue.h
 +++ b/base/task/sequence_manager/task_queue.h
 @@ -287,7 +287,7 @@ class BASE_EXPORT TaskQueue : public RefCountedThreadSafe<TaskQueue> {
@@ -498,10 +551,10 @@ index e45d64cce3e9..def056ad92c1 100644
    // Sets a handler to subscribe for notifications about started and completed
    // tasks.
 diff --git a/base/task/sequence_manager/task_queue_impl.cc b/base/task/sequence_manager/task_queue_impl.cc
-index ba5bba73f38e..df0b5fe055b0 100644
+index 54a73d140b..0d218c2310 100644
 --- a/base/task/sequence_manager/task_queue_impl.cc
 +++ b/base/task/sequence_manager/task_queue_impl.cc
-@@ -1482,8 +1482,8 @@ void TaskQueueImpl::ReportIpcTaskQueued(
+@@ -1490,8 +1490,8 @@ void TaskQueueImpl::ReportIpcTaskQueued(
      const base::TimeDelta& time_since_disabled) {
    TRACE_EVENT_INSTANT(
        TRACE_DISABLED_BY_DEFAULT("lifecycles"), "task_posted_to_disabled_queue",
@@ -513,7 +566,7 @@ index ba5bba73f38e..df0b5fe055b0 100644
          proto->set_task_queue_name(task_queue_name);
          proto->set_time_since_disabled_ms(time_since_disabled.InMilliseconds());
 diff --git a/base/task/sequence_manager/task_queue_impl.h b/base/task/sequence_manager/task_queue_impl.h
-index c976e507bdf2..f3940af2c6ac 100644
+index bd63c87dbc..abb770a396 100644
 --- a/base/task/sequence_manager/task_queue_impl.h
 +++ b/base/task/sequence_manager/task_queue_impl.h
 @@ -124,7 +124,7 @@ class BASE_EXPORT TaskQueueImpl {
@@ -526,10 +579,10 @@ index c976e507bdf2..f3940af2c6ac 100644
    // May be called from any thread.
    scoped_refptr<SingleThreadTaskRunner> CreateTaskRunner(
 diff --git a/base/task/sequence_manager/thread_controller_impl.cc b/base/task/sequence_manager/thread_controller_impl.cc
-index a80240383bc4..110be07c2e1a 100644
+index 32915d1802..4609275a16 100644
 --- a/base/task/sequence_manager/thread_controller_impl.cc
 +++ b/base/task/sequence_manager/thread_controller_impl.cc
-@@ -198,7 +198,7 @@ void ThreadControllerImpl::DoWork(WorkType work_type) {
+@@ -204,7 +204,7 @@ void ThreadControllerImpl::DoWork(WorkType work_type) {
        // logging so lambda captures are safe as lambda is executed inline.
        task_annotator_.RunTask(
            "ThreadControllerImpl::RunTask", selected_task->task,
@@ -539,7 +592,7 @@ index a80240383bc4..110be07c2e1a 100644
                selected_task->task_execution_trace_logger.Run(
                    ctx, selected_task->task);
 diff --git a/base/task/sequence_manager/thread_controller_power_monitor.cc b/base/task/sequence_manager/thread_controller_power_monitor.cc
-index ad9f591f8b3a..40f7e530beb4 100644
+index ad9f591f8b..40f7e530be 100644
 --- a/base/task/sequence_manager/thread_controller_power_monitor.cc
 +++ b/base/task/sequence_manager/thread_controller_power_monitor.cc
 @@ -69,8 +69,8 @@ void ThreadControllerPowerMonitor::OnSuspend() {
@@ -565,10 +618,10 @@ index ad9f591f8b3a..40f7e530beb4 100644
    }
  }
 diff --git a/base/task/sequence_manager/thread_controller_with_message_pump_impl.cc b/base/task/sequence_manager/thread_controller_with_message_pump_impl.cc
-index 8615fe6a89d7..a78aa2ef567f 100644
+index a18809d9f9..5faa99e7ce 100644
 --- a/base/task/sequence_manager/thread_controller_with_message_pump_impl.cc
 +++ b/base/task/sequence_manager/thread_controller_with_message_pump_impl.cc
-@@ -355,7 +355,7 @@ TimeTicks ThreadControllerWithMessagePumpImpl::DoWorkImpl(
+@@ -385,7 +385,7 @@ absl::optional<WakeUp> ThreadControllerWithMessagePumpImpl::DoWorkImpl(
      // logging so lambda captures are safe as lambda is executed inline.
      task_annotator_.RunTask("ThreadControllerImpl::RunTask",
                              selected_task->task,
@@ -578,10 +631,10 @@ index 8615fe6a89d7..a78aa2ef567f 100644
                                  selected_task->task_execution_trace_logger.Run(
                                      ctx, selected_task->task);
 diff --git a/base/task/thread_pool/task_tracker.cc b/base/task/thread_pool/task_tracker.cc
-index 331819a66b28..debe7037a753 100644
+index 683169f120..78701c82e6 100644
 --- a/base/task/thread_pool/task_tracker.cc
 +++ b/base/task/thread_pool/task_tracker.cc
-@@ -38,8 +38,8 @@ namespace internal {
+@@ -40,8 +40,8 @@ namespace internal {
  namespace {
  
  #if BUILDFLAG(ENABLE_BASE_TRACING)
@@ -592,7 +645,7 @@ index 331819a66b28..debe7037a753 100644
  #endif  // BUILDFLAG(ENABLE_BASE_TRACING)
  
  constexpr const char* kExecutionModeString[] = {"parallel", "sequenced",
-@@ -174,7 +174,7 @@ ChromeThreadPoolTask::ShutdownBehavior ShutdownBehaviorToProto(
+@@ -176,7 +176,7 @@ ChromeThreadPoolTask::ShutdownBehavior ShutdownBehaviorToProto(
  }
  #endif  //  BUILDFLAG(ENABLE_BASE_TRACING)
  
@@ -601,7 +654,7 @@ index 331819a66b28..debe7037a753 100644
                                        const TaskTraits& traits,
                                        TaskSource* task_source,
                                        const SequenceToken& token) {
-@@ -185,7 +185,7 @@ auto EmitThreadPoolTraceEventMetadata(perfetto::EventContext& ctx,
+@@ -187,7 +187,7 @@ auto EmitThreadPoolTraceEventMetadata(perfetto::EventContext& ctx,
  
    if (!*scheduler_category_enabled)
      return;
@@ -620,7 +673,7 @@ index 331819a66b28..debe7037a753 100644
        });
  }
 diff --git a/base/test/trace_test_utils.cc b/base/test/trace_test_utils.cc
-index 4c90106f0303..ba42ea7c47ec 100644
+index 4c90106f03..ba42ea7c47 100644
 --- a/base/test/trace_test_utils.cc
 +++ b/base/test/trace_test_utils.cc
 @@ -93,12 +93,12 @@ TracingEnvironment::~TracingEnvironment() {
@@ -640,7 +693,7 @@ index 4c90106f0303..ba42ea7c47ec 100644
    buffer_config->set_size_kb(1024 * 1024);
    auto* data_source = trace_config.add_data_sources();
 diff --git a/base/test/trace_test_utils.h b/base/test/trace_test_utils.h
-index 3a934d74f44f..f9f670e55257 100644
+index 3a934d74f4..f9f670e552 100644
 --- a/base/test/trace_test_utils.h
 +++ b/base/test/trace_test_utils.h
 @@ -36,7 +36,7 @@ class TracingEnvironment {
@@ -653,21 +706,19 @@ index 3a934d74f44f..f9f670e55257 100644
   private:
    raw_ptr<TaskEnvironment> task_environment_ = nullptr;
 diff --git a/base/threading/scoped_blocking_call.cc b/base/threading/scoped_blocking_call.cc
-index d112c85f8027..cdd84a062d36 100644
+index 60c17cf28e..67d9ca9308 100644
 --- a/base/threading/scoped_blocking_call.cc
 +++ b/base/threading/scoped_blocking_call.cc
-@@ -43,8 +43,8 @@ ScopedBlockingCall::ScopedBlockingCall(const Location& from_here,
+@@ -43,7 +43,7 @@ ScopedBlockingCall::ScopedBlockingCall(const Location& from_here,
  
    internal::AssertBlockingAllowed();
    TRACE_EVENT_BEGIN(
 -      "base", "ScopedBlockingCall", [&](perfetto::EventContext ctx) {
--        perfetto::protos::pbzero::SourceLocation* source_location_data =
 +      "base", "ScopedBlockingCall", [&](perfetto::libchrome::EventContext ctx) {
-+        perfetto::libchrome::protos::pbzero::SourceLocation* source_location_data =
-             ctx.event()->set_source_location();
-         source_location_data->set_file_name(from_here.file_name());
-         source_location_data->set_function_name(from_here.function_name());
-@@ -76,8 +76,8 @@ ScopedBlockingCallWithBaseSyncPrimitives::
+         ctx.event()->set_source_location_iid(
+             base::trace_event::InternedSourceLocation::Get(&ctx, from_here));
+       });
+@@ -74,8 +74,8 @@ ScopedBlockingCallWithBaseSyncPrimitives::
    internal::AssertBaseSyncPrimitivesAllowed();
    TRACE_EVENT_BEGIN(
        "base", "ScopedBlockingCallWithBaseSyncPrimitives",
@@ -679,7 +730,7 @@ index d112c85f8027..cdd84a062d36 100644
          source_location_data->set_file_name(from_here.file_name());
          source_location_data->set_function_name(from_here.function_name());
 diff --git a/base/threading/scoped_thread_priority.cc b/base/threading/scoped_thread_priority.cc
-index 6110dc7bed28..c41ae9de10e5 100644
+index 8a275050e7..bb04dd78c1 100644
 --- a/base/threading/scoped_thread_priority.cc
 +++ b/base/threading/scoped_thread_priority.cc
 @@ -21,7 +21,7 @@ ScopedMayLoadLibraryAtBackgroundPriority::
@@ -689,10 +740,10 @@ index 6110dc7bed28..c41ae9de10e5 100644
 -      [&](perfetto::EventContext ctx) {
 +      [&](perfetto::libchrome::EventContext ctx) {
          ctx.event()->set_source_location_iid(
-             base::trace_event::InternedSourceLocation::Get(
-                 &ctx, base::trace_event::TraceSourceLocation(from_here)));
+             base::trace_event::InternedSourceLocation::Get(&ctx, from_here));
+       });
 diff --git a/base/threading/thread_restrictions.cc b/base/threading/thread_restrictions.cc
-index f99cf8bfd299..90fed35562d9 100644
+index 2bce3d275c..8f7d9a4792 100644
 --- a/base/threading/thread_restrictions.cc
 +++ b/base/threading/thread_restrictions.cc
 @@ -295,7 +295,7 @@ ScopedAllowBlocking::ScopedAllowBlocking(const Location& from_here)
@@ -702,28 +753,28 @@ index f99cf8bfd299..90fed35562d9 100644
 -      "base", "ScopedAllowBlocking", [&](perfetto::EventContext ctx) {
 +      "base", "ScopedAllowBlocking", [&](perfetto::libchrome::EventContext ctx) {
          ctx.event()->set_source_location_iid(
-             base::trace_event::InternedSourceLocation::Get(
-                 &ctx, base::trace_event::TraceSourceLocation(from_here)));
-@@ -320,7 +320,7 @@ ScopedAllowBaseSyncPrimitivesOutsideBlockingScope::
+             base::trace_event::InternedSourceLocation::Get(&ctx, from_here));
+       });
+@@ -319,7 +319,7 @@ ScopedAllowBaseSyncPrimitivesOutsideBlockingScope::
  {
    TRACE_EVENT_BEGIN(
        "base", "ScopedAllowBaseSyncPrimitivesOutsideBlockingScope",
 -      [&](perfetto::EventContext ctx) {
 +      [&](perfetto::libchrome::EventContext ctx) {
          ctx.event()->set_source_location_iid(
-             base::trace_event::InternedSourceLocation::Get(
-                 &ctx, base::trace_event::TraceSourceLocation(from_here)));
-@@ -348,7 +348,7 @@ ThreadRestrictions::ScopedAllowIO::ScopedAllowIO(const Location& from_here)
+             base::trace_event::InternedSourceLocation::Get(&ctx, from_here));
+       });
+@@ -346,7 +346,7 @@ ThreadRestrictions::ScopedAllowIO::ScopedAllowIO(const Location& from_here)
            std::make_unique<BooleanWithStack>(false)))
  #endif
  {
 -  TRACE_EVENT_BEGIN("base", "ScopedAllowIO", [&](perfetto::EventContext ctx) {
 +  TRACE_EVENT_BEGIN("base", "ScopedAllowIO", [&](perfetto::libchrome::EventContext ctx) {
      ctx.event()->set_source_location_iid(
-         base::trace_event::InternedSourceLocation::Get(
-             &ctx, base::trace_event::TraceSourceLocation(from_here)));
+         base::trace_event::InternedSourceLocation::Get(&ctx, from_here));
+   });
 diff --git a/base/trace_event/application_state_proto_android.cc b/base/trace_event/application_state_proto_android.cc
-index 3317b15443f6..ba766453b195 100644
+index 3317b15443..ba766453b1 100644
 --- a/base/trace_event/application_state_proto_android.cc
 +++ b/base/trace_event/application_state_proto_android.cc
 @@ -7,9 +7,9 @@
@@ -739,7 +790,7 @@ index 3317b15443f6..ba766453b195 100644
      case base::android::APPLICATION_STATE_UNKNOWN:
        return ChromeApplicationStateInfo::APPLICATION_STATE_UNKNOWN;
 diff --git a/base/trace_event/application_state_proto_android.h b/base/trace_event/application_state_proto_android.h
-index 0c23d33b5da4..28799d664dd8 100644
+index 0c23d33b5d..28799d664d 100644
 --- a/base/trace_event/application_state_proto_android.h
 +++ b/base/trace_event/application_state_proto_android.h
 @@ -11,8 +11,8 @@
@@ -763,7 +814,7 @@ index 0c23d33b5da4..28799d664dd8 100644
  
  }  // namespace trace_event
 diff --git a/base/trace_event/base_tracing_forward.h b/base/trace_event/base_tracing_forward.h
-index f72f9fde2f05..734a4b8eedc0 100644
+index ccca1168ec..f9e7ad70d5 100644
 --- a/base/trace_event/base_tracing_forward.h
 +++ b/base/trace_event/base_tracing_forward.h
 @@ -15,6 +15,7 @@
@@ -774,7 +825,7 @@ index f72f9fde2f05..734a4b8eedc0 100644
  
  class TracedValue;
  class EventContext;
-@@ -30,6 +31,7 @@ struct check_traced_value_support {
+@@ -31,6 +32,7 @@ struct check_traced_value_support {
    using type = ResultType;
  };
  
@@ -783,7 +834,7 @@ index f72f9fde2f05..734a4b8eedc0 100644
  
  #endif  // !BUILDFLAG(ENABLE_BASE_TRACING)
 diff --git a/base/trace_event/blame_context.cc b/base/trace_event/blame_context.cc
-index c6784c753904..8cf360f57651 100644
+index c6784c7539..8cf360f576 100644
 --- a/base/trace_event/blame_context.cc
 +++ b/base/trace_event/blame_context.cc
 @@ -90,7 +90,7 @@ void BlameContext::AsValueInto(trace_event::TracedValue* state) {
@@ -796,7 +847,7 @@ index c6784c753904..8cf360f57651 100644
    dict.Add("id", id_);
    dict.Add("parent_id", parent_id_);
 diff --git a/base/trace_event/blame_context.h b/base/trace_event/blame_context.h
-index b1bbc0e5ccfb..8b847bf76c2a 100644
+index b1bbc0e5cc..8b847bf76c 100644
 --- a/base/trace_event/blame_context.h
 +++ b/base/trace_event/blame_context.h
 @@ -108,7 +108,7 @@ class BASE_EXPORT BlameContext
@@ -809,10 +860,10 @@ index b1bbc0e5ccfb..8b847bf76c2a 100644
   protected:
    // Serialize the properties of this blame context into |state|. Subclasses can
 diff --git a/base/trace_event/builtin_categories.h b/base/trace_event/builtin_categories.h
-index 41b0d05ed7d7..3023cdb370da 100644
+index 0736e70217..3c7f4e038c 100644
 --- a/base/trace_event/builtin_categories.h
 +++ b/base/trace_event/builtin_categories.h
-@@ -366,8 +366,8 @@ PERFETTO_DEFINE_TEST_CATEGORY_PREFIXES("cat",
+@@ -369,8 +369,8 @@ PERFETTO_DEFINE_TEST_CATEGORY_PREFIXES("cat",
                                         TRACE_DISABLED_BY_DEFAULT("Testing"),
                                         TRACE_DISABLED_BY_DEFAULT("NotTesting"));
  
@@ -824,7 +875,7 @@ index 41b0d05ed7d7..3023cdb370da 100644
  // Define a Perfetto TrackEvent data source using the list of categories defined
  // above. See https://perfetto.dev/docs/instrumentation/track-events.
 diff --git a/base/trace_event/common/trace_event_common.h b/base/trace_event/common/trace_event_common.h
-index 1fd2283decc2..5740c807a49a 100644
+index fb1ce8a053..755f0eaac3 100644
 --- a/base/trace_event/common/trace_event_common.h
 +++ b/base/trace_event/common/trace_event_common.h
 @@ -231,7 +231,7 @@
@@ -844,15 +895,15 @@ index 1fd2283decc2..5740c807a49a 100644
 +perfetto::libchrome::ThreadTrack BASE_EXPORT
  ConvertThreadId(const ::base::PlatformThreadId& thread);
  
- #if defined(OS_WIN)
+ #if BUILDFLAG(IS_WIN)
  template <>
 -perfetto::ThreadTrack BASE_EXPORT ConvertThreadId(const int& thread);
 +perfetto::libchrome::ThreadTrack BASE_EXPORT ConvertThreadId(const int& thread);
- #endif  // defined(OS_WIN)
+ #endif  // BUILDFLAG(IS_WIN)
  
  }  // namespace legacy
 diff --git a/base/trace_event/interned_args_helper.cc b/base/trace_event/interned_args_helper.cc
-index cb18f3fba79e..57fcc06bd783 100644
+index b15cb1382f..c65d3db2f3 100644
 --- a/base/trace_event/interned_args_helper.cc
 +++ b/base/trace_event/interned_args_helper.cc
 @@ -15,7 +15,7 @@ namespace trace_event {
@@ -874,10 +925,10 @@ index cb18f3fba79e..57fcc06bd783 100644
      const std::string& log_message) {
    auto* msg = interned_data->add_log_message_body();
 diff --git a/base/trace_event/interned_args_helper.h b/base/trace_event/interned_args_helper.h
-index ba3945768b6e..3ec0c09f7b02 100644
+index f3ec197565..771913f4a4 100644
 --- a/base/trace_event/interned_args_helper.h
 +++ b/base/trace_event/interned_args_helper.h
-@@ -69,21 +69,21 @@ namespace base {
+@@ -69,31 +69,31 @@ namespace base {
  namespace trace_event {
  
  struct BASE_EXPORT InternedSourceLocation
@@ -891,6 +942,21 @@ index ba3945768b6e..3ec0c09f7b02 100644
 +  static void Add(perfetto::libchrome::protos::pbzero::InternedData* interned_data,
                    size_t iid,
                    const TraceSourceLocation& location);
+-  using perfetto::TrackEventInternedDataIndex<
++  using perfetto::libchrome::TrackEventInternedDataIndex<
+       InternedSourceLocation,
+-      perfetto::protos::pbzero::InternedData::kSourceLocationsFieldNumber,
++      perfetto::libchrome::protos::pbzero::InternedData::kSourceLocationsFieldNumber,
+       TraceSourceLocation>::Get;
+-  static size_t Get(perfetto::EventContext* ctx, const Location& location) {
+-    return perfetto::TrackEventInternedDataIndex<
++  static size_t Get(perfetto::libchrome::EventContext* ctx, const Location& location) {
++    return perfetto::libchrome::TrackEventInternedDataIndex<
+         InternedSourceLocation,
+-        perfetto::protos::pbzero::InternedData::kSourceLocationsFieldNumber,
++        perfetto::libchrome::protos::pbzero::InternedData::kSourceLocationsFieldNumber,
+         TraceSourceLocation>::Get(ctx, TraceSourceLocation(location));
+   }
  };
  
  struct BASE_EXPORT InternedLogMessage
@@ -906,10 +972,10 @@ index ba3945768b6e..3ec0c09f7b02 100644
                    const std::string& log_message);
  };
 diff --git a/base/trace_event/memory_allocator_dump.cc b/base/trace_event/memory_allocator_dump.cc
-index 4a6f5d749f45..0562c3b8bf6d 100644
+index ee5c2c5e8a..f21af1ecc6 100644
 --- a/base/trace_event/memory_allocator_dump.cc
 +++ b/base/trace_event/memory_allocator_dump.cc
-@@ -93,7 +93,7 @@ void MemoryAllocatorDump::AsValueInto(TracedValue* value) const {
+@@ -94,7 +94,7 @@ void MemoryAllocatorDump::AsValueInto(TracedValue* value) const {
  }
  
  void MemoryAllocatorDump::AsProtoInto(
@@ -918,7 +984,7 @@ index 4a6f5d749f45..0562c3b8bf6d 100644
          MemoryNode* memory_node) const {
    memory_node->set_id(guid_.ToUint64());
    memory_node->set_absolute_name(absolute_name_);
-@@ -109,7 +109,7 @@ void MemoryAllocatorDump::AsProtoInto(
+@@ -110,7 +110,7 @@ void MemoryAllocatorDump::AsProtoInto(
        continue;
      }
  
@@ -927,7 +993,7 @@ index 4a6f5d749f45..0562c3b8bf6d 100644
          MemoryNode::MemoryNodeEntry* proto_memory_node_entry =
              memory_node->add_entries();
  
-@@ -124,15 +124,15 @@ void MemoryAllocatorDump::AsProtoInto(
+@@ -125,15 +125,15 @@ void MemoryAllocatorDump::AsProtoInto(
      }
      if (entry.units == kUnitsBytes) {
        proto_memory_node_entry->set_units(
@@ -947,7 +1013,7 @@ index 4a6f5d749f45..0562c3b8bf6d 100644
      }
    }
 diff --git a/base/trace_event/memory_allocator_dump.h b/base/trace_event/memory_allocator_dump.h
-index 97799e978ef9..bc58c257e933 100644
+index 97799e978e..bc58c257e9 100644
 --- a/base/trace_event/memory_allocator_dump.h
 +++ b/base/trace_event/memory_allocator_dump.h
 @@ -109,7 +109,7 @@ class BASE_EXPORT MemoryAllocatorDump {
@@ -960,7 +1026,7 @@ index 97799e978ef9..bc58c257e933 100644
  
    // Get the size for this dump.
 diff --git a/base/trace_event/memory_pressure_level_proto.cc b/base/trace_event/memory_pressure_level_proto.cc
-index 3b4a594a883b..7b8705d74597 100644
+index 3b4a594a88..7b8705d745 100644
 --- a/base/trace_event/memory_pressure_level_proto.cc
 +++ b/base/trace_event/memory_pressure_level_proto.cc
 @@ -14,9 +14,9 @@
@@ -976,7 +1042,7 @@ index 3b4a594a883b..7b8705d74597 100644
      case MemoryPressureListener::MEMORY_PRESSURE_LEVEL_NONE:
        return ProtoLevel::MEMORY_PRESSURE_LEVEL_NONE;
 diff --git a/base/trace_event/memory_pressure_level_proto.h b/base/trace_event/memory_pressure_level_proto.h
-index d60d43dc57fa..55e9ec85f396 100644
+index d60d43dc57..55e9ec85f3 100644
 --- a/base/trace_event/memory_pressure_level_proto.h
 +++ b/base/trace_event/memory_pressure_level_proto.h
 @@ -17,7 +17,7 @@
@@ -989,7 +1055,7 @@ index d60d43dc57fa..55e9ec85f396 100644
      MemoryPressureListener::MemoryPressureLevel memory_pressure_level);
  
 diff --git a/base/trace_event/process_memory_dump.cc b/base/trace_event/process_memory_dump.cc
-index 25666ceaf833..ca1fd40913dd 100644
+index 07f805a33d..6e3d7090c3 100644
 --- a/base/trace_event/process_memory_dump.cc
 +++ b/base/trace_event/process_memory_dump.cc
 @@ -40,7 +40,7 @@
@@ -1011,7 +1077,7 @@ index 25666ceaf833..ca1fd40913dd 100644
    ProcessSnapshot* process_snapshot =
        memory_snapshot->add_process_memory_dumps();
 diff --git a/base/trace_event/process_memory_dump.h b/base/trace_event/process_memory_dump.h
-index 31bab50b4cff..1ee68a3d9bb0 100644
+index b9b9e980f3..c9340ca98d 100644
 --- a/base/trace_event/process_memory_dump.h
 +++ b/base/trace_event/process_memory_dump.h
 @@ -240,7 +240,7 @@ class BASE_EXPORT ProcessMemoryDump {
@@ -1024,7 +1090,7 @@ index 31bab50b4cff..1ee68a3d9bb0 100644
  
    const MemoryDumpArgs& dump_args() const { return dump_args_; }
 diff --git a/base/trace_event/task_execution_macros.h b/base/trace_event/task_execution_macros.h
-index 062693c384ff..a1ed4eb920f9 100644
+index 062693c384..a1ed4eb920 100644
 --- a/base/trace_event/task_execution_macros.h
 +++ b/base/trace_event/task_execution_macros.h
 @@ -15,8 +15,8 @@
@@ -1039,7 +1105,7 @@ index 062693c384ff..a1ed4eb920f9 100644
      log->set_source_location_iid(                                            \
          base::trace_event::InternedSourceLocation::Get(                      \
 diff --git a/base/trace_event/trace_arguments.cc b/base/trace_event/trace_arguments.cc
-index 7dbb3cd9788f..647eac8539b0 100644
+index 7dbb3cd978..647eac8539 100644
 --- a/base/trace_event/trace_arguments.cc
 +++ b/base/trace_event/trace_arguments.cc
 @@ -291,7 +291,7 @@ void TraceArguments::AppendDebugString(std::string* out) {
@@ -1052,7 +1118,7 @@ index 7dbb3cd9788f..647eac8539b0 100644
    AppendAsTraceFormat(&json);
    annotation->set_legacy_json_value(json);
 diff --git a/base/trace_event/trace_arguments.h b/base/trace_event/trace_arguments.h
-index 03c28d68710b..a5c1fe2a2ff4 100644
+index 03c28d6871..a5c1fe2a2f 100644
 --- a/base/trace_event/trace_arguments.h
 +++ b/base/trace_event/trace_arguments.h
 @@ -142,7 +142,7 @@ class TraceEventMemoryOverhead;
@@ -1119,10 +1185,10 @@ index 03c28d68710b..a5c1fe2a2ff4 100644
    }
  };
 diff --git a/base/trace_event/trace_event_impl.cc b/base/trace_event/trace_event_impl.cc
-index 71fc039b0cc7..41a9dd46816e 100644
+index d65d6794f3..5b63be71c0 100644
 --- a/base/trace_event/trace_event_impl.cc
 +++ b/base/trace_event/trace_event_impl.cc
-@@ -30,14 +30,14 @@ namespace perfetto {
+@@ -32,14 +32,14 @@ namespace perfetto {
  namespace legacy {
  
  template <>
@@ -1132,17 +1198,17 @@ index 71fc039b0cc7..41a9dd46816e 100644
 +  return perfetto::libchrome::ThreadTrack::ForThread(static_cast<int32_t>(thread));
  }
  
- #if defined(OS_WIN)
+ #if BUILDFLAG(IS_WIN)
  template <>
 -perfetto::ThreadTrack ConvertThreadId(const int& thread) {
 -  return perfetto::ThreadTrack::ForThread(static_cast<int32_t>(thread));
 +perfetto::libchrome::ThreadTrack ConvertThreadId(const int& thread) {
 +  return perfetto::libchrome::ThreadTrack::ForThread(static_cast<int32_t>(thread));
  }
- #endif  // defined(OS_WIN)
+ #endif  // BUILDFLAG(IS_WIN)
  
 diff --git a/base/trace_event/trace_event_stub.cc b/base/trace_event/trace_event_stub.cc
-index face091bf495..53491178d964 100644
+index face091bf4..53491178d9 100644
 --- a/base/trace_event/trace_event_stub.cc
 +++ b/base/trace_event/trace_event_stub.cc
 @@ -33,6 +33,7 @@ constexpr const char* const MemoryDumpManager::kTraceCategory;
@@ -1160,7 +1226,7 @@ index face091bf495..53491178d964 100644
 +}  // namespace libchrome
  }  // namespace perfetto
 diff --git a/base/trace_event/trace_event_stub.h b/base/trace_event/trace_event_stub.h
-index fffbd6994310..c5f09e2eaa45 100644
+index b9ab937c2e..bdc299561e 100644
 --- a/base/trace_event/trace_event_stub.h
 +++ b/base/trace_event/trace_event_stub.h
 @@ -267,8 +267,9 @@ class BASE_EXPORT TraceLog : public MemoryDumpProvider {
@@ -1183,10 +1249,10 @@ index fffbd6994310..c5f09e2eaa45 100644
  
  #endif  // BASE_TRACE_EVENT_TRACE_EVENT_STUB_H_
 diff --git a/base/trace_event/trace_event_unittest.cc b/base/trace_event/trace_event_unittest.cc
-index 3712c0867514..fd17ec402aeb 100644
+index f5a05743aa..8db33619a5 100644
 --- a/base/trace_event/trace_event_unittest.cc
 +++ b/base/trace_event/trace_event_unittest.cc
-@@ -73,7 +73,7 @@ constexpr const char kAllCategory[] = "test_all";
+@@ -74,7 +74,7 @@ constexpr const char kAllCategory[] = "test_all";
  bool IsCategoryEnabled(const char* name) {
  #if BUILDFLAG(USE_PERFETTO_CLIENT_LIBRARY)
    bool result;
@@ -1195,7 +1261,7 @@ index 3712c0867514..fd17ec402aeb 100644
    return result;
  #else
    return *TraceLog::GetInstance()->GetCategoryGroupEnabled(name);
-@@ -2787,7 +2787,7 @@ TEST_F(TraceEventTestFixture, ContextLambda) {
+@@ -2790,7 +2790,7 @@ TEST_F(TraceEventTestFixture, ContextLambda) {
                                        TraceLog::RECORDING_MODE);
  
    {
@@ -1205,10 +1271,10 @@ index 3712c0867514..fd17ec402aeb 100644
      });
    }
 diff --git a/base/trace_event/trace_log.cc b/base/trace_event/trace_log.cc
-index 8bc58b14170a..adfe16b7b18a 100644
+index 7cb3b46a66..029312b82e 100644
 --- a/base/trace_event/trace_log.cc
 +++ b/base/trace_event/trace_log.cc
-@@ -203,7 +203,7 @@ class PerfettoProtoAppender
+@@ -204,7 +204,7 @@ class PerfettoProtoAppender
      : public base::trace_event::ConvertableToTraceFormat::ProtoAppender {
   public:
    explicit PerfettoProtoAppender(
@@ -1217,7 +1283,7 @@ index 8bc58b14170a..adfe16b7b18a 100644
        : annotation_proto_(proto) {}
    ~PerfettoProtoAppender() override = default;
  
-@@ -221,12 +221,12 @@ class PerfettoProtoAppender
+@@ -222,12 +222,12 @@ class PerfettoProtoAppender
  
   private:
    std::vector<protozero::ContiguousMemoryRange> ranges_;
@@ -1232,7 +1298,7 @@ index 8bc58b14170a..adfe16b7b18a 100644
    PerfettoProtoAppender proto_appender(annotation);
    if (value->AppendToProto(&proto_appender)) {
      return;
-@@ -238,7 +238,7 @@ void AddConvertableToTraceFormat(
+@@ -239,7 +239,7 @@ void AddConvertableToTraceFormat(
  }
  
  void WriteDebugAnnotations(base::trace_event::TraceEvent* trace_event,
@@ -1241,7 +1307,7 @@ index 8bc58b14170a..adfe16b7b18a 100644
    for (size_t i = 0; i < trace_event->arg_size() && trace_event->arg_name(i);
         ++i) {
      auto type = trace_event->arg_type(i);
-@@ -290,18 +290,18 @@ void WriteDebugAnnotations(base::trace_event::TraceEvent* trace_event,
+@@ -291,18 +291,18 @@ void WriteDebugAnnotations(base::trace_event::TraceEvent* trace_event,
  void OnAddLegacyTraceEvent(TraceEvent* trace_event,
                             bool thread_will_flush,
                             base::trace_event::TraceEventHandle* handle) {
@@ -1264,7 +1330,7 @@ index 8bc58b14170a..adfe16b7b18a 100644
        return;
      }
      auto* legacy_event = ctx.event()->set_legacy_event();
-@@ -333,13 +333,13 @@ void OnAddLegacyTraceEvent(TraceEvent* trace_event,
+@@ -334,13 +334,13 @@ void OnAddLegacyTraceEvent(TraceEvent* trace_event,
      switch (scope) {
        case TRACE_EVENT_SCOPE_GLOBAL:
          PERFETTO_INTERNAL_LEGACY_EVENT_ON_TRACK(
@@ -1280,7 +1346,7 @@ index 8bc58b14170a..adfe16b7b18a 100644
          return;
        default:
        case TRACE_EVENT_SCOPE_THREAD: /* Fallthrough. */
-@@ -351,13 +351,13 @@ void OnAddLegacyTraceEvent(TraceEvent* trace_event,
+@@ -352,13 +352,13 @@ void OnAddLegacyTraceEvent(TraceEvent* trace_event,
            static_cast<int>(base::PlatformThread::CurrentId())) {
      PERFETTO_INTERNAL_LEGACY_EVENT_ON_TRACK(
          phase, category, trace_event->name(),
@@ -1296,7 +1362,7 @@ index 8bc58b14170a..adfe16b7b18a 100644
        write_args);
  }
  
-@@ -370,7 +370,7 @@ void OnUpdateLegacyTraceEventDuration(
+@@ -371,7 +371,7 @@ void OnUpdateLegacyTraceEventDuration(
      const TimeTicks& now,
      const ThreadTicks& thread_now,
      ThreadInstructionCount thread_instruction_now) {
@@ -1305,7 +1371,7 @@ index 8bc58b14170a..adfe16b7b18a 100644
        TraceLog::GetInstance()->GetCategoryGroupName(category_group_enabled));
    auto phase = TRACE_EVENT_PHASE_END;
    base::TimeTicks timestamp =
-@@ -378,13 +378,13 @@ void OnUpdateLegacyTraceEventDuration(
+@@ -379,13 +379,13 @@ void OnUpdateLegacyTraceEventDuration(
    if (thread_id &&
        thread_id != static_cast<int>(base::PlatformThread::CurrentId())) {
      PERFETTO_INTERNAL_LEGACY_EVENT_ON_TRACK(
@@ -1321,7 +1387,7 @@ index 8bc58b14170a..adfe16b7b18a 100644
  }
  #endif  // BUILDFLAG(USE_PERFETTO_CLIENT_LIBRARY)
  
-@@ -402,7 +402,7 @@ static constexpr char kJsonSuffix[] = "],\"metadata\":";
+@@ -403,7 +403,7 @@ static constexpr char kJsonSuffix[] = "],\"metadata\":";
  }  // namespace
  
  class JsonStringOutputWriter
@@ -1330,7 +1396,7 @@ index 8bc58b14170a..adfe16b7b18a 100644
   public:
    JsonStringOutputWriter(scoped_refptr<SequencedTaskRunner> flush_task_runner,
                           TraceLog::OutputCallback flush_callback)
-@@ -413,12 +413,12 @@ class JsonStringOutputWriter
+@@ -414,12 +414,12 @@ class JsonStringOutputWriter
  
    ~JsonStringOutputWriter() override { Flush(/*has_more=*/false); }
  
@@ -1345,7 +1411,7 @@ index 8bc58b14170a..adfe16b7b18a 100644
      } else if (buffer_->data().empty() &&
                 !strncmp(string.c_str(), kJsonJoiner, strlen(kJsonJoiner))) {
        // We only remove the leading joiner comma for the first chunk in a buffer
-@@ -426,7 +426,7 @@ class JsonStringOutputWriter
+@@ -427,7 +427,7 @@ class JsonStringOutputWriter
        // provide.
        buffer_->data() += string.substr(strlen(kJsonJoiner));
      } else if (!strncmp(string.c_str(), kJsonSuffix, strlen(kJsonSuffix))) {
@@ -1354,7 +1420,7 @@ index 8bc58b14170a..adfe16b7b18a 100644
      } else {
        buffer_->data() += string;
      }
-@@ -436,7 +436,7 @@ class JsonStringOutputWriter
+@@ -437,7 +437,7 @@ class JsonStringOutputWriter
        buffer_ = new RefCountedString();
        buffer_->data().reserve(kBufferReserveCapacity);
      }
@@ -1363,7 +1429,7 @@ index 8bc58b14170a..adfe16b7b18a 100644
    }
  
   private:
-@@ -698,7 +698,7 @@ TraceLog::TraceLog(int generation)
+@@ -699,7 +699,7 @@ TraceLog::TraceLog(int generation)
    MemoryDumpManager::GetInstance()->RegisterDumpProvider(this, "TraceLog",
                                                           nullptr);
  #if BUILDFLAG(USE_PERFETTO_CLIENT_LIBRARY)
@@ -1372,7 +1438,7 @@ index 8bc58b14170a..adfe16b7b18a 100644
    // When using the Perfetto client library, TRACE_EVENT macros will bypass
    // TraceLog entirely. However, trace event embedders which haven't been ported
    // to Perfetto yet will still be using TRACE_EVENT_API_ADD_TRACE_EVENT, so we
-@@ -712,7 +712,7 @@ TraceLog::TraceLog(int generation)
+@@ -713,7 +713,7 @@ TraceLog::TraceLog(int generation)
  
  TraceLog::~TraceLog() {
  #if BUILDFLAG(USE_PERFETTO_CLIENT_LIBRARY)
@@ -1381,7 +1447,7 @@ index 8bc58b14170a..adfe16b7b18a 100644
  #endif  // BUILDFLAG(USE_PERFETTO_CLIENT_LIBRARY)
  }
  
-@@ -906,7 +906,7 @@ void TraceLog::SetEnabled(const TraceConfig& trace_config,
+@@ -907,7 +907,7 @@ void TraceLog::SetEnabled(const TraceConfig& trace_config,
    DCHECK(modes_to_enable == RECORDING_MODE);
    DCHECK(!trace_config.IsArgumentFilterEnabled());
  
@@ -1390,7 +1456,7 @@ index 8bc58b14170a..adfe16b7b18a 100644
    size_t size_limit = trace_config.GetTraceBufferSizeInKb();
    if (size_limit == 0)
      size_limit = 200 * 1024;
-@@ -916,11 +916,11 @@ void TraceLog::SetEnabled(const TraceConfig& trace_config,
+@@ -917,11 +917,11 @@ void TraceLog::SetEnabled(const TraceConfig& trace_config,
      case base::trace_event::RECORD_UNTIL_FULL:
      case base::trace_event::RECORD_AS_MUCH_AS_POSSIBLE:
        buffer_config->set_fill_policy(
@@ -1404,7 +1470,7 @@ index 8bc58b14170a..adfe16b7b18a 100644
        break;
      case base::trace_event::ECHO_TO_CONSOLE:
        // Handled below.
-@@ -936,12 +936,12 @@ void TraceLog::SetEnabled(const TraceConfig& trace_config,
+@@ -937,12 +937,12 @@ void TraceLog::SetEnabled(const TraceConfig& trace_config,
    source_config->mutable_chrome_config()->set_convert_to_legacy_json(true);
  
    if (trace_config.GetTraceRecordMode() == base::trace_event::ECHO_TO_CONSOLE) {
@@ -1419,7 +1485,7 @@ index 8bc58b14170a..adfe16b7b18a 100644
    // If no categories are explicitly enabled, enable the default ones. Otherwise
    // only matching categories are enabled.
    if (!trace_config.category_filter().included_categories().empty())
-@@ -1052,42 +1052,42 @@ void TraceLog::SetEnabled(const TraceConfig& trace_config,
+@@ -1053,42 +1053,42 @@ void TraceLog::SetEnabled(const TraceConfig& trace_config,
  void TraceLog::InitializePerfettoIfNeeded() {
    // When we're using the Perfetto client library, only tests should be
    // recording traces directly through TraceLog. Production code should instead
@@ -1474,7 +1540,7 @@ index 8bc58b14170a..adfe16b7b18a 100644
  
    AutoUnlock unlock(lock_);
    tracing_session_->Setup(perfetto_config);
-@@ -1172,7 +1172,7 @@ void TraceLog::SetDisabledWhileLocked(uint8_t modes_to_disable) {
+@@ -1173,7 +1173,7 @@ void TraceLog::SetDisabledWhileLocked(uint8_t modes_to_disable) {
    // Remove metadata events so they will not get added to a subsequent trace.
    metadata_events_.clear();
  
@@ -1483,16 +1549,16 @@ index 8bc58b14170a..adfe16b7b18a 100644
    // If the current thread has an active task runner, allow nested tasks to run
    // while stopping the session. This is needed by some tests, e.g., to allow
    // data sources to properly flush themselves.
-@@ -1383,7 +1383,7 @@ void TraceLog::FlushInternal(const TraceLog::OutputCallback& cb,
+@@ -1384,7 +1384,7 @@ void TraceLog::FlushInternal(const TraceLog::OutputCallback& cb,
    use_worker_thread_ = use_worker_thread;
  
- #if BUILDFLAG(USE_PERFETTO_CLIENT_LIBRARY) && !defined(OS_NACL)
+ #if BUILDFLAG(USE_PERFETTO_CLIENT_LIBRARY) && !BUILDFLAG(IS_NACL)
 -  perfetto::TrackEvent::Flush();
 +  perfetto::libchrome::TrackEvent::Flush();
  
    if (discard_events) {
      tracing_session_.reset();
-@@ -1403,9 +1403,9 @@ void TraceLog::FlushInternal(const TraceLog::OutputCallback& cb,
+@@ -1404,9 +1404,9 @@ void TraceLog::FlushInternal(const TraceLog::OutputCallback& cb,
    }
  
    if (convert_to_json) {
@@ -1504,7 +1570,7 @@ index 8bc58b14170a..adfe16b7b18a 100644
              processor_config);
      json_output_writer_.reset(new JsonStringOutputWriter(
          use_worker_thread ? ThreadTaskRunnerHandle::Get() : nullptr, cb));
-@@ -1415,7 +1415,7 @@ void TraceLog::FlushInternal(const TraceLog::OutputCallback& cb,
+@@ -1416,7 +1416,7 @@ void TraceLog::FlushInternal(const TraceLog::OutputCallback& cb,
  
    if (use_worker_thread) {
      tracing_session_->ReadTrace(
@@ -1513,7 +1579,7 @@ index 8bc58b14170a..adfe16b7b18a 100644
            OnTraceData(args.data, args.size, args.has_more);
          });
    } else {
-@@ -1501,7 +1501,7 @@ void TraceLog::OnTraceData(const char* data, size_t size, bool has_more) {
+@@ -1502,7 +1502,7 @@ void TraceLog::OnTraceData(const char* data, size_t size, bool has_more) {
      return;
    trace_processor_->NotifyEndOfFile();
  
@@ -1522,9 +1588,9 @@ index 8bc58b14170a..adfe16b7b18a 100644
        trace_processor_.get(), json_output_writer_.get());
    DCHECK(status.ok()) << status.message();
    trace_processor_.reset();
-@@ -2250,11 +2250,11 @@ void TraceLog::set_process_name(const std::string& process_name) {
-     process_name_ = process_name;
+@@ -2252,12 +2252,12 @@ void TraceLog::set_process_name(const std::string& process_name) {
    }
+ 
  #if BUILDFLAG(USE_PERFETTO_CLIENT_LIBRARY)
 -  if (perfetto::Tracing::IsInitialized()) {
 -    auto track = perfetto::ProcessTrack::Current();
@@ -1532,12 +1598,13 @@ index 8bc58b14170a..adfe16b7b18a 100644
 +    auto track = perfetto::libchrome::ProcessTrack::Current();
      auto desc = track.Serialize();
      desc.mutable_process()->set_process_name(process_name);
+     desc.mutable_process()->set_pid(process_id_);
 -    perfetto::TrackEvent::SetTrackDescriptor(track, std::move(desc));
 +    perfetto::libchrome::TrackEvent::SetTrackDescriptor(track, std::move(desc));
    }
  #endif
  }
-@@ -2350,9 +2350,9 @@ tracing::PerfettoPlatform* TraceLog::GetOrCreatePerfettoPlatform() {
+@@ -2353,9 +2353,9 @@ tracing::PerfettoPlatform* TraceLog::GetOrCreatePerfettoPlatform() {
    return perfetto_platform_.get();
  }
  
@@ -1549,7 +1616,7 @@ index 8bc58b14170a..adfe16b7b18a 100644
    AutoLock lock(observers_lock_);
    for (EnabledStateObserver* observer : enabled_state_observers_)
      observer->OnTraceLogEnabled();
-@@ -2363,7 +2363,7 @@ void TraceLog::OnStart(const perfetto::DataSourceBase::StartArgs&) {
+@@ -2366,7 +2366,7 @@ void TraceLog::OnStart(const perfetto::DataSourceBase::StartArgs&) {
    }
  }
  
@@ -1559,10 +1626,10 @@ index 8bc58b14170a..adfe16b7b18a 100644
    for (auto* it : enabled_state_observers_)
      it->OnTraceLogDisabled();
 diff --git a/base/trace_event/trace_log.h b/base/trace_event/trace_log.h
-index f232e0f68803..23867671f751 100644
+index c6acc483bc..9d4032173b 100644
 --- a/base/trace_event/trace_log.h
 +++ b/base/trace_event/trace_log.h
-@@ -60,7 +60,7 @@ struct BASE_EXPORT TraceLogStatus {
+@@ -63,7 +63,7 @@ struct BASE_EXPORT TraceLogStatus {
  
  class BASE_EXPORT TraceLog :
  #if BUILDFLAG(USE_PERFETTO_CLIENT_LIBRARY)
@@ -1571,7 +1638,7 @@ index f232e0f68803..23867671f751 100644
  #endif  // BUILDFLAG(USE_PERFETTO_CLIENT_LIBRARY)
      public MemoryDumpProvider {
   public:
-@@ -101,7 +101,7 @@ class BASE_EXPORT TraceLog :
+@@ -104,7 +104,7 @@ class BASE_EXPORT TraceLog :
    // example, enabling additional data sources and enabling protobuf output
    // instead of the legacy JSON trace format.
    void SetEnabled(const TraceConfig& trace_config,
@@ -1580,7 +1647,7 @@ index f232e0f68803..23867671f751 100644
  #endif
  
    // TODO(ssid): Remove the default SetEnabled and IsEnabled. They should take
-@@ -116,7 +116,7 @@ class BASE_EXPORT TraceLog :
+@@ -119,7 +119,7 @@ class BASE_EXPORT TraceLog :
    // Note: Returns false even if FILTERING_MODE is enabled.
    bool IsEnabled() {
  #if BUILDFLAG(USE_PERFETTO_CLIENT_LIBRARY)
@@ -1589,7 +1656,7 @@ index f232e0f68803..23867671f751 100644
  #else   // !BUILDFLAG(USE_PERFETTO_CLIENT_LIBRARY)
      AutoLock lock(lock_);
      return enabled_modes_ & RECORDING_MODE;
-@@ -451,12 +451,12 @@ class BASE_EXPORT TraceLog :
+@@ -454,12 +454,12 @@ class BASE_EXPORT TraceLog :
  #if BUILDFLAG(USE_PERFETTO_CLIENT_LIBRARY)
    void InitializePerfettoIfNeeded();
    void SetEnabledImpl(const TraceConfig& trace_config,
@@ -1607,7 +1674,7 @@ index f232e0f68803..23867671f751 100644
  #endif  // BUILDFLAG(USE_PERFETTO_CLIENT_LIBRARY)
  
    // Called by the perfetto backend just after incremental state was cleared.
-@@ -654,10 +654,10 @@ class BASE_EXPORT TraceLog :
+@@ -657,10 +657,10 @@ class BASE_EXPORT TraceLog :
  
  #if BUILDFLAG(USE_PERFETTO_CLIENT_LIBRARY)
    std::unique_ptr<::base::tracing::PerfettoPlatform> perfetto_platform_;
@@ -1615,17 +1682,17 @@ index f232e0f68803..23867671f751 100644
 -  perfetto::TraceConfig perfetto_config_;
 +  std::unique_ptr<perfetto::libchrome::TracingSession> tracing_session_;
 +  perfetto::libchrome::TraceConfig perfetto_config_;
- #if !defined(OS_NACL)
+ #if !BUILDFLAG(IS_NACL)
 -  std::unique_ptr<perfetto::trace_processor::TraceProcessorStorage>
 +  std::unique_ptr<perfetto::libchrome::trace_processor::TraceProcessorStorage>
        trace_processor_;
    std::unique_ptr<JsonStringOutputWriter> json_output_writer_;
    OutputCallback proto_output_callback_;
 diff --git a/base/trace_event/traced_value_support.h b/base/trace_event/traced_value_support.h
-index 5f9147679a81..eac6fa057eb8 100644
+index 15e9f92b2b..b9b39265f8 100644
 --- a/base/trace_event/traced_value_support.h
 +++ b/base/trace_event/traced_value_support.h
-@@ -16,7 +16,7 @@
+@@ -17,7 +17,7 @@
  
  // This file contains specialisations for trace serialisation for key
  // widely-used //base classes. As these specialisations require full definition
@@ -1634,7 +1701,7 @@ index 5f9147679a81..eac6fa057eb8 100644
  // one of these //base concepts, include specialiazations here and expose them
  // to the users including trace_event.h, rather than adding a dependency from
  // scoped_refptr.h et al on traced_value.h.
-@@ -26,28 +26,28 @@ namespace perfetto {
+@@ -27,38 +27,38 @@ namespace perfetto {
  // If T is serialisable into a trace, scoped_refptr<T> is serialisable as well.
  template <class T>
  struct TraceFormatTraits<scoped_refptr<T>,
@@ -1649,6 +1716,18 @@ index 5f9147679a81..eac6fa057eb8 100644
      }
 -    perfetto::WriteIntoTracedValue(std::move(context), *value);
 +    perfetto::libchrome::WriteIntoTracedValue(std::move(context), *value);
+   }
+ 
+   template <class MessageType>
+-  static void WriteIntoTrace(perfetto::TracedProto<MessageType> context,
++  static void WriteIntoTrace(perfetto::libchrome::TracedProto<MessageType> context,
+                              const scoped_refptr<T>& value) {
+     if (value) {
+       // Proto message without any fields is treated as nullptr.
+       return;
+     }
+-    perfetto::WriteIntoTracedProto(std::move(context), *value);
++    perfetto::libchrome::WriteIntoTracedProto(std::move(context), *value);
    }
  };
  
@@ -1669,7 +1748,7 @@ index 5f9147679a81..eac6fa057eb8 100644
    }
  };
  
-@@ -58,23 +58,23 @@ struct TraceFormatTraits<::base::WeakPtr<T>,
+@@ -69,23 +69,23 @@ struct TraceFormatTraits<::base::WeakPtr<T>,
  // absl::optional<T>& gives you const T&.
  template <class T>
  struct TraceFormatTraits<::absl::optional<T>,
@@ -1698,7 +1777,7 @@ index 5f9147679a81..eac6fa057eb8 100644
    }
  };
  
-@@ -83,7 +83,7 @@ struct TraceFormatTraits<::absl::optional<T>,
+@@ -94,7 +94,7 @@ struct TraceFormatTraits<::absl::optional<T>,
  // UI.
  template <>
  struct TraceFormatTraits<::base::TimeDelta> {
@@ -1707,7 +1786,7 @@ index 5f9147679a81..eac6fa057eb8 100644
                               const ::base::TimeDelta& value) {
      std::move(context).WriteUInt64(value.InMicroseconds());
    }
-@@ -91,17 +91,17 @@ struct TraceFormatTraits<::base::TimeDelta> {
+@@ -102,17 +102,17 @@ struct TraceFormatTraits<::base::TimeDelta> {
  
  template <>
  struct TraceFormatTraits<::base::TimeTicks> {
@@ -1729,7 +1808,7 @@ index 5f9147679a81..eac6fa057eb8 100644
    }
  };
  
-@@ -110,7 +110,7 @@ struct TraceFormatTraits<::base::Time> {
+@@ -121,7 +121,7 @@ struct TraceFormatTraits<::base::Time> {
  // human-comprehensible alias for all unguessable tokens instead.
  template <>
  struct TraceFormatTraits<::base::UnguessableToken> {
@@ -1738,7 +1817,7 @@ index 5f9147679a81..eac6fa057eb8 100644
                               const ::base::UnguessableToken& value) {
      return std::move(context).WriteString(value.ToString());
    }
-@@ -119,7 +119,7 @@ struct TraceFormatTraits<::base::UnguessableToken> {
+@@ -130,7 +130,7 @@ struct TraceFormatTraits<::base::UnguessableToken> {
  // UTF-16 string support.
  template <>
  struct TraceFormatTraits<std::u16string> {
@@ -1747,7 +1826,7 @@ index 5f9147679a81..eac6fa057eb8 100644
                               const std::u16string& value) {
      return std::move(context).WriteString(::base::UTF16ToUTF8(value));
    }
-@@ -127,7 +127,7 @@ struct TraceFormatTraits<std::u16string> {
+@@ -138,7 +138,7 @@ struct TraceFormatTraits<std::u16string> {
  
  template <size_t N>
  struct TraceFormatTraits<char16_t[N]> {
@@ -1756,7 +1835,7 @@ index 5f9147679a81..eac6fa057eb8 100644
                               const char16_t value[N]) {
      return std::move(context).WriteString(
          ::base::UTF16ToUTF8(::base::StringPiece16(value)));
-@@ -136,7 +136,7 @@ struct TraceFormatTraits<char16_t[N]> {
+@@ -147,7 +147,7 @@ struct TraceFormatTraits<char16_t[N]> {
  
  template <>
  struct TraceFormatTraits<const char16_t*> {
@@ -1765,7 +1844,7 @@ index 5f9147679a81..eac6fa057eb8 100644
                               const char16_t* value) {
      return std::move(context).WriteString(
          ::base::UTF16ToUTF8(::base::StringPiece16(value)));
-@@ -146,7 +146,7 @@ struct TraceFormatTraits<const char16_t*> {
+@@ -157,7 +157,7 @@ struct TraceFormatTraits<const char16_t*> {
  // Wide string support.
  template <>
  struct TraceFormatTraits<std::wstring> {
@@ -1774,7 +1853,7 @@ index 5f9147679a81..eac6fa057eb8 100644
                               const std::wstring& value) {
      return std::move(context).WriteString(::base::WideToUTF8(value));
    }
-@@ -154,7 +154,7 @@ struct TraceFormatTraits<std::wstring> {
+@@ -165,7 +165,7 @@ struct TraceFormatTraits<std::wstring> {
  
  template <size_t N>
  struct TraceFormatTraits<wchar_t[N]> {
@@ -1783,7 +1862,7 @@ index 5f9147679a81..eac6fa057eb8 100644
                               const wchar_t value[N]) {
      return std::move(context).WriteString(
          ::base::WideToUTF8(::base::WStringPiece(value)));
-@@ -163,7 +163,7 @@ struct TraceFormatTraits<wchar_t[N]> {
+@@ -174,7 +174,7 @@ struct TraceFormatTraits<wchar_t[N]> {
  
  template <>
  struct TraceFormatTraits<const wchar_t*> {
@@ -1792,7 +1871,7 @@ index 5f9147679a81..eac6fa057eb8 100644
                               const wchar_t* value) {
      return std::move(context).WriteString(
          ::base::WideToUTF8(::base::WStringPiece(value)));
-@@ -173,7 +173,7 @@ struct TraceFormatTraits<const wchar_t*> {
+@@ -184,7 +184,7 @@ struct TraceFormatTraits<const wchar_t*> {
  // base::StringPiece support.
  template <>
  struct TraceFormatTraits<::base::StringPiece> {
@@ -1801,7 +1880,7 @@ index 5f9147679a81..eac6fa057eb8 100644
                               ::base::StringPiece value) {
      return std::move(context).WriteString(value.data(), value.length());
    }
-@@ -181,7 +181,7 @@ struct TraceFormatTraits<::base::StringPiece> {
+@@ -192,7 +192,7 @@ struct TraceFormatTraits<::base::StringPiece> {
  
  template <>
  struct TraceFormatTraits<::base::StringPiece16> {
@@ -1810,7 +1889,7 @@ index 5f9147679a81..eac6fa057eb8 100644
                               ::base::StringPiece16 value) {
      return std::move(context).WriteString(::base::UTF16ToUTF8(value));
    }
-@@ -189,7 +189,7 @@ struct TraceFormatTraits<::base::StringPiece16> {
+@@ -200,7 +200,7 @@ struct TraceFormatTraits<::base::StringPiece16> {
  
  template <>
  struct TraceFormatTraits<::base::WStringPiece> {
@@ -1820,7 +1899,7 @@ index 5f9147679a81..eac6fa057eb8 100644
      return std::move(context).WriteString(::base::WideToUTF8(value));
    }
 diff --git a/base/trace_event/traced_value_support_unittest.cc b/base/trace_event/traced_value_support_unittest.cc
-index 794149c737fa..f8167afbe4d8 100644
+index 794149c737..f8167afbe4 100644
 --- a/base/trace_event/traced_value_support_unittest.cc
 +++ b/base/trace_event/traced_value_support_unittest.cc
 @@ -18,7 +18,7 @@ struct RefCountedData : RefCounted<RefCountedData> {
@@ -1924,10 +2003,10 @@ index 794149c737fa..f8167afbe4d8 100644
  
  }  // namespace trace_event
 diff --git a/base/trace_event/typed_macros.h b/base/trace_event/typed_macros.h
-index 2c99ccc93cd3..0f24758d8754 100644
+index 0a66391f23..842a345dcd 100644
 --- a/base/trace_event/typed_macros.h
 +++ b/base/trace_event/typed_macros.h
-@@ -38,35 +38,35 @@
+@@ -37,35 +37,35 @@
  // |category| is enabled for the tracing session.
  //
  // The slice is thread-scoped (i.e., written to the default track of the current
@@ -1971,7 +2050,7 @@ index 2c99ccc93cd3..0f24758d8754 100644
  // Begin a slice under |category| with the title |name|.
  // Defaults to the current thread's track.
 diff --git a/base/trace_event/typed_macros_embedder_support.h b/base/trace_event/typed_macros_embedder_support.h
-index faaf7f2c6b8b..d16bb85fcbe2 100644
+index faaf7f2c6b..d16bb85fcb 100644
 --- a/base/trace_event/typed_macros_embedder_support.h
 +++ b/base/trace_event/typed_macros_embedder_support.h
 @@ -20,8 +20,8 @@ namespace trace_event {
@@ -1995,10 +2074,10 @@ index faaf7f2c6b8b..d16bb85fcbe2 100644
  
    class BASE_EXPORT CompletionListener {
 diff --git a/base/trace_event/typed_macros_internal.cc b/base/trace_event/typed_macros_internal.cc
-index 5baa21ff2c9d..b3eb95b24b11 100644
+index 4e1fdaf0a7..f52ebafba2 100644
 --- a/base/trace_event/typed_macros_internal.cc
 +++ b/base/trace_event/typed_macros_internal.cc
-@@ -53,7 +53,7 @@ GetPhaseAndIdForTraceLog(bool explicit_track, uint64_t track_uuid, char phase) {
+@@ -54,7 +54,7 @@ GetPhaseAndIdForTraceLog(bool explicit_track, uint64_t track_uuid, char phase) {
  }  // namespace
  
  namespace trace_event_internal {
@@ -2007,7 +2086,7 @@ index 5baa21ff2c9d..b3eb95b24b11 100644
  }  // namespace trace_event_internal
  
  namespace base {
-@@ -123,7 +123,7 @@ namespace trace_event_internal {
+@@ -124,7 +124,7 @@ namespace trace_event_internal {
  base::trace_event::TrackEventHandle CreateTrackEvent(
      char phase,
      const unsigned char* category_group_enabled,
@@ -2017,7 +2096,7 @@ index 5baa21ff2c9d..b3eb95b24b11 100644
      uint64_t track_uuid,
      bool explicit_track) {
 diff --git a/base/trace_event/typed_macros_internal.h b/base/trace_event/typed_macros_internal.h
-index 6a4837db0a74..9a8cd92f9a30 100644
+index c43afb3b68..4b50d78a23 100644
 --- a/base/trace_event/typed_macros_internal.h
 +++ b/base/trace_event/typed_macros_internal.h
 @@ -51,7 +51,7 @@
@@ -2038,7 +2117,7 @@ index 6a4837db0a74..9a8cd92f9a30 100644
  
  // The perfetto client library does not use event names for
  // TRACE_EVENT_PHASE_END. However, TraceLog expects all TraceEvents to have
-@@ -93,7 +93,7 @@ constexpr char kTraceEventEndName[] = "";
+@@ -93,7 +93,7 @@ inline constexpr char kTraceEventEndName[] = "";
  base::trace_event::TrackEventHandle BASE_EXPORT
  CreateTrackEvent(char phase,
                   const unsigned char* category_group_enabled,
@@ -2122,7 +2201,7 @@ index 6a4837db0a74..9a8cd92f9a30 100644
    AddTypedTraceEventImpl(phase, category_group_enabled, name, kDefaultTrack,
                           base::TimeTicks(), std::forward<Args>(args)...);
 diff --git a/base/trace_event/typed_macros_unittest.cc b/base/trace_event/typed_macros_unittest.cc
-index b8dcff0be9cc..c6dc305e5fe5 100644
+index b8dcff0be9..c6dc305e5f 100644
 --- a/base/trace_event/typed_macros_unittest.cc
 +++ b/base/trace_event/typed_macros_unittest.cc
 @@ -30,14 +30,14 @@ namespace trace_event {
@@ -2314,10 +2393,10 @@ index b8dcff0be9cc..c6dc305e5fe5 100644
    CancelTrace();
  }
 diff --git a/base/tracing/perfetto_platform.cc b/base/tracing/perfetto_platform.cc
-index 62a6ea479435..7719d1b86cc2 100644
+index 0cb8905bd9..d31f547359 100644
 --- a/base/tracing/perfetto_platform.cc
 +++ b/base/tracing/perfetto_platform.cc
-@@ -55,13 +55,13 @@ PerfettoPlatform::GetOrCreateThreadLocalObject() {
+@@ -56,13 +56,13 @@ PerfettoPlatform::GetOrCreateThreadLocalObject() {
    return object;
  }
  
@@ -2334,23 +2413,24 @@ index 62a6ea479435..7719d1b86cc2 100644
  #else
        DCHECK(false);
        return nullptr;
-@@ -85,11 +85,11 @@ void PerfettoPlatform::OnThreadNameChanged(const char* name) {
+@@ -85,12 +85,12 @@ std::string PerfettoPlatform::GetCurrentProcessName() {
+ void PerfettoPlatform::OnThreadNameChanged(const char* name) {
  #if BUILDFLAG(USE_PERFETTO_CLIENT_LIBRARY)
-   // TODO(skyostil): Also capture names for threads which predate tracing being
-   // initialized.
+   int process_id = base::trace_event::TraceLog::GetInstance()->process_id();
 -  if (perfetto::Tracing::IsInitialized()) {
 -    auto track = perfetto::ThreadTrack::Current();
 +  if (perfetto::libchrome::Tracing::IsInitialized()) {
 +    auto track = perfetto::libchrome::ThreadTrack::Current();
      auto desc = track.Serialize();
      desc.mutable_thread()->set_thread_name(name);
+     desc.mutable_thread()->set_pid(process_id);
 -    perfetto::TrackEvent::SetTrackDescriptor(track, std::move(desc));
 +    perfetto::libchrome::TrackEvent::SetTrackDescriptor(track, std::move(desc));
    }
  #endif  // BUILDFLAG(USE_PERFETTO_CLIENT_LIBRARY)
  }
 diff --git a/base/tracing/perfetto_platform.h b/base/tracing/perfetto_platform.h
-index a03309a3dde4..20da14545fb0 100644
+index a03309a3dd..20da14545f 100644
 --- a/base/tracing/perfetto_platform.h
 +++ b/base/tracing/perfetto_platform.h
 @@ -17,7 +17,7 @@ class DeferredSequencedTaskRunner;
@@ -2375,7 +2455,7 @@ index a03309a3dde4..20da14545fb0 100644
    std::string GetCurrentProcessName() override;
  
 diff --git a/base/tracing/perfetto_task_runner.cc b/base/tracing/perfetto_task_runner.cc
-index e8e15c0eccb6..3b805bfb3cf5 100644
+index 55fb6a56fa..db9adcaf6d 100644
 --- a/base/tracing/perfetto_task_runner.cc
 +++ b/base/tracing/perfetto_task_runner.cc
 @@ -69,7 +69,7 @@ bool PerfettoTaskRunner::RunsTasksOnCurrentThread() const {
@@ -2397,7 +2477,7 @@ index e8e15c0eccb6..3b805bfb3cf5 100644
    DCHECK(GetOrCreateTaskRunner()->RunsTasksInCurrentSequence());
    DCHECK(base::Contains(fd_controllers_, fd));
 diff --git a/base/tracing/perfetto_task_runner.h b/base/tracing/perfetto_task_runner.h
-index a232f153929b..8accb525d183 100644
+index a232f15392..8accb525d1 100644
 --- a/base/tracing/perfetto_task_runner.h
 +++ b/base/tracing/perfetto_task_runner.h
 @@ -25,7 +25,7 @@ namespace tracing {
@@ -2431,7 +2511,7 @@ index a232f153929b..8accb525d183 100644
    // Tests will shut down all task runners in between runs, so we need
    // to re-create any static instances on each SetUp();
 diff --git a/base/tracing/trace_time.cc b/base/tracing/trace_time.cc
-index 937e8e9a7431..18e184e5980e 100644
+index 937e8e9a74..18e184e598 100644
 --- a/base/tracing/trace_time.cc
 +++ b/base/tracing/trace_time.cc
 @@ -18,7 +18,7 @@ int64_t TraceBootTicksNow() {
@@ -2444,7 +2524,7 @@ index 937e8e9a7431..18e184e5980e 100644
    return TRACE_TIME_TICKS_NOW().since_origin().InNanoseconds();
  }
 diff --git a/base/tracing/trace_time.h b/base/tracing/trace_time.h
-index e42eb981f119..f38988297053 100644
+index e42eb981f1..f389882970 100644
 --- a/base/tracing/trace_time.h
 +++ b/base/tracing/trace_time.h
 @@ -15,14 +15,14 @@ namespace tracing {
@@ -2466,11 +2546,41 @@ index e42eb981f119..f38988297053 100644
  #endif
  
  // Returns CLOCK_BOOTTIME on systems that support it, otherwise falls back to
+diff --git a/base/types/strong_alias.h b/base/types/strong_alias.h
+index fcd6716a6e..91ba3e377f 100644
+--- a/base/types/strong_alias.h
++++ b/base/types/strong_alias.h
+@@ -139,9 +139,9 @@ class StrongAlias {
+   // If UnderlyingType can be serialised into trace, its alias is also
+   // serialisable.
+   template <class U = UnderlyingType>
+-  typename perfetto::check_traced_value_support<U>::type WriteIntoTrace(
+-      perfetto::TracedValue&& context) const {
+-    perfetto::WriteIntoTracedValue(std::move(context), value_);
++  typename perfetto::libchrome::check_traced_value_support<U>::type WriteIntoTrace(
++      perfetto::libchrome::TracedValue&& context) const {
++    perfetto::libchrome::WriteIntoTracedValue(std::move(context), value_);
+   }
+ 
+  protected:
+diff --git a/base/types/strong_alias_unittest.cc b/base/types/strong_alias_unittest.cc
+index c9f559c344..eccc6177c1 100644
+--- a/base/types/strong_alias_unittest.cc
++++ b/base/types/strong_alias_unittest.cc
+@@ -388,7 +388,7 @@ void StreamOperatorExists() {
+ #if BUILDFLAG(ENABLE_BASE_TRACING)
+ TEST(StrongAliasTest, TracedValueSupport) {
+   using IntAlias = StrongAlias<class FooTag, int>;
+-  EXPECT_EQ(perfetto::TracedValueToString(IntAlias(42)), "42");
++  EXPECT_EQ(perfetto::libchrome::TracedValueToString(IntAlias(42)), "42");
+ }
+ #endif  // BUILDFLAG(ENABLE_BASE_TRACING)
+ 
 diff --git a/base/values.cc b/base/values.cc
-index f5fdad85a5ae..996fe406028e 100644
+index c4535bd2c7..781f20ffab 100644
 --- a/base/values.cc
 +++ b/base/values.cc
-@@ -991,7 +991,7 @@ std::string Value::DebugString() const {
+@@ -1489,7 +1489,7 @@ std::string Value::DebugString() const {
  }
  
  #if BUILDFLAG(ENABLE_BASE_TRACING)
@@ -2479,7 +2589,7 @@ index f5fdad85a5ae..996fe406028e 100644
    switch (type()) {
      case Type::BOOLEAN:
        std::move(context).WriteBoolean(GetBool());
-@@ -1009,13 +1009,13 @@ void Value::WriteIntoTrace(perfetto::TracedValue context) const {
+@@ -1507,13 +1507,13 @@ void Value::WriteIntoTrace(perfetto::TracedValue context) const {
        std::move(context).WriteString("<binary data not supported>");
        return;
      case Type::DICTIONARY: {
@@ -2493,14 +2603,14 @@ index f5fdad85a5ae..996fe406028e 100644
      case Type::LIST: {
 -      perfetto::TracedArray array = std::move(context).WriteArray();
 +      perfetto::libchrome::TracedArray array = std::move(context).WriteArray();
-       for (const auto& item : GetList())
+       for (const auto& item : GetListDeprecated())
          array.Append(item);
        return;
 diff --git a/base/values.h b/base/values.h
-index 198e81e5e7ff..9585b32e5cf3 100644
+index f1b25181d2..dbf32da051 100644
 --- a/base/values.h
 +++ b/base/values.h
-@@ -576,7 +576,7 @@ class BASE_EXPORT Value {
+@@ -1067,7 +1067,7 @@ class BASE_EXPORT GSL_OWNER Value {
  
  #if BUILDFLAG(ENABLE_BASE_TRACING)
    // Write this object into a trace.
@@ -2508,12 +2618,12 @@ index 198e81e5e7ff..9585b32e5cf3 100644
 +  void WriteIntoTrace(perfetto::libchrome::TracedValue) const;
  #endif  // BUILDFLAG(ENABLE_BASE_TRACING)
  
-  protected:
+   template <typename Visitor>
 diff --git a/base/values_unittest.cc b/base/values_unittest.cc
-index 2f12b38d5ea9..868cc148eaa6 100644
+index 5f9766d50f..c186ca8947 100644
 --- a/base/values_unittest.cc
 +++ b/base/values_unittest.cc
-@@ -2334,21 +2334,21 @@ TEST(ValuesTest, MutableGetString) {
+@@ -2371,21 +2371,21 @@ TEST(ValuesTest, MutableGetString) {
  
  #if BUILDFLAG(ENABLE_BASE_TRACING)
  TEST(ValuesTest, TracingSupport) {
@@ -2543,11 +2653,11 @@ index 2f12b38d5ea9..868cc148eaa6 100644
  }
  #endif  // BUILDFLAG(ENABLE_BASE_TRACING)
 diff --git a/ipc/ipc_mojo_bootstrap.cc b/ipc/ipc_mojo_bootstrap.cc
-index ec4b8f124645..a5da6a39cd3c 100644
+index 14a21f252c..3e4dd8069d 100644
 --- a/ipc/ipc_mojo_bootstrap.cc
 +++ b/ipc/ipc_mojo_bootstrap.cc
-@@ -986,14 +986,14 @@ class ChannelAssociatedGroupController
-         TRACE_CATEGORY_OR_DISABLED_BY_DEFAULT_MOJOM("mojom"),
+@@ -988,14 +988,14 @@ class ChannelAssociatedGroupController
+         TRACE_DISABLED_BY_DEFAULT("mojom"),
          // Using client->interface_name() is safe here because this is a static
          // string defined for each mojo interface.
 -        perfetto::StaticString(client->interface_name()),
@@ -2565,7 +2675,7 @@ index ec4b8f124645..a5da6a39cd3c 100644
  
      // Sync messages should never make their way to this method.
 diff --git a/ipc/trace_ipc_message.cc b/ipc/trace_ipc_message.cc
-index 80c14835742e..135997a69aaf 100644
+index 9edae36ecd..4b4a05c1ce 100644
 --- a/ipc/trace_ipc_message.cc
 +++ b/ipc/trace_ipc_message.cc
 @@ -12,7 +12,7 @@
@@ -2578,7 +2688,7 @@ index 80c14835742e..135997a69aaf 100644
  void WriteIpcMessageIdAsProtozero(uint32_t message_id,
                                    ChromeLegacyIpc* legacy_ipc) {
 diff --git a/ipc/trace_ipc_message.h b/ipc/trace_ipc_message.h
-index 8a8eaf382505..0a450b0267c9 100644
+index 8a8eaf3825..0a450b0267 100644
 --- a/ipc/trace_ipc_message.h
 +++ b/ipc/trace_ipc_message.h
 @@ -19,7 +19,7 @@
@@ -2600,7 +2710,7 @@ index 8a8eaf382505..0a450b0267c9 100644
  }  // namespace IPC
  
 diff --git a/mojo/public/cpp/bindings/generic_pending_receiver.cc b/mojo/public/cpp/bindings/generic_pending_receiver.cc
-index 882f6f1cc180..7608239e68ec 100644
+index 882f6f1cc1..7608239e68 100644
 --- a/mojo/public/cpp/bindings/generic_pending_receiver.cc
 +++ b/mojo/public/cpp/bindings/generic_pending_receiver.cc
 @@ -44,7 +44,7 @@ mojo::ScopedMessagePipeHandle GenericPendingReceiver::PassPipeIfNameIs(
@@ -2613,10 +2723,10 @@ index 882f6f1cc180..7608239e68ec 100644
    dict.Add("interface_name", interface_name_);
  }
 diff --git a/mojo/public/cpp/bindings/generic_pending_receiver.h b/mojo/public/cpp/bindings/generic_pending_receiver.h
-index 2fe1af4f2f4b..7823221826f8 100644
+index 1b91f8284a..f63e8f0339 100644
 --- a/mojo/public/cpp/bindings/generic_pending_receiver.h
 +++ b/mojo/public/cpp/bindings/generic_pending_receiver.h
-@@ -68,7 +68,7 @@ class COMPONENT_EXPORT(MOJO_CPP_BINDINGS) GenericPendingReceiver {
+@@ -64,7 +64,7 @@ class COMPONENT_EXPORT(MOJO_CPP_BINDINGS) GenericPendingReceiver {
      return mojo::PendingReceiver<Interface>(PassPipeIfNameIs(Interface::Name_));
    }
  
@@ -2626,19 +2736,19 @@ index 2fe1af4f2f4b..7823221826f8 100644
   private:
    mojo::ScopedMessagePipeHandle PassPipeIfNameIs(const char* interface_name);
 diff --git a/mojo/public/cpp/bindings/lib/connector.cc b/mojo/public/cpp/bindings/lib/connector.cc
-index 5385870b8ede..75189954f371 100644
+index bea6541338..3c1dbeef1b 100644
 --- a/mojo/public/cpp/bindings/lib/connector.cc
 +++ b/mojo/public/cpp/bindings/lib/connector.cc
-@@ -539,7 +539,7 @@ bool Connector::DispatchMessage(Message message) {
-   // purposes.
+@@ -544,7 +544,7 @@ bool Connector::DispatchMessage(ScopedMessageHandle handle) {
+   // it once the new implementation proves to be stable.
    TRACE_EVENT(
-       TRACE_CATEGORY_OR_DISABLED_BY_DEFAULT_MOJOM("toplevel"),
--      "Connector::DispatchMessage", [&](perfetto::EventContext& ctx) {
-+      "Connector::DispatchMessage", [&](perfetto::libchrome::EventContext& ctx) {
+       TRACE_DISABLED_BY_DEFAULT("mojom"), "Connector::DispatchMessage",
+-      [&](perfetto::EventContext& ctx) {
++      [&](perfetto::libchrome::EventContext& ctx) {
          ctx.event()->set_chrome_mojo_event_info()->set_mojo_interface_tag(
              interface_name_);
  
-@@ -548,7 +548,7 @@ bool Connector::DispatchMessage(Message message) {
+@@ -553,7 +553,7 @@ bool Connector::DispatchMessage(ScopedMessageHandle handle) {
          if (!*flow_enabled)
            return;
  
@@ -2647,8 +2757,32 @@ index 5385870b8ede..75189954f371 100644
        });
  
    if (connection_group_)
+diff --git a/mojo/public/cpp/bindings/lib/interface_endpoint_client.cc b/mojo/public/cpp/bindings/lib/interface_endpoint_client.cc
+index 6bd7e583f8..d50ad224ae 100644
+--- a/mojo/public/cpp/bindings/lib/interface_endpoint_client.cc
++++ b/mojo/public/cpp/bindings/lib/interface_endpoint_client.cc
+@@ -842,8 +842,8 @@ void InterfaceEndpointClient::OnAssociationEvent(
+ 
+ bool InterfaceEndpointClient::HandleValidatedMessage(Message* message) {
+   TRACE_EVENT("toplevel",
+-              perfetto::StaticString{method_name_callback_(*message)},
+-              [&](perfetto::EventContext& ctx) {
++              perfetto::libchrome::StaticString{method_name_callback_(*message)},
++              [&](perfetto::libchrome::EventContext& ctx) {
+                 auto* info = ctx.event()->set_chrome_mojo_event_info();
+                 info->set_mojo_interface_tag(interface_name_);
+                 info->set_ipc_hash(ipc_hash_callback_(*message));
+@@ -853,7 +853,7 @@ bool InterfaceEndpointClient::HandleValidatedMessage(Message* message) {
+                 if (!*flow_enabled)
+                   return;
+ 
+-                perfetto::Flow::Global(message->GetTraceId())(ctx);
++                perfetto::libchrome::Flow::Global(message->GetTraceId())(ctx);
+               });
+ 
+   DCHECK_EQ(handle_.id(), message->interface_id());
 diff --git a/mojo/public/cpp/bindings/lib/message.cc b/mojo/public/cpp/bindings/lib/message.cc
-index bb89e340f034..48ff6ffb9359 100644
+index bb89e340f0..48ff6ffb93 100644
 --- a/mojo/public/cpp/bindings/lib/message.cc
 +++ b/mojo/public/cpp/bindings/lib/message.cc
 @@ -205,7 +205,7 @@ Message::Message(uint32_t name,
@@ -2681,7 +2815,7 @@ index bb89e340f034..48ff6ffb9359 100644
    if (header()) {
      dict.Add("name", header()->name);
 diff --git a/mojo/public/cpp/bindings/lib/send_message_helper.cc b/mojo/public/cpp/bindings/lib/send_message_helper.cc
-index 503f8d346600..22cc04851e6d 100644
+index 503f8d3466..22cc04851e 100644
 --- a/mojo/public/cpp/bindings/lib/send_message_helper.cc
 +++ b/mojo/public/cpp/bindings/lib/send_message_helper.cc
 @@ -18,7 +18,7 @@ void SendMessage(MessageReceiver& receiver, Message& message) {
@@ -2721,7 +2855,7 @@ index 503f8d346600..22cc04851e6d 100644
  }
  
 diff --git a/mojo/public/cpp/bindings/message.h b/mojo/public/cpp/bindings/message.h
-index 8183c6becc16..14e4af4a9824 100644
+index 8183c6becc..14e4af4a98 100644
 --- a/mojo/public/cpp/bindings/message.h
 +++ b/mojo/public/cpp/bindings/message.h
 @@ -267,7 +267,7 @@ class COMPONENT_EXPORT(MOJO_CPP_BINDINGS_BASE) Message {
@@ -2734,7 +2868,7 @@ index 8183c6becc16..14e4af4a9824 100644
  #if defined(ENABLE_IPC_FUZZER)
    const char* interface_name() const { return interface_name_; }
 diff --git a/mojo/public/cpp/bindings/struct_ptr.h b/mojo/public/cpp/bindings/struct_ptr.h
-index 811bee1d11e3..0a2b9c1cbab5 100644
+index 811bee1d11..0a2b9c1cba 100644
 --- a/mojo/public/cpp/bindings/struct_ptr.h
 +++ b/mojo/public/cpp/bindings/struct_ptr.h
 @@ -113,9 +113,9 @@ class StructPtr {
@@ -2764,7 +2898,7 @@ index 811bee1d11e3..0a2b9c1cbab5 100644
  #endif
  
 diff --git a/mojo/public/cpp/system/simple_watcher.cc b/mojo/public/cpp/system/simple_watcher.cc
-index 2b71d884096f..5710f19814d3 100644
+index 2b71d88409..5710f19814 100644
 --- a/mojo/public/cpp/system/simple_watcher.cc
 +++ b/mojo/public/cpp/system/simple_watcher.cc
 @@ -269,7 +269,7 @@ void SimpleWatcher::OnHandleReady(int watch_id,
@@ -2777,7 +2911,7 @@ index 2b71d884096f..5710f19814d3 100644
                        ->set_chrome_mojo_event_info()
                        ->set_watcher_notify_interface_tag(handler_tag_);
 diff --git a/mojo/public/tools/bindings/generators/cpp_templates/enum_macros.tmpl b/mojo/public/tools/bindings/generators/cpp_templates/enum_macros.tmpl
-index 010e45b42541..c28a9b49a373 100644
+index 010e45b425..c28a9b49a3 100644
 --- a/mojo/public/tools/bindings/generators/cpp_templates/enum_macros.tmpl
 +++ b/mojo/public/tools/bindings/generators/cpp_templates/enum_macros.tmpl
 @@ -179,12 +179,14 @@ struct HashTraits<{{enum_name}}>
@@ -2812,39 +2946,8 @@ index 010e45b42541..c28a9b49a373 100644
 +} // namespace libchrome
  } // namespace perfetto
  {%- endmacro %}endmacro 
-diff --git a/mojo/public/tools/bindings/generators/cpp_templates/interface_definition.tmpl b/mojo/public/tools/bindings/generators/cpp_templates/interface_definition.tmpl
-index d382e27149bd..5627a6d4bdb2 100644
---- a/mojo/public/tools/bindings/generators/cpp_templates/interface_definition.tmpl
-+++ b/mojo/public/tools/bindings/generators/cpp_templates/interface_definition.tmpl
-@@ -299,7 +299,7 @@ bool {{class_name}}_{{method.name}}_ForwardToCallback::Accept(
-     mojo::Message* message) {
- #if BUILDFLAG(MOJO_TRACE_ENABLED)
-   TRACE_EVENT("toplevel", "Receive reply {{namespace_as_string}}::{{class_name}}::{{method.name}}",
--               perfetto::Flow::Global(message->GetTraceId()));
-+               perfetto::libchrome::Flow::Global(message->GetTraceId()));
- #endif
- {%-     if method|method_supports_lazy_serialization %}
-   if (!message->is_serialized()) {
-@@ -429,7 +429,7 @@ bool {{class_name}}StubDispatch::Accept(
-       TRACE_EVENT(
-           "toplevel",
-           "Receive {{namespace_as_string}}::{{class_name}}::{{method.name}}",
--          perfetto::Flow::Global(message->GetTraceId()));
-+          perfetto::libchrome::Flow::Global(message->GetTraceId()));
- #endif
-       static constexpr uint32_t kMessageHash = base::MD5Hash32Constexpr(
-               "(Impl){{namespace_as_string}}::{{class_name}}::{{method.name}}");
-@@ -489,7 +489,7 @@ bool {{class_name}}StubDispatch::AcceptWithResponder(
-       TRACE_EVENT(
-           "toplevel",
-           "Receive {{namespace_as_string}}::{{class_name}}::{{method.name}}",
--          perfetto::Flow::Global(message->GetTraceId()));
-+          perfetto::libchrome::Flow::Global(message->GetTraceId()));
- #endif
-       static constexpr uint32_t kMessageHash = base::MD5Hash32Constexpr(
-               "(Impl){{namespace_as_string}}::{{class_name}}::{{method.name}}");
 diff --git a/mojo/public/tools/bindings/generators/cpp_templates/interface_macros.tmpl b/mojo/public/tools/bindings/generators/cpp_templates/interface_macros.tmpl
-index f31d1c4f7e4f..2d8750438e0c 100644
+index f31d1c4f7e..2d8750438e 100644
 --- a/mojo/public/tools/bindings/generators/cpp_templates/interface_macros.tmpl
 +++ b/mojo/public/tools/bindings/generators/cpp_templates/interface_macros.tmpl
 @@ -41,10 +41,10 @@ base::OnceCallback<void(
@@ -2861,7 +2964,7 @@ index f31d1c4f7e4f..2d8750438e0c 100644
                          "<value of type {{param.kind|cpp_wrapper_param_type}}>");
  {%-     endfor %}
 diff --git a/mojo/public/tools/bindings/generators/cpp_templates/wrapper_class_declaration.tmpl b/mojo/public/tools/bindings/generators/cpp_templates/wrapper_class_declaration.tmpl
-index 1652da75ba34..3bf23e85ab30 100644
+index 1652da75ba..3bf23e85ab 100644
 --- a/mojo/public/tools/bindings/generators/cpp_templates/wrapper_class_declaration.tmpl
 +++ b/mojo/public/tools/bindings/generators/cpp_templates/wrapper_class_declaration.tmpl
 @@ -141,7 +141,7 @@ class {{export_attribute}} {{struct.name}} {
@@ -2874,7 +2977,7 @@ index 1652da75ba34..3bf23e85ab30 100644
   private:
    static bool Validate(const void* data,
 diff --git a/mojo/public/tools/bindings/generators/cpp_templates/wrapper_class_definition.tmpl b/mojo/public/tools/bindings/generators/cpp_templates/wrapper_class_definition.tmpl
-index 3bfe4759ed8e..721046de542c 100644
+index 3bfe4759ed..721046de54 100644
 --- a/mojo/public/tools/bindings/generators/cpp_templates/wrapper_class_definition.tmpl
 +++ b/mojo/public/tools/bindings/generators/cpp_templates/wrapper_class_definition.tmpl
 @@ -33,12 +33,12 @@ size_t {{struct.name}}::Hash(size_t seed) const {
@@ -2893,5 +2996,5 @@ index 3bfe4759ed8e..721046de542c 100644
        "{{field.name}}"), {{'this->'+field.name}},
  #if BUILDFLAG(MOJO_TRACE_ENABLED)
 -- 
-2.35.0.rc0.227.g00780c9af4-goog
+2.36.0.rc2.479.g8af0fa9b8e-goog
 

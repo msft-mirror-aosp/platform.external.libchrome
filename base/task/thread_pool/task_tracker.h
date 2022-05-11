@@ -117,11 +117,7 @@ class BASE_EXPORT TaskTracker {
   // (which indicates that it should be reenqueued). WillPostTask() must have
   // allowed the task in front of |task_source| to be posted before this is
   // called.
-  // |posted_from| is optionally used to capture base::Location of the task ran
-  // for investigation of memory corruption.
-  // TODO(crbug.com/1218384): Remove |posted_from| once resolved.
-  RegisteredTaskSource RunAndPopNextTask(RegisteredTaskSource task_source,
-                                         base::Location* posted_from = nullptr);
+  RegisteredTaskSource RunAndPopNextTask(RegisteredTaskSource task_source);
 
   // Returns true once shutdown has started (StartShutdown() was called).
   // Note: sequential consistency with the thread calling StartShutdown() isn't
@@ -154,6 +150,10 @@ class BASE_EXPORT TaskTracker {
   // Allow a subclass to wait more interactively for any running shutdown tasks
   // before blocking the thread.
   virtual void BeginCompleteShutdown(base::WaitableEvent& shutdown_event);
+
+  // Asserts that FlushForTesting() is allowed to be called. Overridden in tests
+  // in situations where it is not.
+  virtual void AssertFlushForTestingAllowed() {}
 
  private:
   friend class RegisteredTaskSource;

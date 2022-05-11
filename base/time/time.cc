@@ -28,6 +28,16 @@
 
 namespace base {
 
+namespace {
+
+const char kWeekdayName[7][4] = {"Sun", "Mon", "Tue", "Wed",
+                                 "Thu", "Fri", "Sat"};
+
+const char kMonthName[12][4] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                                "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+
+}  // namespace
+
 namespace internal {
 
 std::atomic<TimeNowFunction> g_time_now_function{
@@ -144,24 +154,6 @@ Time Time::NowFromSystemTime() {
       std::memory_order_relaxed)();
 }
 
-// static
-Time Time::FromDeltaSinceWindowsEpoch(TimeDelta delta) {
-  return Time(delta.InMicroseconds());
-}
-
-TimeDelta Time::ToDeltaSinceWindowsEpoch() const {
-  return Microseconds(us_);
-}
-
-// static
-Time Time::FromTimeT(time_t tt) {
-  if (tt == 0)
-    return Time();  // Preserve 0 so we can tell it doesn't exist.
-  return (tt == std::numeric_limits<time_t>::max())
-             ? Max()
-             : (UnixEpoch() + Seconds(tt));
-}
-
 time_t Time::ToTimeT() const {
   if (is_null())
     return 0;  // Preserve 0 so we can tell it doesn't exist.
@@ -227,11 +219,6 @@ int64_t Time::ToJavaTime() const {
     return (*this - UnixEpoch()).InMilliseconds();
   return (us_ < 0) ? std::numeric_limits<int64_t>::min()
                    : std::numeric_limits<int64_t>::max();
-}
-
-// static
-Time Time::UnixEpoch() {
-  return Time(kTimeTToMicrosecondsOffset);
 }
 
 Time Time::Midnight(bool is_local) const {
@@ -400,6 +387,15 @@ bool Time::Exploded::HasValidValues() const {
          (0 <= second) && (second <= 60) &&
          (0 <= millisecond) && (millisecond <= 999);
   // clang-format on
+}
+
+std::string TimeFormatHTTP(base::Time time) {
+  base::Time::Exploded exploded;
+  time.UTCExplode(&exploded);
+  return base::StringPrintf(
+      "%s, %02d %s %04d %02d:%02d:%02d GMT", kWeekdayName[exploded.day_of_week],
+      exploded.day_of_month, kMonthName[exploded.month - 1], exploded.year,
+      exploded.hour, exploded.minute, exploded.second);
 }
 
 }  // namespace base

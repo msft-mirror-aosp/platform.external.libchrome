@@ -1,7 +1,7 @@
-From 2bedce8a96f5795ea4001ac6eb6742bb491ac471 Mon Sep 17 00:00:00 2001
+From 94bf9bbff234621cdf672980b8c22b8df22344a7 Mon Sep 17 00:00:00 2001
 From: hscham <hscham@chromium.org>
 Date: Thu, 11 Nov 2021 15:50:00 +0900
-Subject: [PATCH 4/5] Fix ipc build with enable_base_tracing=false
+Subject: [PATCH 3/4] Fix ipc build with enable_base_tracing=false
 
 This is the second CL in a series of CL that will fix base, ipc, mojo
 build with base tracing disabled.
@@ -34,7 +34,7 @@ Test: autoninja -C out/Default chrome (ENABLE_BASE_TRACING=true)
  8 files changed, 18 insertions(+), 10 deletions(-)
 
 diff --git a/ipc/ipc_channel_mojo.cc b/ipc/ipc_channel_mojo.cc
-index 487b839e2409..bf4570a8e8d7 100644
+index 487b839e24..bf4570a8e8 100644
 --- a/ipc/ipc_channel_mojo.cc
 +++ b/ipc/ipc_channel_mojo.cc
 @@ -310,6 +310,9 @@ void ChannelMojo::OnMessageReceived(const Message& message) {
@@ -48,7 +48,7 @@ index 487b839e2409..bf4570a8e8d7 100644
    if (message.dispatch_error())
      listener_->OnBadMessageReceived(message);
 diff --git a/ipc/ipc_message.cc b/ipc/ipc_message.cc
-index d5198af62c57..e486d3ed382a 100644
+index d5198af62c..e486d3ed38 100644
 --- a/ipc/ipc_message.cc
 +++ b/ipc/ipc_message.cc
 @@ -19,7 +19,7 @@
@@ -61,7 +61,7 @@ index d5198af62c57..e486d3ed382a 100644
  #include "ipc/ipc_message_attachment.h"
  #include "ipc/ipc_message_attachment_set.h"
 diff --git a/ipc/ipc_message_pipe_reader.cc b/ipc/ipc_message_pipe_reader.cc
-index f58aec284692..b4ef2af61bab 100644
+index f58aec2846..b4ef2af61b 100644
 --- a/ipc/ipc_message_pipe_reader.cc
 +++ b/ipc/ipc_message_pipe_reader.cc
 @@ -15,7 +15,7 @@
@@ -74,7 +74,7 @@ index f58aec284692..b4ef2af61bab 100644
  #include "mojo/public/cpp/bindings/message.h"
  #include "mojo/public/cpp/bindings/thread_safe_proxy.h"
 diff --git a/ipc/ipc_message_templates.h b/ipc/ipc_message_templates.h
-index dc49e2e9800e..2b5bec402211 100644
+index ff9be176db..5274239af7 100644
 --- a/ipc/ipc_message_templates.h
 +++ b/ipc/ipc_message_templates.h
 @@ -13,7 +13,7 @@
@@ -87,7 +87,7 @@ index dc49e2e9800e..2b5bec402211 100644
  #include "build/build_config.h"
  #include "ipc/ipc_message.h"
 diff --git a/ipc/ipc_mojo_bootstrap.cc b/ipc/ipc_mojo_bootstrap.cc
-index a017111a6471..ec4b8f124645 100644
+index a0bd86951a..14a21f252c 100644
 --- a/ipc/ipc_mojo_bootstrap.cc
 +++ b/ipc/ipc_mojo_bootstrap.cc
 @@ -29,10 +29,7 @@
@@ -103,7 +103,7 @@ index a017111a6471..ec4b8f124645 100644
  #include "mojo/public/cpp/bindings/associated_group.h"
  #include "mojo/public/cpp/bindings/associated_group_controller.h"
 diff --git a/ipc/ipc_sync_channel.cc b/ipc/ipc_sync_channel.cc
-index acb68e0f8e61..e668f98a884c 100644
+index acb68e0f8e..e668f98a88 100644
 --- a/ipc/ipc_sync_channel.cc
 +++ b/ipc/ipc_sync_channel.cc
 @@ -20,7 +20,7 @@
@@ -116,7 +116,7 @@ index acb68e0f8e61..e668f98a884c 100644
  #include "ipc/ipc_channel_factory.h"
  #include "ipc/ipc_logging.h"
 diff --git a/ipc/ipc_sync_message_filter.cc b/ipc/ipc_sync_message_filter.cc
-index 57bd78f1bcee..77f35a7b4073 100644
+index 57bd78f1bc..77f35a7b40 100644
 --- a/ipc/ipc_sync_message_filter.cc
 +++ b/ipc/ipc_sync_message_filter.cc
 @@ -11,7 +11,7 @@
@@ -129,7 +129,7 @@ index 57bd78f1bcee..77f35a7b4073 100644
  #include "ipc/ipc_sync_message.h"
  #include "mojo/public/cpp/bindings/associated_receiver.h"
 diff --git a/ipc/trace_ipc_message.h b/ipc/trace_ipc_message.h
-index 44d4792cf942..8a8eaf382505 100644
+index 44d4792cf9..8a8eaf3825 100644
 --- a/ipc/trace_ipc_message.h
 +++ b/ipc/trace_ipc_message.h
 @@ -8,8 +8,12 @@
@@ -163,5 +163,5 @@ index 44d4792cf942..8a8eaf382505 100644
 +
  #endif  // IPC_TRACE_IPC_MESSAGE_H_
 -- 
-2.35.0.rc0.227.g00780c9af4-goog
+2.36.0.rc2.479.g8af0fa9b8e-goog
 

@@ -1,9 +1,9 @@
-From c82f973fd3c00d3bb34abe8e19bfa9b6a5cda25f Mon Sep 17 00:00:00 2001
+From 19add18471b75399b9edcb93b399043b62d740c3 Mon Sep 17 00:00:00 2001
 From: hscham <hscham@chromium.org>
-Date: Thu, 21 Oct 2021 11:47:10 +0900
-Subject: [PATCH 3/5] Include base_tracing.h instead of real headers
+Date: Thu, 21 Apr 2022 11:48:47 +0900
+Subject: [PATCH 2/4] Include base_tracing.h instead of real headers in mojo
 
-Change-Id: I6a74881ed4b7a0a61b82174e8ad951a029395569
+Change-Id: I346583111a0be26c5007d52d5cfff39fd60a76ff
 ---
  mojo/core/channel.cc                                       | 2 +-
  mojo/core/core.cc                                          | 2 +-
@@ -15,6 +15,7 @@ Change-Id: I6a74881ed4b7a0a61b82174e8ad951a029395569
  mojo/core/user_message_impl.cc                             | 5 +----
  .../memory_allocator_dump_cross_process_uid_mojom_traits.h | 2 +-
  mojo/public/cpp/bindings/lib/connector.cc                  | 6 +++---
+ mojo/public/cpp/bindings/lib/interface_endpoint_client.cc  | 4 ++--
  mojo/public/cpp/bindings/lib/message.cc                    | 5 +----
  mojo/public/cpp/bindings/lib/send_message_helper.cc        | 4 +++-
  mojo/public/cpp/bindings/struct_ptr.h                      | 1 -
@@ -25,10 +26,10 @@ Change-Id: I6a74881ed4b7a0a61b82174e8ad951a029395569
  .../tools/bindings/generators/cpp_templates/module.cc.tmpl | 4 +---
  .../tools/bindings/generators/cpp_templates/module.h.tmpl  | 2 +-
  .../generators/cpp_templates/wrapper_class_definition.tmpl | 2 ++
- 20 files changed, 29 insertions(+), 32 deletions(-)
+ 21 files changed, 31 insertions(+), 34 deletions(-)
 
 diff --git a/mojo/core/channel.cc b/mojo/core/channel.cc
-index ea21b2969a9c..36a586ed2fb2 100644
+index 821928362d..5f56c95cfa 100644
 --- a/mojo/core/channel.cc
 +++ b/mojo/core/channel.cc
 @@ -17,7 +17,7 @@
@@ -41,7 +42,7 @@ index ea21b2969a9c..36a586ed2fb2 100644
  #include "mojo/core/configuration.h"
  #include "mojo/core/core.h"
 diff --git a/mojo/core/core.cc b/mojo/core/core.cc
-index 8390a2d9a261..fe54be1940b2 100644
+index 8390a2d9a2..fe54be1940 100644
 --- a/mojo/core/core.cc
 +++ b/mojo/core/core.cc
 @@ -21,7 +21,7 @@
@@ -54,33 +55,33 @@ index 8390a2d9a261..fe54be1940b2 100644
  #include "mojo/core/channel.h"
  #include "mojo/core/configuration.h"
 diff --git a/mojo/core/data_pipe_consumer_dispatcher.cc b/mojo/core/data_pipe_consumer_dispatcher.cc
-index 4e76209bb5d6..ae5c58d1cbe8 100644
+index 05b95c545f..7bdc640b42 100644
 --- a/mojo/core/data_pipe_consumer_dispatcher.cc
 +++ b/mojo/core/data_pipe_consumer_dispatcher.cc
-@@ -14,7 +14,7 @@
- #include "base/bind.h"
+@@ -15,7 +15,7 @@
  #include "base/logging.h"
  #include "base/memory/ref_counted.h"
+ #include "base/numerics/checked_math.h"
 -#include "base/trace_event/trace_event.h"
 +#include "base/trace_event/base_tracing.h"
  #include "mojo/core/core.h"
  #include "mojo/core/data_pipe_control_message.h"
  #include "mojo/core/node_controller.h"
 diff --git a/mojo/core/data_pipe_producer_dispatcher.cc b/mojo/core/data_pipe_producer_dispatcher.cc
-index 65f72611eec4..db3d6ffbc8ab 100644
+index f4281d9921..9c974e0d61 100644
 --- a/mojo/core/data_pipe_producer_dispatcher.cc
 +++ b/mojo/core/data_pipe_producer_dispatcher.cc
-@@ -12,7 +12,7 @@
- #include "base/bind.h"
+@@ -13,7 +13,7 @@
  #include "base/logging.h"
  #include "base/memory/ref_counted.h"
+ #include "base/numerics/checked_math.h"
 -#include "base/trace_event/trace_event.h"
 +#include "base/trace_event/base_tracing.h"
  #include "mojo/core/configuration.h"
  #include "mojo/core/core.h"
  #include "mojo/core/data_pipe_control_message.h"
 diff --git a/mojo/core/handle_table.cc b/mojo/core/handle_table.cc
-index 9426281d73f0..b4e1920a2126 100644
+index 1befb91c64..7f4d55d903 100644
 --- a/mojo/core/handle_table.cc
 +++ b/mojo/core/handle_table.cc
 @@ -7,8 +7,10 @@
@@ -96,7 +97,7 @@ index 9426281d73f0..b4e1920a2126 100644
  namespace mojo {
  namespace core {
 diff --git a/mojo/core/handle_table.h b/mojo/core/handle_table.h
-index 0664ea500bf8..7031bd232a6e 100644
+index 331008d637..6348f42152 100644
 --- a/mojo/core/handle_table.h
 +++ b/mojo/core/handle_table.h
 @@ -12,7 +12,7 @@
@@ -109,7 +110,7 @@ index 0664ea500bf8..7031bd232a6e 100644
  #include "mojo/core/system_impl_export.h"
  #include "mojo/public/c/system/types.h"
 diff --git a/mojo/core/message_pipe_dispatcher.cc b/mojo/core/message_pipe_dispatcher.cc
-index ad0a0bbf4936..0a2404b6020f 100644
+index ad0a0bbf49..0a2404b602 100644
 --- a/mojo/core/message_pipe_dispatcher.cc
 +++ b/mojo/core/message_pipe_dispatcher.cc
 @@ -9,8 +9,7 @@
@@ -123,7 +124,7 @@ index ad0a0bbf4936..0a2404b6020f 100644
  #include "mojo/core/node_controller.h"
  #include "mojo/core/ports/event.h"
 diff --git a/mojo/core/user_message_impl.cc b/mojo/core/user_message_impl.cc
-index 927b19fab658..9347a8243512 100644
+index 09cb1be3f9..5b72cd0751 100644
 --- a/mojo/core/user_message_impl.cc
 +++ b/mojo/core/user_message_impl.cc
 @@ -13,10 +13,7 @@
@@ -139,7 +140,7 @@ index 927b19fab658..9347a8243512 100644
  #include "mojo/core/core.h"
  #include "mojo/core/node_channel.h"
 diff --git a/mojo/public/cpp/base/memory_allocator_dump_cross_process_uid_mojom_traits.h b/mojo/public/cpp/base/memory_allocator_dump_cross_process_uid_mojom_traits.h
-index e2ee25b22dee..e1296e45fb27 100644
+index e2ee25b22d..e1296e45fb 100644
 --- a/mojo/public/cpp/base/memory_allocator_dump_cross_process_uid_mojom_traits.h
 +++ b/mojo/public/cpp/base/memory_allocator_dump_cross_process_uid_mojom_traits.h
 @@ -6,7 +6,7 @@
@@ -152,10 +153,10 @@ index e2ee25b22dee..e1296e45fb27 100644
  
  namespace mojo {
 diff --git a/mojo/public/cpp/bindings/lib/connector.cc b/mojo/public/cpp/bindings/lib/connector.cc
-index 27f1db4e468e..5385870b8ede 100644
+index 4b8ebc99cc..bea6541338 100644
 --- a/mojo/public/cpp/bindings/lib/connector.cc
 +++ b/mojo/public/cpp/bindings/lib/connector.cc
-@@ -22,9 +22,7 @@
+@@ -23,9 +23,7 @@
  #include "base/synchronization/lock.h"
  #include "base/task/current_thread.h"
  #include "base/threading/sequence_local_storage_slot.h"
@@ -166,7 +167,7 @@ index 27f1db4e468e..5385870b8ede 100644
  #include "mojo/public/c/system/quota.h"
  #include "mojo/public/cpp/bindings/features.h"
  #include "mojo/public/cpp/bindings/lib/may_auto_lock.h"
-@@ -33,7 +31,9 @@
+@@ -34,7 +32,9 @@
  #include "mojo/public/cpp/bindings/sync_handle_watcher.h"
  #include "mojo/public/cpp/bindings/tracing_helpers.h"
  #include "mojo/public/cpp/system/wait.h"
@@ -176,8 +177,30 @@ index 27f1db4e468e..5385870b8ede 100644
  
  #if defined(ENABLE_IPC_FUZZER)
  #include "mojo/public/cpp/bindings/message_dumper.h"
+diff --git a/mojo/public/cpp/bindings/lib/interface_endpoint_client.cc b/mojo/public/cpp/bindings/lib/interface_endpoint_client.cc
+index 6260a4cef4..6bd7e583f8 100644
+--- a/mojo/public/cpp/bindings/lib/interface_endpoint_client.cc
++++ b/mojo/public/cpp/bindings/lib/interface_endpoint_client.cc
+@@ -19,7 +19,7 @@
+ #include "base/synchronization/waitable_event.h"
+ #include "base/task/bind_post_task.h"
+ #include "base/task/sequenced_task_runner.h"
+-#include "base/trace_event/typed_macros.h"
++#include "base/trace_event/base_tracing.h"
+ #include "mojo/public/cpp/bindings/associated_group.h"
+ #include "mojo/public/cpp/bindings/associated_group_controller.h"
+ #include "mojo/public/cpp/bindings/interface_endpoint_controller.h"
+@@ -28,7 +28,7 @@
+ #include "mojo/public/cpp/bindings/sync_call_restrictions.h"
+ #include "mojo/public/cpp/bindings/sync_event_watcher.h"
+ #include "mojo/public/cpp/bindings/thread_safe_proxy.h"
+-#include "third_party/perfetto/protos/perfetto/trace/track_event/chrome_mojo_event_info.pbzero.h"
++// #include "third_party/perfetto/protos/perfetto/trace/track_event/chrome_mojo_event_info.pbzero.h"
+ 
+ namespace mojo {
+ 
 diff --git a/mojo/public/cpp/bindings/lib/message.cc b/mojo/public/cpp/bindings/lib/message.cc
-index 51a7c5763e7b..bb89e340f034 100644
+index 51a7c5763e..bb89e340f0 100644
 --- a/mojo/public/cpp/bindings/lib/message.cc
 +++ b/mojo/public/cpp/bindings/lib/message.cc
 @@ -19,10 +19,7 @@
@@ -193,7 +216,7 @@ index 51a7c5763e7b..bb89e340f034 100644
  #include "mojo/public/cpp/bindings/lib/array_internal.h"
  #include "mojo/public/cpp/bindings/lib/message_fragment.h"
 diff --git a/mojo/public/cpp/bindings/lib/send_message_helper.cc b/mojo/public/cpp/bindings/lib/send_message_helper.cc
-index 13e1be40e572..503f8d346600 100644
+index 13e1be40e5..503f8d3466 100644
 --- a/mojo/public/cpp/bindings/lib/send_message_helper.cc
 +++ b/mojo/public/cpp/bindings/lib/send_message_helper.cc
 @@ -7,13 +7,14 @@
@@ -221,7 +244,7 @@ index 13e1be40e572..503f8d346600 100644
                                !message.has_flag(Message::kFlagIsResponse);
    TRACE_EVENT_INSTANT("toplevel.flow", "Send mojo message",
 diff --git a/mojo/public/cpp/bindings/struct_ptr.h b/mojo/public/cpp/bindings/struct_ptr.h
-index 0310ac60945a..811bee1d11e3 100644
+index 0310ac6094..811bee1d11 100644
 --- a/mojo/public/cpp/bindings/struct_ptr.h
 +++ b/mojo/public/cpp/bindings/struct_ptr.h
 @@ -14,7 +14,6 @@
@@ -233,7 +256,7 @@ index 0310ac60945a..811bee1d11e3 100644
  namespace mojo {
  namespace internal {
 diff --git a/mojo/public/cpp/bindings/tracing_helpers.h b/mojo/public/cpp/bindings/tracing_helpers.h
-index fe29838d5b1f..622556725c37 100644
+index 23644d5f25..3e6a6afb75 100644
 --- a/mojo/public/cpp/bindings/tracing_helpers.h
 +++ b/mojo/public/cpp/bindings/tracing_helpers.h
 @@ -5,7 +5,7 @@
@@ -243,10 +266,10 @@ index fe29838d5b1f..622556725c37 100644
 -#include "base/trace_event/trace_event.h"
 +#include "base/trace_event/base_tracing.h"
  #include "build/buildflag.h"
+ #include "mojo/public/cpp/bindings/message.h"
  #include "mojo/public/cpp/bindings/mojo_buildflags.h"
- 
 diff --git a/mojo/public/cpp/system/simple_watcher.cc b/mojo/public/cpp/system/simple_watcher.cc
-index a650681f7e9a..2b71d884096f 100644
+index a650681f7e..2b71d88409 100644
 --- a/mojo/public/cpp/system/simple_watcher.cc
 +++ b/mojo/public/cpp/system/simple_watcher.cc
 @@ -10,11 +10,12 @@
@@ -266,7 +289,7 @@ index a650681f7e9a..2b71d884096f 100644
  namespace mojo {
  
 diff --git a/mojo/public/tools/bindings/generators/cpp_templates/module-shared.cc.tmpl b/mojo/public/tools/bindings/generators/cpp_templates/module-shared.cc.tmpl
-index 38234e83bd15..7b5e20a0c4a9 100644
+index 38234e83bd..7b5e20a0c4 100644
 --- a/mojo/public/tools/bindings/generators/cpp_templates/module-shared.cc.tmpl
 +++ b/mojo/public/tools/bindings/generators/cpp_templates/module-shared.cc.tmpl
 @@ -10,10 +10,10 @@
@@ -282,7 +305,7 @@ index 38234e83bd15..7b5e20a0c4a9 100644
  #include "{{module.path}}-params-data.h"
  
 diff --git a/mojo/public/tools/bindings/generators/cpp_templates/module-shared.h.tmpl b/mojo/public/tools/bindings/generators/cpp_templates/module-shared.h.tmpl
-index 29aca2342983..99b31ae45c92 100644
+index 29aca23429..99b31ae45c 100644
 --- a/mojo/public/tools/bindings/generators/cpp_templates/module-shared.h.tmpl
 +++ b/mojo/public/tools/bindings/generators/cpp_templates/module-shared.h.tmpl
 @@ -52,7 +52,7 @@ namespace {{namespace}} {
@@ -295,13 +318,13 @@ index 29aca2342983..99b31ae45c92 100644
  #include "{{module.path}}-shared-internal.h"
  {%- for import in imports %}
 diff --git a/mojo/public/tools/bindings/generators/cpp_templates/module.cc.tmpl b/mojo/public/tools/bindings/generators/cpp_templates/module.cc.tmpl
-index ee5fa3492f22..44908a0e6383 100644
+index 87077f1463..e1dc19f0ed 100644
 --- a/mojo/public/tools/bindings/generators/cpp_templates/module.cc.tmpl
 +++ b/mojo/public/tools/bindings/generators/cpp_templates/module.cc.tmpl
-@@ -27,8 +27,7 @@
+@@ -26,8 +26,7 @@
+ #include "base/hash/md5_constexpr.h"
  #include "base/run_loop.h"
  #include "base/strings/string_number_conversions.h"
- #include "base/task/common/task_annotator.h"
 -#include "base/trace_event/trace_event.h"
 -#include "base/trace_event/typed_macros.h"
 +#include "base/trace_event/base_tracing.h"
@@ -317,7 +340,7 @@ index ee5fa3492f22..44908a0e6383 100644
  #include "{{module.path}}-params-data.h"
  #include "{{module.path}}-shared-message-ids.h"
 diff --git a/mojo/public/tools/bindings/generators/cpp_templates/module.h.tmpl b/mojo/public/tools/bindings/generators/cpp_templates/module.h.tmpl
-index 146c3e71da67..df52df21d2e2 100644
+index b1ae8b063d..4f7d090fde 100644
 --- a/mojo/public/tools/bindings/generators/cpp_templates/module.h.tmpl
 +++ b/mojo/public/tools/bindings/generators/cpp_templates/module.h.tmpl
 @@ -58,7 +58,7 @@ namespace {{variant}} {
@@ -330,7 +353,7 @@ index 146c3e71da67..df52df21d2e2 100644
  #include "{{module.path}}-shared.h"
  #include "{{variant_path}}-forward.h"
 diff --git a/mojo/public/tools/bindings/generators/cpp_templates/wrapper_class_definition.tmpl b/mojo/public/tools/bindings/generators/cpp_templates/wrapper_class_definition.tmpl
-index eba234eff900..3bfe4759ed8e 100644
+index eba234eff9..3bfe4759ed 100644
 --- a/mojo/public/tools/bindings/generators/cpp_templates/wrapper_class_definition.tmpl
 +++ b/mojo/public/tools/bindings/generators/cpp_templates/wrapper_class_definition.tmpl
 @@ -34,7 +34,9 @@ size_t {{struct.name}}::Hash(size_t seed) const {
@@ -344,5 +367,5 @@ index eba234eff900..3bfe4759ed8e 100644
    perfetto::WriteIntoTracedValueWithFallback(
      dict.AddItem(
 -- 
-2.35.0.rc0.227.g00780c9af4-goog
+2.36.0.rc2.479.g8af0fa9b8e-goog
 

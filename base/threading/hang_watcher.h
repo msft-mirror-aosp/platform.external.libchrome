@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "base/atomicops.h"
+#include "base/base_export.h"
 #include "base/bits.h"
 #include "base/callback.h"
 #include "base/callback_forward.h"
@@ -22,6 +23,7 @@
 #include "base/memory/memory_pressure_listener.h"
 #include "base/memory/raw_ptr.h"
 #include "base/synchronization/lock.h"
+#include "base/synchronization/waitable_event.h"
 #include "base/template_util.h"
 #include "base/thread_annotations.h"
 #include "base/threading/platform_thread.h"
@@ -105,10 +107,20 @@ class BASE_EXPORT WatchHangsInScope {
 // within a single process. This instance must outlive all monitored threads.
 class BASE_EXPORT HangWatcher : public DelegateSimpleThread::Delegate {
  public:
+  // Describes the type of a process for logging purposes.
+  enum class ProcessType {
+    kUnknownProcess = 0,
+    kBrowserProcess = 1,
+    kGPUProcess = 2,
+    kRendererProcess = 3,
+    kUtilityProcess = 4,
+    kMax = kUtilityProcess
+  };
+
   // Describes the type of a thread for logging purposes.
   enum class ThreadType {
     kIOThread = 0,
-    kUIThread = 1,
+    kMainThread = 1,
     kThreadPoolThread = 2,
     kMax = kThreadPoolThread
   };
@@ -130,12 +142,14 @@ class BASE_EXPORT HangWatcher : public DelegateSimpleThread::Delegate {
   HangWatcher(const HangWatcher&) = delete;
   HangWatcher& operator=(const HangWatcher&) = delete;
 
+  static void CreateHangWatcherInstance();
+
   // Returns a non-owning pointer to the global HangWatcher instance.
   static HangWatcher* GetInstance();
 
   // Initializes HangWatcher. Must be called once on the main thread during
   // startup while single-threaded.
-  static void InitializeOnMainThread();
+  static void InitializeOnMainThread(ProcessType process_type);
 
   // Returns the values that were set through InitializeOnMainThread() to their
   // default value. Used for testing since in prod initialization should happen

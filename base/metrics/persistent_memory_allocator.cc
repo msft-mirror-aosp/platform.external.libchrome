@@ -14,6 +14,7 @@
 #include "base/logging.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/sparse_histogram.h"
+#include "base/notreached.h"
 #include "base/numerics/safe_conversions.h"
 #include "base/strings/string_piece.h"
 #include "base/system/sys_info.h"
@@ -333,7 +334,7 @@ PersistentMemoryAllocator::PersistentMemoryAllocator(Memory memory,
       vm_page_size_(SysInfo::VMAllocationGranularity()),
 #endif
       readonly_(readonly),
-      corrupt_(0),
+      corrupt_(false),
       allocs_histogram_(nullptr),
       used_histogram_(nullptr),
       errors_histogram_(nullptr) {
