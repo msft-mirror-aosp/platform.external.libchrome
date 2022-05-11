@@ -81,7 +81,7 @@ class State(threading.Thread):
         packages = set()
         for failed in self.failed.values():
             packages.update(failed)
-        max_packages_len = max(len(p) for p in packages) if align else 0
+        max_packages_len = max(len(p) for p in packages) if align and packages else 0
         header = ' ' * max_packages_len + delimiter + delimiter.join(
             sorted(self.failed.keys())) + '\n'
         data = []
