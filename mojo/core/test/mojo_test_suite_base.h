@@ -15,9 +15,9 @@ namespace test {
 class MojoTestSuiteBase : public base::TestSuite {
  public:
   MojoTestSuiteBase(int argc, char** argv);
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   MojoTestSuiteBase(int argc, wchar_t** argv);
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
   MojoTestSuiteBase(const MojoTestSuiteBase&) = delete;
   MojoTestSuiteBase& operator=(const MojoTestSuiteBase&) = delete;

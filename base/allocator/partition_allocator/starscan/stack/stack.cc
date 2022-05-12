@@ -11,7 +11,7 @@
 #include "base/compiler_specific.h"
 #include "build/build_config.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include <windows.h>
 #else
 #include <pthread.h>
@@ -24,7 +24,7 @@ extern "C" void* __libc_stack_end;
 namespace base {
 namespace internal {
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 
 void* GetStackTop() {
 #if defined(ARCH_CPU_X86_64)
@@ -44,13 +44,13 @@ void* GetStackTop() {
 #endif
 }
 
-#elif BUILDFLAG(IS_APPLE)
+#elif defined(OS_APPLE)
 
 void* GetStackTop() {
   return pthread_get_stackaddr_np(pthread_self());
 }
 
-#elif BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#elif defined(OS_POSIX) || defined(OS_FUCHSIA)
 
 void* GetStackTop() {
   pthread_attr_t attr;
@@ -75,9 +75,9 @@ void* GetStackTop() {
 #endif  // defined(LIBC_GLIBC)
 }
 
-#else  // BUILDFLAG(IS_WIN)
+#else  // defined(OS_WIN)
 #error "Unsupported GetStackTop"
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
 using IterateStackCallback = void (*)(const Stack*, StackVisitor*, uintptr_t*);
 extern "C" void PAPushAllRegistersAndIterateStack(const Stack*,
@@ -94,7 +94,8 @@ NOINLINE uintptr_t* GetStackPointer() {
 
 namespace {
 
-[[maybe_unused]] void IterateSafeStackIfNecessary(StackVisitor* visitor) {
+ALLOW_UNUSED_TYPE
+void IterateSafeStackIfNecessary(StackVisitor* visitor) {
 #if defined(__has_feature)
 #if __has_feature(safe_stack)
   // Source:
@@ -117,10 +118,10 @@ namespace {
 // should never be inlined to ensure that a possible redzone cannot contain
 // any data that needs to be scanned.
 // No ASAN support as method accesses redzones while walking the stack.
-[[maybe_unused]] NOINLINE NO_SANITIZE("address") void IteratePointersImpl(
-    const Stack* stack,
-    StackVisitor* visitor,
-    uintptr_t* stack_ptr) {
+NOINLINE NO_SANITIZE("address") ALLOW_UNUSED_TYPE
+    void IteratePointersImpl(const Stack* stack,
+                             StackVisitor* visitor,
+                             uintptr_t* stack_ptr) {
   PA_DCHECK(stack);
   PA_DCHECK(visitor);
   PA_CHECK(nullptr != stack->stack_top());

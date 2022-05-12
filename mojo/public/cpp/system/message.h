@@ -8,6 +8,7 @@
 #include <limits>
 #include <vector>
 
+#include "base/macros.h"
 #include "base/numerics/safe_conversions.h"
 #include "base/strings/string_piece.h"
 #include "mojo/public/c/system/message_pipe.h"

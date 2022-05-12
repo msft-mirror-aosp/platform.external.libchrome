@@ -19,7 +19,7 @@
 
 #include "build/build_config.h"
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 
 #include <errno.h>
 
@@ -58,11 +58,11 @@
   eintr_wrapper_result; \
 })
 
-#else  // !BUILDFLAG(IS_POSIX)
+#else  // !OS_POSIX
 
 #define HANDLE_EINTR(x) (x)
 #define IGNORE_EINTR(x) (x)
 
-#endif  // !BUILDFLAG(IS_POSIX)
+#endif  // !OS_POSIX
 
 #endif  // BASE_POSIX_EINTR_WRAPPER_H_

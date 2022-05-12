@@ -29,7 +29,7 @@ TEST(ThreadDelegatePosixTest, MAYBE_CurrentThreadBase) {
   EXPECT_LE(base, ClampAdd(stack_addr, 4 * 1024 * 1024));
 }
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 
 TEST(ThreadDelegatePosixTest, AndroidMainThreadStackBase) {
   // The delegate does not use pthread id for main thread.
@@ -40,5 +40,5 @@ TEST(ThreadDelegatePosixTest, AndroidMainThreadStackBase) {
   EXPECT_GT(base, 0u);
 }
 
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // defined(OS_ANDROID)
 }  // namespace base

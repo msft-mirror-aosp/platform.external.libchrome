@@ -8,6 +8,7 @@
 #include <atomic>
 #include <memory>
 
+#include "base/macros.h"
 #include "build/build_config.h"
 #include "mojo/core/channel_posix.h"
 

@@ -9,7 +9,6 @@
 #include "base/notreached.h"
 #include "base/numerics/safe_conversions.h"
 #include "build/build_config.h"
-#include "mojo/public/cpp/platform/platform_handle_internal.h"
 
 namespace mojo {
 
@@ -17,7 +16,7 @@ namespace {
 
 uint64_t ReleasePlatformHandleValueFromPlatformFile(
     base::ScopedPlatformFile file) {
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   return reinterpret_cast<uint64_t>(file.Take());
 #else
   return static_cast<uint64_t>(file.release());
@@ -25,7 +24,7 @@ uint64_t ReleasePlatformHandleValueFromPlatformFile(
 }
 
 base::ScopedPlatformFile PlatformFileFromPlatformHandleValue(uint64_t value) {
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   return base::ScopedPlatformFile(reinterpret_cast<base::PlatformFile>(value));
 #else
   return base::ScopedPlatformFile(static_cast<base::PlatformFile>(value));
@@ -60,16 +59,16 @@ ScopedSharedBufferHandle WrapPlatformSharedMemoryRegion(
   MojoPlatformHandle platform_handles[2];
   uint32_t num_platform_handles = 1;
   platform_handles[0].struct_size = sizeof(platform_handles[0]);
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   platform_handles[0].type = MOJO_PLATFORM_HANDLE_TYPE_WINDOWS_HANDLE;
   platform_handles[0].value = reinterpret_cast<uint64_t>(handle.Take());
-#elif BUILDFLAG(IS_FUCHSIA)
+#elif defined(OS_FUCHSIA)
   platform_handles[0].type = MOJO_PLATFORM_HANDLE_TYPE_FUCHSIA_HANDLE;
   platform_handles[0].value = static_cast<uint64_t>(handle.release());
-#elif BUILDFLAG(IS_MAC)
+#elif defined(OS_MAC)
   platform_handles[0].type = MOJO_PLATFORM_HANDLE_TYPE_MACH_PORT;
   platform_handles[0].value = static_cast<uint64_t>(handle.release());
-#elif BUILDFLAG(IS_ANDROID)
+#elif defined(OS_ANDROID)
   platform_handles[0].type = MOJO_PLATFORM_HANDLE_TYPE_FILE_DESCRIPTOR;
   platform_handles[0].value = static_cast<uint64_t>(handle.release());
 #else
@@ -85,9 +84,9 @@ ScopedSharedBufferHandle WrapPlatformSharedMemoryRegion(
         static_cast<uint64_t>(handle.readonly_fd.release());
   }
 #endif
-  MojoSharedBufferGuid mojo_guid =
-      mojo::internal::PlatformHandleInternal::MarshalUnguessableToken(
-          region.GetGUID());
+  const auto& guid = region.GetGUID();
+  MojoSharedBufferGuid mojo_guid = {guid.GetHighForSerialization(),
+                                    guid.GetLowForSerialization()};
   MojoHandle mojo_handle;
   MojoResult result = MojoWrapPlatformSharedMemoryRegion(
       platform_handles, num_platform_handles, region.GetSize(), &mojo_guid,
@@ -116,25 +115,25 @@ base::subtle::PlatformSharedMemoryRegion UnwrapPlatformSharedMemoryRegion(
     return base::subtle::PlatformSharedMemoryRegion();
 
   base::subtle::PlatformSharedMemoryRegion::ScopedPlatformHandle region_handle;
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   if (num_platform_handles != 1)
     return base::subtle::PlatformSharedMemoryRegion();
   if (platform_handles[0].type != MOJO_PLATFORM_HANDLE_TYPE_WINDOWS_HANDLE)
     return base::subtle::PlatformSharedMemoryRegion();
   region_handle.Set(reinterpret_cast<HANDLE>(platform_handles[0].value));
-#elif BUILDFLAG(IS_FUCHSIA)
+#elif defined(OS_FUCHSIA)
   if (num_platform_handles != 1)
     return base::subtle::PlatformSharedMemoryRegion();
   if (platform_handles[0].type != MOJO_PLATFORM_HANDLE_TYPE_FUCHSIA_HANDLE)
     return base::subtle::PlatformSharedMemoryRegion();
   region_handle.reset(static_cast<zx_handle_t>(platform_handles[0].value));
-#elif BUILDFLAG(IS_MAC)
+#elif defined(OS_MAC)
   if (num_platform_handles != 1)
     return base::subtle::PlatformSharedMemoryRegion();
   if (platform_handles[0].type != MOJO_PLATFORM_HANDLE_TYPE_MACH_PORT)
     return base::subtle::PlatformSharedMemoryRegion();
   region_handle.reset(static_cast<mach_port_t>(platform_handles[0].value));
-#elif BUILDFLAG(IS_ANDROID)
+#elif defined(OS_ANDROID)
   if (num_platform_handles != 1)
     return base::subtle::PlatformSharedMemoryRegion();
   if (platform_handles[0].type != MOJO_PLATFORM_HANDLE_TYPE_FILE_DESCRIPTOR)
@@ -175,7 +174,7 @@ base::subtle::PlatformSharedMemoryRegion UnwrapPlatformSharedMemoryRegion(
 
   return base::subtle::PlatformSharedMemoryRegion::Take(
       std::move(region_handle), mode, size,
-      internal::PlatformHandleInternal::UnmarshalUnguessableToken(&mojo_guid));
+      base::UnguessableToken::Deserialize(mojo_guid.high, mojo_guid.low));
 }
 
 ScopedHandle WrapPlatformHandle(PlatformHandle handle) {

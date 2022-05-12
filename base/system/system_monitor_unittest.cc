@@ -6,6 +6,7 @@
 
 #include "base/system/system_monitor.h"
 
+#include "base/macros.h"
 #include "base/run_loop.h"
 #include "base/test/mock_devices_changed_observer.h"
 #include "base/test/task_environment.h"

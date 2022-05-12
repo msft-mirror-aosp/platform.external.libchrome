@@ -17,6 +17,7 @@
 #include "base/check_op.h"
 #include "base/component_export.h"
 #include "base/location.h"
+#include "base/macros.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/ref_counted.h"
 #include "base/task/sequenced_task_runner.h"

@@ -14,7 +14,6 @@
 #include "base/base_export.h"
 #include "base/debug/activity_tracker.h"
 #include "base/memory/shared_memory_mapping.h"
-#include "build/build_config.h"
 
 namespace base {
 namespace debug {
@@ -147,12 +146,12 @@ class BASE_EXPORT GlobalActivityAnalyzer {
   static std::unique_ptr<GlobalActivityAnalyzer> CreateWithAllocator(
       std::unique_ptr<PersistentMemoryAllocator> allocator);
 
-#if !BUILDFLAG(IS_NACL)
+#if !defined(OS_NACL)
   // Creates a global analyzer using the contents of a file given in
   // |file_path|.
   static std::unique_ptr<GlobalActivityAnalyzer> CreateWithFile(
       const FilePath& file_path);
-#endif  // !BUILDFLAG(IS_NACL)
+#endif  // !defined(OS_NACL)
 
   // Like above but accesses an allocator in a mapped shared-memory segment.
   static std::unique_ptr<GlobalActivityAnalyzer> CreateWithSharedMemory(

@@ -12,7 +12,7 @@
 #include "build/build_config.h"
 
 // Not defined on AIX by default.
-#if BUILDFLAG(IS_AIX)
+#if defined(OS_AIX)
 #if defined(RLIMIT_NICE)
 #error Assumption about OS_AIX is incorrect
 #endif

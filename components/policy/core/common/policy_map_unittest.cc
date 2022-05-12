@@ -13,7 +13,6 @@
 #include "base/strings/strcat.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/utf_string_conversions.h"
-#include "build/build_config.h"
 #include "components/policy/core/common/external_data_manager.h"
 #include "components/policy/core/common/policy_merger.h"
 #include "components/policy/core/common/policy_types.h"
@@ -357,7 +356,7 @@ TEST_F(PolicyMapTest, Swap) {
   EXPECT_FALSE(b.Equals(empty));
 }
 
-#if !BUILDFLAG(IS_CHROMEOS)
+#if !defined(OS_CHROMEOS)
 // Policy precedence changes are not supported on Chrome OS.
 TEST_F(PolicyMapTest, MergeFrom_CloudMetapolicies) {
   // The two precedence metapolicies, CloudPolicyOverridesPlatformPolicy and
@@ -457,7 +456,7 @@ TEST_F(PolicyMapTest, MergeFrom_CloudMetapolicies) {
 
   EXPECT_TRUE(policy_map_1.Equals(policy_map_expected));
 }
-#endif  // BUILDFLAG(IS_CHROMEOS)
+#endif  // defined(OS_CHROMEOS)
 
 TEST_F(PolicyMapTest, MergeValuesList) {
   std::vector<base::Value> abcd =
@@ -1300,7 +1299,7 @@ class PolicyMapMergeTest
 
     // Expected behavior that depends on metapolicy values and affiliation.
     // --------------------------------------------------------------------
-#if !BUILDFLAG(IS_CHROMEOS)
+#if !defined(OS_CHROMEOS)
     if (CloudPolicyOverridesPlatformPolicy() &&
         CloudUserPolicyOverridesCloudMachinePolicy() && IsUserAffiliated()) {
       // Cloud user over cloud machine source.
@@ -1370,7 +1369,7 @@ class PolicyMapMergeTest
               policy_map_1.Get(kTestPolicyName8)->DeepCopy());
       // policy_map_expected.GetMutable(kTestPolicyName8)->SetBlocked();
     } else {
-#endif  // !BUILDFLAG(IS_CHROMEOS)
+#endif  // !defined(OS_CHROMEOS)
       // Machine over user scope.
       policy_map_expected.Set(kTestPolicyName1, POLICY_LEVEL_MANDATORY,
                               POLICY_SCOPE_MACHINE, POLICY_SOURCE_CLOUD,
@@ -1392,9 +1391,9 @@ class PolicyMapMergeTest
           ->AddConflictingPolicy(
               policy_map_2.Get(kTestPolicyName8)->DeepCopy());
       policy_map_expected.GetMutable(kTestPolicyName8)->SetBlocked();
-#if !BUILDFLAG(IS_CHROMEOS)
+#if !defined(OS_CHROMEOS)
     }
-#endif  // !BUILDFLAG(IS_CHROMEOS)
+#endif  // !defined(OS_CHROMEOS)
   }
 
   void PopulateExpectedMetapolicyMap(
@@ -1437,7 +1436,7 @@ class PolicyMapMergeTest
         ->AddConflictingPolicy(
             policy_map_1.Get(key::kCloudUserPolicyOverridesCloudMachinePolicy)
                 ->DeepCopy());
-#if !BUILDFLAG(IS_CHROMEOS)
+#if !defined(OS_CHROMEOS)
     if (CloudPolicyOverridesPlatformPolicy()) {
       // Cloud machine overrides platform machine because modified priorities
       // apply to merging metapolicies.
@@ -1453,7 +1452,7 @@ class PolicyMapMergeTest
               policy_map_1.Get(key::kPolicyListMultipleSourceMergeList)
                   ->DeepCopy());
     } else {
-#endif  // !BUILDFLAG(IS_CHROMEOS)
+#endif  // !defined(OS_CHROMEOS)
       // Platform machine overrides cloud machine with default precedence.
       policy_map_expected.Set(key::kPolicyListMultipleSourceMergeList,
                               POLICY_LEVEL_MANDATORY, POLICY_SCOPE_MACHINE,
@@ -1466,9 +1465,9 @@ class PolicyMapMergeTest
           ->AddConflictingPolicy(
               policy_map_2.Get(key::kPolicyListMultipleSourceMergeList)
                   ->DeepCopy());
-#if !BUILDFLAG(IS_CHROMEOS)
+#if !defined(OS_CHROMEOS)
     }
-#endif  // !BUILDFLAG(IS_CHROMEOS)
+#endif  // !defined(OS_CHROMEOS)
   }
 };
 
@@ -1616,7 +1615,7 @@ INSTANTIATE_TEST_SUITE_P(PolicyMapMergeTestInstance,
                                           testing::Values(false, true),
                                           testing::Values(false, true)));
 
-#if !BUILDFLAG(IS_CHROMEOS)
+#if !defined(OS_CHROMEOS)
 class PolicyMapPriorityTest
     : public testing::TestWithParam<
           std::tuple</*cloud_policy_overrides_platform_policy=*/bool,
@@ -1756,6 +1755,6 @@ INSTANTIATE_TEST_SUITE_P(PolicyMapPriorityTestInstance,
                          testing::Combine(testing::Values(false, true),
                                           testing::Values(false, true),
                                           testing::Values(false, true)));
-#endif  // !BUILDFLAG(IS_CHROMEOS)
+#endif  // !defined(OS_CHROMEOS)
 
 }  // namespace policy

@@ -9,7 +9,6 @@
 
 #include "base/base_export.h"
 #include "base/compiler_specific.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
 #include "base/synchronization/atomic_flag.h"
 #include "base/synchronization/waitable_event.h"
@@ -49,10 +48,10 @@ class BASE_EXPORT WorkerThread : public RefCountedThreadSafe<WorkerThread>,
     POOLED,
     SHARED,
     DEDICATED,
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
     SHARED_COM,
     DEDICATED_COM,
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
   };
 
   // Delegate interface for WorkerThread. All methods are called from the
@@ -192,12 +191,12 @@ class BASE_EXPORT WorkerThread : public RefCountedThreadSafe<WorkerThread>,
   void RunBackgroundSharedWorker();
   void RunDedicatedWorker();
   void RunBackgroundDedicatedWorker();
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   void RunSharedCOMWorker();
   void RunBackgroundSharedCOMWorker();
   void RunDedicatedCOMWorker();
   void RunBackgroundDedicatedCOMWorker();
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
   // The real main, invoked through :
   //     ThreadMain() -> RunLabeledWorker() -> RunWorker().
@@ -232,7 +231,7 @@ class BASE_EXPORT WorkerThread : public RefCountedThreadSafe<WorkerThread>,
 
   // Optional observer notified when a worker enters and exits its main
   // function. Set in Start() and never modified afterwards.
-  raw_ptr<WorkerThreadObserver> worker_thread_observer_ = nullptr;
+  WorkerThreadObserver* worker_thread_observer_ = nullptr;
 
   // Desired thread priority.
   const ThreadPriority priority_hint_;

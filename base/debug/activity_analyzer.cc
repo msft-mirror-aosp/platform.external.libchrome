@@ -16,7 +16,6 @@
 #include "base/no_destructor.h"
 #include "base/ranges/algorithm.h"
 #include "base/strings/string_util.h"
-#include "build/build_config.h"
 
 namespace base {
 namespace debug {
@@ -116,7 +115,7 @@ GlobalActivityAnalyzer::CreateWithAllocator(
   return std::make_unique<GlobalActivityAnalyzer>(std::move(allocator));
 }
 
-#if !BUILDFLAG(IS_NACL)
+#if !defined(OS_NACL)
 // static
 std::unique_ptr<GlobalActivityAnalyzer> GlobalActivityAnalyzer::CreateWithFile(
     const FilePath& file_path) {
@@ -136,7 +135,7 @@ std::unique_ptr<GlobalActivityAnalyzer> GlobalActivityAnalyzer::CreateWithFile(
   return CreateWithAllocator(std::make_unique<FilePersistentMemoryAllocator>(
       std::move(mmfile), 0, 0, StringPiece(), /*readonly=*/true));
 }
-#endif  // !BUILDFLAG(IS_NACL)
+#endif  // !defined(OS_NACL)
 
 // static
 std::unique_ptr<GlobalActivityAnalyzer>

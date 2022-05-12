@@ -27,11 +27,10 @@ class MockTimeDomain : public TimeDomain {
   TimeTicks NowTicks() const override;
 
   // TimeDomain implementation:
-  TimeTicks GetNextDelayedTaskTime(
-      WakeUp next_wake_up,
+  base::TimeTicks GetNextDelayedTaskTime(
       sequence_manager::LazyNow* lazy_now) const override;
-  bool MaybeFastForwardToWakeUp(absl::optional<WakeUp> next_wake_up,
-                                bool quit_when_idle_requested) override;
+  void SetNextDelayedDoWork(LazyNow* lazy_now, TimeTicks run_time) override;
+  bool MaybeFastForwardToNextTask(bool quit_when_idle_requested) override;
   const char* GetName() const override;
 
  private:

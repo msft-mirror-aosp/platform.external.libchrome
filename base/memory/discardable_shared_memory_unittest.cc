@@ -262,7 +262,7 @@ TEST(DiscardableSharedMemoryTest, LockShouldAlwaysFailAfterSuccessfulPurge) {
   EXPECT_EQ(DiscardableSharedMemory::FAILED, lock_rv);
 }
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 TEST(DiscardableSharedMemoryTest, LockShouldFailIfPlatformLockPagesFails) {
   const uint32_t kDataSize = 1024;
 
@@ -298,7 +298,7 @@ TEST(DiscardableSharedMemoryTest, LockShouldFailIfPlatformLockPagesFails) {
       memory2.Lock(0, base::GetPageSize());
   EXPECT_EQ(DiscardableSharedMemory::FAILED, lock_rv);
 }
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // defined(OS_ANDROID)
 
 TEST(DiscardableSharedMemoryTest, LockAndUnlockRange) {
   const size_t kDataSize = 32;

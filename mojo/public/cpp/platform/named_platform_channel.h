@@ -9,12 +9,13 @@
 
 #include "base/command_line.h"
 #include "base/component_export.h"
+#include "base/macros.h"
 #include "base/strings/string_piece.h"
 #include "build/build_config.h"
 #include "mojo/public/cpp/platform/platform_channel_endpoint.h"
 #include "mojo/public/cpp/platform/platform_channel_server_endpoint.h"
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 #include "base/files/file_path.h"
 #endif
 
@@ -33,7 +34,7 @@ class COMPONENT_EXPORT(MOJO_CPP_PLATFORM) NamedPlatformChannel {
  public:
   static const char kNamedHandleSwitch[];
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   using ServerName = std::wstring;
 #else
   using ServerName = std::string;
@@ -44,7 +45,7 @@ class COMPONENT_EXPORT(MOJO_CPP_PLATFORM) NamedPlatformChannel {
     // generated.
     ServerName server_name;
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
     // If non-empty, a security descriptor to use when creating the pipe. If
     // empty, a default security descriptor will be used. See
     // |kDefaultSecurityDescriptor|.
@@ -55,7 +56,7 @@ class COMPONENT_EXPORT(MOJO_CPP_PLATFORM) NamedPlatformChannel {
     // NamedPlatformChannel instances can be created with the same name and
     // a different client can connect to each one.
     bool enforce_uniqueness = true;
-#elif BUILDFLAG(IS_POSIX)
+#elif defined(OS_POSIX)
     // On POSIX, every new unnamed NamedPlatformChannel creates a server socket
     // with a random name. This controls the directory where that happens.
     // Ignored if |server_name| was set explicitly.
@@ -86,7 +87,7 @@ class COMPONENT_EXPORT(MOJO_CPP_PLATFORM) NamedPlatformChannel {
   //
   // Use the handle to send or receive an invitation, with the endpoint type as
   // |MOJO_INVITATION_TRANSPORT_TYPE_CHANNEL_SERVER|.
-  [[nodiscard]] PlatformChannelServerEndpoint TakeServerEndpoint() {
+  PlatformChannelServerEndpoint TakeServerEndpoint() WARN_UNUSED_RESULT {
     return std::move(server_endpoint_);
   }
 
@@ -100,13 +101,13 @@ class COMPONENT_EXPORT(MOJO_CPP_PLATFORM) NamedPlatformChannel {
 
   // Recovers a functioning client endpoint handle by creating a new endpoint
   // and connecting it to |server_name| if possible.
-  [[nodiscard]] static PlatformChannelEndpoint ConnectToServer(
-      const ServerName& server_name);
+  static PlatformChannelEndpoint ConnectToServer(const ServerName& server_name)
+      WARN_UNUSED_RESULT;
 
   // Like above, but extracts the server name from |command_line| using the
   // common |kNamedHandleSwitch| flag.
-  [[nodiscard]] static PlatformChannelEndpoint ConnectToServer(
-      const base::CommandLine& command_line);
+  static PlatformChannelEndpoint ConnectToServer(
+      const base::CommandLine& command_line) WARN_UNUSED_RESULT;
 
  private:
   static PlatformChannelServerEndpoint CreateServerEndpoint(

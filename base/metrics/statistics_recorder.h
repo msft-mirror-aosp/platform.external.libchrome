@@ -23,7 +23,7 @@
 #include "base/callback.h"
 #include "base/gtest_prod_util.h"
 #include "base/lazy_instance.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/metrics/histogram_base.h"
 #include "base/metrics/record_histogram_checker.h"
@@ -226,8 +226,8 @@ class BASE_EXPORT StatisticsRecorder {
   // they're created.
   //
   // This method is thread safe.
-  [[nodiscard]] static std::unique_ptr<StatisticsRecorder>
-  CreateTemporaryForTesting();
+  static std::unique_ptr<StatisticsRecorder> CreateTemporaryForTesting()
+      WARN_UNUSED_RESULT;
 
   // Sets the record checker for determining if a histogram should be recorded.
   // Record checker doesn't affect any already recorded histograms, so this
@@ -359,7 +359,7 @@ class BASE_EXPORT StatisticsRecorder {
   std::unique_ptr<RecordHistogramChecker> record_checker_;
 
   // Previous global recorder that existed when this one was created.
-  raw_ptr<StatisticsRecorder> previous_ = nullptr;
+  StatisticsRecorder* previous_ = nullptr;
 
   // Global lock for internal synchronization. Uses an absl::Mutex to
   // support read/write lock semantics.

@@ -26,10 +26,9 @@
 #include "base/strings/utf_string_conversions.h"
 #include "base/sys_byteorder.h"
 #include "base/values.h"
-#include "build/build_config.h"
 #include "components/policy/core/common/registry_dict.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include <windows.h>
 #else
 // Registry data type constants.
@@ -159,14 +158,14 @@ bool DecodePRegStringValue(const std::vector<uint8_t>& data,
 // Decodes a value from a PReg file given as a uint8_t vector.
 bool DecodePRegValue(uint32_t type,
                      const std::vector<uint8_t>& data,
-                     base::Value& value) {
+                     std::unique_ptr<base::Value>* value) {
   std::string data_utf8;
   switch (type) {
     case REG_SZ:
     case REG_EXPAND_SZ:
       if (!DecodePRegStringValue(data, &data_utf8))
         return false;
-      value = base::Value(data_utf8);
+      *value = std::make_unique<base::Value>(data_utf8);
       return true;
     case REG_DWORD_LITTLE_ENDIAN:
     case REG_DWORD_BIG_ENDIAN:
@@ -176,7 +175,7 @@ bool DecodePRegValue(uint32_t type,
           val = base::NetToHost32(val);
         else
           val = base::ByteSwapToLE32(val);
-        value = base::Value(static_cast<int>(val));
+        *value = std::make_unique<base::Value>(static_cast<int>(val));
         return true;
       } else {
         LOG(ERROR) << "Bad data size " << data.size();
@@ -250,9 +249,9 @@ void HandleRecord(const std::u16string& key_name,
   std::string value_name(base::UTF16ToUTF8(value));
   if (!base::StartsWith(value_name, kActionTriggerPrefix,
                         base::CompareCase::SENSITIVE)) {
-    base::Value value;
-    if (DecodePRegValue(type, data, value))
-      dict->SetValue(value_name, std::move(value));
+    std::unique_ptr<base::Value> value_ptr;
+    if (DecodePRegValue(type, data, &value_ptr))
+      dict->SetValue(value_name, std::move(value_ptr));
     return;
   }
 

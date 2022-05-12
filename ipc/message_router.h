@@ -9,6 +9,7 @@
 
 #include "base/component_export.h"
 #include "base/containers/id_map.h"
+#include "base/macros.h"
 #include "ipc/ipc_listener.h"
 #include "ipc/ipc_sender.h"
 

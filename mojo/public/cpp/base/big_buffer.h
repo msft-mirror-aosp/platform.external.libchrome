@@ -10,6 +10,7 @@
 
 #include "base/component_export.h"
 #include "base/containers/span.h"
+#include "base/macros.h"
 #include "mojo/public/cpp/bindings/struct_traits.h"
 #include "mojo/public/cpp/system/buffer.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
@@ -166,7 +167,7 @@ class COMPONENT_EXPORT(MOJO_BASE) BigBufferView {
   void SetSharedMemory(internal::BigBufferSharedMemoryRegion shared_memory);
 
   // Converts to a BigBuffer which owns the viewed data. May have to copy data.
-  [[nodiscard]] static BigBuffer ToBigBuffer(BigBufferView view);
+  static BigBuffer ToBigBuffer(BigBufferView view) WARN_UNUSED_RESULT;
 
   BigBuffer::StorageType storage_type() const { return storage_type_; }
 

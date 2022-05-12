@@ -12,7 +12,6 @@
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
-#include "base/containers/adapters.h"
 #include "base/containers/contains.h"
 #include "base/files/file_enumerator.h"
 #include "base/files/file_util.h"
@@ -137,8 +136,9 @@ void ConfigDirPolicyLoader::LoadFromPath(const base::FilePath& path,
   // The files are processed in reverse order because |MergeFrom| gives priority
   // to existing keys, but the ConfigDirPolicyProvider gives priority to the
   // last file in lexicographic order.
-  for (const base::FilePath& config_file : base::Reversed(files)) {
-    JSONFileValueDeserializer deserializer(config_file,
+  for (auto config_file_iter = files.rbegin(); config_file_iter != files.rend();
+       ++config_file_iter) {
+    JSONFileValueDeserializer deserializer(*config_file_iter,
                                            base::JSON_ALLOW_TRAILING_COMMAS);
     int error_code = 0;
     std::string error_msg;
@@ -146,14 +146,14 @@ void ConfigDirPolicyLoader::LoadFromPath(const base::FilePath& path,
         deserializer.Deserialize(&error_code, &error_msg);
     if (!value) {
       LOG(WARNING) << "Failed to read configuration file "
-                   << config_file.value() << ": " << error_msg;
+                   << config_file_iter->value() << ": " << error_msg;
       status.Add(JsonErrorToPolicyLoadStatus(error_code));
       continue;
     }
     base::DictionaryValue* dictionary_value = nullptr;
     if (!value->GetAsDictionary(&dictionary_value)) {
       LOG(WARNING) << "Expected JSON dictionary in configuration file "
-                   << config_file.value();
+                   << config_file_iter->value();
       status.Add(POLICY_LOAD_STATUS_PARSE_ERROR);
       continue;
     }

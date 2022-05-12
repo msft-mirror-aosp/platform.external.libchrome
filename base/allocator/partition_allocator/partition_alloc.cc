@@ -93,20 +93,26 @@ void PartitionAllocator<thread_safe>::init(PartitionOptions opts) {
       << "Cannot use a thread cache when PartitionAlloc is malloc().";
 #endif
   partition_root_.Init(opts);
+  partition_root_.ConfigureLazyCommit(opts.lazy_commit ==
+                                      PartitionOptions::LazyCommit::kEnabled);
   PartitionAllocMemoryReclaimer::Instance()->RegisterPartition(
       &partition_root_);
 }
 
 template PartitionAllocator<internal::ThreadSafe>::~PartitionAllocator();
 template void PartitionAllocator<internal::ThreadSafe>::init(PartitionOptions);
+template PartitionAllocator<internal::NotThreadSafe>::~PartitionAllocator();
+template void PartitionAllocator<internal::NotThreadSafe>::init(
+    PartitionOptions);
 
 #if (DCHECK_IS_ON() || BUILDFLAG(ENABLE_BACKUP_REF_PTR_SLOW_CHECKS)) && \
     BUILDFLAG(USE_BACKUP_REF_PTR)
-void CheckThatSlotOffsetIsZero(uintptr_t address) {
+void CheckThatSlotOffsetIsZero(void* ptr) {
   // Add kPartitionPastAllocationAdjustment, because
   // PartitionAllocGetSlotStartInBRPPool will subtract it.
   PA_CHECK(PartitionAllocGetSlotStartInBRPPool(
-               address + kPartitionPastAllocationAdjustment) == address);
+               reinterpret_cast<char*>(ptr) +
+               kPartitionPastAllocationAdjustment) == ptr);
 }
 #endif
 

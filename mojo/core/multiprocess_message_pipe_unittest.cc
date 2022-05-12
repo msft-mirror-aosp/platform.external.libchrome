@@ -437,7 +437,7 @@ DEFINE_TEST_CLIENT_WITH_PIPE(CheckPlatformHandleFile,
   return 0;
 }
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
 class MultiprocessMessagePipeTestWithPipeCount
     : public MultiprocessMessagePipeTest,
       public testing::WithParamInterface<size_t> {};
@@ -873,7 +873,7 @@ TEST_P(MultiprocessMessagePipeTestWithPeerSupport,
 }
 
 // Flaky on Android. See https://crbug.com/905620.
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #define MAYBE_ChannelPipesWithMultipleChildren \
   DISABLED_ChannelPipesWithMultipleChildren
 #else
@@ -1171,7 +1171,7 @@ DEFINE_TEST_CLIENT_TEST_WITH_PIPE(ReceivePipeWithClosedPeerFromOtherChild,
   EXPECT_EQ(MOJO_RESULT_OK, MojoClose(application_client));
 }
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 // Android multi-process tests are not executing the new process. This is flaky.
 #define MAYBE_SendPipeWithClosedPeerBetweenChildren \
   DISABLED_SendPipeWithClosedPeerBetweenChildren
@@ -1374,11 +1374,11 @@ INSTANTIATE_TEST_SUITE_P(
                     test::MojoTestBase::LaunchType::CHILD_WITHOUT_CAPABILITIES,
                     test::MojoTestBase::LaunchType::PEER,
                     test::MojoTestBase::LaunchType::ASYNC
-#if !BUILDFLAG(IS_FUCHSIA)
+#if !defined(OS_FUCHSIA)
                     ,
                     test::MojoTestBase::LaunchType::NAMED_CHILD,
                     test::MojoTestBase::LaunchType::NAMED_PEER
-#endif  // !BUILDFLAG(IS_FUCHSIA)
+#endif  // !defined(OS_FUCHSIA)
                     ));
 }  // namespace
 }  // namespace core

@@ -9,15 +9,16 @@
 
 #include <stddef.h>
 
+#include "base/compiler_specific.h"
 #include "base/files/file_path.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "build/build_config.h"
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #include <jni.h>
 #endif
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include <windows.h>
 #endif
 
@@ -48,19 +49,19 @@ void SyncPageCacheToDisk();
 // to access this file will result in a cold load from the hard drive.
 bool EvictFileFromSystemCache(const FilePath& file);
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 // Deny |permission| on the file |path| for the current user. |permission| is an
 // ACCESS_MASK structure which is defined in
 // https://msdn.microsoft.com/en-us/library/windows/desktop/aa374892.aspx
 // Refer to https://msdn.microsoft.com/en-us/library/aa822867.aspx for a list of
 // possible values.
 bool DenyFilePermission(const FilePath& path, DWORD permission);
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
 // For testing, make the file unreadable or unwritable.
 // In POSIX, this does not apply to the root user.
-[[nodiscard]] bool MakeFileUnreadable(const FilePath& path);
-[[nodiscard]] bool MakeFileUnwritable(const FilePath& path);
+bool MakeFileUnreadable(const FilePath& path) WARN_UNUSED_RESULT;
+bool MakeFileUnwritable(const FilePath& path) WARN_UNUSED_RESULT;
 
 // Saves the current permissions for a path, and restores it on destruction.
 class FilePermissionRestorer {
@@ -74,15 +75,15 @@ class FilePermissionRestorer {
 
  private:
   const FilePath path_;
-  raw_ptr<void> info_;  // The opaque stored permission information.
+  void* info_;  // The opaque stored permission information.
   size_t length_;  // The length of the stored permission information.
 };
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 // Insert an image file into the MediaStore, and retrieve the content URI for
 // testing purpose.
 FilePath InsertImageIntoMediaStore(const FilePath& path);
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // defined(OS_ANDROID)
 
 }  // namespace base
 

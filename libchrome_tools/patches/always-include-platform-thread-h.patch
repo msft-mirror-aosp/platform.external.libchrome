@@ -8,6 +8,6 @@ index e1e25d3eb..8d3ef1099 100644
  
 -#if DCHECK_IS_ON()
 +#if DCHECK_IS_ON() || 1
- #include "base/threading/platform_thread_ref.h"
+ #include "base/threading/platform_thread.h"
  #endif
  

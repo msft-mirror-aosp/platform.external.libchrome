@@ -46,7 +46,4 @@ const Feature kUseBackgroundNativeThreadPool = {
 const Feature kUseFiveMinutesThreadReclaimTime = {
     "UseFiveMinutesThreadReclaimTime", base::FEATURE_DISABLED_BY_DEFAULT};
 
-const BASE_EXPORT Feature kRemoveCanceledTasksInTaskQueue = {
-    "RemoveCanceledTasksInTaskQueue", base::FEATURE_DISABLED_BY_DEFAULT};
-
 }  // namespace base

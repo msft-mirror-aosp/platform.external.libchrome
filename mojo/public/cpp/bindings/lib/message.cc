@@ -10,12 +10,12 @@
 
 #include <algorithm>
 #include <atomic>
-#include <tuple>
 #include <utility>
 
 #include "base/bind.h"
 #include "base/check_op.h"
 #include "base/lazy_instance.h"
+#include "base/macros.h"
 #include "base/memory/ptr_util.h"
 #include "base/numerics/safe_math.h"
 #include "base/threading/sequence_local_storage_slot.h"
@@ -118,7 +118,7 @@ void CreateSerializedMessageObject(uint32_t name,
   if (handles) {
     // Handle ownership has been taken by MojoAppendMessageData.
     for (size_t i = 0; i < handles->size(); ++i)
-      std::ignore = handles->at(i).release();
+      ignore_result(handles->at(i).release());
   }
 
   internal::Buffer payload_buffer(handle.get(), total_size, buffer,
@@ -149,7 +149,7 @@ void SerializeUnserializedContext(MojoMessageHandle message,
 
   // Finalize the serialized message state and release ownership back to the
   // caller.
-  std::ignore = new_message.TakeMojoMessage().release();
+  ignore_result(new_message.TakeMojoMessage().release());
 }
 
 void DestroyUnserializedContext(uintptr_t context) {
@@ -287,7 +287,7 @@ Message::Message(base::span<const uint8_t> payload,
 
   // Handle ownership has been taken by MojoAppendMessageData.
   for (auto& handle : handles)
-    std::ignore = handle.release();
+    ignore_result(handle.release());
 
   payload_buffer_ = internal::Buffer(buffer, payload.size(), payload.size());
   std::copy(payload.begin(), payload.end(),

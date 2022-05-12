@@ -8,11 +8,12 @@
 #include <initializer_list>
 
 #include "base/base_export.h"
+#include "base/compiler_specific.h"
 #include "base/containers/span.h"
 #include "base/strings/string_piece.h"
 #include "build/build_config.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 // Guard against conflict with Win32 API StrCat macro:
 // check StrCat wasn't and will not be redefined.
 #define StrCat StrCat
@@ -58,12 +59,14 @@ namespace base {
 // for this call and generate slightly less code. This is something we can
 // explore more in the future.
 
-[[nodiscard]] BASE_EXPORT std::string StrCat(span<const StringPiece> pieces);
-[[nodiscard]] BASE_EXPORT std::u16string StrCat(
-    span<const StringPiece16> pieces);
-[[nodiscard]] BASE_EXPORT std::string StrCat(span<const std::string> pieces);
-[[nodiscard]] BASE_EXPORT std::u16string StrCat(
-    span<const std::u16string> pieces);
+BASE_EXPORT std::string StrCat(span<const StringPiece> pieces)
+    WARN_UNUSED_RESULT;
+BASE_EXPORT std::u16string StrCat(span<const StringPiece16> pieces)
+    WARN_UNUSED_RESULT;
+BASE_EXPORT std::string StrCat(span<const std::string> pieces)
+    WARN_UNUSED_RESULT;
+BASE_EXPORT std::u16string StrCat(span<const std::u16string> pieces)
+    WARN_UNUSED_RESULT;
 
 // Initializer list forwards to the array version.
 inline std::string StrCat(std::initializer_list<StringPiece> pieces) {
@@ -102,7 +105,7 @@ inline void StrAppend(std::u16string* dest,
 
 }  // namespace base
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "base/strings/strcat_win.h"
 #endif
 

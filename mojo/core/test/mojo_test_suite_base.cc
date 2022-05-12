@@ -6,7 +6,6 @@
 
 #include "base/command_line.h"
 #include "base/strings/string_util.h"
-#include "build/build_config.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace mojo {
@@ -42,10 +41,10 @@ class SkipManualTests : public testing::EmptyTestEventListener {
 MojoTestSuiteBase::MojoTestSuiteBase(int argc, char** argv)
     : base::TestSuite(argc, argv) {}
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 MojoTestSuiteBase::MojoTestSuiteBase(int argc, wchar_t** argv)
     : base::TestSuite(argc, argv) {}
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
 void MojoTestSuiteBase::Initialize() {
   base::TestSuite::Initialize();

@@ -13,7 +13,6 @@
 #include "base/numerics/safe_conversions.h"
 #include "base/posix/eintr_wrapper.h"
 #include "base/synchronization/lock.h"
-#include "base/threading/platform_thread.h"
 
 namespace base {
 

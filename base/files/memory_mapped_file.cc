@@ -31,7 +31,7 @@ MemoryMappedFile::~MemoryMappedFile() {
   CloseHandles();
 }
 
-#if !BUILDFLAG(IS_NACL)
+#if !defined(OS_NACL)
 bool MemoryMappedFile::Initialize(const FilePath& file_name, Access access) {
   if (IsValid())
     return false;
@@ -48,7 +48,7 @@ bool MemoryMappedFile::Initialize(const FilePath& file_name, Access access) {
       // Can't open with "extend" because no maximum size is known.
       NOTREACHED();
       break;
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
     case READ_CODE_IMAGE:
       flags |= File::FLAG_OPEN | File::FLAG_READ |
                File::FLAG_WIN_EXCLUSIVE_WRITE | File::FLAG_WIN_EXECUTE;
@@ -89,7 +89,7 @@ bool MemoryMappedFile::Initialize(File file,
           return false;
         }
       }
-      [[fallthrough]];
+      FALLTHROUGH;
     case READ_ONLY:
     case READ_WRITE:
       // Ensure that the region values are valid.
@@ -98,7 +98,7 @@ bool MemoryMappedFile::Initialize(File file,
         return false;
       }
       break;
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
     case READ_CODE_IMAGE:
       // Can't open with "READ_CODE_IMAGE", not supported outside Windows
       // or with a |region|.
@@ -140,6 +140,6 @@ void MemoryMappedFile::CalculateVMAlignedBoundaries(int64_t start,
   *aligned_start = start & ~mask;
   *aligned_size = (size + *offset + mask) & ~mask;
 }
-#endif  // !BUILDFLAG(IS_NACL)
+#endif  // !defined(OS_NACL)
 
 }  // namespace base

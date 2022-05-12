@@ -10,6 +10,7 @@
 
 #include <utility>
 
+#include "base/macros.h"
 #include "base/memory/platform_shared_memory_region.h"
 #include "mojo/core/dispatcher.h"
 #include "mojo/core/system_impl_export.h"

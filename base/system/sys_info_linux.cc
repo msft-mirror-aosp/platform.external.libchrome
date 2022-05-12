@@ -129,7 +129,7 @@ std::string SysInfo::CPUModelName() {
   return std::string();
 }
 
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
 // static
 SysInfo::HardwareInfo SysInfo::GetHardwareInfoSync() {
   static const size_t kMaxStringSize = 100u;

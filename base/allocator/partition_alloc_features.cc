@@ -5,7 +5,6 @@
 #include "base/allocator/partition_alloc_features.h"
 
 #include "base/feature_list.h"
-#include "build/build_config.h"
 
 namespace base {
 namespace features {
@@ -33,18 +32,7 @@ const Feature kPartitionAllocBackupRefPtrControl{
 
 // Use a larger maximum thread cache cacheable bucket size.
 const Feature kPartitionAllocLargeThreadCacheSize{
-  "PartitionAllocLargeThreadCacheSize",
-#if BUILDFLAG(IS_ANDROID) && defined(ARCH_CPU_32_BITS)
-      // Not unconditionally enabled on 32 bit Android, since it is a more
-      // memory-constrained platform.
-      FEATURE_DISABLED_BY_DEFAULT
-#else
-      FEATURE_ENABLED_BY_DEFAULT
-#endif
-};
-
-const BASE_EXPORT Feature kPartitionAllocLargeEmptySlotSpanRing{
-    "PartitionAllocLargeEmptySlotSpanRing", FEATURE_DISABLED_BY_DEFAULT};
+    "PartitionAllocLargeThreadCacheSize", FEATURE_ENABLED_BY_DEFAULT};
 
 const Feature kPartitionAllocBackupRefPtr{"PartitionAllocBackupRefPtr",
                                           FEATURE_DISABLED_BY_DEFAULT};
@@ -54,7 +42,6 @@ constexpr FeatureParam<BackupRefPtrEnabledProcesses>::Option
         {BackupRefPtrEnabledProcesses::kBrowserOnly, "browser-only"},
         {BackupRefPtrEnabledProcesses::kBrowserAndRenderer,
          "browser-and-renderer"},
-        {BackupRefPtrEnabledProcesses::kNonRenderer, "non-renderer"},
         {BackupRefPtrEnabledProcesses::kAllProcesses, "all-processes"}};
 
 const base::FeatureParam<BackupRefPtrEnabledProcesses>
@@ -63,20 +50,19 @@ const base::FeatureParam<BackupRefPtrEnabledProcesses>
         BackupRefPtrEnabledProcesses::kBrowserOnly,
         &kBackupRefPtrEnabledProcessesOptions};
 
-constexpr FeatureParam<BackupRefPtrMode>::Option kBackupRefPtrModeOptions[] = {
-    {BackupRefPtrMode::kDisabled, "disabled"},
-    {BackupRefPtrMode::kEnabled, "enabled"},
-    {BackupRefPtrMode::kDisabledButSplitPartitions2Way,
-     "disabled-but-2-way-split"},
-    {BackupRefPtrMode::kDisabledButSplitPartitions3Way,
-     "disabled-but-3-way-split"},
-};
+const Feature kPartitionAllocSimulateBRPPartitionSplit{
+    "PartitionAllocSimulateBRPPartitionSplit", FEATURE_DISABLED_BY_DEFAULT};
 
-const base::FeatureParam<BackupRefPtrMode> kBackupRefPtrModeParam{
-    &kPartitionAllocBackupRefPtr, "brp-mode", BackupRefPtrMode::kEnabled,
-    &kBackupRefPtrModeOptions};
+const base::FeatureParam<BackupRefPtrEnabledProcesses>
+    kSimulateBRPPartitionSplitProcessesParam{
+        &kPartitionAllocSimulateBRPPartitionSplit, "enabled-processes",
+        BackupRefPtrEnabledProcesses::kAllProcesses,
+        &kBackupRefPtrEnabledProcessesOptions};
 
 #endif  // BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
+
+const Feature kPartitionAllocLazyCommit{"PartitionAllocLazyCommit",
+                                        FEATURE_ENABLED_BY_DEFAULT};
 
 // If enabled, switches PCScan scheduling to a mutator-aware scheduler. Does not
 // affect whether PCScan is enabled itself.

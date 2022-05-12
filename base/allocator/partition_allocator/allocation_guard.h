@@ -32,8 +32,17 @@ class ScopedAllowAllocations {
 
 #else
 
-struct [[maybe_unused]] ScopedDisallowAllocations{};
-struct [[maybe_unused]] ScopedAllowAllocations{};
+// TODO(lizeb): Remove once NaCl is either gone, or the compiler gets updated.
+#if defined(OS_NACL)
+#define PA_MAYBE_UNUSED __attribute__((unused))
+#else
+#define PA_MAYBE_UNUSED [[maybe_unused]]
+#endif
+
+struct PA_MAYBE_UNUSED ScopedDisallowAllocations {};
+struct PA_MAYBE_UNUSED ScopedAllowAllocations {};
+
+#undef PA_MAYBE_UNUSED
 
 #endif  // defined(PA_HAS_ALLOCATION_GUARD)
 

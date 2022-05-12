@@ -277,7 +277,7 @@ TEST_F(JSONParserTest, ErrorMessages) {
   }
 
   {
-    JSONParser parser(JSON_PARSE_RFC | JSON_ALLOW_X_ESCAPES);
+    JSONParser parser(JSON_PARSE_RFC);
     absl::optional<Value> value = parser.Parse("[\"xxx\\xq\"]");
     EXPECT_FALSE(value);
     EXPECT_EQ(JSONParser::FormatErrorMessage(1, 7, JSONParser::kInvalidEscape),

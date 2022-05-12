@@ -55,7 +55,7 @@ class PersistentHistogramStorageTest : public testing::Test {
   FilePath test_storage_dir_;
 };
 
-#if !BUILDFLAG(IS_NACL)
+#if !defined(OS_NACL)
 TEST_F(PersistentHistogramStorageTest, HistogramWriteTest) {
   auto persistent_histogram_storage =
       std::make_unique<PersistentHistogramStorage>(
@@ -78,6 +78,6 @@ TEST_F(PersistentHistogramStorageTest, HistogramWriteTest) {
   // Clean up for subsequent tests.
   GlobalHistogramAllocator::ReleaseForTesting();
 }
-#endif  // !BUILDFLAG(IS_NACL)
+#endif  // !defined(OS_NACL)
 
 }  // namespace base

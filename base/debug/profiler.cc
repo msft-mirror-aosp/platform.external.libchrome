@@ -13,13 +13,13 @@
 #include "base/strings/string_util.h"
 #include "build/build_config.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "base/win/current_module.h"
 #include "base/win/pe_image.h"
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
 // TODO(peria): Enable profiling on Windows.
-#if BUILDFLAG(ENABLE_PROFILING) && BUILDFLAG(USE_TCMALLOC) && !BUILDFLAG(IS_WIN)
+#if BUILDFLAG(ENABLE_PROFILING) && BUILDFLAG(USE_TCMALLOC) && !defined(OS_WIN)
 #include "third_party/tcmalloc/chromium/src/gperftools/profiler.h"
 #endif
 
@@ -27,7 +27,7 @@ namespace base {
 namespace debug {
 
 // TODO(peria): Enable profiling on Windows.
-#if BUILDFLAG(ENABLE_PROFILING) && BUILDFLAG(USE_TCMALLOC) && !BUILDFLAG(IS_WIN)
+#if BUILDFLAG(ENABLE_PROFILING) && BUILDFLAG(USE_TCMALLOC) && !defined(OS_WIN)
 
 static int profile_count = 0;
 
@@ -86,7 +86,7 @@ bool IsProfilingSupported() {
 
 #endif
 
-#if !BUILDFLAG(IS_WIN)
+#if !defined(OS_WIN)
 
 ReturnAddressLocationResolver GetProfilerReturnAddrResolutionFunc() {
   return nullptr;
@@ -100,7 +100,7 @@ MoveDynamicSymbol GetProfilerMoveDynamicSymbolFunc() {
   return nullptr;
 }
 
-#else  // BUILDFLAG(IS_WIN)
+#else  // defined(OS_WIN)
 
 namespace {
 
@@ -174,7 +174,7 @@ MoveDynamicSymbol GetProfilerMoveDynamicSymbolFunc() {
       "MoveDynamicSymbol");
 }
 
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
 }  // namespace debug
 }  // namespace base

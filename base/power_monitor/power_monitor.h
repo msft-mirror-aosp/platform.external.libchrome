@@ -8,6 +8,7 @@
 #include <memory>
 
 #include "base/base_export.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/no_destructor.h"
 #include "base/observer_list_threadsafe.h"
@@ -83,13 +84,13 @@ class BASE_EXPORT PowerMonitor {
   static void SetCurrentThermalState(
       PowerThermalObserver::DeviceThermalState state);
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   // Read and return the current remaining battery capacity (microampere-hours).
   // Only supported with a device power source (i.e. not in child processes in
   // Chrome) and on devices with Android >= Lollipop as well as a power supply
   // that supports this counter. Returns 0 if unsupported.
   static int GetRemainingBatteryCapacity();
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // defined(OS_ANDROID)
 
   // Uninitializes the PowerMonitor. Should be called at the end of any unit
   // test that mocks out the PowerMonitor, to avoid affecting subsequent tests.

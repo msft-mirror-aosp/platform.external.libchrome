@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "base/component_export.h"
+#include "base/macros.h"
 #include "base/memory/ptr_util.h"
 #include "mojo/core/ports/name.h"
 #include "mojo/core/ports/user_message.h"
@@ -62,9 +63,6 @@ class COMPONENT_EXPORT(MOJO_CORE_PORTS) Event {
 
     // Used to acknowledge read messages to the conjugate.
     kUserMessageReadAck,
-
-    // Used to update the previous node and port name of a port.
-    kUpdatePreviousPeer,
   };
 
 #pragma pack(push, 1)
@@ -101,21 +99,10 @@ class COMPONENT_EXPORT(MOJO_CORE_PORTS) Event {
 
   size_t GetSerializedSize() const;
   void Serialize(void* buffer) const;
-  virtual ScopedEvent CloneForBroadcast() const;
-
-  const PortName& from_port() const { return from_port_; }
-  void set_from_port(const PortName& from_port) { from_port_ = from_port; }
-
-  uint64_t control_sequence_num() const { return control_sequence_num_; }
-  void set_control_sequence_num(uint64_t control_sequence_num) {
-    control_sequence_num_ = control_sequence_num;
-  }
+  virtual ScopedEvent Clone() const;
 
  protected:
-  Event(Type type,
-        const PortName& port_name,
-        const PortName& from_port,
-        uint64_t control_sequence_num);
+  Event(Type type, const PortName& port_name);
 
   virtual size_t GetSerializedDataSize() const = 0;
   virtual void SerializeData(void* buffer) const = 0;
@@ -123,8 +110,6 @@ class COMPONENT_EXPORT(MOJO_CORE_PORTS) Event {
  private:
   const Type type_;
   PortName port_name_;
-  PortName from_port_;
-  uint64_t control_sequence_num_;
 };
 
 class COMPONENT_EXPORT(MOJO_CORE_PORTS) UserMessageEvent : public Event {
@@ -164,18 +149,13 @@ class COMPONENT_EXPORT(MOJO_CORE_PORTS) UserMessageEvent : public Event {
   PortName* ports() { return ports_.data(); }
 
   static ScopedEvent Deserialize(const PortName& port_name,
-                                 const PortName& from_port,
-                                 uint64_t control_sequence_num,
                                  const void* buffer,
                                  size_t num_bytes);
 
   size_t GetSizeIfSerialized() const;
 
  private:
-  UserMessageEvent(const PortName& port_name,
-                   const PortName& from_port,
-                   uint64_t control_sequence_num,
-                   uint64_t sequence_num);
+  UserMessageEvent(const PortName& port_name, uint64_t sequence_num);
 
   size_t GetSerializedDataSize() const override;
   void SerializeData(void* buffer) const override;
@@ -188,9 +168,7 @@ class COMPONENT_EXPORT(MOJO_CORE_PORTS) UserMessageEvent : public Event {
 
 class COMPONENT_EXPORT(MOJO_CORE_PORTS) PortAcceptedEvent : public Event {
  public:
-  explicit PortAcceptedEvent(const PortName& port_name,
-                             const PortName& from_port,
-                             uint64_t control_sequence_num);
+  explicit PortAcceptedEvent(const PortName& port_name);
 
   PortAcceptedEvent(const PortAcceptedEvent&) = delete;
   PortAcceptedEvent& operator=(const PortAcceptedEvent&) = delete;
@@ -198,8 +176,6 @@ class COMPONENT_EXPORT(MOJO_CORE_PORTS) PortAcceptedEvent : public Event {
   ~PortAcceptedEvent() override;
 
   static ScopedEvent Deserialize(const PortName& port_name,
-                                 const PortName& from_port,
-                                 uint64_t control_sequence_num,
                                  const void* buffer,
                                  size_t num_bytes);
 
@@ -211,8 +187,6 @@ class COMPONENT_EXPORT(MOJO_CORE_PORTS) PortAcceptedEvent : public Event {
 class COMPONENT_EXPORT(MOJO_CORE_PORTS) ObserveProxyEvent : public Event {
  public:
   ObserveProxyEvent(const PortName& port_name,
-                    const PortName& from_port,
-                    uint64_t control_sequence_num,
                     const NodeName& proxy_node_name,
                     const PortName& proxy_port_name,
                     const NodeName& proxy_target_node_name,
@@ -233,15 +207,13 @@ class COMPONENT_EXPORT(MOJO_CORE_PORTS) ObserveProxyEvent : public Event {
   }
 
   static ScopedEvent Deserialize(const PortName& port_name,
-                                 const PortName& from_port,
-                                 uint64_t control_sequence_num,
                                  const void* buffer,
                                  size_t num_bytes);
 
  private:
   size_t GetSerializedDataSize() const override;
   void SerializeData(void* buffer) const override;
-  ScopedEvent CloneForBroadcast() const override;
+  ScopedEvent Clone() const override;
 
   const NodeName proxy_node_name_;
   const PortName proxy_port_name_;
@@ -251,10 +223,7 @@ class COMPONENT_EXPORT(MOJO_CORE_PORTS) ObserveProxyEvent : public Event {
 
 class COMPONENT_EXPORT(MOJO_CORE_PORTS) ObserveProxyAckEvent : public Event {
  public:
-  ObserveProxyAckEvent(const PortName& port_name,
-                       const PortName& from_port,
-                       uint64_t control_sequence_num,
-                       uint64_t last_sequence_num);
+  ObserveProxyAckEvent(const PortName& port_name, uint64_t last_sequence_num);
 
   ObserveProxyAckEvent(const ObserveProxyAckEvent&) = delete;
   ObserveProxyAckEvent& operator=(const ObserveProxyAckEvent&) = delete;
@@ -264,24 +233,20 @@ class COMPONENT_EXPORT(MOJO_CORE_PORTS) ObserveProxyAckEvent : public Event {
   uint64_t last_sequence_num() const { return last_sequence_num_; }
 
   static ScopedEvent Deserialize(const PortName& port_name,
-                                 const PortName& from_port,
-                                 uint64_t control_sequence_num,
                                  const void* buffer,
                                  size_t num_bytes);
 
  private:
   size_t GetSerializedDataSize() const override;
   void SerializeData(void* buffer) const override;
+  ScopedEvent Clone() const override;
 
   const uint64_t last_sequence_num_;
 };
 
 class COMPONENT_EXPORT(MOJO_CORE_PORTS) ObserveClosureEvent : public Event {
  public:
-  ObserveClosureEvent(const PortName& port_name,
-                      const PortName& from_port,
-                      uint64_t control_sequence_num,
-                      uint64_t last_sequence_num);
+  ObserveClosureEvent(const PortName& port_name, uint64_t last_sequence_num);
 
   ObserveClosureEvent(const ObserveClosureEvent&) = delete;
   ObserveClosureEvent& operator=(const ObserveClosureEvent&) = delete;
@@ -294,14 +259,13 @@ class COMPONENT_EXPORT(MOJO_CORE_PORTS) ObserveClosureEvent : public Event {
   }
 
   static ScopedEvent Deserialize(const PortName& port_name,
-                                 const PortName& from_port,
-                                 uint64_t control_sequence_num,
                                  const void* buffer,
                                  size_t num_bytes);
 
  private:
   size_t GetSerializedDataSize() const override;
   void SerializeData(void* buffer) const override;
+  ScopedEvent Clone() const override;
 
   uint64_t last_sequence_num_;
 };
@@ -309,8 +273,6 @@ class COMPONENT_EXPORT(MOJO_CORE_PORTS) ObserveClosureEvent : public Event {
 class COMPONENT_EXPORT(MOJO_CORE_PORTS) MergePortEvent : public Event {
  public:
   MergePortEvent(const PortName& port_name,
-                 const PortName& from_port,
-                 uint64_t control_sequence_num,
                  const PortName& new_port_name,
                  const PortDescriptor& new_port_descriptor);
 
@@ -325,8 +287,6 @@ class COMPONENT_EXPORT(MOJO_CORE_PORTS) MergePortEvent : public Event {
   }
 
   static ScopedEvent Deserialize(const PortName& port_name,
-                                 const PortName& from_port,
-                                 uint64_t control_sequence_num,
                                  const void* buffer,
                                  size_t num_bytes);
 
@@ -342,8 +302,6 @@ class COMPONENT_EXPORT(MOJO_CORE_PORTS) UserMessageReadAckRequestEvent
     : public Event {
  public:
   UserMessageReadAckRequestEvent(const PortName& port_name,
-                                 const PortName& from_port,
-                                 uint64_t control_sequence_num,
                                  uint64_t sequence_num_to_acknowledge);
   ~UserMessageReadAckRequestEvent() override;
 
@@ -352,8 +310,6 @@ class COMPONENT_EXPORT(MOJO_CORE_PORTS) UserMessageReadAckRequestEvent
   }
 
   static ScopedEvent Deserialize(const PortName& port_name,
-                                 const PortName& from_port,
-                                 uint64_t control_sequence_num,
                                  const void* buffer,
                                  size_t num_bytes);
 
@@ -367,8 +323,6 @@ class COMPONENT_EXPORT(MOJO_CORE_PORTS) UserMessageReadAckRequestEvent
 class COMPONENT_EXPORT(MOJO_CORE_PORTS) UserMessageReadAckEvent : public Event {
  public:
   UserMessageReadAckEvent(const PortName& port_name,
-                          const PortName& from_port,
-                          uint64_t control_sequence_num,
                           uint64_t sequence_num_acknowledged);
   ~UserMessageReadAckEvent() override;
 
@@ -377,8 +331,6 @@ class COMPONENT_EXPORT(MOJO_CORE_PORTS) UserMessageReadAckEvent : public Event {
   }
 
   static ScopedEvent Deserialize(const PortName& port_name,
-                                 const PortName& from_port,
-                                 uint64_t control_sequence_num,
                                  const void* buffer,
                                  size_t num_bytes);
 
@@ -387,33 +339,6 @@ class COMPONENT_EXPORT(MOJO_CORE_PORTS) UserMessageReadAckEvent : public Event {
   void SerializeData(void* buffer) const override;
 
   uint64_t sequence_num_acknowledged_;
-};
-
-class COMPONENT_EXPORT(MOJO_CORE_PORTS) UpdatePreviousPeerEvent : public Event {
- public:
-  UpdatePreviousPeerEvent(const PortName& port_name,
-                          const PortName& from_port,
-                          uint64_t control_sequence_num,
-                          const NodeName& new_node_name,
-                          const PortName& new_port_name);
-  ~UpdatePreviousPeerEvent() override;
-
-  const NodeName& new_node_name() const { return new_node_name_; }
-
-  const PortName& new_port_name() const { return new_port_name_; }
-
-  static ScopedEvent Deserialize(const PortName& port_name,
-                                 const PortName& from_port,
-                                 uint64_t control_sequence_num,
-                                 const void* buffer,
-                                 size_t num_bytes);
-
- private:
-  size_t GetSerializedDataSize() const override;
-  void SerializeData(void* buffer) const override;
-
-  const NodeName new_node_name_;
-  const PortName new_port_name_;
 };
 
 }  // namespace ports

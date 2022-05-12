@@ -7,6 +7,8 @@
 
 #include <vector>
 
+#include "base/compiler_specific.h"
+
 namespace base {
 
 class FilePath;
@@ -16,9 +18,9 @@ struct TestResult;
 // Returns true iff the output file exists and has been successfully parsed.
 // On successful return |crashed| is set to true if the test results
 // are valid but incomplete.
-[[nodiscard]] bool ProcessGTestOutput(const base::FilePath& output_file,
-                                      std::vector<TestResult>* results,
-                                      bool* crashed);
+bool ProcessGTestOutput(const base::FilePath& output_file,
+                        std::vector<TestResult>* results,
+                        bool* crashed) WARN_UNUSED_RESULT;
 
 }  // namespace base
 

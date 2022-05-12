@@ -21,11 +21,12 @@
 #include "build/build_config.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
+// clang-format off
 #include <windows.h>
-// Must be after <windows.h>
 #include <winbase.h>
-#elif BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+// clang-format on
+#elif defined(OS_POSIX) || defined(OS_FUCHSIA)
 #include <sys/mman.h>
 #endif
 
@@ -164,8 +165,6 @@ PersistentMemoryAllocator::Iterator::Iterator(
     : allocator_(allocator), last_record_(0), record_count_(0) {
   Reset(starting_after);
 }
-
-PersistentMemoryAllocator::Iterator::~Iterator() = default;
 
 void PersistentMemoryAllocator::Iterator::Reset() {
   last_record_.store(kReferenceQueue, std::memory_order_relaxed);
@@ -327,7 +326,7 @@ PersistentMemoryAllocator::PersistentMemoryAllocator(Memory memory,
       mem_type_(memory.type),
       mem_size_(static_cast<uint32_t>(size)),
       mem_page_(static_cast<uint32_t>((page_size ? page_size : size))),
-#if BUILDFLAG(IS_NACL)
+#if defined(OS_NACL)
       vm_page_size_(4096U),  // SysInfo is not built for NACL.
 #else
       vm_page_size_(SysInfo::VMAllocationGranularity()),
@@ -966,14 +965,14 @@ PersistentMemoryAllocator::Memory
 LocalPersistentMemoryAllocator::AllocateLocalMemory(size_t size) {
   void* address;
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   address =
       ::VirtualAlloc(nullptr, size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
   if (address)
     return Memory(address, MEM_VIRTUAL);
   UmaHistogramSparse("UMA.LocalPersistentMemoryAllocator.Failures.Win",
                      ::GetLastError());
-#elif BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#elif defined(OS_POSIX) || defined(OS_FUCHSIA)
   // MAP_ANON is deprecated on Linux but MAP_ANONYMOUS is not universal on Mac.
   // MAP_SHARED is not available on Linux <2.4 but required on Mac.
   address = ::mmap(nullptr, size, PROT_READ | PROT_WRITE,
@@ -1006,10 +1005,10 @@ void LocalPersistentMemoryAllocator::DeallocateLocalMemory(void* memory,
   }
 
   DCHECK_EQ(MEM_VIRTUAL, type);
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   BOOL success = ::VirtualFree(memory, 0, MEM_DECOMMIT);
   DCHECK(success);
-#elif BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#elif defined(OS_POSIX) || defined(OS_FUCHSIA)
   int result = ::munmap(memory, size);
   DCHECK_EQ(0, result);
 #else
@@ -1066,7 +1065,7 @@ bool ReadOnlySharedPersistentMemoryAllocator::IsSharedMemoryAcceptable(
   return IsMemoryAcceptable(memory.memory(), memory.size(), 0, true);
 }
 
-#if !BUILDFLAG(IS_NACL)
+#if !defined(OS_NACL)
 //----- FilePersistentMemoryAllocator ------------------------------------------
 
 FilePersistentMemoryAllocator::FilePersistentMemoryAllocator(
@@ -1128,18 +1127,18 @@ void FilePersistentMemoryAllocator::FlushPartial(size_t length, bool sync) {
   if (sync)
     scoped_blocking_call.emplace(FROM_HERE, base::BlockingType::MAY_BLOCK);
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   // Windows doesn't support asynchronous flush.
   scoped_blocking_call.emplace(FROM_HERE, base::BlockingType::MAY_BLOCK);
   BOOL success = ::FlushViewOfFile(data(), length);
   DPCHECK(success);
-#elif BUILDFLAG(IS_APPLE)
+#elif defined(OS_APPLE)
   // On OSX, "invalidate" removes all cached pages, forcing a re-read from
   // disk. That's not applicable to "flush" so omit it.
   int result =
       ::msync(const_cast<void*>(data()), length, sync ? MS_SYNC : MS_ASYNC);
   DCHECK_NE(EINVAL, result);
-#elif BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#elif defined(OS_POSIX) || defined(OS_FUCHSIA)
   // On POSIX, "invalidate" forces _other_ processes to recognize what has
   // been written to disk and so is applicable to "flush".
   int result = ::msync(const_cast<void*>(data()), length,
@@ -1149,7 +1148,7 @@ void FilePersistentMemoryAllocator::FlushPartial(size_t length, bool sync) {
 #error Unsupported OS.
 #endif
 }
-#endif  // !BUILDFLAG(IS_NACL)
+#endif  // !defined(OS_NACL)
 
 //----- DelayedPersistentAllocation --------------------------------------------
 

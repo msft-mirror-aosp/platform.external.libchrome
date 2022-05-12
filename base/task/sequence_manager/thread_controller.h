@@ -93,14 +93,14 @@ class ThreadController {
   // Returns true if the current run loop should quit when idle.
   virtual bool ShouldQuitRunLoopWhenIdle() = 0;
 
-#if BUILDFLAG(IS_IOS) || BUILDFLAG(IS_ANDROID)
+#if defined(OS_IOS) || defined(OS_ANDROID)
   // On iOS, the main message loop cannot be Run().  Instead call
   // AttachToMessagePump(), which connects this ThreadController to the
   // UI thread's CFRunLoop and allows PostTask() to work.
   virtual void AttachToMessagePump() = 0;
 #endif
 
-#if BUILDFLAG(IS_IOS)
+#if defined(OS_IOS)
   // Detaches this ThreadController from the message pump, allowing the
   // controller to be shut down cleanly.
   virtual void DetachFromMessagePump() = 0;
@@ -124,7 +124,7 @@ class ThreadController {
   // with MessageLoop.
 
   virtual bool RunsTasksInCurrentSequence() = 0;
-  virtual void SetTickClock(const TickClock* clock) = 0;
+  virtual const TickClock* GetClock() = 0;
   virtual scoped_refptr<SingleThreadTaskRunner> GetDefaultTaskRunner() = 0;
   virtual void RestoreDefaultTaskRunner() = 0;
   virtual void AddNestingObserver(RunLoop::NestingObserver* observer) = 0;

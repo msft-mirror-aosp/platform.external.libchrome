@@ -20,15 +20,15 @@ EnumTraits<mojo_base::mojom::MessagePumpType, base::MessagePumpType>::ToMojom(
       return mojo_base::mojom::MessagePumpType::kCustom;
     case base::MessagePumpType::IO:
       return mojo_base::mojom::MessagePumpType::kIo;
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
     case base::MessagePumpType::JAVA:
       return mojo_base::mojom::MessagePumpType::kJava;
 #endif
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
     case base::MessagePumpType::NS_RUNLOOP:
       return mojo_base::mojom::MessagePumpType::kNsRunloop;
 #endif
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
     case base::MessagePumpType::UI_WITH_WM_QUIT_SUPPORT:
       return mojo_base::mojom::MessagePumpType::kUiWithWmQuitSupport;
 #endif
@@ -54,17 +54,17 @@ bool EnumTraits<mojo_base::mojom::MessagePumpType, base::MessagePumpType>::
     case mojo_base::mojom::MessagePumpType::kIo:
       *output = base::MessagePumpType::IO;
       return true;
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
     case mojo_base::mojom::MessagePumpType::kJava:
       *output = base::MessagePumpType::JAVA;
       return true;
 #endif
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
     case mojo_base::mojom::MessagePumpType::kNsRunloop:
       *output = base::MessagePumpType::NS_RUNLOOP;
       return true;
 #endif
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
     case mojo_base::mojom::MessagePumpType::kUiWithWmQuitSupport:
       *output = base::MessagePumpType::UI_WITH_WM_QUIT_SUPPORT;
       return true;

@@ -41,7 +41,7 @@ class COMPONENT_EXPORT(IPC) Listener {
       const std::string& interface_name,
       mojo::ScopedInterfaceEndpointHandle handle) {}
 
-#if BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_POSIX) || defined(OS_FUCHSIA)
   // Called on the server side when a channel that listens for connections
   // denies an attempt to connect.
   virtual void OnChannelDenied() {}
@@ -50,10 +50,6 @@ class COMPONENT_EXPORT(IPC) Listener {
   // has an error that causes the listening channel to close.
   virtual void OnChannelListenError() {}
 #endif  // OS_POSIX || OS_FUCHSIA
-
-  // Debugging helper for identifying what kind of a Listener this is.
-  // TODO(https://crbug.com/1113159): Remove this method once the bug is fixed.
-  virtual std::string ToDebugString();
 
  protected:
   virtual ~Listener() {}

@@ -12,7 +12,6 @@
 
 #include "base/bind_internal.h"
 #include "base/compiler_specific.h"
-#include "base/memory/raw_ptr.h"
 #include "base/template_util.h"
 #include "build/build_config.h"
 
@@ -138,11 +137,6 @@ BindFailedCheckPreviousErrors BindRepeating(...);
 template <typename T>
 inline internal::UnretainedWrapper<T> Unretained(T* o) {
   return internal::UnretainedWrapper<T>(o);
-}
-
-template <typename T>
-inline internal::UnretainedWrapper<T> Unretained(const raw_ptr<T>& o) {
-  return internal::UnretainedWrapper<T>(o.get());
 }
 
 // RetainedRef() accepts a ref counted object and retains a reference to it.
@@ -273,7 +267,7 @@ internal::OwnedRefWrapper<std::decay_t<T>> OwnedRef(T&& t) {
 // Both versions of Passed() prevent T from being an lvalue reference. The first
 // via use of enable_if, and the second takes a T* which will not bind to T&.
 template <typename T,
-          std::enable_if_t<!std::is_lvalue_reference_v<T>>* = nullptr>
+          std::enable_if_t<!std::is_lvalue_reference<T>::value>* = nullptr>
 inline internal::PassedWrapper<T> Passed(T&& scoper) {
   return internal::PassedWrapper<T>(std::move(scoper));
 }

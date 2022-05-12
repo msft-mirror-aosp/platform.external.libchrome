@@ -9,14 +9,9 @@
 #include <string>
 #include <tuple>
 
-#include "build/build_config.h"
 #include "ui/gfx/geometry/geometry_export.h"
 #include "ui/gfx/geometry/point.h"
 #include "ui/gfx/geometry/vector2d_f.h"
-
-#if defined(OS_APPLE)
-struct CGPoint;
-#endif
 
 namespace gfx {
 
@@ -28,11 +23,6 @@ class GEOMETRY_EXPORT PointF {
 
   constexpr explicit PointF(const Point& p)
       : PointF(static_cast<float>(p.x()), static_cast<float>(p.y())) {}
-
-#if defined(OS_APPLE)
-  explicit PointF(const CGPoint&);
-  CGPoint ToCGPoint() const;
-#endif
 
   constexpr float x() const { return x_; }
   constexpr float y() const { return y_; }
@@ -49,12 +39,12 @@ class GEOMETRY_EXPORT PointF {
     y_ += delta_y;
   }
 
-  constexpr void operator+=(const Vector2dF& vector) {
+  void operator+=(const Vector2dF& vector) {
     x_ += vector.x();
     y_ += vector.y();
   }
 
-  constexpr void operator-=(const Vector2dF& vector) {
+  void operator-=(const Vector2dF& vector) {
     x_ -= vector.x();
     y_ -= vector.y();
   }
@@ -64,7 +54,7 @@ class GEOMETRY_EXPORT PointF {
 
   bool IsOrigin() const { return x_ == 0 && y_ == 0; }
 
-  constexpr Vector2dF OffsetFromOrigin() const { return Vector2dF(x_, y_); }
+  Vector2dF OffsetFromOrigin() const { return Vector2dF(x_, y_); }
 
   // A point is less than another point if its y-value is closer
   // to the origin. If the y-values are the same, then point with
@@ -84,10 +74,7 @@ class GEOMETRY_EXPORT PointF {
     SetPoint(x() * x_scale, y() * y_scale);
   }
 
-  void Transpose() {
-    using std::swap;
-    swap(x_, y_);
-  }
+  void Transpose() { std::swap(x_, y_); }
 
   // Uses the Pythagorean theorem to determine the straight line distance
   // between the two points, and returns true if it is less than
@@ -102,21 +89,21 @@ class GEOMETRY_EXPORT PointF {
   float y_;
 };
 
-constexpr bool operator==(const PointF& lhs, const PointF& rhs) {
+inline bool operator==(const PointF& lhs, const PointF& rhs) {
   return lhs.x() == rhs.x() && lhs.y() == rhs.y();
 }
 
-constexpr bool operator!=(const PointF& lhs, const PointF& rhs) {
+inline bool operator!=(const PointF& lhs, const PointF& rhs) {
   return !(lhs == rhs);
 }
 
-constexpr PointF operator+(const PointF& lhs, const Vector2dF& rhs) {
+inline PointF operator+(const PointF& lhs, const Vector2dF& rhs) {
   PointF result(lhs);
   result += rhs;
   return result;
 }
 
-constexpr PointF operator-(const PointF& lhs, const Vector2dF& rhs) {
+inline PointF operator-(const PointF& lhs, const Vector2dF& rhs) {
   PointF result(lhs);
   result -= rhs;
   return result;

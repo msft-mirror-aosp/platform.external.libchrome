@@ -29,12 +29,12 @@
 #include "base/threading/thread_task_runner_handle.h"
 #include "build/build_config.h"
 
-#if BUILDFLAG(IS_POSIX) && !BUILDFLAG(IS_NACL)
+#if defined(OS_POSIX) && !defined(OS_NACL)
 #include "base/files/file_descriptor_watcher_posix.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
 #endif
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "base/win/scoped_com_initializer.h"
 #endif
 
@@ -157,7 +157,7 @@ bool Thread::Start() {
   DCHECK(owning_sequence_checker_.CalledOnValidSequence());
 
   Options options;
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   if (com_status_ == STA)
     options.message_pump_type = MessagePumpType::UI;
 #endif
@@ -171,7 +171,7 @@ bool Thread::StartWithOptions(Options options) {
   DCHECK(!IsRunning());
   DCHECK(!stopping_) << "Starting a non-joinable thread a second time? That's "
                      << "not allowed!";
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   DCHECK((com_status_ != STA) ||
          (options.message_pump_type == MessagePumpType::UI));
 #endif
@@ -371,7 +371,7 @@ void Thread::ThreadMain() {
   DCHECK(CurrentThread::Get());
   DCHECK(ThreadTaskRunnerHandle::IsSet());
 
-#if BUILDFLAG(IS_POSIX) && !BUILDFLAG(IS_NACL)
+#if defined(OS_POSIX) && !defined(OS_NACL)
   // Allow threads running a MessageLoopForIO to use FileDescriptorWatcher API.
   std::unique_ptr<FileDescriptorWatcher> file_descriptor_watcher;
   if (CurrentIOThread::IsSet()) {
@@ -380,7 +380,7 @@ void Thread::ThreadMain() {
   }
 #endif
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   std::unique_ptr<win::ScopedCOMInitializer> com_initializer;
   if (com_status_ != NONE) {
     com_initializer.reset(
@@ -412,7 +412,7 @@ void Thread::ThreadMain() {
   // Let the thread do extra cleanup.
   CleanUp();
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   com_initializer.reset();
 #endif
 

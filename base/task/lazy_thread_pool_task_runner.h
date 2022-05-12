@@ -9,6 +9,7 @@
 
 #include "base/atomicops.h"
 #include "base/callback.h"
+#include "base/compiler_specific.h"
 #include "base/task/common/checked_lock.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/task/single_thread_task_runner.h"
@@ -76,7 +77,7 @@ using LazyThreadPoolSequencedTaskRunner =
 using LazyThreadPoolSingleThreadTaskRunner =
     internal::LazyThreadPoolTaskRunner<SingleThreadTaskRunner, false>;
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 // Lazy COM-STA enabled SingleThreadTaskRunner.
 using LazyThreadPoolCOMSTATaskRunner =
     internal::LazyThreadPoolTaskRunner<SingleThreadTaskRunner, true>;
@@ -94,7 +95,7 @@ using LazyThreadPoolCOMSTATaskRunner =
 // |traits| are TaskTraits used when creating the SequencedTaskRunner.
 #define LAZY_THREAD_POOL_SEQUENCED_TASK_RUNNER_INITIALIZER(traits)     \
   base::LazyThreadPoolSequencedTaskRunner::CreateInternal(traits);     \
-  [[maybe_unused]] constexpr base::TaskTraits                          \
+  ALLOW_UNUSED_TYPE constexpr base::TaskTraits                         \
       LAZY_TASK_RUNNER_CONCATENATE_INTERNAL(kVerifyTraitsAreConstexpr, \
                                             __LINE__) = traits
 
@@ -105,10 +106,10 @@ using LazyThreadPoolCOMSTATaskRunner =
                                                                thread_mode) \
   base::LazyThreadPoolSingleThreadTaskRunner::CreateInternal(traits,        \
                                                              thread_mode);  \
-  [[maybe_unused]] constexpr base::TaskTraits                               \
+  ALLOW_UNUSED_TYPE constexpr base::TaskTraits                              \
       LAZY_TASK_RUNNER_CONCATENATE_INTERNAL(kVerifyTraitsAreConstexpr,      \
                                             __LINE__) = traits;             \
-  [[maybe_unused]] constexpr base::SingleThreadTaskRunnerThreadMode         \
+  ALLOW_UNUSED_TYPE constexpr base::SingleThreadTaskRunnerThreadMode        \
       LAZY_TASK_RUNNER_CONCATENATE_INTERNAL(kVerifyThreadModeIsConstexpr,   \
                                             __LINE__) = thread_mode
 
@@ -118,10 +119,10 @@ using LazyThreadPoolCOMSTATaskRunner =
 // SingleThreadTaskRunners.
 #define LAZY_COM_STA_TASK_RUNNER_INITIALIZER(traits, thread_mode)            \
   base::LazyThreadPoolCOMSTATaskRunner::CreateInternal(traits, thread_mode); \
-  [[maybe_unused]] constexpr base::TaskTraits                                \
+  ALLOW_UNUSED_TYPE constexpr base::TaskTraits                               \
       LAZY_TASK_RUNNER_CONCATENATE_INTERNAL(kVerifyTraitsAreConstexpr,       \
                                             __LINE__) = traits;              \
-  [[maybe_unused]] constexpr base::SingleThreadTaskRunnerThreadMode          \
+  ALLOW_UNUSED_TYPE constexpr base::SingleThreadTaskRunnerThreadMode         \
       LAZY_TASK_RUNNER_CONCATENATE_INTERNAL(kVerifyThreadModeIsConstexpr,    \
                                             __LINE__) = thread_mode
 
@@ -204,7 +205,7 @@ class BASE_EXPORT ScopedLazyTaskRunnerListForTesting {
   friend class LazyThreadPoolTaskRunner<SequencedTaskRunner, false>;
   friend class LazyThreadPoolTaskRunner<SingleThreadTaskRunner, false>;
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   friend class LazyThreadPoolTaskRunner<SingleThreadTaskRunner, true>;
 #endif
 

@@ -14,7 +14,6 @@
 #include "base/check_op.h"
 #include "base/containers/span.h"
 #include "base/gtest_prod_util.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
 #include "base/strings/string_piece.h"
 
@@ -34,47 +33,47 @@ class BASE_EXPORT PickleIterator {
   // methods return true. Otherwise, false is returned to indicate that the
   // result could not be extracted. It is not possible to read from the iterator
   // after that.
-  [[nodiscard]] bool ReadBool(bool* result);
-  [[nodiscard]] bool ReadInt(int* result);
-  [[nodiscard]] bool ReadLong(long* result);
-  [[nodiscard]] bool ReadUInt16(uint16_t* result);
-  [[nodiscard]] bool ReadUInt32(uint32_t* result);
-  [[nodiscard]] bool ReadInt64(int64_t* result);
-  [[nodiscard]] bool ReadUInt64(uint64_t* result);
-  [[nodiscard]] bool ReadFloat(float* result);
-  [[nodiscard]] bool ReadDouble(double* result);
-  [[nodiscard]] bool ReadString(std::string* result);
+  bool ReadBool(bool* result) WARN_UNUSED_RESULT;
+  bool ReadInt(int* result) WARN_UNUSED_RESULT;
+  bool ReadLong(long* result) WARN_UNUSED_RESULT;
+  bool ReadUInt16(uint16_t* result) WARN_UNUSED_RESULT;
+  bool ReadUInt32(uint32_t* result) WARN_UNUSED_RESULT;
+  bool ReadInt64(int64_t* result) WARN_UNUSED_RESULT;
+  bool ReadUInt64(uint64_t* result) WARN_UNUSED_RESULT;
+  bool ReadFloat(float* result) WARN_UNUSED_RESULT;
+  bool ReadDouble(double* result) WARN_UNUSED_RESULT;
+  bool ReadString(std::string* result) WARN_UNUSED_RESULT;
   // The StringPiece data will only be valid for the lifetime of the message.
-  [[nodiscard]] bool ReadStringPiece(StringPiece* result);
-  [[nodiscard]] bool ReadString16(std::u16string* result);
+  bool ReadStringPiece(StringPiece* result) WARN_UNUSED_RESULT;
+  bool ReadString16(std::u16string* result) WARN_UNUSED_RESULT;
   // The StringPiece16 data will only be valid for the lifetime of the message.
-  [[nodiscard]] bool ReadStringPiece16(StringPiece16* result);
+  bool ReadStringPiece16(StringPiece16* result) WARN_UNUSED_RESULT;
 
   // A pointer to the data will be placed in |*data|, and the length will be
   // placed in |*length|. The pointer placed into |*data| points into the
   // message's buffer so it will be scoped to the lifetime of the message (or
   // until the message data is mutated). Do not keep the pointer around!
-  [[nodiscard]] bool ReadData(const char** data, int* length);
+  bool ReadData(const char** data, int* length) WARN_UNUSED_RESULT;
 
   // Similar, but using base::span for convenience.
-  [[nodiscard]] bool ReadData(base::span<const uint8_t>* data);
+  bool ReadData(base::span<const uint8_t>* data) WARN_UNUSED_RESULT;
 
   // A pointer to the data will be placed in |*data|. The caller specifies the
   // number of bytes to read, and ReadBytes will validate this length. The
   // pointer placed into |*data| points into the message's buffer so it will be
   // scoped to the lifetime of the message (or until the message data is
   // mutated). Do not keep the pointer around!
-  [[nodiscard]] bool ReadBytes(const char** data, int length);
+  bool ReadBytes(const char** data, int length) WARN_UNUSED_RESULT;
 
   // A safer version of ReadInt() that checks for the result not being negative.
   // Use it for reading the object sizes.
-  [[nodiscard]] bool ReadLength(int* result) {
+  bool ReadLength(int* result) WARN_UNUSED_RESULT {
     return ReadInt(result) && *result >= 0;
   }
 
   // Skips bytes in the read buffer and returns true if there are at least
   // num_bytes available. Otherwise, does nothing and returns false.
-  [[nodiscard]] bool SkipBytes(int num_bytes) {
+  bool SkipBytes(int num_bytes) WARN_UNUSED_RESULT {
     return !!GetReadPointerAndAdvance(num_bytes);
   }
 
@@ -255,7 +254,7 @@ class BASE_EXPORT Pickle {
   }
 
   const char* payload() const {
-    return reinterpret_cast<const char*>(header_.get()) + header_size_;
+    return reinterpret_cast<const char*>(header_) + header_size_;
   }
 
   // Returns the address of the byte immediately following the currently valid
@@ -271,7 +270,7 @@ class BASE_EXPORT Pickle {
   size_t header_size() const { return header_size_; }
 
   char* mutable_payload() {
-    return reinterpret_cast<char*>(header_.get()) + header_size_;
+    return reinterpret_cast<char*>(header_) + header_size_;
   }
 
   size_t capacity_after_header() const {
@@ -313,7 +312,7 @@ class BASE_EXPORT Pickle {
  private:
   friend class PickleIterator;
 
-  raw_ptr<Header> header_;
+  Header* header_;
   size_t header_size_;  // Supports extra data between header and payload.
   // Allocation size of payload (or -1 if allocation is const). Note: this
   // doesn't count the header.

@@ -25,7 +25,7 @@ class BASE_EXPORT ScopedLoggingSettings {
   ScopedLoggingSettings(const ScopedLoggingSettings&) = delete;
   ScopedLoggingSettings& operator=(const ScopedLoggingSettings&) = delete;
 
-#if BUILDFLAG(IS_CHROMEOS)
+#if BUILDFLAG(IS_CHROMEOS_ASH)
   void SetLogFormat(LogFormat) const;
 #endif
 
@@ -36,9 +36,9 @@ class BASE_EXPORT ScopedLoggingSettings {
   const int min_log_level_;
   const uint32_t logging_destination_;
 
-#if BUILDFLAG(IS_CHROMEOS)
+#if BUILDFLAG(IS_CHROMEOS_ASH)
   const LogFormat log_format_;
-#endif  // BUILDFLAG(IS_CHROMEOS)
+#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 
   std::unique_ptr<base::FilePath::StringType> log_file_name_;
 

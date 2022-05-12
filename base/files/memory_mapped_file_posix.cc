@@ -21,7 +21,7 @@ namespace base {
 
 MemoryMappedFile::MemoryMappedFile() : data_(nullptr), length_(0) {}
 
-#if !BUILDFLAG(IS_NACL)
+#if !defined(OS_NACL)
 bool MemoryMappedFile::MapFileRegionToMemory(
     const MemoryMappedFile::Region& region,
     Access access) {

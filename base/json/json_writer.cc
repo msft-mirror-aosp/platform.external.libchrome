@@ -20,7 +20,7 @@
 
 namespace base {
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 const char kPrettyPrintLineEnding[] = "\r\n";
 #else
 const char kPrettyPrintLineEnding[] = "\n";

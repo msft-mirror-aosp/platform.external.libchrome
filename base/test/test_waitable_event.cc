@@ -6,8 +6,6 @@
 
 #include <utility>
 
-#include "build/build_config.h"
-
 namespace base {
 
 TestWaitableEvent::TestWaitableEvent(ResetPolicy reset_policy,
@@ -20,7 +18,7 @@ TestWaitableEvent::TestWaitableEvent(ResetPolicy reset_policy,
   declare_only_used_while_idle();
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 TestWaitableEvent::TestWaitableEvent(win::ScopedHandle event_handle)
     : WaitableEvent(std::move(event_handle)) {
   declare_only_used_while_idle();

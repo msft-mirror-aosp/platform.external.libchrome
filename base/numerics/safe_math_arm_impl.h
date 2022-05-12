@@ -16,10 +16,9 @@ namespace internal {
 template <typename T, typename U>
 struct CheckedMulFastAsmOp {
   static const bool is_supported =
-      kEnableAsmCode && FastIntegerArithmeticPromotion<T, U>::is_contained;
+      FastIntegerArithmeticPromotion<T, U>::is_contained;
 
-  // The following is not an assembler routine and is thus constexpr safe, it
-  // just emits much more efficient code than the Clang and GCC builtins for
+  // The following is much more efficient than the Clang and GCC builtins for
   // performing overflow-checked multiplication when a twice wider type is
   // available. The below compiles down to 2-3 instructions, depending on the
   // width of the types in use.
@@ -31,7 +30,7 @@ struct CheckedMulFastAsmOp {
   //    asr     r2, r1, #16
   //    cmp     r2, r1, asr #15
   template <typename V>
-  static constexpr bool Do(T x, U y, V* result) {
+  __attribute__((always_inline)) static bool Do(T x, U y, V* result) {
     using Promotion = typename FastIntegerArithmeticPromotion<T, U>::type;
     Promotion presult;
 
@@ -46,7 +45,7 @@ struct CheckedMulFastAsmOp {
 template <typename T, typename U>
 struct ClampedAddFastAsmOp {
   static const bool is_supported =
-      kEnableAsmCode && BigEnoughPromotion<T, U>::is_contained &&
+      BigEnoughPromotion<T, U>::is_contained &&
       IsTypeInRangeForNumericType<
           int32_t,
           typename BigEnoughPromotion<T, U>::type>::value;
@@ -72,7 +71,7 @@ struct ClampedAddFastAsmOp {
 template <typename T, typename U>
 struct ClampedSubFastAsmOp {
   static const bool is_supported =
-      kEnableAsmCode && BigEnoughPromotion<T, U>::is_contained &&
+      BigEnoughPromotion<T, U>::is_contained &&
       IsTypeInRangeForNumericType<
           int32_t,
           typename BigEnoughPromotion<T, U>::type>::value;
@@ -97,8 +96,7 @@ struct ClampedSubFastAsmOp {
 
 template <typename T, typename U>
 struct ClampedMulFastAsmOp {
-  static const bool is_supported =
-      kEnableAsmCode && CheckedMulFastAsmOp<T, U>::is_supported;
+  static const bool is_supported = CheckedMulFastAsmOp<T, U>::is_supported;
 
   template <typename V>
   __attribute__((always_inline)) static V Do(T x, U y) {

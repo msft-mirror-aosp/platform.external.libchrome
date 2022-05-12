@@ -7,11 +7,10 @@
 #include <stdio.h>
 #include <algorithm>
 #include <string>
-#include <tuple>
 #include <utility>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/numerics/safe_math.h"
 #include "base/run_loop.h"
 #include "base/test/task_environment.h"
@@ -197,7 +196,7 @@ void RunValidationTests(const std::string& prefix,
     base::RunLoop run_loop;
     mojo::internal::ValidationErrorObserverForTesting observer(
         run_loop.QuitClosure());
-    std::ignore = test_message_receiver->Accept(&message);
+    ignore_result(test_message_receiver->Accept(&message));
     if (expected != "PASS")  // Observer only gets called on errors.
       run_loop.Run();
     if (observer.last_error() == mojo::internal::VALIDATION_ERROR_NONE)
@@ -288,13 +287,13 @@ class ValidationIntegrationTest : public ValidationTest {
     }
 
    public:
-    raw_ptr<ValidationIntegrationTest> owner_;
+    ValidationIntegrationTest* owner_;
     mojo::Connector connector_;
   };
 
   void PumpMessages() { base::RunLoop().RunUntilIdle(); }
 
-  raw_ptr<TestMessageReceiver> test_message_receiver_;
+  TestMessageReceiver* test_message_receiver_;
   ScopedMessagePipeHandle testee_endpoint_;
 };
 

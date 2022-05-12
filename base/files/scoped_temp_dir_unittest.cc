@@ -108,7 +108,7 @@ TEST(ScopedTempDir, Move) {
   EXPECT_FALSE(DirectoryExists(dir_path));
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 TEST(ScopedTempDir, LockedTempDir) {
   ScopedTempDir dir;
   EXPECT_TRUE(dir.CreateUniqueTempDir());
@@ -122,6 +122,6 @@ TEST(ScopedTempDir, LockedTempDir) {
   // Now, we should be able to delete.
   EXPECT_TRUE(dir.Delete());
 }
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
 }  // namespace base

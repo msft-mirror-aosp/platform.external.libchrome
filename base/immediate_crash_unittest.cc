@@ -8,6 +8,7 @@
 
 #include "base/base_paths.h"
 #include "base/clang_profiling_buildflags.h"
+#include "base/compiler_specific.h"
 #include "base/containers/span.h"
 #include "base/files/file_path.h"
 #include "base/path_service.h"
@@ -25,7 +26,7 @@ namespace {
 
 // If IMMEDIATE_CRASH() is not treated as noreturn by the compiler, the compiler
 // will complain that not all paths through this function return a value.
-[[maybe_unused]] int TestImmediateCrashTreatedAsNoReturn() {
+int ALLOW_UNUSED_TYPE TestImmediateCrashTreatedAsNoReturn() {
   IMMEDIATE_CRASH();
 }
 

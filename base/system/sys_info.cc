@@ -23,21 +23,14 @@
 
 namespace base {
 namespace {
-// Updated Desktop default threshold to match the Android 2021 definition.
-constexpr int64_t kLowMemoryDeviceThresholdMB = 2048;
+static const int kLowMemoryDeviceThresholdMB = 512;
 }  // namespace
 
 // static
 int64_t SysInfo::AmountOfPhysicalMemory() {
   if (base::CommandLine::ForCurrentProcess()->HasSwitch(
           switches::kEnableLowEndDeviceMode)) {
-    // Keep using 512MB as the simulated RAM amount for when users or tests have
-    // manually enabled low-end device mode. Note this value is different from
-    // the threshold used for low end devices.
-    constexpr int64_t kSimulatedMemoryForEnableLowEndDeviceMode =
-        512 * 1024 * 1024;
-    return std::min(kSimulatedMemoryForEnableLowEndDeviceMode,
-                    AmountOfPhysicalMemoryImpl());
+    return kLowMemoryDeviceThresholdMB * 1024 * 1024;
   }
 
   return AmountOfPhysicalMemoryImpl();
@@ -49,9 +42,9 @@ int64_t SysInfo::AmountOfAvailablePhysicalMemory() {
           switches::kEnableLowEndDeviceMode)) {
     // Estimate the available memory by subtracting our memory used estimate
     // from the fake |kLowMemoryDeviceThresholdMB| limit.
-    int64_t memory_used =
+    size_t memory_used =
         AmountOfPhysicalMemoryImpl() - AmountOfAvailablePhysicalMemoryImpl();
-    int64_t memory_limit = kLowMemoryDeviceThresholdMB * 1024 * 1024;
+    size_t memory_limit = kLowMemoryDeviceThresholdMB * 1024 * 1024;
     // std::min ensures no underflow, as |memory_used| can be > |memory_limit|.
     return memory_limit - std::min(memory_used, memory_limit);
   }
@@ -68,9 +61,8 @@ bool SysInfo::IsLowEndDevice() {
   return IsLowEndDeviceImpl();
 }
 
-#if !BUILDFLAG(IS_ANDROID)
-// The Android equivalent of this lives in `detectLowEndDevice()` at:
-// base/android/java/src/org/chromium/base/SysUtils.java
+#if !defined(OS_ANDROID)
+
 bool DetectLowEndDevice() {
   CommandLine* command_line = CommandLine::ForCurrentProcess();
   if (command_line->HasSwitch(switches::kEnableLowEndDeviceMode))
@@ -89,7 +81,7 @@ bool SysInfo::IsLowEndDeviceImpl() {
 }
 #endif
 
-#if !BUILDFLAG(IS_APPLE) && !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_WIN) && \
+#if !defined(OS_APPLE) && !defined(OS_ANDROID) && !defined(OS_WIN) && \
     !BUILDFLAG(IS_CHROMEOS_ASH) && !BUILDFLAG(IS_CHROMEOS_LACROS)
 std::string SysInfo::HardwareModelName() {
   return std::string();
@@ -97,10 +89,10 @@ std::string SysInfo::HardwareModelName() {
 #endif
 
 void SysInfo::GetHardwareInfo(base::OnceCallback<void(HardwareInfo)> callback) {
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_APPLE)
+#if defined(OS_WIN) || defined(OS_ANDROID) || defined(OS_APPLE)
   base::ThreadPool::PostTaskAndReplyWithResult(
       FROM_HERE, {}, base::BindOnce(&GetHardwareInfoSync), std::move(callback));
-#elif BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#elif defined(OS_LINUX) || defined(OS_CHROMEOS)
   base::ThreadPool::PostTaskAndReplyWithResult(
       FROM_HERE, {base::MayBlock()}, base::BindOnce(&GetHardwareInfoSync),
       std::move(callback));

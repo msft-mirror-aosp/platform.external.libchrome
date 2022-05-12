@@ -32,7 +32,7 @@ struct ScopedPathUnlinkerTraits {
 using ScopedPathUnlinker =
     ScopedGeneric<const FilePath*, ScopedPathUnlinkerTraits>;
 
-#if !BUILDFLAG(IS_NACL)
+#if !defined(OS_NACL)
 bool CheckFDAccessMode(int fd, int expected_mode) {
   int fd_status = fcntl(fd, F_GETFL);
   if (fd_status == -1) {
@@ -51,7 +51,7 @@ bool CheckFDAccessMode(int fd, int expected_mode) {
 
   return true;
 }
-#endif  // !BUILDFLAG(IS_NACL)
+#endif  // !defined(OS_NACL)
 
 }  // namespace
 
@@ -70,7 +70,7 @@ FDPair ScopedFDPair::get() const {
   return {fd.get(), readonly_fd.get()};
 }
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
 // static
 ScopedFD PlatformSharedMemoryRegion::ExecutableRegion::CreateFD(size_t size) {
   PlatformSharedMemoryRegion region =
@@ -79,7 +79,7 @@ ScopedFD PlatformSharedMemoryRegion::ExecutableRegion::CreateFD(size_t size) {
     return region.PassPlatformHandle().fd;
   return ScopedFD();
 }
-#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS)
 
 // static
 PlatformSharedMemoryRegion PlatformSharedMemoryRegion::Take(
@@ -204,12 +204,12 @@ bool PlatformSharedMemoryRegion::MapAtInternal(off_t offset,
 // static
 PlatformSharedMemoryRegion PlatformSharedMemoryRegion::Create(Mode mode,
                                                               size_t size
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
                                                               ,
                                                               bool executable
 #endif
 ) {
-#if BUILDFLAG(IS_NACL)
+#if defined(OS_NACL)
   // Untrusted code can't create descriptors or handles.
   return {};
 #else
@@ -233,7 +233,7 @@ PlatformSharedMemoryRegion PlatformSharedMemoryRegion::Create(Mode mode,
   // flag.
   FilePath directory;
   if (!GetShmemTempDir(
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
           executable,
 #else
           false /* executable */,
@@ -301,14 +301,14 @@ PlatformSharedMemoryRegion PlatformSharedMemoryRegion::Create(Mode mode,
   return PlatformSharedMemoryRegion(
       {ScopedFD(shm_file.TakePlatformFile()), std::move(readonly_fd)}, mode,
       size, UnguessableToken::Create());
-#endif  // !BUILDFLAG(IS_NACL)
+#endif  // !defined(OS_NACL)
 }
 
 bool PlatformSharedMemoryRegion::CheckPlatformHandlePermissionsCorrespondToMode(
     PlatformHandle handle,
     Mode mode,
     size_t size) {
-#if !BUILDFLAG(IS_NACL)
+#if !defined(OS_NACL)
   if (!CheckFDAccessMode(handle.fd,
                          mode == Mode::kReadOnly ? O_RDONLY : O_RDWR)) {
     return false;
@@ -330,7 +330,7 @@ bool PlatformSharedMemoryRegion::CheckPlatformHandlePermissionsCorrespondToMode(
   // We also cannot try to mmap() a region as writable and look at the return
   // status because the plugin process crashes if system mmap() fails.
   return true;
-#endif  // !BUILDFLAG(IS_NACL)
+#endif  // !defined(OS_NACL)
 }
 
 PlatformSharedMemoryRegion::PlatformSharedMemoryRegion(

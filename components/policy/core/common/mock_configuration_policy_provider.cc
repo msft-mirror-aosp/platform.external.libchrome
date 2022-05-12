@@ -19,11 +19,7 @@ namespace policy {
 
 MockConfigurationPolicyProvider::MockConfigurationPolicyProvider() {}
 
-MockConfigurationPolicyProvider::~MockConfigurationPolicyProvider() {
-#if BUILDFLAG(IS_ANDROID)
-  ShutdownForTesting();
-#endif  // BUILDFLAG(IS_ANDROID)
-}
+MockConfigurationPolicyProvider::~MockConfigurationPolicyProvider() {}
 
 void MockConfigurationPolicyProvider::UpdateChromePolicy(
     const PolicyMap& policy) {
@@ -32,10 +28,10 @@ void MockConfigurationPolicyProvider::UpdateChromePolicy(
       policy.Clone();
   UpdatePolicy(std::move(bundle));
   bool spin_run_loop = base::CurrentThread::IsSet();
-#if BUILDFLAG(IS_IOS)
+#if defined(OS_IOS)
   // On iOS, the UI message loop does not support RunUntilIdle().
   spin_run_loop &= !base::CurrentUIThread::IsSet();
-#endif  // BUILDFLAG(IS_IOS)
+#endif  // defined(OS_IOS)
   if (spin_run_loop)
     base::RunLoop().RunUntilIdle();
 }

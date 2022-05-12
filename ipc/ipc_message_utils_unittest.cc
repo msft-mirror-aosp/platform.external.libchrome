@@ -18,7 +18,7 @@
 #include "ipc/ipc_message.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include <windows.h>
 #endif
 
@@ -235,7 +235,7 @@ TEST(IPCMessageUtilsTest, StrongAlias) {
   EXPECT_EQ(input, output);
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 TEST(IPCMessageUtilsTest, ScopedHandle) {
   HANDLE raw_dupe_handle;
   ASSERT_TRUE(::DuplicateHandle(::GetCurrentProcess(), ::GetCurrentProcess(),
@@ -251,7 +251,7 @@ TEST(IPCMessageUtilsTest, ScopedHandle) {
   EXPECT_TRUE(ReadParam(&message, &iter, &read_handle));
   EXPECT_TRUE(read_handle.IsValid());
 }
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
 }  // namespace
 }  // namespace IPC

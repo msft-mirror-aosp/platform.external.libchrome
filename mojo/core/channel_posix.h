@@ -9,6 +9,7 @@
 
 #include "base/containers/queue.h"
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/message_loop/message_pump_for_io.h"
 #include "base/synchronization/lock.h"
@@ -81,7 +82,7 @@ class ChannelPosix : public Channel,
   bool WriteNoLock(MessageView message_view);
   bool FlushOutgoingMessagesNoLock();
 
-#if !BUILDFLAG(IS_NACL)
+#if !defined(OS_NACL)
   bool WriteOutgoingMessagesWithWritev();
 
   // FlushOutgoingMessagesWritevNoLock is equivalent to
@@ -91,11 +92,11 @@ class ChannelPosix : public Channel,
   // needs to be transferred we cannot use writev(2) and instead will fall
   // back to the standard write.
   bool FlushOutgoingMessagesWritevNoLock();
-#endif  // !BUILDFLAG(IS_NACL)
+#endif  // !defined(OS_NACL)
 
-#if BUILDFLAG(IS_IOS)
+#if defined(OS_IOS)
   bool CloseHandles(const int* fds, size_t num_fds);
-#endif  // BUILDFLAG(IS_IOS)
+#endif  // defined(OS_IOS)
 
   // We may be initialized with a server socket, in which case this will be
   // valid until it accepts an incoming connection.
@@ -119,10 +120,10 @@ class ChannelPosix : public Channel,
 
   bool leak_handle_ = false;
 
-#if BUILDFLAG(IS_IOS)
+#if defined(OS_IOS)
   base::Lock fds_to_close_lock_;
   std::vector<base::ScopedFD> fds_to_close_;
-#endif  // BUILDFLAG(IS_IOS)
+#endif  // defined(OS_IOS)
 };
 
 }  // namespace core

@@ -7,14 +7,13 @@
 
 #include <algorithm>
 #include <memory>
-#include <tuple>
 #include <utility>
 
 #include "base/bind.h"
 #include "base/callback.h"
 #include "base/callback_helpers.h"
+#include "base/macros.h"
 #include "base/memory/ptr_util.h"
-#include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
 #include "base/synchronization/waitable_event.h"
 #include "base/task/post_task.h"
@@ -257,7 +256,7 @@ class TestSender {
 
  private:
   scoped_refptr<base::SequencedTaskRunner> task_runner_;
-  raw_ptr<TestSender> next_sender_;
+  TestSender* next_sender_;
   int32_t max_value_to_send_;
 
   AssociatedRemote<IntegerSender> remote_;
@@ -828,7 +827,7 @@ TEST_F(AssociatedInterfaceTest, RemoteFlushForTesting) {
 
 TEST_F(AssociatedInterfaceTest, RemoteFlushForTestingWithClosedPeer) {
   Remote<IntegerSenderConnection> remote;
-  std::ignore = remote.BindNewPipeAndPassReceiver();
+  ignore_result(remote.BindNewPipeAndPassReceiver());
   bool called = false;
   remote.set_disconnect_handler(
       base::BindLambdaForTesting([&] { called = true; }));

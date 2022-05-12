@@ -203,7 +203,7 @@ _primitive_kind_to_fuzz_type = {
 }
 
 
-_SHARED_MODULE_PREFIX = 'chrome://resources/'
+_SHARED_MODULE_PREFIX = 'chrome://resources/mojo'
 
 
 def _GetWebUiModulePath(module):

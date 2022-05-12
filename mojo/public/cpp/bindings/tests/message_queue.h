@@ -6,6 +6,7 @@
 #define MOJO_PUBLIC_CPP_BINDINGS_TESTS_MESSAGE_QUEUE_H_
 
 #include "base/containers/queue.h"
+#include "base/macros.h"
 #include "mojo/public/cpp/bindings/message.h"
 
 namespace mojo {

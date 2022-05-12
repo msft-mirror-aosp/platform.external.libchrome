@@ -162,7 +162,7 @@ void TestCanRunPolicyLoad(Target* target,
 
     // Post less tasks on iOS to avoid timeouts.
     const size_t kLargeNumber =
-#if BUILDFLAG(IS_IOS)
+#if defined(OS_IOS)
         16;
 #else
         256;

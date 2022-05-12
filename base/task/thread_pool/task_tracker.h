@@ -15,7 +15,6 @@
 #include "base/atomicops.h"
 #include "base/base_export.h"
 #include "base/callback_forward.h"
-#include "base/containers/circular_deque.h"
 #include "base/sequence_checker.h"
 #include "base/strings/string_piece.h"
 #include "base/synchronization/waitable_event.h"
@@ -100,7 +99,8 @@ class BASE_EXPORT TaskTracker {
   // Informs this TaskTracker that |task| that is about to be pushed to a task
   // source with |priority|. Returns true if this operation is allowed (the
   // operation should be performed if-and-only-if it is).
-  [[nodiscard]] bool WillPostTaskNow(const Task& task, TaskPriority priority);
+  bool WillPostTaskNow(const Task& task,
+                       TaskPriority priority) WARN_UNUSED_RESULT;
 
   // Informs this TaskTracker that |task_source| is about to be queued. Returns
   // a RegisteredTaskSource that should be queued if-and-only-if it evaluates to
@@ -117,11 +117,7 @@ class BASE_EXPORT TaskTracker {
   // (which indicates that it should be reenqueued). WillPostTask() must have
   // allowed the task in front of |task_source| to be posted before this is
   // called.
-  // |posted_from| is optionally used to capture base::Location of the task ran
-  // for investigation of memory corruption.
-  // TODO(crbug.com/1218384): Remove |posted_from| once resolved.
-  RegisteredTaskSource RunAndPopNextTask(RegisteredTaskSource task_source,
-                                         base::Location* posted_from = nullptr);
+  RegisteredTaskSource RunAndPopNextTask(RegisteredTaskSource task_source);
 
   // Returns true once shutdown has started (StartShutdown() was called).
   // Note: sequential consistency with the thread calling StartShutdown() isn't
@@ -188,8 +184,9 @@ class BASE_EXPORT TaskTracker {
   // if it reaches zero.
   void DecrementNumIncompleteTaskSources();
 
-  // Invokes all |flush_callbacks_for_testing_| if any in a lock-safe manner.
-  void InvokeFlushCallbacksForTesting();
+  // Calls |flush_callback_for_testing_| if one is available in a lock-safe
+  // manner.
+  void CallFlushCallbackForTesting();
 
   // Dummy frames to allow identification of shutdown behavior in a stack trace.
   void RunContinueOnShutdown(Task& task,
@@ -244,17 +241,16 @@ class BASE_EXPORT TaskTracker {
   // |num_incomplete_task_sources_|. Full synchronization isn't needed
   // because it's atomic, but synchronization is needed to coordinate waking and
   // sleeping at the right time. Fully synchronizes access to
-  // |flush_callbacks_for_testing_|.
+  // |flush_callback_for_testing_|.
   mutable CheckedLock flush_lock_;
 
   // Signaled when |num_incomplete_task_sources_| is or reaches zero or when
   // shutdown completes.
   const std::unique_ptr<ConditionVariable> flush_cv_;
 
-  // All invoked, if any, when |num_incomplete_task_sources_| is zero or when
+  // Invoked if non-null when |num_incomplete_task_sources_| is zero or when
   // shutdown completes.
-  base::circular_deque<OnceClosure> flush_callbacks_for_testing_
-      GUARDED_BY(flush_lock_);
+  OnceClosure flush_callback_for_testing_ GUARDED_BY(flush_lock_);
 
   // Synchronizes access to shutdown related members below.
   mutable CheckedLock shutdown_lock_;

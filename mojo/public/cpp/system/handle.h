@@ -10,6 +10,7 @@
 
 #include "base/check_op.h"
 #include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "mojo/public/c/system/functions.h"
 #include "mojo/public/c/system/types.h"
 #include "mojo/public/cpp/system/handle_signals_state.h"
@@ -115,7 +116,7 @@ class ScopedHandleBase {
 
   void swap(ScopedHandleBase& other) { handle_.swap(other.handle_); }
 
-  [[nodiscard]] HandleType release() {
+  HandleType release() WARN_UNUSED_RESULT {
     HandleType rv;
     rv.swap(handle_);
     return rv;

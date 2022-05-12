@@ -15,6 +15,7 @@
 #include "base/callback.h"
 #include "base/callback_helpers.h"
 #include "base/check.h"
+#include "base/compiler_specific.h"
 #include "base/containers/cxx20_erase_list.h"
 #include "base/memory/weak_ptr.h"
 #include "base/ranges/algorithm.h"
@@ -149,7 +150,7 @@ class CallbackListBase {
 
   // Registers |cb| for future notifications. Returns a CallbackListSubscription
   // whose destruction will cancel |cb|.
-  [[nodiscard]] CallbackListSubscription Add(CallbackType cb) {
+  CallbackListSubscription Add(CallbackType cb) WARN_UNUSED_RESULT {
     DCHECK(!cb.is_null());
     return CallbackListSubscription(base::BindOnce(
         &CallbackListBase::CancelCallback, weak_ptr_factory_.GetWeakPtr(),

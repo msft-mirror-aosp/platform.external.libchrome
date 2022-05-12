@@ -4,10 +4,9 @@
 
 #include "ipc/ipc_platform_file_attachment_posix.h"
 
-#include <tuple>
 #include <utility>
 
-#include "base/ignore_result.h"
+#include "base/macros.h"
 
 namespace IPC {
 namespace internal {
@@ -26,7 +25,7 @@ MessageAttachment::Type PlatformFileAttachment::GetType() const {
 }
 
 base::PlatformFile PlatformFileAttachment::TakePlatformFile() {
-  std::ignore = owning_.release();
+  ignore_result(owning_.release());
   return file_;
 }
 

@@ -28,7 +28,7 @@ class PowerMonitorDeviceSourceTest : public testing::Test {
 
 TEST_F(PowerMonitorDeviceSourceTest, GetCurrentThermalState) {
   const DeviceThermalState current_state = GetCurrentThermalState();
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
   // We cannot make assumptions on |current_state|. Print it out to use the var.
   DVLOG(1) << PowerMonitorSource::DeviceThermalStateToString(current_state);
 #else

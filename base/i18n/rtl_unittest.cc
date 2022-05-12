@@ -267,7 +267,7 @@ TEST_F(RTLTest, WrapPathWithLTRFormatting) {
 
   for (auto*& i : cases) {
     FilePath path;
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
     std::wstring win_path(i);
     std::replace(win_path.begin(), win_path.end(), '/', '\\');
     path = FilePath(win_path);
@@ -525,10 +525,10 @@ TEST_F(RTLTest, SanitizeUserSuppliedString) {
   for (auto& i : cases) {
     // On Windows for an LTR locale, no changes to the string are made.
     std::u16string prefix, suffix = u"";
-#if !BUILDFLAG(IS_WIN)
+#if !defined(OS_WIN)
     prefix = u"\x200e\x202b";
     suffix = u"\x202c\x200e";
-#endif  // !BUILDFLAG(IS_WIN)
+#endif  // !OS_WIN
     std::u16string unsanitized_text = WideToUTF16(i.unformatted_text);
     std::u16string sanitized_text =
         prefix + WideToUTF16(i.formatted_text) + suffix;

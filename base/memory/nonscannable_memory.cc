@@ -52,16 +52,19 @@ void NonScannableAllocatorImpl<Quarantinable>::Free(void* ptr) {
 
 template <bool Quarantinable>
 void NonScannableAllocatorImpl<Quarantinable>::NotifyPCScanEnabled() {
+  base::PartitionOptions::LazyCommit lazy_commit =
+      base::FeatureList::IsEnabled(base::features::kPartitionAllocLazyCommit)
+          ? base::PartitionOptions::LazyCommit::kEnabled
+          : base::PartitionOptions::LazyCommit::kDisabled;
   allocator_.reset(MakePCScanMetadata<base::PartitionAllocator>());
-  allocator_->init({
+  allocator_->init(PartitionOptions(
       PartitionOptions::AlignedAlloc::kDisallowed,
       PartitionOptions::ThreadCache::kDisabled,
       Quarantinable ? PartitionOptions::Quarantine::kAllowed
                     : PartitionOptions::Quarantine::kDisallowed,
       PartitionOptions::Cookie::kAllowed,
       PartitionOptions::BackupRefPtr::kDisabled,
-      PartitionOptions::UseConfigurablePool::kNo,
-  });
+      PartitionOptions::UseConfigurablePool::kNo, lazy_commit));
   if (Quarantinable)
     PCScan::RegisterNonScannableRoot(allocator_->root());
   pcscan_enabled_.store(true, std::memory_order_release);

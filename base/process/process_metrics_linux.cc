@@ -107,7 +107,7 @@ size_t ReadProcStatusAndGetFieldAsSizeT(pid_t pid, StringPiece field) {
   return 0;
 }
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_AIX)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_AIX)
 // Read /proc/<pid>/status and look for |field|. On success, return true and
 // write the value for |field| into |result|.
 // Only works for fields in the form of "field    :     uint_value"
@@ -132,7 +132,7 @@ bool ReadProcStatusAndGetFieldAsUint64(pid_t pid,
   }
   return false;
 }
-#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_AIX)
+#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_AIX)
 
 // Get the total CPU from a proc stat buffer.  Return value is number of jiffies
 // on success or 0 if parsing failed.
@@ -263,7 +263,7 @@ bool ProcessMetrics::GetIOCounters(IoCounters* io_counters) const {
   return true;
 }
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
 uint64_t ProcessMetrics::GetVmSwapBytes() const {
   return ReadProcStatusAndGetFieldAsSizeT(process_, "VmSwap") * 1024;
 }
@@ -284,8 +284,7 @@ bool ProcessMetrics::GetPageFaultCounts(PageFaultCounts* counts) const {
       internal::GetProcStatsFieldAsInt64(proc_stats, internal::VM_MAJFLT);
   return true;
 }
-#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) ||
-        // BUILDFLAG(IS_ANDROID)
+#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
 
 int ProcessMetrics::GetOpenFdCount() const {
   // Use /proc/<pid>/fd to count the number of entries there.
@@ -330,7 +329,7 @@ int ProcessMetrics::GetOpenFdSoftLimit() const {
   return -1;
 }
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_AIX)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_AIX)
 ProcessMetrics::ProcessMetrics(ProcessHandle process)
     : process_(process), last_absolute_idle_wakeups_(0) {}
 #else
@@ -1067,7 +1066,7 @@ bool GetGraphicsMemoryInfo(GraphicsMemoryInfoKB* gpu_meminfo) {
 
 #endif  // BUILDFLAG(IS_CHROMEOS_ASH) || BUILDFLAG(IS_CHROMEOS_LACROS)
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_AIX)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_AIX)
 int ProcessMetrics::GetIdleWakeupsPerSecond() {
   uint64_t num_switches;
   static const char kSwitchStat[] = "voluntary_ctxt_switches";
@@ -1075,6 +1074,6 @@ int ProcessMetrics::GetIdleWakeupsPerSecond() {
              ? CalculateIdleWakeupsPerSecond(num_switches)
              : 0;
 }
-#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_AIX)
+#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_AIX)
 
 }  // namespace base

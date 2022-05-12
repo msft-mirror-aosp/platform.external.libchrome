@@ -6,11 +6,12 @@
 #define MOJO_PUBLIC_CPP_BINDINGS_REMOTE_H_
 
 #include <cstdint>
-#include <tuple>
 #include <utility>
 
 #include "base/callback_forward.h"
 #include "base/check.h"
+#include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/time/time.h"
@@ -234,7 +235,7 @@ class Remote {
   // will schedule any response callbacks or disconnection notifications on the
   // default SequencedTaskRunner (i.e. base::SequencedTaskRunnerHandle::Get() at
   // the time of this call). Must only be called on an unbound Remote.
-  [[nodiscard]] PendingReceiver<Interface> BindNewPipeAndPassReceiver() {
+  PendingReceiver<Interface> BindNewPipeAndPassReceiver() WARN_UNUSED_RESULT {
     DCHECK(!is_bound()) << "Remote is already bound";
     return BindNewPipeAndPassReceiver(nullptr);
   }
@@ -243,8 +244,8 @@ class Remote {
   // disconnection notifications on |task_runner| instead of the default
   // SequencedTaskRunner. |task_runner| must run tasks on the same sequence that
   // owns this Remote.
-  [[nodiscard]] PendingReceiver<Interface> BindNewPipeAndPassReceiver(
-      scoped_refptr<base::SequencedTaskRunner> task_runner) {
+  PendingReceiver<Interface> BindNewPipeAndPassReceiver(
+      scoped_refptr<base::SequencedTaskRunner> task_runner) WARN_UNUSED_RESULT {
     DCHECK(!is_bound()) << "Remote is already bound";
     MessagePipe pipe;
     Bind(PendingRemote<Interface>(std::move(pipe.handle0), 0),
@@ -283,7 +284,7 @@ class Remote {
     // binding to a SequencedTaskRunner and observing pipe handle state. This
     // allows for e.g. |is_connected()| to be a more reliable API than
     // |InterfacePtr::encountered_error()|.
-    std::ignore = internal_state_.instance();
+    ignore_result(internal_state_.instance());
   }
 
   // Unbinds this Remote, rendering it unable to issue further Interface method
@@ -296,7 +297,7 @@ class Remote {
   // considered in cases where satisfaction of that constraint can be proven.
   //
   // Must only be called on a bound Remote.
-  [[nodiscard]] PendingRemote<Interface> Unbind() {
+  PendingRemote<Interface> Unbind() WARN_UNUSED_RESULT {
     DCHECK(is_bound());
     CHECK(!internal_state_.has_pending_callbacks());
     State state;

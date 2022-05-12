@@ -11,6 +11,7 @@
 
 #include "base/bind.h"
 #include "base/callback.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "build/build_config.h"
 #include "mojo/core/test/multiprocess_test_helper.h"
@@ -56,7 +57,7 @@ class MojoTestBase : public testing::Test {
    private:
     friend class MojoTestBase;
 
-#if !BUILDFLAG(IS_IOS)
+#if !defined(OS_IOS)
     MultiprocessTestHelper helper_;
 #endif
     ScopedMessagePipeHandle pipe_;
@@ -189,7 +190,7 @@ class MojoTestBase : public testing::Test {
 // |pipe_name| will be bound to the MojoHandle of a message pipe connected
 // to the test process (see RunTestClient* above.) This pipe handle is
 // automatically closed on test client teardown.
-#if !BUILDFLAG(IS_IOS)
+#if !defined(OS_IOS)
 #define DEFINE_TEST_CLIENT_WITH_PIPE(client_name, test_base, pipe_name) \
   class client_name##_MainFixture : public test_base {                  \
     void TestBody() override {}                                         \
@@ -225,10 +226,10 @@ class MojoTestBase : public testing::Test {
                        base::Unretained(&test)));                            \
   }                                                                          \
   void client_name##_MainFixture::Main(MojoHandle pipe_name)
-#else  // !BUILDFLAG(IS_IOS)
+#else  // !defined(OS_IOS)
 #define DEFINE_TEST_CLIENT_WITH_PIPE(client_name, test_base, pipe_name)
 #define DEFINE_TEST_CLIENT_TEST_WITH_PIPE(client_name, test_base, pipe_name)
-#endif  // !BUILDFLAG(IS_IOS)
+#endif  // !defined(OS_IOS)
 
 }  // namespace test
 }  // namespace core

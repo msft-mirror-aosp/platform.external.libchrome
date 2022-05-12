@@ -22,6 +22,7 @@
 #include "base/i18n/icu_util.h"
 #include "base/i18n/rtl.h"
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/tagging.h"
 #include "base/no_destructor.h"
@@ -46,16 +47,17 @@
 #include "base/time/time.h"
 #include "base/tracing_buildflags.h"
 #include "build/build_config.h"
+#include "build/os_buildflags.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "testing/multiprocess_func_list.h"
 
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
 #include "base/mac/scoped_nsautorelease_pool.h"
 #include "base/process/port_provider_mac.h"
-#endif  // BUILDFLAG(IS_APPLE)
+#endif  // OS_APPLE
 
-#if BUILDFLAG(IS_IOS)
+#if defined(OS_IOS)
 #include "base/test/test_listener_ios.h"
 #include "base/test/test_support_ios.h"
 #else
@@ -63,20 +65,20 @@
 #include "third_party/icu/source/common/unicode/uloc.h"
 #endif
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #include "base/test/test_support_android.h"
 #endif
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
 #include "third_party/test_fonts/fontconfig/fontconfig_util_linux.h"
 #endif
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #if defined(_DEBUG)
 #include <crtdbg.h>
 #endif  // _DEBUG
 #include <windows.h>
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // OS_WIN
 
 namespace base {
 
@@ -215,7 +217,7 @@ class CheckForLeakedGlobals : public testing::EmptyTestEventListener {
 };
 
 // base::Process is not available on iOS
-#if !BUILDFLAG(IS_IOS)
+#if !defined(OS_IOS)
 class CheckProcessPriority : public testing::EmptyTestEventListener {
  public:
   CheckProcessPriority() { CHECK(!IsProcessBackgrounded()); }
@@ -227,14 +229,14 @@ class CheckProcessPriority : public testing::EmptyTestEventListener {
     EXPECT_FALSE(IsProcessBackgrounded());
   }
   void OnTestEnd(const testing::TestInfo& test) override {
-#if !BUILDFLAG(IS_MAC)
+#if !defined(OS_MAC)
     // Flakes are found on Mac OS 10.11. See https://crbug.com/931721#c7.
     EXPECT_FALSE(IsProcessBackgrounded());
 #endif
   }
 
  private:
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
   // Returns the calling process's task port, ignoring its argument.
   class CurrentProcessPortProvider : public PortProvider {
     mach_port_t TaskForPid(ProcessHandle process) const override {
@@ -246,7 +248,7 @@ class CheckProcessPriority : public testing::EmptyTestEventListener {
 #endif
 
   bool IsProcessBackgrounded() const {
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
     CurrentProcessPortProvider port_provider;
     return Process::Current().IsProcessBackgrounded(&port_provider);
 #else
@@ -254,7 +256,7 @@ class CheckProcessPriority : public testing::EmptyTestEventListener {
 #endif
   }
 };
-#endif  // !BUILDFLAG(IS_IOS)
+#endif  // !defined(OS_IOS)
 
 const std::string& GetProfileName() {
   static const NoDestructor<std::string> profile_name([]() {
@@ -277,13 +279,13 @@ void InitializeLogging() {
   CHECK(logging::InitLogging({.logging_dest = kLoggingDest}));
 
   // We want process and thread IDs because we may have multiple processes.
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   // To view log output with IDs and timestamps use "adb logcat -v threadtime".
   logging::SetLogItems(false, false, false, false);
 #else
   // We want process and thread IDs because we may have multiple processes.
   logging::SetLogItems(true, true, false, false);
-#endif  // !BUILDFLAG(IS_ANDROID)
+#endif  // !defined(OS_ANDROID)
 }
 
 }  // namespace
@@ -302,7 +304,7 @@ TestSuite::TestSuite(int argc, char** argv) {
   InitializeLogging();
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 TestSuite::TestSuite(int argc, wchar_t** argv) {
   PreInitialize();
   InitializeFromCommandLine(argc, argv);
@@ -310,7 +312,7 @@ TestSuite::TestSuite(int argc, wchar_t** argv) {
   // functions.
   InitializeLogging();
 }
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
 TestSuite::~TestSuite() {
   if (initialized_command_line_)
@@ -322,19 +324,19 @@ void TestSuite::InitializeFromCommandLine(int argc, char** argv) {
   testing::InitGoogleTest(&argc, argv);
   testing::InitGoogleMock(&argc, argv);
 
-#if BUILDFLAG(IS_IOS)
+#if defined(OS_IOS)
   InitIOSRunHook(this, argc, argv);
 #endif
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 void TestSuite::InitializeFromCommandLine(int argc, wchar_t** argv) {
   // Windows CommandLine::Init ignores argv anyway.
   initialized_command_line_ = CommandLine::Init(argc, NULL);
   testing::InitGoogleTest(&argc, argv);
   testing::InitGoogleMock(&argc, argv);
 }
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
 void TestSuite::PreInitialize() {
   DCHECK(!is_initialized_);
@@ -350,26 +352,26 @@ void TestSuite::PreInitialize() {
   // https://github.com/google/googletest/issues/2093.
   // TODO(danakj): Determine if all death tests should be skipped on Android
   // (many already are, such as for DCHECK-death tests).
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
   testing::GTEST_FLAG(death_test_style) = "threadsafe";
 #endif
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   testing::GTEST_FLAG(catch_exceptions) = false;
 #endif
   EnableTerminationOnHeapCorruption();
-#if (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)) && defined(USE_AURA)
+#if (defined(OS_LINUX) || defined(OS_CHROMEOS)) && defined(USE_AURA)
   // When calling native char conversion functions (e.g wrctomb) we need to
   // have the locale set. In the absence of such a call the "C" locale is the
   // default. In the gtk code (below) gtk_init() implicitly sets a locale.
   setlocale(LC_ALL, "");
   // We still need number to string conversions to be locale insensitive.
   setlocale(LC_NUMERIC, "C");
-#endif  // (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)) && defined(USE_AURA)
+#endif  // (defined(OS_LINUX) || defined(OS_CHROMEOS)) && defined(USE_AURA)
 
   // On Android, AtExitManager is created in
   // testing/android/native_test_wrapper.cc before main() is called.
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
   at_exit_manager_ = std::make_unique<AtExitManager>();
 #endif
 
@@ -408,11 +410,11 @@ void TestSuite::AddTestLauncherResultPrinter() {
 // Don't add additional code to this method.  Instead add it to
 // Initialize().  See bug 6436.
 int TestSuite::Run() {
-#if BUILDFLAG(IS_IOS)
+#if defined(OS_IOS)
   RunTestsFromIOSApp();
 #endif
 
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
   mac::ScopedNSAutoreleasePool scoped_pool;
 #endif
 
@@ -425,17 +427,17 @@ int TestSuite::Run() {
   // Check to see if we are being run as a client process.
   if (!client_func.empty())
     return multi_process_function_list::InvokeChildProcessTest(client_func);
-#if BUILDFLAG(IS_IOS)
+#if defined(OS_IOS)
   test_listener_ios::RegisterTestEndListener();
 #endif
 
-#if BUILDFLAG(IS_LINUX)
+#if defined(OS_LINUX)
   // There's no standard way to opt processes into MTE on Linux just yet,
   // so this call explicitly opts this test into synchronous MTE mode, where
   // pointer mismatches are detected immediately.
   base::memory::ChangeMemoryTaggingModeForCurrentThread(
       base::memory::TagViolationReportingMode::kSynchronous);
-#elif BUILDFLAG(IS_ANDROID)
+#elif defined(OS_ANDROID)
     // On Android, the tests are opted into synchronous MTE mode by the
     // memtagMode attribute in an AndroidManifest.xml file or via an `am compat`
     // command, so and explicit call to ChangeMemoryTaggingModeForCurrentThread
@@ -444,7 +446,7 @@ int TestSuite::Run() {
 
   int result = RUN_ALL_TESTS();
 
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
   // This MUST happen before Shutdown() since Shutdown() tears down
   // objects (such as NotificationService::current()) that Cocoa
   // objects use to remove themselves as observers.
@@ -470,7 +472,7 @@ void TestSuite::UnitTestAssertHandler(const char* file,
                                       int line,
                                       const StringPiece summary,
                                       const StringPiece stack_trace) {
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   // Correlating test stdio with logcat can be difficult, so we emit this
   // helpful little hint about what was running.  Only do this for Android
   // because other platforms don't separate out the relevant logs in the same
@@ -482,7 +484,7 @@ void TestSuite::UnitTestAssertHandler(const char* file,
                << test_info->name();
     fflush(stderr);
   }
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // defined(OS_ANDROID)
 
   // XmlUnitTestResultPrinter inherits gtest format, where assert has summary
   // and message. In GTest, summary is just a logged text, and message is a
@@ -499,7 +501,7 @@ void TestSuite::UnitTestAssertHandler(const char* file,
   _exit(1);
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 namespace {
 
 // Handlers for invalid parameter, pure call, and abort. They generate a
@@ -534,7 +536,7 @@ void AbortHandler(int signal) {
 #endif
 
 void TestSuite::SuppressErrorDialogs() {
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   UINT new_flags =
       SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX | SEM_NOOPENFILEERRORBOX;
 
@@ -557,7 +559,7 @@ void TestSuite::SuppressErrorDialogs() {
   _set_invalid_parameter_handler(InvalidParameter);
   _set_purecall_handler(PureCall);
   signal(SIGABRT, AbortHandler);
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 }
 
 void TestSuite::Initialize() {
@@ -566,7 +568,7 @@ void TestSuite::Initialize() {
   test::ScopedRunLoopTimeout::SetAddGTestFailureOnTimeout();
 
   const CommandLine* command_line = CommandLine::ForCurrentProcess();
-#if !BUILDFLAG(IS_IOS)
+#if !defined(OS_IOS)
   if (command_line->HasSwitch(switches::kWaitForDebugger)) {
     debug::WaitForDebugger(60, true);
   }
@@ -582,21 +584,21 @@ void TestSuite::Initialize() {
     logging::LOGGING_DCHECK = logging::LOG_FATAL;
 #endif
 
-#if BUILDFLAG(IS_IOS)
+#if defined(OS_IOS)
   InitIOSTestMessageLoop();
-#endif  // BUILDFLAG(IS_IOS)
+#endif  // OS_IOS
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   InitAndroidTestMessageLoop();
-#endif  // else BUILDFLAG(IS_ANDROID)
+#endif  // else defined(OS_ANDROID)
 
   CHECK(debug::EnableInProcessStackDumping());
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   RouteStdioToConsole(true);
   // Make sure we run with high resolution timer to minimize differences
   // between production code and test code.
   Time::EnableHighResolutionTimer(true);
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
   // In some cases, we do not want to see standard error dialogs.
   if (!debug::BeingDebugged() &&
@@ -615,7 +617,7 @@ void TestSuite::Initialize() {
   // TODO(jshin): Should we set the locale via an OS X locale API here?
   i18n::SetICUDefaultLocale("en_US");
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
   test_fonts::SetUpFontconfig();
 #endif
 
@@ -628,7 +630,7 @@ void TestSuite::Initialize() {
   if (check_for_leaked_globals_)
     listeners.Append(new CheckForLeakedGlobals);
   if (check_for_thread_and_process_priority_) {
-#if !BUILDFLAG(IS_IOS)
+#if !defined(OS_IOS)
     listeners.Append(new CheckProcessPriority);
 #endif
   }

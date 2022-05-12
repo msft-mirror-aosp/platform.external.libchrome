@@ -15,7 +15,7 @@
 #include "components/policy/core/common/policy_service.h"
 #include "components/policy/core/common/policy_types.h"
 
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
 #include <CoreFoundation/CoreFoundation.h>
 #endif
 
@@ -51,7 +51,7 @@ class PolicyDetailsMap {
 // current policies and returns false.
 bool PolicyServiceIsEmpty(const PolicyService* service);
 
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
 
 // Converts a base::Value to the equivalent CFPropertyListRef.
 // The returned value is owned by the caller.

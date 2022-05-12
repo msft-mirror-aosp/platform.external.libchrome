@@ -4,8 +4,6 @@
 
 #include "ipc/ipc_message.h"
 
-#include "build/build_config.h"
-
 // ipc_message.h is a widely included header and its size can impact build time.
 // Try not to raise this limit unless necessary. See
 // https://chromium.googlesource.com/chromium/src/+/HEAD/docs/wmax_tokens.md
@@ -24,7 +22,7 @@
 #include "ipc/ipc_message_attachment.h"
 #include "ipc/ipc_message_attachment_set.h"
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 #include "base/file_descriptor_posix.h"
 #include "ipc/ipc_platform_file_attachment_posix.h"
 #endif
@@ -59,7 +57,7 @@ Message::~Message() = default;
 Message::Message() : base::Pickle(sizeof(Header)) {
   header()->routing = header()->type = 0;
   header()->flags = GetRefNumUpper24();
-#if BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_POSIX) || defined(OS_FUCHSIA)
   header()->num_fds = 0;
   header()->pad = 0;
 #endif
@@ -72,7 +70,7 @@ Message::Message(int32_t routing_id, uint32_t type, PriorityValue priority)
   header()->type = type;
   DCHECK((priority & 0xffffff00) == 0);
   header()->flags = priority | GetRefNumUpper24();
-#if BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_POSIX) || defined(OS_FUCHSIA)
   header()->num_fds = 0;
   header()->pad = 0;
 #endif

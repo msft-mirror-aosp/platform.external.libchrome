@@ -15,9 +15,9 @@ namespace internal {
 ScopedMayLoadLibraryAtBackgroundPriority::
     ScopedMayLoadLibraryAtBackgroundPriority(const Location& from_here,
                                              std::atomic_bool* already_loaded)
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
     : already_loaded_(already_loaded)
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // OS_WIN
 {
   TRACE_EVENT_BEGIN(
       "base", "ScopedMayLoadLibraryAtBackgroundPriority",
@@ -27,7 +27,7 @@ ScopedMayLoadLibraryAtBackgroundPriority::
                 &ctx, base::trace_event::TraceSourceLocation(from_here)));
       });
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   if (already_loaded_ && already_loaded_->load(std::memory_order_relaxed))
     return;
 
@@ -41,14 +41,14 @@ ScopedMayLoadLibraryAtBackgroundPriority::
         "base",
         "ScopedMayLoadLibraryAtBackgroundPriority : Priority Increased");
   }
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // OS_WIN
 }
 
 ScopedMayLoadLibraryAtBackgroundPriority::
     ~ScopedMayLoadLibraryAtBackgroundPriority() {
   // Trace events must be closed in reverse order of opening so that they nest
   // correctly.
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   if (original_thread_priority_) {
     TRACE_EVENT_END0(
         "base",
@@ -58,7 +58,7 @@ ScopedMayLoadLibraryAtBackgroundPriority::
 
   if (already_loaded_)
     already_loaded_->store(true, std::memory_order_relaxed);
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // OS_WIN
   TRACE_EVENT_END0("base", "ScopedMayLoadLibraryAtBackgroundPriority");
 }
 

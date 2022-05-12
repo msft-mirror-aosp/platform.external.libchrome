@@ -18,7 +18,7 @@
 #include "testing/gtest/include/gtest/gtest.h"
 #include "testing/multiprocess_func_list.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "base/win/base_win_buildflags.h"
 #include "base/win/windows_version.h"
 
@@ -27,7 +27,7 @@
 
 namespace {
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 constexpr int kExpectedStillRunningExitCode = 0x102;
 #else
 constexpr int kExpectedStillRunningExitCode = 0;
@@ -35,7 +35,7 @@ constexpr int kExpectedStillRunningExitCode = 0;
 
 constexpr int kDummyExitCode = 42;
 
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
 // Fake port provider that returns the calling process's
 // task port, ignoring its argument.
 class FakePortProvider : public base::PortProvider {
@@ -133,24 +133,24 @@ TEST_F(ProcessTest, CreationTimeCurrentProcess) {
   EXPECT_LE(Process::Current().CreationTime(), Time::Now());
 }
 
-#if !BUILDFLAG(IS_ANDROID)  // Cannot read other processes' creation time on
-                            // Android.
+#if !defined(OS_ANDROID)  // Cannot read other processes' creation time on
+                          // Android.
 TEST_F(ProcessTest, CreationTimeOtherProcess) {
   // The creation time of a process should be between a time recorded before it
   // was spawned and a time recorded after it was spawned. However, since the
   // base::Time and process creation clocks don't match, tolerate some error.
   constexpr base::TimeDelta kTolerance =
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
       // On Linux, process creation time is relative to boot time which has a
       // 1-second resolution. Tolerate 1 second for the imprecise boot time and
       // 100 ms for the imprecise clock.
       Milliseconds(1100);
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
       // On Windows, process creation time is based on the system clock while
       // Time::Now() is a combination of system clock and
       // QueryPerformanceCounter(). Tolerate 100 ms for the clock mismatch.
       Milliseconds(100);
-#elif BUILDFLAG(IS_APPLE) || BUILDFLAG(IS_FUCHSIA)
+#elif defined(OS_APPLE) || defined(OS_FUCHSIA)
       // On Mac and Fuchsia, process creation time should be very precise.
       Milliseconds(0);
 #else
@@ -164,7 +164,7 @@ TEST_F(ProcessTest, CreationTimeOtherProcess) {
   EXPECT_LE(creation, after_creation + kTolerance);
   EXPECT_TRUE(process.Terminate(kDummyExitCode, true));
 }
-#endif  // !BUILDFLAG(IS_ANDROID)
+#endif  // !defined(OS_ANDROID)
 
 TEST_F(ProcessTest, Terminate) {
   Process process(SpawnChild("SleepyChildProcess"));
@@ -183,7 +183,7 @@ TEST_F(ProcessTest, Terminate) {
 
   EXPECT_NE(TERMINATION_STATUS_STILL_RUNNING,
             GetTerminationStatus(process.Handle(), &exit_code));
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   // Only Windows propagates the |exit_code| set in Terminate().
   EXPECT_EQ(kExpectedExitCode, exit_code);
 #endif
@@ -257,7 +257,7 @@ TEST_F(ProcessTest, WaitForExitWithTimeout) {
   process.Terminate(kDummyExitCode, false);
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 TEST_F(ProcessTest, WaitForExitOrEventWithProcessExit) {
   Process process(SpawnChild("FastSleepyChildProcess"));
   ASSERT_TRUE(process.IsValid());
@@ -285,7 +285,7 @@ TEST_F(ProcessTest, WaitForExitOrEventWithEventSet) {
 
   process.Terminate(kDummyExitCode, false);
 }
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // OS_WIN
 
 // Ensure that the priority of a process is restored correctly after
 // backgrounding and restoring.
@@ -296,7 +296,7 @@ TEST_F(ProcessTest, SetProcessBackgrounded) {
     return;
   Process process(SpawnChild("SimpleChildProcess"));
   int old_priority = process.GetPriority();
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
   // On the Mac, backgrounding a process requires a port to that process.
   // In the browser it's available through the MachBroker class, which is not
   // part of base. Additionally, there is an indefinite amount of time between
@@ -326,12 +326,12 @@ TEST_F(ProcessTest, SetProcessBackgroundedSelf) {
     return;
   Process process = Process::Current();
   int old_priority = process.GetPriority();
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   EXPECT_TRUE(process.SetProcessBackgrounded(true));
   EXPECT_TRUE(process.IsProcessBackgrounded());
   EXPECT_TRUE(process.SetProcessBackgrounded(false));
   EXPECT_FALSE(process.IsProcessBackgrounded());
-#elif BUILDFLAG(IS_APPLE)
+#elif defined(OS_APPLE)
   FakePortProvider provider;
   EXPECT_TRUE(process.SetProcessBackgrounded(&provider, true));
   EXPECT_TRUE(process.IsProcessBackgrounded(&provider));
@@ -355,7 +355,7 @@ TEST_F(ProcessTest, CurrentProcessIsRunning) {
       base::TimeDelta(), nullptr));
 }
 
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
 // On Mac OSX, we can detect whether a non-child process is running.
 TEST_F(ProcessTest, PredefinedProcessIsRunning) {
   // Process 1 is the /sbin/launchd, it should be always running.
@@ -367,7 +367,7 @@ TEST_F(ProcessTest, PredefinedProcessIsRunning) {
 // Test is disabled on Windows AMR64 because
 // TerminateWithHeapCorruption() isn't expected to work there.
 // See: https://crbug.com/1054423
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #if defined(ARCH_CPU_ARM64)
 #define MAYBE_HeapCorruption DISABLED_HeapCorruption
 #else
@@ -393,7 +393,7 @@ TEST_F(ProcessTest, MAYBE_ControlFlowViolation) {
               ::testing::ExitedWithCode(STATUS_STACK_BUFFER_OVERRUN), "");
 }
 
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // OS_WIN
 
 TEST_F(ProcessTest, ChildProcessIsRunning) {
   Process process(SpawnChild("SleepyChildProcess"));

@@ -3,13 +3,11 @@
 // found in the LICENSE file.
 
 #include <stddef.h>
-
 #include <memory>
-#include <tuple>
 
 #include "base/bind.h"
+#include "base/macros.h"
 #include "base/memory/ptr_util.h"
-#include "base/memory/raw_ptr.h"
 #include "base/process/process_metrics.h"
 #include "base/run_loop.h"
 #include "base/strings/stringprintf.h"
@@ -121,7 +119,7 @@ class PerformanceChannelListener : public Listener {
 
  private:
   std::string label_;
-  raw_ptr<Sender> sender_;
+  Sender* sender_;
   int msg_count_;
   size_t msg_size_;
   bool sync_;
@@ -312,7 +310,7 @@ class MojoInterfacePerfTest : public mojo::core::test::MojoTestBase {
 
     ping_receiver_->Quit();
 
-    std::ignore = ping_receiver_.Unbind().PassPipe().release();
+    ignore_result(ping_receiver_.Unbind().PassPipe().release());
   }
 
   void OnPong(const std::string& value) {
@@ -384,7 +382,7 @@ class InterfacePassingTestDriverImpl : public mojom::InterfacePassingTestDriver,
                       std::move(handle))),
         quit_closure_(std::move(quit_closure)) {}
   ~InterfacePassingTestDriverImpl() override {
-    std::ignore = receiver_.Unbind().PassPipe().release();
+    ignore_result(receiver_.Unbind().PassPipe().release());
   }
 
  private:
@@ -463,7 +461,7 @@ class MojoInterfacePassingPerfTest : public mojo::core::test::MojoTestBase {
 
     driver_remote_->Quit();
 
-    std::ignore = driver_remote_.Unbind().PassPipe().release();
+    ignore_result(driver_remote_.Unbind().PassPipe().release());
   }
 
   void OnInitCallback() {

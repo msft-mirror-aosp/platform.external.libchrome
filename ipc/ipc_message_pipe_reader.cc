@@ -13,6 +13,7 @@
 #include "base/containers/span.h"
 #include "base/location.h"
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/threading/thread_task_runner_handle.h"
 #include "base/trace_event/trace_event.h"

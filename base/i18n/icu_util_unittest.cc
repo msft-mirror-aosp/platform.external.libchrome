@@ -7,7 +7,7 @@
 #include "build/build_config.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-#if !BUILDFLAG(IS_NACL)
+#if !defined(OS_NACL)
 #if ICU_UTIL_DATA_IMPL == ICU_UTIL_DATA_FILE
 
 namespace base {
@@ -18,7 +18,7 @@ class IcuUtilTest : public testing::Test {
   void SetUp() override { ResetGlobalsForTesting(); }
 };
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 
 TEST_F(IcuUtilTest, InitializeIcuSucceeds) {
   bool success = InitializeICU();
@@ -54,7 +54,7 @@ TEST_F(IcuUtilTest, ExtraFileInitializedAfterInit) {
   ASSERT_NE(file, kInvalidPlatformFile);
 }
 
-TEST_F(IcuUtilTest, DISABLED_InitializeExtraIcuFromFdSucceeds) {
+TEST_F(IcuUtilTest, InitializeExtraIcuFromFdSucceeds) {
   InitializeExtraICU(std::string());
   MemoryMappedFile::Region region;
   PlatformFile pf = GetIcuExtraDataFileHandle(&region);
@@ -73,10 +73,10 @@ TEST_F(IcuUtilTest, CannotInitializeExtraIcuFromFdAfterIcu) {
   ASSERT_FALSE(success);
 }
 
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // defined(OS_ANDROID)
 
 }  // namespace i18n
 }  // namespace base
 
 #endif  // ICU_UTIL_DATA_IMPL == ICU_UTIL_DATA_FILE
-#endif  // !BUILDFLAG(IS_NACL)
+#endif  // !defined(OS_NACL)

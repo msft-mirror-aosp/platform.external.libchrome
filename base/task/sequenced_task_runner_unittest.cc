@@ -8,7 +8,6 @@
 
 #include "base/bind.h"
 #include "base/gtest_prod_util.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/run_loop.h"
 #include "base/test/bind.h"
@@ -43,7 +42,7 @@ class FlagOnDelete {
       EXPECT_TRUE(expected_deletion_sequence_->RunsTasksInCurrentSequence());
   }
 
-  raw_ptr<bool> deleted_;
+  bool* deleted_;
   const scoped_refptr<SequencedTaskRunner> expected_deletion_sequence_;
 };
 
@@ -112,8 +111,8 @@ TEST_F(SequencedTaskRunnerTest, DelayedTaskHandle_RunTask) {
   bool task_ran = false;
   DelayedTaskHandle delayed_task_handle =
       task_runner->PostCancelableDelayedTask(
-          subtle::PostDelayedTaskPassKeyForTesting(), FROM_HERE,
-          BindLambdaForTesting([&task_ran]() { task_ran = true; }), Seconds(1));
+          FROM_HERE, BindLambdaForTesting([&task_ran]() { task_ran = true; }),
+          Seconds(1));
   EXPECT_TRUE(delayed_task_handle.IsValid());
   EXPECT_TRUE(task_runner->HasPendingTask());
 
@@ -131,8 +130,8 @@ TEST_F(SequencedTaskRunnerTest, DelayedTaskHandle_CancelTask) {
   bool task_ran = false;
   DelayedTaskHandle delayed_task_handle =
       task_runner->PostCancelableDelayedTask(
-          subtle::PostDelayedTaskPassKeyForTesting(), FROM_HERE,
-          BindLambdaForTesting([&task_ran]() { task_ran = true; }), Seconds(1));
+          FROM_HERE, BindLambdaForTesting([&task_ran]() { task_ran = true; }),
+          Seconds(1));
   EXPECT_TRUE(delayed_task_handle.IsValid());
   EXPECT_TRUE(task_runner->HasPendingTask());
 
@@ -150,8 +149,8 @@ TEST_F(SequencedTaskRunnerTest, DelayedTaskHandle_DestroyTask) {
   bool task_ran = false;
   DelayedTaskHandle delayed_task_handle =
       task_runner->PostCancelableDelayedTask(
-          subtle::PostDelayedTaskPassKeyForTesting(), FROM_HERE,
-          BindLambdaForTesting([&task_ran]() { task_ran = true; }), Seconds(1));
+          FROM_HERE, BindLambdaForTesting([&task_ran]() { task_ran = true; }),
+          Seconds(1));
   EXPECT_TRUE(delayed_task_handle.IsValid());
   EXPECT_TRUE(task_runner->HasPendingTask());
 
@@ -171,8 +170,8 @@ TEST_F(SequencedTaskRunnerTest, DelayedTaskHandle_PostTaskFailed) {
   bool task_ran = false;
   DelayedTaskHandle delayed_task_handle =
       task_runner->PostCancelableDelayedTask(
-          subtle::PostDelayedTaskPassKeyForTesting(), FROM_HERE,
-          BindLambdaForTesting([&task_ran]() { task_ran = true; }), Seconds(1));
+          FROM_HERE, BindLambdaForTesting([&task_ran]() { task_ran = true; }),
+          Seconds(1));
   EXPECT_FALSE(delayed_task_handle.IsValid());
   EXPECT_FALSE(task_ran);
 }

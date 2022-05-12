@@ -1,4 +1,4 @@
-From 83ef99fad0d789be40ae8db2a85ef23391f24035 Mon Sep 17 00:00:00 2001
+From 54ed0e262fcdb9cc058545109afc0f5725481d12 Mon Sep 17 00:00:00 2001
 From: hscham <hscham@chromium.org>
 Date: Thu, 11 Nov 2021 16:12:20 +0900
 Subject: [PATCH] Add mock implementations to
@@ -30,14 +30,13 @@ Test: autoninja -C out/Default chrome (ENABLE_BASE_TRACING=true)
 Test: autoninja -C out/Default base (ENABLE_BASE_TRACING=false)
 Change-Id: Ia862c5955aa3b5cf2ad61716cd2edb749408a07d
 ---
- base/trace_event/base_tracing.h         |   1 +
- base/trace_event/base_tracing_forward.h |   1 +
- base/trace_event/trace_event_stub.cc    |   9 +++
- base/trace_event/trace_event_stub.h     | 103 +++++++++++++++++++++++-
- 4 files changed, 110 insertions(+), 4 deletions(-)
+ base/trace_event/base_tracing.h      |   1 +
+ base/trace_event/trace_event_stub.cc |   9 +++
+ base/trace_event/trace_event_stub.h  | 103 +++++++++++++++++++++++++--
+ 3 files changed, 109 insertions(+), 4 deletions(-)
 
 diff --git a/base/trace_event/base_tracing.h b/base/trace_event/base_tracing.h
-index 6fe702e4b3eb..f20bff7d4977 100644
+index 6fe702e4b3..f20bff7d49 100644
 --- a/base/trace_event/base_tracing.h
 +++ b/base/trace_event/base_tracing.h
 @@ -23,6 +23,7 @@
@@ -48,20 +47,8 @@ index 6fe702e4b3eb..f20bff7d4977 100644
  #include "base/trace_event/traced_value.h"                // nogncheck
  #include "base/trace_event/typed_macros.h"                // nogncheck
  #include "third_party/perfetto/include/perfetto/tracing/traced_value.h"  // nogncheck
-diff --git a/base/trace_event/base_tracing_forward.h b/base/trace_event/base_tracing_forward.h
-index f72f9fde2f05..f10e0f3979fd 100644
---- a/base/trace_event/base_tracing_forward.h
-+++ b/base/trace_event/base_tracing_forward.h
-@@ -17,6 +17,7 @@
- namespace perfetto {
- 
- class TracedValue;
-+class EventContext;
- 
- template <typename T>
- void WriteIntoTrace(TracedValue context, T&& value);
 diff --git a/base/trace_event/trace_event_stub.cc b/base/trace_event/trace_event_stub.cc
-index f227101ea4db..face091bf495 100644
+index b84f43d11a..c827baeb45 100644
 --- a/base/trace_event/trace_event_stub.cc
 +++ b/base/trace_event/trace_event_stub.cc
 @@ -6,6 +6,8 @@
@@ -88,10 +75,10 @@ index f227101ea4db..face091bf495 100644
  // static
  constexpr const char* const MemoryDumpManager::kTraceCategory;
 diff --git a/base/trace_event/trace_event_stub.h b/base/trace_event/trace_event_stub.h
-index 500d6b53db31..fffbd6994310 100644
+index eb6f48d60f..332be8ce26 100644
 --- a/base/trace_event/trace_event_stub.h
 +++ b/base/trace_event/trace_event_stub.h
-@@ -75,9 +75,17 @@ struct IgnoredValue {
+@@ -76,9 +76,17 @@ struct IgnoredValue {
    INTERNAL_TRACE_IGNORE(category, name)
  #define PERFETTO_INTERNAL_ADD_EMPTY_EVENT() INTERNAL_TRACE_IGNORE()
  
@@ -109,7 +96,7 @@ index 500d6b53db31..fffbd6994310 100644
  class BASE_EXPORT ConvertableToTraceFormat {
   public:
    ConvertableToTraceFormat() = default;
-@@ -157,10 +165,55 @@ class BASE_EXPORT BlameContext {
+@@ -158,10 +166,55 @@ class BASE_EXPORT BlameContext {
  };
  
  struct MemoryDumpArgs;
@@ -166,7 +153,7 @@ index 500d6b53db31..fffbd6994310 100644
    MemoryDumpProvider(const MemoryDumpProvider&) = delete;
    MemoryDumpProvider& operator=(const MemoryDumpProvider&) = delete;
    virtual ~MemoryDumpProvider();
-@@ -176,6 +229,38 @@ class BASE_EXPORT MemoryDumpManager {
+@@ -177,6 +230,38 @@ class BASE_EXPORT MemoryDumpManager {
   public:
    static constexpr const char* const kTraceCategory =
        TRACE_DISABLED_BY_DEFAULT("memory-infra");
@@ -205,7 +192,7 @@ index 500d6b53db31..fffbd6994310 100644
  };
  
  }  // namespace trace_event
-@@ -185,6 +270,11 @@ class BASE_EXPORT MemoryDumpManager {
+@@ -187,6 +272,11 @@ class BASE_EXPORT MemoryDumpManager {
  // perfetto::StaticString/ThreadTrack/TracedValue/TracedDictionary/TracedArray.
  namespace perfetto {
  
@@ -217,7 +204,7 @@ index 500d6b53db31..fffbd6994310 100644
  class TracedArray;
  class TracedDictionary;
  class EventContext;
-@@ -201,7 +291,7 @@ class DynamicString {
+@@ -202,7 +292,7 @@ class DynamicString {
    explicit DynamicString(T) {}
  };
  
@@ -226,7 +213,7 @@ index 500d6b53db31..fffbd6994310 100644
   public:
    void WriteInt64(int64_t) && {}
    void WriteUInt64(uint64_t) && {}
-@@ -216,7 +306,7 @@ class TracedValue {
+@@ -217,7 +307,7 @@ class TracedValue {
    TracedArray WriteArray() &&;
  };
  
@@ -235,7 +222,7 @@ index 500d6b53db31..fffbd6994310 100644
   public:
    TracedValue AddItem(StaticString) { return TracedValue(); }
    TracedValue AddItem(DynamicString) { return TracedValue(); }
-@@ -232,7 +322,7 @@ class TracedDictionary {
+@@ -233,7 +323,7 @@ class TracedDictionary {
    TracedArray AddArray(DynamicString);
  };
  
@@ -244,7 +231,7 @@ index 500d6b53db31..fffbd6994310 100644
   public:
    TracedValue AppendItem() { return TracedValue(); }
  
-@@ -246,6 +336,11 @@ class TracedArray {
+@@ -247,6 +337,11 @@ class TracedArray {
  template <class T>
  void WriteIntoTracedValue(TracedValue, T&&) {}
  
@@ -257,5 +244,6 @@ index 500d6b53db31..fffbd6994310 100644
  
  #endif  // BASE_TRACE_EVENT_TRACE_EVENT_STUB_H_
 -- 
-2.35.0.rc0.227.g00780c9af4-goog
+2.34.1.400.ga245620fadb-goog
+
 

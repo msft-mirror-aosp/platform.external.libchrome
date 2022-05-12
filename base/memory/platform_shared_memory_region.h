@@ -5,25 +5,26 @@
 #ifndef BASE_MEMORY_PLATFORM_SHARED_MEMORY_REGION_H_
 #define BASE_MEMORY_PLATFORM_SHARED_MEMORY_REGION_H_
 
+#include "base/compiler_specific.h"
 #include "base/gtest_prod_util.h"
 #include "base/unguessable_token.h"
 #include "build/build_config.h"
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 #include <mach/mach.h>
 #include "base/mac/scoped_mach_port.h"
-#elif BUILDFLAG(IS_FUCHSIA)
+#elif defined(OS_FUCHSIA)
 #include <lib/zx/vmo.h>
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
 #include "base/win/scoped_handle.h"
 #include "base/win/windows_types.h"
-#elif BUILDFLAG(IS_POSIX)
+#elif defined(OS_POSIX)
 #include <sys/types.h>
 #include "base/file_descriptor_posix.h"
 #include "base/files/scoped_file.h"
 #endif
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
 namespace content {
 class SandboxIPCHandler;
 }
@@ -32,7 +33,7 @@ class SandboxIPCHandler;
 namespace base {
 namespace subtle {
 
-#if BUILDFLAG(IS_POSIX) && !BUILDFLAG(IS_MAC) && !BUILDFLAG(IS_ANDROID)
+#if defined(OS_POSIX) && !defined(OS_MAC) && !defined(OS_ANDROID)
 // Helper structs to keep two descriptors on POSIX. It's needed to support
 // ConvertToReadOnly().
 struct BASE_EXPORT FDPair {
@@ -116,7 +117,7 @@ class BASE_EXPORT PlatformSharedMemoryRegion {
     kMaxValue = GET_SHMEM_TEMP_DIR_FAILURE
   };
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
   // Structure to limit access to executable region creation.
   struct ExecutableRegion {
    private:
@@ -137,16 +138,16 @@ class BASE_EXPORT PlatformSharedMemoryRegion {
 #endif
 
 // Platform-specific shared memory type used by this class.
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
   using PlatformHandle = mach_port_t;
   using ScopedPlatformHandle = mac::ScopedMachSendRight;
-#elif BUILDFLAG(IS_FUCHSIA)
+#elif defined(OS_FUCHSIA)
   using PlatformHandle = zx::unowned_vmo;
   using ScopedPlatformHandle = zx::vmo;
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
   using PlatformHandle = HANDLE;
   using ScopedPlatformHandle = win::ScopedHandle;
-#elif BUILDFLAG(IS_ANDROID)
+#elif defined(OS_ANDROID)
   using PlatformHandle = int;
   using ScopedPlatformHandle = ScopedFD;
 #else
@@ -174,7 +175,7 @@ class BASE_EXPORT PlatformSharedMemoryRegion {
                                          Mode mode,
                                          size_t size,
                                          const UnguessableToken& guid);
-#if BUILDFLAG(IS_POSIX) && !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_MAC)
+#if defined(OS_POSIX) && !defined(OS_ANDROID) && !defined(OS_MAC)
   // Specialized version of Take() for POSIX that takes only one file descriptor
   // instead of pair. Cannot be used with kWritable |mode|.
   static PlatformSharedMemoryRegion Take(ScopedFD handle,
@@ -202,7 +203,7 @@ class BASE_EXPORT PlatformSharedMemoryRegion {
   // becomes invalid. It's the responsibility of the caller to close the
   // handle. If the current instance is invalid, ScopedPlatformHandle will also
   // be invalid.
-  [[nodiscard]] ScopedPlatformHandle PassPlatformHandle();
+  ScopedPlatformHandle PassPlatformHandle() WARN_UNUSED_RESULT;
 
   // Returns the platform handle. The current instance keeps ownership of this
   // handle.
@@ -223,13 +224,13 @@ class BASE_EXPORT PlatformSharedMemoryRegion {
   // kWritable mode, all other modes will CHECK-fail. The object will have
   // kReadOnly mode after this call on success.
   bool ConvertToReadOnly();
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
   // Same as above, but |mapped_addr| is used as a hint to avoid additional
   // mapping of the memory object.
   // |mapped_addr| must be mapped location of |memory_object_|. If the location
   // is unknown, |mapped_addr| should be |nullptr|.
   bool ConvertToReadOnly(void* mapped_addr);
-#endif  // BUILDFLAG(IS_MAC)
+#endif  // defined(OS_MAC)
 
   // Converts the region to unsafe. Returns whether the operation succeeded.
   // Makes the current instance invalid on failure. Can be called only in
@@ -263,7 +264,7 @@ class BASE_EXPORT PlatformSharedMemoryRegion {
                            CheckPlatformHandlePermissionsCorrespondToMode);
   static PlatformSharedMemoryRegion Create(Mode mode,
                                            size_t size
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
                                            ,
                                            bool executable = false
 #endif

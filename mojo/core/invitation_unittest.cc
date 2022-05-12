@@ -11,6 +11,7 @@
 #include "base/check_op.h"
 #include "base/command_line.h"
 #include "base/files/file_path.h"
+#include "base/macros.h"
 #include "base/notreached.h"
 #include "base/path_service.h"
 #include "base/process/process.h"
@@ -84,14 +85,14 @@ void PrepareToPassRemoteEndpoint(PlatformChannel* channel,
                                  base::CommandLine* command_line,
                                  base::StringPiece switch_name = {}) {
   std::string value;
-#if BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_FUCHSIA)
   channel->PrepareToPassRemoteEndpoint(&options->handles_to_transfer, &value);
-#elif BUILDFLAG(IS_MAC)
+#elif defined(OS_MAC)
   channel->PrepareToPassRemoteEndpoint(&options->mach_ports_for_rendezvous,
                                        &value);
-#elif BUILDFLAG(IS_POSIX)
+#elif defined(OS_POSIX)
   channel->PrepareToPassRemoteEndpoint(&options->fds_to_remap, &value);
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
   channel->PrepareToPassRemoteEndpoint(&options->handles_to_inherit, &value);
 #else
 #error "Platform not yet supported."
@@ -306,11 +307,11 @@ base::Process InvitationTest::LaunchChildTestClient(
   base::LaunchOptions default_launch_options;
   base::LaunchOptions& launch_options =
       custom_launch_options ? *custom_launch_options : default_launch_options;
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   launch_options.start_hidden = true;
 #endif
 
-#if !BUILDFLAG(IS_FUCHSIA)
+#if !defined(OS_FUCHSIA)
   absl::optional<NamedPlatformChannel> named_channel;
 #endif
   absl::optional<PlatformChannel> channel;
@@ -321,9 +322,9 @@ base::Process InvitationTest::LaunchChildTestClient(
                                 &command_line);
     local_endpoint_handle = channel->TakeLocalEndpoint().TakePlatformHandle();
   } else {
-#if !BUILDFLAG(IS_FUCHSIA)
+#if !defined(OS_FUCHSIA)
     NamedPlatformChannel::Options named_channel_options;
-#if !BUILDFLAG(IS_WIN)
+#if !defined(OS_WIN)
     CHECK(base::PathService::Get(base::DIR_TEMP,
                                  &named_channel_options.socket_dir));
 #endif
@@ -331,9 +332,9 @@ base::Process InvitationTest::LaunchChildTestClient(
     named_channel->PassServerNameOnCommandLine(&command_line);
     local_endpoint_handle =
         named_channel->TakeServerEndpoint().TakePlatformHandle();
-#else   //  !BUILDFLAG(IS_FUCHSIA)
+#else   //  !defined(OS_FUCHSIA)
     NOTREACHED() << "Named pipe support does not exist for Mojo on Fuchsia.";
-#endif  //  !BUILDFLAG(IS_FUCHSIA)
+#endif  //  !defined(OS_FUCHSIA)
   }
 
   base::Process child_process = base::SpawnMultiProcessTestChild(
@@ -374,7 +375,7 @@ void InvitationTest::SendInvitationToClient(
 
   MojoPlatformProcessHandle process_handle;
   process_handle.struct_size = sizeof(process_handle);
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   process_handle.value =
       static_cast<uint64_t>(reinterpret_cast<uintptr_t>(process));
 #else
@@ -412,7 +413,7 @@ class TestClientBase : public InvitationTest {
                                      base::StringPiece switch_name = {}) {
     const auto& command_line = *base::CommandLine::ForCurrentProcess();
     PlatformChannelEndpoint channel_endpoint;
-#if !BUILDFLAG(IS_FUCHSIA)
+#if !defined(OS_FUCHSIA)
     channel_endpoint = NamedPlatformChannel::ConnectToServer(command_line);
 #endif
     if (!channel_endpoint.is_valid()) {
@@ -543,7 +544,7 @@ DEFINE_TEST_CLIENT(SendInvitationMultiplePipesClient) {
   WaitForSignals(pipes[1], MOJO_HANDLE_SIGNAL_PEER_CLOSED);
 }
 
-#if !BUILDFLAG(IS_FUCHSIA)
+#if !defined(OS_FUCHSIA)
 TEST_F(InvitationTest, SendInvitationWithServer) {
   MojoHandle primordial_pipe;
   base::Process child_process = LaunchChildTestClient(
@@ -579,7 +580,7 @@ DEFINE_TEST_CLIENT(SendInvitationWithServerClient) {
 
   ASSERT_EQ(MOJO_RESULT_OK, MojoClose(primordial_pipe));
 }
-#endif  // !BUILDFLAG(IS_FUCHSIA)
+#endif  // !defined(OS_FUCHSIA)
 
 const char kErrorMessage[] = "ur bad :(";
 const char kDisconnectMessage[] = "go away plz";
@@ -696,8 +697,7 @@ DEFINE_TEST_CLIENT(ProcessErrorsClient) {
   EXPECT_EQ(kDisconnectMessage, ReadMessage(pipe));
 }
 
-// Temporary removed support for reinvitation for non-isolated connections.
-TEST_F(InvitationTest, DISABLED_Reinvitation) {
+TEST_F(InvitationTest, Reinvitation) {
   // The gist of this test is that a process should be able to accept an
   // invitation, lose its connection to the process network, and then accept a
   // new invitation to re-establish communication.
@@ -817,8 +817,7 @@ DEFINE_TEST_CLIENT(SendIsolatedInvitationClient) {
   ASSERT_EQ(MOJO_RESULT_OK, MojoClose(primordial_pipe));
 }
 
-// Temporary removed support for reinvitation for isolated connections.
-TEST_F(InvitationTest, DISABLED_SendMultipleIsolatedInvitations) {
+TEST_F(InvitationTest, SendMultipleIsolatedInvitations) {
   // We send a secondary transport to the client process so we can send a second
   // isolated invitation.
   base::CommandLine command_line =

@@ -131,7 +131,7 @@ TEST_F(SignalsTest, LocalPeers) {
   EXPECT_EQ(MOJO_RESULT_OK, MojoClose(b));
 }
 
-#if !BUILDFLAG(IS_IOS)
+#if !defined(OS_IOS)
 
 TEST_F(SignalsTest, RemotePeers) {
   MojoHandleSignalsState state = {0, 0};
@@ -215,7 +215,7 @@ DEFINE_TEST_CLIENT_TEST_WITH_PIPE(RemotePeersClient, SignalsTest, h) {
   WriteMessageWithHandles(h, "O_O", &b, 1);
 }
 
-#endif  // !BUILDFLAG(IS_IOS)
+#endif  // !defined(OS_IOS)
 
 }  // namespace
 }  // namespace core

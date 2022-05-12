@@ -4,7 +4,6 @@
 
 package org.chromium.base.library_loader;
 
-import org.chromium.base.annotations.CalledByNative;
 import org.chromium.base.annotations.JniIgnoreNatives;
 
 /**
@@ -14,8 +13,6 @@ import org.chromium.base.annotations.JniIgnoreNatives;
  */
 @JniIgnoreNatives
 class ModernLinkerJni implements ModernLinker.Natives {
-    private static final String TAG = "ModernLinkerJni";
-
     @Override
     public boolean loadLibrary(
             String libFilePath, Linker.LibInfo libInfo, boolean spawnRelroRegion) {
@@ -36,14 +33,4 @@ class ModernLinkerJni implements ModernLinker.Natives {
             String libFilePath, Linker.LibInfo libInfo, boolean spawnRelroRegion);
     private static native boolean nativeUseRelros(Linker.LibInfo libInfo);
     private static native int nativeGetRelroSharingResult();
-
-    @CalledByNative
-    public static void reportDlopenExtTime(long millis) {
-        ModernLinker.reportDlopenExtTime(millis);
-    }
-
-    @CalledByNative
-    public static void reportIteratePhdrTime(long millis) {
-        ModernLinker.reportIteratePhdrTime(millis);
-    }
 }

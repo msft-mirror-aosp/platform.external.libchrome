@@ -10,7 +10,7 @@
 
 namespace base {
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 enum IntegrityLevel {
   INTEGRITY_UNKNOWN,
   UNTRUSTED_INTEGRITY,
@@ -23,15 +23,13 @@ enum IntegrityLevel {
 // case of an underlying system failure.
 BASE_EXPORT IntegrityLevel GetCurrentProcessIntegrityLevel();
 
-// Determines whether the current process is elevated. Note: in some
-// configurations this may be true for processes launched without using
-// base::LaunchElevatedProcess().
+// Determines whether the current process is elevated.
 BASE_EXPORT bool IsCurrentProcessElevated();
 
 // Determines whether the current process is running within an App Container.
 BASE_EXPORT bool IsCurrentProcessInAppContainer();
 
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
 }  // namespace base
 

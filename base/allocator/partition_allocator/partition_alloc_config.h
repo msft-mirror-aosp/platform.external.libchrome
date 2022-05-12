@@ -13,7 +13,7 @@
 // address space. The only known case where address space is 32-bit is NaCl, so
 // eliminate it explicitly. static_assert below ensures that others won't slip
 // through.
-#if defined(ARCH_CPU_64_BITS) && !BUILDFLAG(IS_NACL)
+#if defined(ARCH_CPU_64_BITS) && !defined(OS_NACL)
 #define PA_HAS_64_BITS_POINTERS
 static_assert(sizeof(void*) == 8, "");
 #else
@@ -31,12 +31,11 @@ static_assert(sizeof(void*) != 8, "");
 #endif
 
 #if defined(PA_HAS_64_BITS_POINTERS) && \
-    (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_ANDROID))
+    (defined(OS_LINUX) || defined(OS_ANDROID))
 #include <linux/version.h>
 // TODO(bikineev): Enable for ChromeOS.
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
 #define PA_STARSCAN_UFFD_WRITE_PROTECTOR_SUPPORTED
-#endif
 #endif
 
 #if defined(PA_HAS_64_BITS_POINTERS)
@@ -48,18 +47,15 @@ static_assert(sizeof(void*) != 8, "");
 // The card table is permanently disabled for 32-bit.
 #define PA_STARSCAN_USE_CARD_TABLE 0
 #endif
+#endif
 
 #if PA_STARSCAN_USE_CARD_TABLE && !defined(PA_ALLOW_PCSCAN)
 #error "Card table can only be used when *Scan is allowed"
 #endif
 
-// Use batched freeing when sweeping pages. This builds up a freelist in the
-// scanner thread and appends to the slot-span's freelist only once.
-#define PA_STARSCAN_BATCHED_FREE 1
-
 // POSIX is not only UNIX, e.g. macOS and other OSes. We do use Linux-specific
 // features such as futex(2).
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
 #define PA_HAS_LINUX_KERNEL
 #endif
 
@@ -77,8 +73,8 @@ static_assert(sizeof(void*) != 8, "");
 // assume that pthread_mutex_trylock() is suitable.
 //
 // Otherwise, a userspace spinlock implementation is used.
-#if defined(PA_HAS_LINUX_KERNEL) || BUILDFLAG(IS_WIN) || \
-    (BUILDFLAG(IS_POSIX) && !BUILDFLAG(IS_APPLE)) || BUILDFLAG(IS_FUCHSIA)
+#if defined(PA_HAS_LINUX_KERNEL) || defined(OS_WIN) || \
+    (defined(OS_POSIX) && !defined(OS_APPLE)) || defined(OS_FUCHSIA)
 #define PA_HAS_FAST_MUTEX
 #endif
 
@@ -91,7 +87,7 @@ static_assert(sizeof(void*) != 8, "");
 #endif
 
 // Need TLS support.
-#if BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_WIN) || BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_POSIX) || defined(OS_WIN) || defined(OS_FUCHSIA)
 #define PA_THREAD_CACHE_SUPPORTED
 #endif
 
@@ -130,7 +126,6 @@ static_assert(sizeof(void*) != 8, "");
 //
 // Not enabled by default, as it has a runtime cost, and causes issues with some
 // builds (e.g. Windows).
-// However the total count is collected on all platforms.
 // #define PA_COUNT_SYSCALL_TIME
 
 // On Windows, |thread_local| variables cannot be marked "dllexport", see
@@ -138,14 +133,23 @@ static_assert(sizeof(void*) != 8, "");
 // https://docs.microsoft.com/en-us/cpp/error-messages/compiler-errors-1/compiler-error-c2492?view=msvc-160.
 // Don't use it there.
 //
-// On macOS and iOS:
-// - With PartitionAlloc-Everywhere, thread_local allocates, reentering the
-//   allocator.
-// - Component builds triggered a clang bug: crbug.com/1243375
+// On macOS and iOS with PartitionAlloc-Everywhere enabled, thread_local
+// allocates memory and it causes an infinite loop of ThreadCache::Get() ->
+// malloc_zone_malloc -> ShimMalloc -> ThreadCache::Get() -> ...
+// Exact stack trace is:
+//   libsystem_malloc.dylib`_malloc_zone_malloc
+//   libdyld.dylib`tlv_allocate_and_initialize_for_key
+//   libdyld.dylib`tlv_get_addr
+//   libbase.dylib`thread-local wrapper routine for
+//       base::internal::g_thread_cache
+//   libbase.dylib`base::internal::ThreadCache::Get()
+// where tlv_allocate_and_initialize_for_key performs memory allocation.
 //
-// Regardless, the "normal" TLS access is fast on x86_64 (see partition_tls.h),
-// so don't bother with thread_local anywhere.
-#if !(BUILDFLAG(IS_WIN) && defined(COMPONENT_BUILD)) && !BUILDFLAG(IS_APPLE)
+// Finally, we have crashes with component builds on macOS,
+// see crbug.com/1243375.
+#if !(defined(OS_WIN) && defined(COMPONENT_BUILD)) && \
+    !(defined(OS_APPLE) &&                            \
+      (BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC) || defined(COMPONENT_BUILD)))
 #define PA_THREAD_LOCAL_TLS
 #endif
 
@@ -157,17 +161,8 @@ static_assert(sizeof(void*) != 8, "");
 // - thread_local TLS to simplify the implementation
 // - Not on Android due to bot failures
 #if DCHECK_IS_ON() && BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC) && \
-    defined(PA_THREAD_LOCAL_TLS) && !BUILDFLAG(IS_ANDROID)
+    defined(PA_THREAD_LOCAL_TLS) && !defined(OS_ANDROID)
 #define PA_HAS_ALLOCATION_GUARD
-#endif
-
-// Lazy commit should only be enabled on Windows, because commit charge is
-// only meaningful and limited on Windows. It affects performance on other
-// platforms and is simply not needed there due to OS supporting overcommit.
-#if BUILDFLAG(IS_WIN)
-constexpr bool kUseLazyCommit = true;
-#else
-constexpr bool kUseLazyCommit = false;
 #endif
 
 #endif  // BASE_ALLOCATOR_PARTITION_ALLOCATOR_PARTITION_ALLOC_CONFIG_H_

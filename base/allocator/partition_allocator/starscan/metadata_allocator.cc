@@ -12,15 +12,14 @@ namespace base {
 namespace internal {
 
 namespace {
-constexpr PartitionOptions kConfig{
-    PartitionOptions::AlignedAlloc::kDisallowed,
-    PartitionOptions::ThreadCache::kDisabled,
-    PartitionOptions::Quarantine::kDisallowed,
-    PartitionOptions::Cookie::kAllowed,
-    PartitionOptions::BackupRefPtr::kDisabled,
-    PartitionOptions::UseConfigurablePool::kNo,
-};
-}  // namespace
+constexpr PartitionOptions kConfig{PartitionOptions::AlignedAlloc::kDisallowed,
+                                   PartitionOptions::ThreadCache::kDisabled,
+                                   PartitionOptions::Quarantine::kDisallowed,
+                                   PartitionOptions::Cookie::kAllowed,
+                                   PartitionOptions::BackupRefPtr::kDisabled,
+                                   PartitionOptions::UseConfigurablePool::kNo,
+                                   PartitionOptions::LazyCommit::kEnabled};
+}
 
 ThreadSafePartitionRoot& PCScanMetadataAllocator() {
   static base::NoDestructor<ThreadSafePartitionRoot> allocator(kConfig);

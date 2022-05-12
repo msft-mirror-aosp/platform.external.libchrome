@@ -17,7 +17,6 @@
 #include "base/strings/strcat.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
-#include "base/test/gtest_xml_util.h"
 #include "base/test/launcher/test_launcher_test_utils.h"
 #include "base/test/launcher/unit_test_launcher.h"
 #include "base/test/multiprocess_test.h"
@@ -32,7 +31,7 @@
 #include "testing/multiprocess_func_list.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "base/win/windows_version.h"
 #endif
 
@@ -778,14 +777,14 @@ TEST_F(TestLauncherTest, TestChildTempDir) {
   EXPECT_FALSE(DirectoryExists(task_temp));
 }
 
-#if BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_FUCHSIA)
 // Verifies that test processes have /data, /cache and /tmp available.
 TEST_F(TestLauncherTest, ProvidesDataCacheAndTmpDirs) {
   EXPECT_TRUE(base::DirectoryExists(base::FilePath("/data")));
   EXPECT_TRUE(base::DirectoryExists(base::FilePath("/cache")));
   EXPECT_TRUE(base::DirectoryExists(base::FilePath("/tmp")));
 }
-#endif  // BUILDFLAG(IS_FUCHSIA)
+#endif  // defined(OS_FUCHSIA)
 
 // Unit tests to validate UnitTestLauncherDelegate implementation.
 class UnitTestLauncherDelegateTester : public testing::Test {
@@ -833,9 +832,8 @@ TEST_F(UnitTestLauncherDelegateTester, BatchSize) {
   EXPECT_EQ(delegate_ptr->GetBatchSize(), 15u);
 }
 
-// The following 4 tests are disabled as they are meant to only run from
-// |RunMockTests| to validate tests launcher output for known results. The tests
-// are expected to run in order within a same batch.
+// The following 3 tests are disabled as they are meant to only run from
+// |RunMockTests| to validate tests launcher output for known results.
 
 // Basic test to pass
 TEST(MockUnitTests, DISABLED_PassTest) {
@@ -865,13 +863,13 @@ TEST_F(UnitTestLauncherDelegateTester, RunMockTests) {
   command_line.AppendSwitchPath("test-launcher-summary-output", path);
   command_line.AppendSwitch("gtest_also_run_disabled_tests");
   command_line.AppendSwitchASCII("test-launcher-retry-limit", "0");
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   // In Windows versions prior to Windows 8, nested job objects are
   // not allowed and cause this test to fail.
   if (win::GetVersion() < win::Version::WIN8) {
     command_line.AppendSwitch(kDontUseJobObjectFlag);
   }
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
   std::string output;
   GetAppOutputAndError(command_line, &output);
@@ -902,55 +900,11 @@ TEST_F(UnitTestLauncherDelegateTester, RunMockTests) {
   EXPECT_TRUE(test_launcher_utils::ValidateTestResult(
       iteration_val, "MockUnitTests.CrashTest", "CRASH", 0u));
   EXPECT_TRUE(test_launcher_utils::ValidateTestResult(
-      iteration_val, "MockUnitTests.NoRunTest", "NOTRUN", 0u,
-      /*have_running_info=*/false));
-}
-
-TEST(ProcessGTestOutputTest, RunMockTests) {
-  ScopedTempDir dir;
-  CommandLine command_line(CommandLine::ForCurrentProcess()->GetProgram());
-  command_line.AppendSwitchASCII("gtest_filter", "MockUnitTests.DISABLED_*");
-
-  ASSERT_TRUE(dir.CreateUniqueTempDir());
-  FilePath path = dir.GetPath().AppendASCII("SaveSummaryResult.xml");
-  command_line.AppendSwitchPath("test-launcher-output", path);
-  command_line.AppendSwitch("gtest_also_run_disabled_tests");
-  command_line.AppendSwitch("single-process-tests");
-
-  std::string output;
-  GetAppOutputAndError(command_line, &output);
-
-  std::vector<TestResult> test_results;
-  bool crashed = false;
-  bool have_test_results = ProcessGTestOutput(path, &test_results, &crashed);
-
-  EXPECT_TRUE(have_test_results);
-  EXPECT_TRUE(crashed);
-  ASSERT_EQ(test_results.size(), 3u);
-
-  EXPECT_EQ(test_results[0].full_name, "MockUnitTests.DISABLED_PassTest");
-  EXPECT_EQ(test_results[0].status, TestResult::TEST_SUCCESS);
-  EXPECT_EQ(test_results[0].test_result_parts.size(), 0u);
-  ASSERT_TRUE(test_results[0].timestamp.has_value());
-  EXPECT_GT(*test_results[0].timestamp, Time());
-  EXPECT_FALSE(test_results[0].thread_id);
-  EXPECT_FALSE(test_results[0].process_num);
-
-  EXPECT_EQ(test_results[1].full_name, "MockUnitTests.DISABLED_FailTest");
-  EXPECT_EQ(test_results[1].status, TestResult::TEST_FAILURE);
-  EXPECT_EQ(test_results[1].test_result_parts.size(), 1u);
-  ASSERT_TRUE(test_results[1].timestamp.has_value());
-  EXPECT_GT(*test_results[1].timestamp, Time());
-
-  EXPECT_EQ(test_results[2].full_name, "MockUnitTests.DISABLED_CrashTest");
-  EXPECT_EQ(test_results[2].status, TestResult::TEST_CRASH);
-  EXPECT_EQ(test_results[2].test_result_parts.size(), 0u);
-  ASSERT_TRUE(test_results[2].timestamp.has_value());
-  EXPECT_GT(*test_results[2].timestamp, Time());
+      iteration_val, "MockUnitTests.NoRunTest", "NOTRUN", 0u));
 }
 
 // TODO(crbug.com/1094369): Enable leaked-child checks on other platforms.
-#if BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_FUCHSIA)
 
 // Test that leaves a child process running. The test is DISABLED_, so it can
 // be launched explicitly by RunMockLeakProcessTest
@@ -980,13 +934,13 @@ TEST_F(UnitTestLauncherDelegateTester, LeakedChildProcess) {
   command_line.AppendSwitchPath("test-launcher-summary-output", path);
   command_line.AppendSwitch("gtest_also_run_disabled_tests");
   command_line.AppendSwitchASCII("test-launcher-retry-limit", "0");
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   // In Windows versions prior to Windows 8, nested job objects are
   // not allowed and cause this test to fail.
   if (win::GetVersion() < win::Version::WIN8) {
     command_line.AppendSwitch(kDontUseJobObjectFlag);
   }
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
   std::string output;
   int exit_code = 0;
@@ -1006,7 +960,7 @@ TEST_F(UnitTestLauncherDelegateTester, LeakedChildProcess) {
   // Validate that the leaked child caused the batch to error-out.
   EXPECT_EQ(exit_code, 1);
 }
-#endif  // BUILDFLAG(IS_FUCHSIA)
+#endif  // defined(OS_FUCHSIA)
 
 // Validate GetTestOutputSnippetTest assigns correct output snippet.
 TEST(TestLauncherTools, GetTestOutputSnippetTest) {

@@ -47,7 +47,7 @@
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_AIX)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_AIX)
 #include <sys/prctl.h>
 #endif
 
@@ -55,18 +55,20 @@
 #include <sys/ioctl.h>
 #endif
 
-#if BUILDFLAG(IS_FREEBSD)
+#if defined(OS_FREEBSD)
 #include <sys/event.h>
 #include <sys/ucontext.h>
 #endif
 
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
 #error "macOS should use launch_mac.cc"
 #endif
 
 extern char** environ;
 
 namespace base {
+
+#if !defined(OS_NACL_NONSFI)
 
 namespace {
 
@@ -86,7 +88,7 @@ void SetEnvironment(char** env) {
 // the previous signal mask.
 sigset_t SetSignalMask(const sigset_t& new_sigmask) {
   sigset_t old_sigmask;
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   // POSIX says pthread_sigmask() must be used in multi-threaded processes,
   // but Android's pthread_sigmask() was broken until 4.1:
   // https://code.google.com/p/android/issues/detail?id=15337
@@ -98,7 +100,7 @@ sigset_t SetSignalMask(const sigset_t& new_sigmask) {
   return old_sigmask;
 }
 
-#if (!BUILDFLAG(IS_LINUX) && !BUILDFLAG(IS_AIX) && !BUILDFLAG(IS_CHROMEOS)) || \
+#if (!defined(OS_LINUX) && !defined(OS_AIX) && !defined(OS_CHROMEOS)) || \
     (!defined(__i386__) && !defined(__x86_64__) && !defined(__arm__))
 void ResetChildSignalHandlersToDefaults() {
   // The previous signal handlers are likely to be meaningless in the child's
@@ -181,7 +183,7 @@ void ResetChildSignalHandlersToDefaults(void) {
 #endif  // !defined(NDEBUG)
   }
 }
-#endif  // !BUILDFLAG(IS_LINUX) ||
+#endif  // !defined(OS_LINUX) ||
         // (!defined(__i386__) && !defined(__x86_64__) && !defined(__arm__))
 }  // anonymous namespace
 
@@ -196,15 +198,15 @@ struct ScopedDIRClose {
 // Automatically closes |DIR*|s.
 typedef std::unique_ptr<DIR, ScopedDIRClose> ScopedDIR;
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_AIX)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_AIX)
 static const char kFDDir[] = "/proc/self/fd";
-#elif BUILDFLAG(IS_SOLARIS)
+#elif defined(OS_SOLARIS)
 static const char kFDDir[] = "/dev/fd";
-#elif BUILDFLAG(IS_FREEBSD)
+#elif defined(OS_FREEBSD)
 static const char kFDDir[] = "/dev/fd";
-#elif BUILDFLAG(IS_OPENBSD)
+#elif defined(OS_OPENBSD)
 static const char kFDDir[] = "/dev/fd";
-#elif BUILDFLAG(IS_ANDROID)
+#elif defined(OS_ANDROID)
 static const char kFDDir[] = "/proc/self/fd";
 #endif
 
@@ -307,7 +309,7 @@ Process LaunchProcess(const std::vector<std::string>& argv,
 
   pid_t pid;
   base::TimeTicks before_fork = TimeTicks::Now();
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_AIX)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_AIX)
   if (options.clone_flags) {
     // Signal handling in this function assumes the creation of a new
     // process, so we check that a thread is not being created by mistake
@@ -356,7 +358,7 @@ Process LaunchProcess(const std::vector<std::string>& argv,
     // might do things like block waiting for threads that don't even exist
     // in the child.
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
     // See comments on the ResetFDOwnership() declaration in
     // base/files/scoped_file.h regarding why this is called early here.
     subtle::ResetFDOwnership();
@@ -449,7 +451,7 @@ Process LaunchProcess(const std::vector<std::string>& argv,
 
     // Set NO_NEW_PRIVS by default. Since NO_NEW_PRIVS only exists in kernel
     // 3.5+, do not check the return value of prctl here.
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_AIX)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_AIX)
 #ifndef PR_SET_NO_NEW_PRIVS
 #define PR_SET_NO_NEW_PRIVS 38
 #endif
@@ -556,7 +558,7 @@ static bool GetAppOutputInternal(
       // DANGER: no calls to malloc or locks are allowed from now on:
       // http://crbug.com/36678
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
       // See comments on the ResetFDOwnership() declaration in
       // base/files/scoped_file.h regarding why this is called early here.
       subtle::ResetFDOwnership();
@@ -670,7 +672,10 @@ bool GetAppOutputWithExitCode(const CommandLine& cl,
                               exit_code);
 }
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_AIX)
+#endif  // !defined(OS_NACL_NONSFI)
+
+#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_NACL_NONSFI) || \
+    defined(OS_AIX)
 namespace {
 
 // This function runs on the stack specified on the clone call. It uses longjmp
@@ -736,15 +741,15 @@ pid_t ForkWithFlags(unsigned long flags, pid_t* ptid, pid_t* ctid) {
     return CloneAndLongjmpInChild(flags, ptid, ctid, &env);
   }
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
   // Since we use clone() directly, it does not call any pthread_aftork()
-  // callbacks, we explicitly invalidate tid cache here (normally this call is
+  // callbacks, we explicitly clear tid cache here (normally this call is
   // done as pthread_aftork() callback).  See crbug.com/902514.
-  base::internal::InvalidateTidCache();
-#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+  base::internal::ClearTidCache();
+#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS)
 
   return 0;
 }
-#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_AIX)
+#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_NACL_NONSFI)
 
 }  // namespace base

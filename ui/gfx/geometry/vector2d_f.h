@@ -69,10 +69,7 @@ class GEOMETRY_EXPORT Vector2dF {
   // respectively.
   void Scale(float x_scale, float y_scale);
 
-  void Transpose() {
-    using std::swap;
-    swap(x_, y_);
-  }
+  void Transpose() { std::swap(x_, y_); }
 
   std::string ToString() const;
 

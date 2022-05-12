@@ -21,7 +21,6 @@ typedef struct CGRect CGRect;
 namespace gfx {
 
 class InsetsF;
-class OutsetsF;
 
 // A floating version of gfx::Rect.
 class GEOMETRY_EXPORT RectF {
@@ -110,7 +109,6 @@ class GEOMETRY_EXPORT RectF {
   void Outset(float left, float top, float right, float bottom) {
     Inset(-left, -top, -right, -bottom);
   }
-  void Outset(const OutsetsF& outsets);
 
   // Move the rectangle by a horizontal and vertical distance.
   void Offset(float horizontal, float vertical);
@@ -121,7 +119,7 @@ class GEOMETRY_EXPORT RectF {
   InsetsF InsetsFrom(const RectF& inner) const;
 
   // Returns true if the area of the rectangle is zero.
-  constexpr bool IsEmpty() const { return size_.IsEmpty(); }
+  bool IsEmpty() const { return size_.IsEmpty(); }
 
   // A rect is less than another rect if its origin is less than
   // the other rect's origin. If the origins are equal, then the
@@ -245,11 +243,11 @@ class GEOMETRY_EXPORT RectF {
   SizeF size_;
 };
 
-constexpr bool operator==(const RectF& lhs, const RectF& rhs) {
+inline bool operator==(const RectF& lhs, const RectF& rhs) {
   return lhs.origin() == rhs.origin() && lhs.size() == rhs.size();
 }
 
-constexpr bool operator!=(const RectF& lhs, const RectF& rhs) {
+inline bool operator!=(const RectF& lhs, const RectF& rhs) {
   return !(lhs == rhs);
 }
 
@@ -295,12 +293,6 @@ GEOMETRY_EXPORT RectF BoundingRect(const PointF& p1, const PointF& p2);
 
 // Return a maximum rectangle in which any point is covered by either a or b.
 GEOMETRY_EXPORT RectF MaximumCoveredRect(const RectF& a, const RectF& b);
-
-// Returns the rect in |dest_rect| corresponding to |r] in |src_rect| when
-// |src_rect| is mapped to |dest_rect|.
-GEOMETRY_EXPORT RectF MapRect(const RectF& r,
-                              const RectF& src_rect,
-                              const RectF& dest_rect);
 
 // This is declared here for use in gtest-based unit tests but is defined in
 // the //ui/gfx:test_support target. Depend on that to use this in your unit

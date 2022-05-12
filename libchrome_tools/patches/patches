@@ -55,6 +55,14 @@ disable-base-Dictionary-List-Value.patch
 always-include-platform-thread-h.patch
 
 # ==================== CHERRY PICKS ===========================
+# Cherry-pick of r942723; to avoid regression on mgirating base::ReadBigEndian
+# and base::BigEndianReader to take uint8_t* input instead of char* input.
+Change-ReadBigEndian-to-take-a-uint8_t-input.patch
+
+# Cherry-pick of r953588 for libchrome uprev to migrate to new
+# Policy::RegistryDict::ValueMap
+Policy-RegistryDict-use-base-Value.patch
+
 # Cherry-pick of r970942
 # It is a revert of r932059 and r957262, which caused crashes with ml package.
 Revert-StatisticsRecorder-back-to-use-a-base-Lock.patch
@@ -82,14 +90,5 @@ backward-compatibility-add-deprecated-base-Bind-APIs.patch
 # TODO(b/204383858): Remove the patch when usage in mri_package is removed
 backward-compatibility-add-base-AdaptCallbackForRepaeting.patch media_perception
 
-# Backward compatibility patch to include <unistd.h> in build/build_config.h
-# Revert of r950791.
-# TODO(b/231676446): Remove when all usages are including unistd.h directly
-backward-compatibility-include-unistd.patch
-
-# Revert of r958410 (crrev.com/c/3366978)
-# This reverts the CL which uses getpid syscall in PlatformThread::CurrentId.
-# TODO(b/231676453): remove the patch when getpid has been added to all
-# necessary policy files.
-Revert-Linux-Don-t-access-TLS-in-a-pthread_atfork-ha.patch
-
+# Forward compatibility for >r951523 uprev to use new base::JSONReader options
+forward-compatibility-add-base-JSONReader-options.patch

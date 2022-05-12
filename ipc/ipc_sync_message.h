@@ -7,9 +7,7 @@
 
 #include <stdint.h>
 
-#include "build/build_config.h"
-
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "base/win/windows_types.h"
 #endif
 

@@ -10,7 +10,6 @@
 #include <vector>
 
 #include "base/base_export.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
 #include "base/task/common/checked_lock.h"
 #include "base/task/single_thread_task_runner_thread_mode.h"
@@ -78,7 +77,7 @@ class BASE_EXPORT PooledSingleThreadTaskRunnerManager final {
       const TaskTraits& traits,
       SingleThreadTaskRunnerThreadMode thread_mode);
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   // Creates a SingleThreadTaskRunner which runs tasks with |traits| on a COM
   // STA thread named "ThreadPoolSingleThreadCOMSTA[Shared]" +
   // kEnvironmentParams[GetEnvironmentIndexForTraits(traits)].name_suffix +
@@ -86,7 +85,7 @@ class BASE_EXPORT PooledSingleThreadTaskRunnerManager final {
   scoped_refptr<SingleThreadTaskRunner> CreateCOMSTATaskRunner(
       const TaskTraits& traits,
       SingleThreadTaskRunnerThreadMode thread_mode);
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
   void JoinForTesting();
 
@@ -127,11 +126,11 @@ class BASE_EXPORT PooledSingleThreadTaskRunnerManager final {
   void ReleaseSharedWorkerThreads();
 
   const TrackedRef<TaskTracker> task_tracker_;
-  const raw_ptr<DelayedTaskManager> delayed_task_manager_;
+  DelayedTaskManager* const delayed_task_manager_;
 
   // Optional observer notified when a worker enters and exits its main
   // function. Set in Start() and never modified afterwards.
-  raw_ptr<WorkerThreadObserver> worker_thread_observer_ = nullptr;
+  WorkerThreadObserver* worker_thread_observer_ = nullptr;
 
   CheckedLock lock_;
   std::vector<scoped_refptr<WorkerThread>> workers_ GUARDED_BY(lock_);
@@ -145,10 +144,10 @@ class BASE_EXPORT PooledSingleThreadTaskRunnerManager final {
   WorkerThread* shared_worker_threads_[ENVIRONMENT_COUNT]
                                       [CONTINUE_ON_SHUTDOWN_COUNT] GUARDED_BY(
                                           lock_) = {};
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   WorkerThread* shared_com_worker_threads_
       [ENVIRONMENT_COUNT][CONTINUE_ON_SHUTDOWN_COUNT] GUARDED_BY(lock_) = {};
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
   // Set to true when Start() is called.
   bool started_ GUARDED_BY(lock_) = false;

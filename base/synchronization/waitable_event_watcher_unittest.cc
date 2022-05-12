@@ -7,7 +7,6 @@
 #include "base/bind.h"
 #include "base/callback.h"
 #include "base/memory/ptr_util.h"
-#include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
 #include "base/synchronization/waitable_event.h"
 #include "base/test/task_environment.h"
@@ -25,7 +24,7 @@ namespace {
 const test::TaskEnvironment::MainThreadType testing_main_threads[] = {
     test::TaskEnvironment::MainThreadType::DEFAULT,
     test::TaskEnvironment::MainThreadType::IO,
-#if !BUILDFLAG(IS_IOS)  // iOS does not allow direct running of the UI loop.
+#if !defined(OS_IOS)  // iOS does not allow direct running of the UI loop.
     test::TaskEnvironment::MainThreadType::UI,
 #endif
 };
@@ -43,7 +42,7 @@ class DecrementCountContainer {
   }
 
  private:
-  raw_ptr<int> counter_;
+  int* counter_;
 };
 
 }  // namespace

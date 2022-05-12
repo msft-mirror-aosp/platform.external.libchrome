@@ -9,6 +9,7 @@
 
 #include "base/bind.h"
 #include "base/callback.h"
+#include "base/macros.h"
 #include "mojo/public/cpp/system/message_pipe.h"
 #include "mojo/public/cpp/system/simple_watcher.h"
 #include "mojo/public/cpp/system/system_export.h"

@@ -1,4 +1,4 @@
-From c5f8b7eb3b33dde4619eb7ac0a2bae758fb08ca4 Mon Sep 17 00:00:00 2001
+From acd151b1030d2a970d28b40bda63613e7ea0adaa Mon Sep 17 00:00:00 2001
 From: hscham <hscham@chromium.org>
 Date: Thu, 30 Sep 2021 10:10:25 +0900
 Subject: [PATCH] Do not use boringssl and keep base::SHA1* implementation
@@ -15,7 +15,7 @@ Change-Id: I0bd42d12f98191eb2823e07d5711f41617e4903c
 
 diff --git a/base/hash/sha1.cc b/base/hash/sha1.cc
 new file mode 100644
-index 000000000000..969c96c2986b
+index 000000000..969c96c29
 --- /dev/null
 +++ b/base/hash/sha1.cc
 @@ -0,0 +1,211 @@
@@ -231,7 +231,7 @@ index 000000000000..969c96c2986b
 +
 +}  // namespace base
 diff --git a/base/hash/sha1.h b/base/hash/sha1.h
-index c4e656b9a68e..229042a28770 100644
+index 5bb10fe06..b66645fd1 100644
 --- a/base/hash/sha1.h
 +++ b/base/hash/sha1.h
 @@ -14,11 +14,13 @@
@@ -239,7 +239,7 @@ index c4e656b9a68e..229042a28770 100644
  #include "base/strings/string_piece.h"
  #include "build/build_config.h"
 +#if 0 // libchrome does not provide boringssl support
- #if BUILDFLAG(IS_NACL)
+ #if defined(OS_NACL)
  #include "base/hash/sha1_nacl.h"
  #else
  #include "base/hash/sha1_boringssl.h"
@@ -262,5 +262,5 @@ index c4e656b9a68e..229042a28770 100644
  
  #endif  // BASE_HASH_SHA1_H_
 -- 
-2.35.0.rc0.227.g00780c9af4-goog
+2.33.0.685.g46640cef36-goog
 

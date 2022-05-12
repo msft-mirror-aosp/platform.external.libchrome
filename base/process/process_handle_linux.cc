@@ -6,8 +6,7 @@
 
 #include "base/files/file_util.h"
 #include "base/process/internal_linux.h"
-#include "build/build_config.h"
-#if BUILDFLAG(IS_AIX)
+#if defined(OS_AIX)
 #include "base/process/internal_aix.h"
 #endif
 
@@ -15,7 +14,7 @@ namespace base {
 
 ProcessId GetParentProcessId(ProcessHandle process) {
   ProcessId pid =
-#if BUILDFLAG(IS_AIX)
+#if defined(OS_AIX)
       internalAIX::ReadProcStatsAndGetFieldAsInt64(process,
                                                    internalAIX::VM_PPID);
 #else

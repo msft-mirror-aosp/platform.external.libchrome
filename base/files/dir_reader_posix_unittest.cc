@@ -16,7 +16,7 @@
 #include "build/build_config.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #include "base/os_compat_android.h"
 #endif
 

@@ -17,16 +17,25 @@
 #include "base/thread_annotations.h"
 #include "build/build_config.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "base/win/windows_types.h"
 #endif
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 #include <errno.h>
 #include <pthread.h>
 #endif
 
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
+
+// With PA-E, os_unfair_lock is incompatible with the fork()
+// hooks. Temporarily revert to the SpinLock to mitigate the failures. See
+// crbug.com/1267256 for details.
+#if BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
+#define PA_NO_OS_UNFAIR_LOCK_CRBUG_1267256
+#endif
+
+#if !defined(PA_NO_OS_UNFAIR_LOCK_CRBUG_1267256)
 
 #include <os/lock.h>
 
@@ -53,13 +62,16 @@ PA_WEAK void os_unfair_lock_unlock(os_unfair_lock_t lock);
 
 #pragma clang diagnostic pop
 
-#endif  // BUILDFLAG(IS_APPLE)
+#endif  // defined(PA_NO_OS_UNFAIR_LOCK_CRBUG_1267256)
 
-#if BUILDFLAG(IS_FUCHSIA)
+#endif  // defined(OS_APPLE)
+
+#if defined(OS_FUCHSIA)
 #include <lib/sync/mutex.h>
 #endif
 
-namespace partition_alloc {
+namespace base {
+namespace internal {
 
 // The behavior of this class depends on whether PA_HAS_FAST_MUTEX is defined.
 // 1. When it is defined:
@@ -102,13 +114,9 @@ class LOCKABLE BASE_EXPORT SpinningMutex {
  private:
   void LockSlow() EXCLUSIVE_LOCK_FUNCTION();
 
-  // See below, the latency of YIELD_PROCESSOR can be as high as ~150
-  // cycles. Meanwhile, sleeping costs a few us. Spinning 64 times at 3GHz would
-  // cost 150 * 64 / 3e9 ~= 3.2us.
-  //
-  // This applies to Linux kernels, on x86_64. On ARM we might want to spin
-  // more.
-  static constexpr int kSpinCount = 64;
+  // Same as SpinLock, not scientifically calibrated. Consider lowering later,
+  // as the slow path has better characteristics than SpinLocks's.
+  static constexpr int kSpinCount = 1000;
 
 #if defined(PA_HAS_FAST_MUTEX)
 
@@ -121,25 +129,25 @@ class LOCKABLE BASE_EXPORT SpinningMutex {
   static constexpr int kLockedContended = 2;
 
   std::atomic<int32_t> state_{kUnlocked};
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
   CHROME_SRWLOCK lock_ = SRWLOCK_INIT;
-#elif BUILDFLAG(IS_POSIX)
+#elif defined(OS_POSIX)
   pthread_mutex_t lock_ = PTHREAD_MUTEX_INITIALIZER;
-#elif BUILDFLAG(IS_FUCHSIA)
+#elif defined(OS_FUCHSIA)
   sync_mutex lock_;
 #endif
 
 #else  // defined(PA_HAS_FAST_MUTEX)
   std::atomic<bool> lock_{false};
 
-#if BUILDFLAG(IS_APPLE) && !defined(PA_NO_OS_UNFAIR_LOCK_CRBUG_1267256)
+#if defined(OS_APPLE) && !defined(PA_NO_OS_UNFAIR_LOCK_CRBUG_1267256)
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunguarded-availability"
   os_unfair_lock unfair_lock_ = OS_UNFAIR_LOCK_INIT;
 #pragma clang diagnostic pop
 
-#endif  // BUILDFLAG(IS_APPLE) && !defined(PA_NO_OS_UNFAIR_LOCK_CRBUG_1267256)
+#endif  // defined(OS_APPLE) && !defined(PA_NO_OS_UNFAIR_LOCK_CRBUG_1267256)
 
   // Spinlock-like, fallback.
   ALWAYS_INLINE bool TrySpinLock();
@@ -160,14 +168,10 @@ ALWAYS_INLINE void SpinningMutex::Acquire() {
     // Note: Per the intel optimization manual
     // (https://software.intel.com/content/dam/develop/public/us/en/documents/64-ia-32-architectures-optimization-manual.pdf),
     // the "pause" instruction is more costly on Skylake Client than on previous
-    // architectures. The latency is found to be 141 cycles
-    // there (from ~10 on previous ones, nice 14x).
-    //
-    // According to Agner Fog's instruction tables, the latency is still >100
-    // cycles on Ice Lake, and from other sources, seems to be high as well on
-    // Adler Lake. Separately, it is (from
-    // https://agner.org/optimize/instruction_tables.pdf) also high on AMD Zen 3
-    // (~65). So just assume that it's this way for most x86_64 architectures.
+    // (and subsequent?) architectures. The latency is found to be 141 cycles
+    // there. This is not a big issue here as we don't spin long enough for this
+    // to become a problem, as we spend a maximum of ~141k cycles ~= 47us at
+    // 3GHz in "pause".
     //
     // Also, loop several times here, following the guidelines in section 2.3.4
     // of the manual, "Pause latency in Skylake Client Microarchitecture".
@@ -175,7 +179,7 @@ ALWAYS_INLINE void SpinningMutex::Acquire() {
       YIELD_PROCESSOR;
       tries++;
     }
-    constexpr int kMaxBackoff = 16;
+    constexpr int kMaxBackoff = 64;
     backoff = std::min(kMaxBackoff, backoff << 1);
   } while (tries < kSpinCount);
 
@@ -223,7 +227,7 @@ ALWAYS_INLINE void SpinningMutex::Release() {
   }
 }
 
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
 
 ALWAYS_INLINE bool SpinningMutex::Try() {
   return !!::TryAcquireSRWLockExclusive(reinterpret_cast<PSRWLOCK>(&lock_));
@@ -233,7 +237,7 @@ ALWAYS_INLINE void SpinningMutex::Release() {
   ::ReleaseSRWLockExclusive(reinterpret_cast<PSRWLOCK>(&lock_));
 }
 
-#elif BUILDFLAG(IS_POSIX)
+#elif defined(OS_POSIX)
 
 ALWAYS_INLINE bool SpinningMutex::Try() {
   int retval = pthread_mutex_trylock(&lock_);
@@ -246,7 +250,7 @@ ALWAYS_INLINE void SpinningMutex::Release() {
   PA_DCHECK(retval == 0);
 }
 
-#elif BUILDFLAG(IS_FUCHSIA)
+#elif defined(OS_FUCHSIA)
 
 ALWAYS_INLINE bool SpinningMutex::Try() {
   return sync_mutex_trylock(&lock_) == ZX_OK;
@@ -271,44 +275,36 @@ ALWAYS_INLINE void SpinningMutex::ReleaseSpinLock() {
   lock_.store(false, std::memory_order_release);
 }
 
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunguarded-availability"
 
 ALWAYS_INLINE bool SpinningMutex::Try() {
-  // ARM64 macOS is macOS 11.x at least, guaranteed to have os_unfair_lock().
-#if BUILDFLAG(IS_MAC) && defined(ARCH_CPU_ARM64)
-  return os_unfair_lock_trylock(&unfair_lock_);
-#else
+#if !defined(PA_NO_OS_UNFAIR_LOCK_CRBUG_1267256)
   if (LIKELY(os_unfair_lock_trylock))
     return os_unfair_lock_trylock(&unfair_lock_);
+#endif  // !defined(PA_NO_OS_UNFAIR_LOCK_CRBUG_1267256)
 
   return TrySpinLock();
-#endif  // BUILDFLAG(IS_MAC) && defined(ARCH_CPU_ARM64)
 }
 
 ALWAYS_INLINE void SpinningMutex::Release() {
-#if BUILDFLAG(IS_MAC) && defined(ARCH_CPU_ARM64)
-  return os_unfair_lock_unlock(&unfair_lock_);
-#else
+#if !defined(PA_NO_OS_UNFAIR_LOCK_CRBUG_1267256)
   // Always testing trylock(), since the definitions are all or nothing.
   if (LIKELY(os_unfair_lock_trylock))
     return os_unfair_lock_unlock(&unfair_lock_);
+#endif  // !defined(PA_NO_OS_UNFAIR_LOCK_CRBUG_1267256)
 
   return ReleaseSpinLock();
-#endif  // BUILDFLAG(IS_MAC) && defined(ARCH_CPU_ARM64)
 }
 
 ALWAYS_INLINE void SpinningMutex::LockSlow() {
-#if BUILDFLAG(IS_MAC) && defined(ARCH_CPU_ARM64)
-  return os_unfair_lock_lock(&unfair_lock_);
-#else
+#if !defined(PA_NO_OS_UNFAIR_LOCK_CRBUG_1267256)
   if (LIKELY(os_unfair_lock_trylock))
     return os_unfair_lock_lock(&unfair_lock_);
-
+#endif  // !defined(PA_NO_OS_UNFAIR_LOCK_CRBUG_1267256)
   return LockSlowSpinLock();
-#endif  // BUILDFLAG(IS_MAC) && defined(ARCH_CPU_ARM64)
 }
 
 #pragma clang diagnostic pop
@@ -326,10 +322,11 @@ ALWAYS_INLINE void SpinningMutex::LockSlow() {
   return LockSlowSpinLock();
 }
 
-#endif  // BUILDFLAG(IS_APPLE)
+#endif  // defined(OS_APPLE)
 
 #endif  // defined(PA_HAS_FAST_MUTEX)
 
-}  // namespace partition_alloc
+}  // namespace internal
+}  // namespace base
 
 #endif  // BASE_ALLOCATOR_PARTITION_ALLOCATOR_SPINNING_MUTEX_H_

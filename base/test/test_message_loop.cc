@@ -25,11 +25,11 @@ test::SingleThreadTaskEnvironment::MainThreadType GetMainThreadType(
     case MessagePumpType::UI:
       return test::SingleThreadTaskEnvironment::MainThreadType::UI;
     case MessagePumpType::CUSTOM:
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
     case MessagePumpType::JAVA:
-#elif BUILDFLAG(IS_APPLE)
+#elif defined(OS_APPLE)
     case MessagePumpType::NS_RUNLOOP:
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
     case MessagePumpType::UI_WITH_WM_QUIT_SUPPORT:
 #endif
       NOTREACHED();

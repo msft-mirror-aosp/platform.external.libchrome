@@ -12,7 +12,6 @@
 #include "base/task/thread_pool/thread_pool_impl.h"
 #include "base/task/thread_pool/thread_pool_instance.h"
 #include "base/threading/post_task_and_reply_impl.h"
-#include "build/build_config.h"
 
 namespace base {
 
@@ -101,13 +100,13 @@ scoped_refptr<SingleThreadTaskRunner> CreateSingleThreadTaskRunner(
       traits, thread_mode);
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 scoped_refptr<SingleThreadTaskRunner> CreateCOMSTATaskRunner(
     const TaskTraits& traits,
     SingleThreadTaskRunnerThreadMode thread_mode) {
   return GetTaskExecutorForTraits(traits)->CreateCOMSTATaskRunner(traits,
                                                                   thread_mode);
 }
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
 }  // namespace base

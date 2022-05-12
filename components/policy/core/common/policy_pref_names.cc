@@ -4,8 +4,6 @@
 
 #include "components/policy/core/common/policy_pref_names.h"
 
-#include "build/build_config.h"
-
 namespace policy {
 namespace policy_prefs {
 
@@ -67,10 +65,10 @@ const char kIntensiveWakeUpThrottlingEnabled[] =
 const char kTargetBlankImpliesNoOpener[] =
     "policy.target_blank_implies_noopener";
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 // Boolean policy preference to disable the BackForwardCache feature.
 const char kBackForwardCacheEnabled[] = "policy.back_forward_cache_enabled";
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // defined(OS_ANDROID)
 
 // Boolean policy to force enable WebSQL in third-party contexts.
 const char kWebSQLInThirdPartyContextEnabled[] =

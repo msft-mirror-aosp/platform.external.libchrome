@@ -11,7 +11,6 @@
 
 #include "base/callback.h"
 #include "base/memory/ptr_util.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "base/strings/string_number_conversions.h"
@@ -116,10 +115,10 @@ struct DerivedCopyMoveCounter {
         assigns_(assigns),
         move_constructs_(move_constructs),
         move_assigns_(move_assigns) {}
-  raw_ptr<int> copies_;
-  raw_ptr<int> assigns_;
-  raw_ptr<int> move_constructs_;
-  raw_ptr<int> move_assigns_;
+  int* copies_;
+  int* assigns_;
+  int* move_constructs_;
+  int* move_assigns_;
 };
 
 // Used for probing the number of copies and moves in an argument.
@@ -195,10 +194,10 @@ class CopyMoveCounter {
   }
 
  private:
-  raw_ptr<int> copies_;
-  raw_ptr<int> assigns_;
-  raw_ptr<int> move_constructs_;
-  raw_ptr<int> move_assigns_;
+  int* copies_;
+  int* assigns_;
+  int* move_constructs_;
+  int* move_assigns_;
 };
 
 // Used for probing the number of copies in an argument. The instance is a
@@ -250,7 +249,7 @@ class DeleteCounter {
   void VoidMethod0() {}
 
  private:
-  raw_ptr<int> deletes_;
+  int* deletes_;
 };
 
 template <typename T>
@@ -347,8 +346,8 @@ class BindTest : public ::testing::Test {
  protected:
   StrictMock<NoRef> no_ref_;
   StrictMock<HasRef> has_ref_;
-  raw_ptr<const HasRef> const_has_ref_ptr_;
-  raw_ptr<const NoRef> const_no_ref_ptr_;
+  const HasRef* const_has_ref_ptr_;
+  const NoRef* const_no_ref_ptr_;
   StrictMock<NoRef> static_func_mock_;
 
   // Used by the static functions to perform expectations.
@@ -470,7 +469,7 @@ TEST_F(BindTest, IgnoreResultForRepeating) {
   non_void_const_method_cb.Run();
 
   WeakPtrFactory<NoRef> weak_factory(&no_ref_);
-  WeakPtrFactory<const NoRef> const_weak_factory(const_no_ref_ptr_.get());
+  WeakPtrFactory<const NoRef> const_weak_factory(const_no_ref_ptr_);
 
   RepeatingClosure non_void_weak_method_cb  =
       BindRepeating(IgnoreResult(&NoRef::IntMethod0),
@@ -507,7 +506,7 @@ TEST_F(BindTest, IgnoreResultForOnce) {
   std::move(non_void_const_method_cb).Run();
 
   WeakPtrFactory<NoRef> weak_factory(&no_ref_);
-  WeakPtrFactory<const NoRef> const_weak_factory(const_no_ref_ptr_.get());
+  WeakPtrFactory<const NoRef> const_weak_factory(const_no_ref_ptr_);
 
   OnceClosure non_void_weak_method_cb  =
       BindOnce(IgnoreResult(&NoRef::IntMethod0),
@@ -713,7 +712,7 @@ TEST_F(BindTest, WeakPtrForRepeating) {
   EXPECT_CALL(no_ref_, VoidConstMethod0()).Times(2);
 
   WeakPtrFactory<NoRef> weak_factory(&no_ref_);
-  WeakPtrFactory<const NoRef> const_weak_factory(const_no_ref_ptr_.get());
+  WeakPtrFactory<const NoRef> const_weak_factory(const_no_ref_ptr_);
 
   RepeatingClosure method_cb =
       BindRepeating(&NoRef::VoidMethod0, weak_factory.GetWeakPtr());
@@ -744,7 +743,7 @@ TEST_F(BindTest, WeakPtrForRepeating) {
 
 TEST_F(BindTest, WeakPtrForOnce) {
   WeakPtrFactory<NoRef> weak_factory(&no_ref_);
-  WeakPtrFactory<const NoRef> const_weak_factory(const_no_ref_ptr_.get());
+  WeakPtrFactory<const NoRef> const_weak_factory(const_no_ref_ptr_);
 
   OnceClosure method_cb =
       BindOnce(&NoRef::VoidMethod0, weak_factory.GetWeakPtr());
@@ -1718,19 +1717,6 @@ TEST_F(BindTest, BindNoexcept) {
   EXPECT_EQ(
       42, base::BindOnce(&BindTest::ConstNoexceptMethod, base::Unretained(this))
               .Run());
-}
-
-int PingPong(int* i_ptr) {
-  return *i_ptr;
-}
-
-TEST_F(BindTest, BindAndCallbacks) {
-  int i = 123;
-  raw_ptr<int> p = &i;
-
-  auto callback = base::BindOnce(PingPong, base::Unretained(p));
-  int res = std::move(callback).Run();
-  EXPECT_EQ(123, res);
 }
 
 // Test null callbacks cause a DCHECK.

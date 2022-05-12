@@ -4,20 +4,18 @@
 
 #include "base/threading/thread_local_storage.h"
 
-#include "base/memory/raw_ptr.h"
-#include "build/build_config.h"
-
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include <windows.h>
 #include <process.h>
 #endif
 
+#include "base/macros.h"
 #include "base/no_destructor.h"
 #include "base/threading/simple_thread.h"
 #include "build/build_config.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 // Ignore warnings about ptr->int conversions that we use when
 // storing ints into ThreadLocalStorage.
 #pragma warning(disable : 4311 4312)
@@ -25,7 +23,7 @@
 
 namespace base {
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 
 namespace internal {
 
@@ -39,7 +37,7 @@ class ThreadLocalStorageTestInternal {
 
 }  // namespace internal
 
-#endif  // BUILDFLAG(IS_POSIX)
+#endif  // defined(OS_POSIX)
 
 namespace {
 
@@ -83,7 +81,7 @@ class ThreadLocalStorageRunner : public DelegateSimpleThread::Delegate {
   }
 
  private:
-  raw_ptr<int> tls_value_ptr_;
+  int* tls_value_ptr_;
 };
 
 
@@ -100,7 +98,7 @@ void ThreadLocalStorageCleanup(void *value) {
   TLSSlot().Set(value);
 }
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 constexpr intptr_t kDummyValue = 0xABCD;
 constexpr size_t kKeyCount = 20;
 
@@ -142,7 +140,7 @@ class UseTLSDuringDestructionRunner {
  private:
   struct TLSState {
     pthread_key_t key;
-    raw_ptr<bool> teardown_works_correctly;
+    bool* teardown_works_correctly;
   };
 
   // The POSIX TLS destruction API takes as input a single C-function, which is
@@ -199,7 +197,7 @@ void* UseTLSTestThreadRun(void* input) {
   return nullptr;
 }
 
-#endif  // BUILDFLAG(IS_POSIX)
+#endif  // defined(OS_POSIX)
 
 }  // namespace
 
@@ -259,7 +257,7 @@ TEST(ThreadLocalStorageTest, TLSReclaim) {
   }
 }
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 // Unlike POSIX, Windows does not iterate through the OS TLS to cleanup any
 // values there. Instead a per-module thread destruction function is called.
 // However, it is not possible to perform a check after this point (as the code
@@ -275,6 +273,6 @@ TEST(ThreadLocalStorageTest, UseTLSDuringDestruction) {
 
   EXPECT_TRUE(runner.teardown_works_correctly());
 }
-#endif  // BUILDFLAG(IS_POSIX)
+#endif  // defined(OS_POSIX)
 
 }  // namespace base

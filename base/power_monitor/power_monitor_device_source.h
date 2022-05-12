@@ -9,29 +9,27 @@
 #include <vector>
 
 #include "base/base_export.h"
+#include "base/macros.h"
 #include "base/power_monitor/power_monitor_source.h"
 #include "base/power_monitor/power_observer.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include <windows.h>
+#endif  // !OS_WIN
 
-#include "base/power_monitor/speed_limit_observer_win.h"
-#include "base/threading/sequence_bound.h"
-#endif  // BUILDFLAG(IS_WIN)
-
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 #include <IOKit/IOTypes.h>
 
 #include "base/mac/scoped_cftyperef.h"
 #include "base/mac/scoped_ionotificationportref.h"
 #include "base/power_monitor/thermal_state_observer_mac.h"
-#endif  // BUILDFLAG(IS_MAC)
+#endif
 
-#if BUILDFLAG(IS_IOS)
+#if defined(OS_IOS)
 #include <objc/runtime.h>
-#endif  // BUILDFLAG(IS_IOS)
+#endif  // OS_IOS
 
 namespace base {
 
@@ -67,7 +65,7 @@ class BASE_EXPORT PowerMonitorDeviceSource : public PowerMonitorSource {
  private:
   friend class PowerMonitorDeviceSourceTest;
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   // Represents a message-only window for power message handling on Windows.
   // Only allow PowerMonitor to create it.
   class PowerMessageWindow {
@@ -85,39 +83,34 @@ class BASE_EXPORT PowerMonitorDeviceSource : public PowerMonitorSource {
     // A hidden message-only window.
     HWND message_hwnd_;
   };
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // OS_WIN
 
-#if BUILDFLAG(IS_APPLE) || BUILDFLAG(IS_WIN)
+#if defined(OS_APPLE)
   void PlatformInit();
   void PlatformDestroy();
-#endif  // BUILDFLAG(IS_APPLE) || BUILDFLAG(IS_WIN)
+#endif  // OS_APPLE
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
   // Callback from IORegisterForSystemPower(). |refcon| is the |this| pointer.
   static void SystemPowerEventCallback(void* refcon,
                                        io_service_t service,
                                        natural_t message_type,
                                        void* message_argument);
-#endif  // BUILDFLAG(IS_MAC)
+#endif  // OS_MAC
 
   // Platform-specific method to check whether the system is currently
   // running on battery power.  Returns true if running on batteries,
   // false otherwise.
   bool IsOnBatteryPower() override;
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
   int GetRemainingBatteryCapacity() override;
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // defined(OS_ANDROID)
 
-#if BUILDFLAG(IS_WIN)
-  // PowerMonitorSource:
-  int GetInitialSpeedLimit() override;
-#endif  // BUILDFLAG(IS_WIN)
-
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
   // PowerMonitorSource:
   PowerThermalObserver::DeviceThermalState GetCurrentThermalState() override;
-  int GetInitialSpeedLimit() override;
+  int GetCurrentSpeedLimit() override;
 
   // Reference to the system IOPMrootDomain port.
   io_connect_t power_manager_port_ = IO_OBJECT_NULL;
@@ -135,17 +128,13 @@ class BASE_EXPORT PowerMonitorDeviceSource : public PowerMonitorSource {
   std::unique_ptr<ThermalStateObserverMac> thermal_state_observer_;
 #endif
 
-#if BUILDFLAG(IS_IOS)
+#if defined(OS_IOS)
   // Holds pointers to system event notification observers.
   std::vector<id> notification_observers_;
 #endif
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   PowerMessageWindow power_message_window_;
-  // |speed_limit_observer_| is owned by the main/UI thread but the
-  // SpeedLimitObserverWin is bound to a different sequence.
-  std::unique_ptr<base::SequenceBound<SpeedLimitObserverWin>>
-      speed_limit_observer_;
 #endif
 
 #if BUILDFLAG(IS_CHROMEOS_ASH)

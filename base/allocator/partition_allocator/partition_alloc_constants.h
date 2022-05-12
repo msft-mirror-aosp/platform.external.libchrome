@@ -18,7 +18,7 @@
 #include "base/memory/tagging.h"
 #include "build/build_config.h"
 
-#if BUILDFLAG(IS_APPLE) && defined(ARCH_CPU_64_BITS)
+#if defined(OS_APPLE) && defined(ARCH_CPU_64_BITS)
 #include <mach/vm_page_size.h>
 #endif
 
@@ -59,7 +59,7 @@ PAGE_ALLOCATOR_CONSTANTS_DECLARE_CONSTEXPR ALWAYS_INLINE size_t
 PartitionPageShift() {
   return 18;  // 256 KiB
 }
-#elif BUILDFLAG(IS_APPLE) && defined(ARCH_CPU_64_BITS)
+#elif defined(OS_APPLE) && defined(ARCH_CPU_64_BITS)
 PAGE_ALLOCATOR_CONSTANTS_DECLARE_CONSTEXPR ALWAYS_INLINE size_t
 PartitionPageShift() {
   return vm_page_shift + 2;
@@ -231,18 +231,6 @@ static constexpr internal::pool_handle kConfigurablePoolHandle = 3;
 // PROT_MTE.
 constexpr size_t kMaxMemoryTaggingSize = 1024;
 
-#if HAS_MEMORY_TAGGING
-// Returns whether the tag of a pointer/slot overflowed and slot needs to be
-// moved to quarantine.
-constexpr ALWAYS_INLINE bool HasOverflowTag(uintptr_t ptr) {
-  // The tag with which the slot is put to quarantine.
-  constexpr uintptr_t kOverflowTag = 0x0f00000000000000uLL;
-  static_assert((kOverflowTag & ~kMemTagUnmask) != 0,
-                "Overflow tag must be in tag bits");
-  return (ptr & ~kMemTagUnmask) == kOverflowTag;
-}
-#endif  // HAS_MEMORY_TAGGING
-
 PAGE_ALLOCATOR_CONSTANTS_DECLARE_CONSTEXPR ALWAYS_INLINE size_t
 NumPartitionPagesPerSuperPage() {
   return kSuperPageSize >> PartitionPageShift();
@@ -361,11 +349,18 @@ constexpr size_t kBitsPerSizeT = sizeof(void*) * CHAR_BIT;
 // PartitionPurgeDecommitEmptySlotSpans flag will eagerly decommit all entries
 // in the ring buffer, so with periodic purge enabled, this typically happens
 // every few seconds.
-constexpr size_t kEmptyCacheIndexBits = 7;
-// kMaxFreeableSpans is the buffer size, but is never used as an index value,
-// hence <= is appropriate.
-constexpr size_t kMaxFreeableSpans = 1 << kEmptyCacheIndexBits;
-constexpr size_t kDefaultEmptySlotSpanRingSize = 16;
+#if defined(OS_LINUX)
+// Set to a higher value on Linux, to assess impact on performance bots. This
+// roughly halves the number of syscalls done during a speedometer 2.0 run on
+// this platform.
+constexpr size_t kMaxFreeableSpans = std::numeric_limits<int8_t>::max();
+#else
+constexpr size_t kMaxFreeableSpans = 16;
+#endif
+
+constexpr int kEmptyCacheIndexBits = 8;
+// Has to fit into SlotSpanMetadata::empty_cache_index.
+static_assert(kMaxFreeableSpans < (1 << (kEmptyCacheIndexBits - 1)), "");
 
 // If the total size in bytes of allocated but not committed pages exceeds this
 // value (probably it is a "out of virtual address space" crash), a special

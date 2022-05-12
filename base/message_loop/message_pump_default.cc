@@ -8,7 +8,7 @@
 #include "base/logging.h"
 #include "build/build_config.h"
 
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
 #include <mach/thread_policy.h>
 
 #include "base/mac/mach_logging.h"
@@ -31,7 +31,7 @@ void MessagePumpDefault::Run(Delegate* delegate) {
   AutoReset<bool> auto_reset_keep_running(&keep_running_, true);
 
   for (;;) {
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
     mac::ScopedNSAutoreleasePool autorelease_pool;
 #endif
 
@@ -79,7 +79,7 @@ void MessagePumpDefault::ScheduleDelayedWork(
   // this way (bit.ly/merge-message-pump-do-work).
 }
 
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
 void MessagePumpDefault::SetTimerSlack(TimerSlack timer_slack) {
   thread_latency_qos_policy_data_t policy{};
   policy.thread_latency_qos_tier = timer_slack == TIMER_SLACK_MAXIMUM

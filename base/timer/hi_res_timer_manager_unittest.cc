@@ -19,7 +19,7 @@
 
 namespace base {
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 TEST(HiResTimerManagerTest, ToggleOnOff) {
   test::TaskEnvironment task_environment;
   base::test::ScopedPowerMonitorTestSource power_monitor_source;
@@ -80,6 +80,6 @@ TEST(HiResTimerManagerTest, DisableFromCommandLine) {
   // Re-enable the high-resolution timer for testing.
   Time::EnableHighResolutionTimer(true);
 }
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
 }  // namespace base

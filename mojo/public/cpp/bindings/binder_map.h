@@ -10,6 +10,7 @@
 
 #include "base/callback.h"
 #include "base/component_export.h"
+#include "base/macros.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/task/sequenced_task_runner.h"
 #include "mojo/public/cpp/bindings/generic_pending_receiver.h"
@@ -78,7 +79,7 @@ class BinderMapWithContext {
   // will be left intact for the caller.
   //
   // This method is only usable when ContextType is void.
-  [[nodiscard]] bool TryBind(mojo::GenericPendingReceiver* receiver) {
+  bool TryBind(mojo::GenericPendingReceiver* receiver) WARN_UNUSED_RESULT {
     static_assert(IsVoidContext::value,
                   "TryBind() must be called with a context value when "
                   "ContextType is non-void.");
@@ -92,8 +93,8 @@ class BinderMapWithContext {
 
   // Like above, but passes |context| to the binder if one exists. Only usable
   // when ContextType is non-void.
-  [[nodiscard]] bool TryBind(ContextValueType context,
-                             mojo::GenericPendingReceiver* receiver) {
+  bool TryBind(ContextValueType context,
+               mojo::GenericPendingReceiver* receiver) WARN_UNUSED_RESULT {
     static_assert(!IsVoidContext::value,
                   "TryBind() must be called without a context value when "
                   "ContextType is void.");

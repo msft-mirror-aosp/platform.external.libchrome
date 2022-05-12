@@ -10,6 +10,7 @@
 #include <utility>
 
 #include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "build/build_config.h"
 #include "mojo/public/cpp/bindings/associated_interface_request.h"
 #include "mojo/public/cpp/bindings/lib/multiplex_router.h"
@@ -43,7 +44,7 @@ class PendingAssociatedReceiver {
       : PendingAssociatedReceiver(request.PassHandle()) {}
 
   // Disabled on NaCl since it crashes old version of clang.
-#if !BUILDFLAG(IS_NACL)
+#if !defined(OS_NACL)
   // Move conversion operator for custom receiver types. Only participates in
   // overload resolution if a typesafe conversion is supported.
   template <typename T,
@@ -56,7 +57,7 @@ class PendingAssociatedReceiver {
       : PendingAssociatedReceiver(
             PendingAssociatedReceiverConverter<T>::template To<Interface>(
                 std::move(other))) {}
-#endif  // !BUILDFLAG(IS_NACL)
+#endif  // !defined(OS_NACL)
 
   PendingAssociatedReceiver(const PendingAssociatedReceiver&) = delete;
   PendingAssociatedReceiver& operator=(const PendingAssociatedReceiver&) =
@@ -94,8 +95,8 @@ class PendingAssociatedReceiver {
     handle_.ResetWithReason(custom_reason, description);
   }
 
-  [[nodiscard]] REINITIALIZES_AFTER_MOVE PendingAssociatedRemote<Interface>
-  InitWithNewEndpointAndPassRemote();
+  REINITIALIZES_AFTER_MOVE PendingAssociatedRemote<Interface>
+  InitWithNewEndpointAndPassRemote() WARN_UNUSED_RESULT;
 
   // Associates this endpoint with a dedicated message pipe. This allows the
   // entangled AssociatedReceiver/AssociatedRemote endpoints to be used without

@@ -76,7 +76,7 @@ TEST(JSONWriterTest, NestedTypes) {
 
   // The pretty-printer uses a different newline style on Windows than on
   // other platforms.
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #define JSON_NEWLINE "\r\n"
 #else
 #define JSON_NEWLINE "\n"

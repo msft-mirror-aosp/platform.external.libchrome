@@ -13,7 +13,6 @@
 #include "base/bind.h"
 #include "base/cxx17_backports.h"
 #include "base/location.h"
-#include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/threading/thread.h"
@@ -21,7 +20,7 @@
 #include "ipc/ipc_test_base.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 #include "base/file_descriptor_posix.h"
 #endif
 
@@ -36,9 +35,9 @@
 // Message class to pass a base::SyncSocket::Handle to another process.  This
 // is not as easy as it sounds, because of the differences in transferring
 // Windows HANDLEs versus posix file descriptors.
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 IPC_MESSAGE_CONTROL1(MsgClassSetHandle, base::SyncSocket::Handle)
-#elif BUILDFLAG(IS_POSIX)
+#elif defined(OS_POSIX)
 IPC_MESSAGE_CONTROL1(MsgClassSetHandle, base::FileDescriptor)
 #endif
 
@@ -82,17 +81,17 @@ class SyncSocketServerListener : public IPC::Listener {
   // This sort of message is sent first, causing the transfer of
   // the handle for the SyncSocket.  This message sends a buffer
   // on the SyncSocket and then sends a response to the client.
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   void OnMsgClassSetHandle(const base::SyncSocket::Handle handle) {
     SetHandle(handle);
   }
-#elif BUILDFLAG(IS_POSIX)
+#elif defined(OS_POSIX)
   void OnMsgClassSetHandle(const base::FileDescriptor& fd_struct) {
     SetHandle(fd_struct.fd);
   }
 #else
 # error "What platform?"
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
   void SetHandle(base::SyncSocket::Handle handle) {
     base::SyncSocket sync_socket(handle);
@@ -106,7 +105,7 @@ class SyncSocketServerListener : public IPC::Listener {
   // which causes the message loop to exit.
   void OnMsgClassShutdown() { base::RunLoop::QuitCurrentWhenIdleDeprecated(); }
 
-  raw_ptr<IPC::Channel> chan_;
+  IPC::Channel* chan_;
 };
 
 // Runs the fuzzing server child mode. Returns when the preset number of
@@ -160,8 +159,8 @@ class SyncSocketClientListener : public IPC::Listener {
     base::RunLoop::QuitCurrentWhenIdleDeprecated();
   }
 
-  raw_ptr<base::SyncSocket> socket_;
-  raw_ptr<IPC::Channel> chan_;
+  base::SyncSocket* socket_;
+  IPC::Channel* chan_;
 };
 
 using SyncSocketTest = IPCChannelMojoTestBase;
@@ -181,7 +180,7 @@ TEST_F(SyncSocketTest, SanityTest) {
   // Connect the channel and listener.
   ASSERT_TRUE(ConnectChannel());
   listener.Init(&pair[0], channel());
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   // On windows we need to duplicate the handle into the server process.
   BOOL retval = DuplicateHandle(GetCurrentProcess(), pair[1].handle(),
                                 client_process().Handle(), &target_handle,
@@ -194,7 +193,7 @@ TEST_F(SyncSocketTest, SanityTest) {
   // Set up a message to pass the handle to the server.
   base::FileDescriptor filedesc(target_handle, false);
   IPC::Message* msg = new MsgClassSetHandle(filedesc);
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
   EXPECT_TRUE(sender()->Send(msg));
   // Use the current thread as the I/O thread.
   base::RunLoop().Run();

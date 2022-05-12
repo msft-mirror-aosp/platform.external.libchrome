@@ -12,7 +12,6 @@
 #include "base/task/thread_pool/thread_pool_impl.h"
 #include "base/threading/platform_thread.h"
 #include "base/time/time.h"
-#include "build/build_config.h"
 
 namespace base {
 
@@ -50,7 +49,7 @@ ThreadPoolInstance::ScopedBestEffortExecutionFence::
   g_thread_pool->EndBestEffortFence();
 }
 
-#if !BUILDFLAG(IS_NACL)
+#if !defined(OS_NACL)
 // static
 void ThreadPoolInstance::CreateAndStartWithDefaultParams(StringPiece name) {
   Create(name);
@@ -68,7 +67,7 @@ void ThreadPoolInstance::StartWithDefaultParams() {
   const int max_num_foreground_threads = std::max(3, num_cores - 1);
   Start({max_num_foreground_threads});
 }
-#endif  // !BUILDFLAG(IS_NACL)
+#endif  // !defined(OS_NACL)
 
 void ThreadPoolInstance::Create(StringPiece name) {
   Set(std::make_unique<internal::ThreadPoolImpl>(name));

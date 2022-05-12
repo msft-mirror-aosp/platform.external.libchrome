@@ -7,14 +7,12 @@
 
 #include <string>
 
-#include "base/memory/raw_ptr.h"
-#include "build/build_config.h"
-
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include <windows.h>
 #endif
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/process/process_metrics.h"
 #include "base/task/single_thread_task_executor.h"
@@ -28,7 +26,7 @@
 #include "mojo/public/cpp/bindings/receiver.h"
 #include "mojo/public/cpp/system/core.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include <windows.h>
 #endif
 
@@ -60,7 +58,7 @@ class ChannelReflectorListener : public Listener {
   void Send(IPC::Message* message);
 
  private:
-  raw_ptr<Sender> channel_;
+  Sender* channel_;
   base::OnceClosure quit_closure_;
 };
 
@@ -80,9 +78,9 @@ class LockThreadAffinity {
 
  private:
   bool affinity_set_ok_;
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   DWORD_PTR old_affinity_;
-#elif BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#elif defined(OS_LINUX) || defined(OS_CHROMEOS)
   cpu_set_t old_cpuset_;
 #endif
 };

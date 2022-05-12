@@ -7,6 +7,7 @@
 
 #include <string>
 
+#include "base/macros.h"
 #include "base/process/launch.h"
 #include "base/process/process.h"
 #include "build/build_config.h"
@@ -80,7 +81,7 @@ bool TerminateMultiProcessTestChild(const Process& process,
                                     int exit_code,
                                     bool wait);
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 // Returns whether the child process exited cleanly from the main runloop.
 bool MultiProcessTestChildHasCleanExit(const Process& process);
 #endif

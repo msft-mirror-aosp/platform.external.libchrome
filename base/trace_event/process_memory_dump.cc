@@ -112,12 +112,9 @@ absl::optional<size_t> ProcessMemoryDump::CountResidentBytes(
 #endif
 
   while (offset < mapped_size) {
-    // TODO(fuchsia): Port and remove [[maybe_unused]], see
-    // https://crbug.com/706592.
-    [[maybe_unused]] uintptr_t chunk_start = (start_pointer + offset);
+    uintptr_t chunk_start = (start_pointer + offset);
     const size_t chunk_size = std::min(mapped_size - offset, kMaxChunkSize);
-    [[maybe_unused]] const size_t page_count =
-        GetSystemPageCount(chunk_size, page_size);
+    const size_t page_count = GetSystemPageCount(chunk_size, page_size);
     size_t resident_page_count = 0;
 #if defined(OS_WIN)
     for (size_t i = 0; i < page_count; i++) {
@@ -132,6 +129,8 @@ absl::optional<size_t> ProcessMemoryDump::CountResidentBytes(
       resident_page_count += vec[i].VirtualAttributes.Valid;
 #elif defined(OS_FUCHSIA)
     // TODO(fuchsia): Port, see https://crbug.com/706592.
+    ALLOW_UNUSED_LOCAL(chunk_start);
+    ALLOW_UNUSED_LOCAL(page_count);
 #elif defined(OS_APPLE)
     // mincore in MAC does not fail with EAGAIN.
     failure =

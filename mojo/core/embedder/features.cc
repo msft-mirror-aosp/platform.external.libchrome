@@ -4,13 +4,11 @@
 
 #include "mojo/core/embedder/features.h"
 
-#include "build/build_config.h"
-
 namespace mojo {
 namespace core {
 
-#if BUILDFLAG(IS_POSIX) && !BUILDFLAG(IS_NACL) && !BUILDFLAG(IS_MAC)
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID)
+#if defined(OS_POSIX) && !defined(OS_NACL) && !defined(OS_MAC)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
 const base::Feature kMojoLinuxChannelSharedMem{
     "MojoLinuxChannelSharedMem", base::FEATURE_DISABLED_BY_DEFAULT};
 const base::FeatureParam<int> kMojoLinuxChannelSharedMemPages{
@@ -18,12 +16,11 @@ const base::FeatureParam<int> kMojoLinuxChannelSharedMemPages{
 const base::FeatureParam<bool> kMojoLinuxChannelSharedMemEfdZeroOnWake{
     &kMojoLinuxChannelSharedMem, "MojoLinuxChannelSharedMemEfdZeroOnWake",
     false};
-#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) ||
-        // BUILDFLAG(IS_ANDROID)
+#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
 
 const base::Feature kMojoPosixUseWritev{"MojoPosixUseWritev",
                                         base::FEATURE_DISABLED_BY_DEFAULT};
-#endif  // BUILDFLAG(IS_POSIX) && !BUILDFLAG(IS_NACL) && !BUILDFLAG(IS_MAC)
+#endif  // defined(OS_POSIX) && !defined(OS_NACL) && !defined(OS_MAC)
 
 const base::Feature kMojoInlineMessagePayloads{
     "MojoInlineMessagePayloads", base::FEATURE_DISABLED_BY_DEFAULT};

@@ -4,13 +4,11 @@
 
 #include "base/process/memory.h"
 
-#include "build/build_config.h"
-
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include <windows.h>
 #else
 #include <unistd.h>
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
 #include <string.h>
 
@@ -33,7 +31,7 @@ namespace internal {
 // Crash server classifies base::internal::OnNoMemoryInternal as OOM.
 NOINLINE void OnNoMemoryInternal(size_t size) {
   g_oom_size = size;
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   // Kill the process. This is important for security since most of code
   // does not check the result of memory allocation.
   // https://msdn.microsoft.com/en-us/library/het71c37.aspx
@@ -60,7 +58,7 @@ NOINLINE void OnNoMemoryInternal(size_t size) {
   // to be able to successfully unwind through libc to get to the correct
   // address, which is particularly an issue on Android.
   IMMEDIATE_CRASH();
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 }
 
 }  // namespace internal
@@ -72,7 +70,7 @@ void TerminateBecauseOutOfMemory(size_t size) {
 // Defined in memory_mac.mm for macOS + use_allocator="none".  In case of
 // USE_PARTITION_ALLOC_AS_MALLOC, no need to route the call to the system
 // default calloc of macOS.
-#if !BUILDFLAG(IS_APPLE) || BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
+#if !defined(OS_APPLE) || BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
 
 bool UncheckedCalloc(size_t num_items, size_t size, void** result) {
   const size_t alloc_size = num_items * size;
@@ -90,7 +88,7 @@ bool UncheckedCalloc(size_t num_items, size_t size, void** result) {
   return true;
 }
 
-#endif  // !BUILDFLAG(IS_APPLE) || BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
+#endif  // !defined(OS_APPLE) || BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
 
 namespace internal {
 bool ReleaseAddressSpaceReservation() {

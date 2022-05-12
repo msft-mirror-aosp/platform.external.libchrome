@@ -27,6 +27,10 @@ namespace {
 
 TaskAnnotator::ObserverForTesting* g_task_annotator_observer = nullptr;
 
+// Used as a sentinel to determine if a TLS-stored PendingTask is a dummy one.
+static constexpr int kSentinelSequenceNum =
+    static_cast<int>(0xF00DBAADF00DBAAD);
+
 // Returns the TLS slot that stores the PendingTask currently in progress on
 // each thread. Used to allow creating a breadcrumb of program counters on the
 // stack to help identify a task's origin in crashes.
@@ -46,10 +50,28 @@ GetTLSForCurrentScopedIpcHash() {
   return instance.get();
 }
 
+// Determines whether or not the given |task| is a dummy pending task that has
+// been injected by ScopedSetIpcHash solely for the purposes of
+// tracking IPC context.
+bool IsDummyPendingTask(const PendingTask* task) {
+  if (task->sequence_num == kSentinelSequenceNum &&
+      !task->posted_from.has_source_info() &&
+      !task->posted_from.program_counter()) {
+    return true;
+  }
+  return false;
+}
+
 }  // namespace
 
 const PendingTask* TaskAnnotator::CurrentTaskForThread() {
-  return GetTLSForCurrentPendingTask()->Get();
+  auto* current_task = GetTLSForCurrentPendingTask()->Get();
+
+  // Don't return "dummy" current tasks that are only used for storing IPC
+  // context.
+  if (!current_task || (current_task && IsDummyPendingTask(current_task)))
+    return nullptr;
+  return current_task;
 }
 
 TaskAnnotator::TaskAnnotator() = default;
@@ -243,7 +265,7 @@ uint32_t TaskAnnotator::ScopedSetIpcHash::MD5HashMetricName(
 TaskAnnotator::ScopedSetIpcHash::~ScopedSetIpcHash() {
   auto* tls_ipc_hash = GetTLSForCurrentScopedIpcHash();
   DCHECK_EQ(this, tls_ipc_hash->Get());
-  tls_ipc_hash->Set(old_scoped_ipc_hash_.get());
+  tls_ipc_hash->Set(old_scoped_ipc_hash_);
   TRACE_EVENT_END("base");
 }
 

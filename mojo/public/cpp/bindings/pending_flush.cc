@@ -4,7 +4,6 @@
 
 #include "mojo/public/cpp/bindings/pending_flush.h"
 
-#include <ostream>
 #include <utility>
 
 #include "mojo/public/cpp/bindings/async_flusher.h"

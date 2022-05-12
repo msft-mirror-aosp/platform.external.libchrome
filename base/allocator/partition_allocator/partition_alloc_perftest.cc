@@ -22,8 +22,7 @@
 #include "testing/gtest/include/gtest/gtest.h"
 #include "testing/perf/perf_result_reporter.h"
 
-#if BUILDFLAG(IS_ANDROID) || defined(ARCH_CPU_32_BITS) || \
-    (BUILDFLAG(IS_FUCHSIA) && defined(ARCH_CPU_ARM64))
+#if defined(OS_ANDROID) || defined(ARCH_CPU_32_BITS)
 // Some tests allocate many GB of memory, which can cause issues on Android and
 // address-space exhaustion for any 32-bit process.
 #define MEMORY_CONSTRAINED
@@ -91,14 +90,13 @@ class PartitionAllocator : public Allocator {
   void Free(void* data) override { ThreadSafePartitionRoot::FreeNoHooks(data); }
 
  private:
-  ThreadSafePartitionRoot alloc_{{
-      PartitionOptions::AlignedAlloc::kDisallowed,
-      PartitionOptions::ThreadCache::kDisabled,
-      PartitionOptions::Quarantine::kDisallowed,
-      PartitionOptions::Cookie::kAllowed,
-      PartitionOptions::BackupRefPtr::kDisabled,
-      PartitionOptions::UseConfigurablePool::kNo,
-  }};
+  ThreadSafePartitionRoot alloc_{{PartitionOptions::AlignedAlloc::kDisallowed,
+                                  PartitionOptions::ThreadCache::kDisabled,
+                                  PartitionOptions::Quarantine::kDisallowed,
+                                  PartitionOptions::Cookie::kAllowed,
+                                  PartitionOptions::BackupRefPtr::kDisabled,
+                                  PartitionOptions::UseConfigurablePool::kNo,
+                                  PartitionOptions::LazyCommit::kEnabled}};
 };
 
 // Only one partition with a thread cache.
@@ -107,14 +105,14 @@ class PartitionAllocatorWithThreadCache : public Allocator {
  public:
   PartitionAllocatorWithThreadCache() {
     if (!g_partition_root) {
-      g_partition_root = new ThreadSafePartitionRoot({
-          PartitionOptions::AlignedAlloc::kDisallowed,
-          PartitionOptions::ThreadCache::kEnabled,
-          PartitionOptions::Quarantine::kDisallowed,
-          PartitionOptions::Cookie::kAllowed,
-          PartitionOptions::BackupRefPtr::kDisabled,
-          PartitionOptions::UseConfigurablePool::kNo,
-      });
+      g_partition_root = new ThreadSafePartitionRoot(
+          {PartitionOptions::AlignedAlloc::kDisallowed,
+           PartitionOptions::ThreadCache::kEnabled,
+           PartitionOptions::Quarantine::kDisallowed,
+           PartitionOptions::Cookie::kAllowed,
+           PartitionOptions::BackupRefPtr::kDisabled,
+           PartitionOptions::UseConfigurablePool::kNo,
+           PartitionOptions::LazyCommit::kEnabled});
     }
     internal::ThreadCacheRegistry::Instance().PurgeAll();
   }
@@ -386,8 +384,12 @@ INSTANTIATE_TEST_SUITE_P(
     ::testing::Combine(
         ::testing::Values(1, 2, 3, 4),
         ::testing::Values(AllocatorType::kSystem,
-                          AllocatorType::kPartitionAlloc,
-                          AllocatorType::kPartitionAllocWithThreadCache)));
+                          AllocatorType::kPartitionAlloc
+#if !BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
+                          ,
+                          AllocatorType::kPartitionAllocWithThreadCache
+#endif
+                          )));
 
 // This test (and the other one below) allocates a large amount of memory, which
 // can cause issues on Android.

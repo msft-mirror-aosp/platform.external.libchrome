@@ -28,15 +28,15 @@
 #include <cxxabi.h>
 #endif
 
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
 #include <AvailabilityMacros.h>
 #endif
 
-#if BUILDFLAG(IS_APPLE) || BUILDFLAG(IS_BSD)
+#if defined(OS_APPLE) || defined(OS_BSD)
 #include <sys/sysctl.h>
 #endif
 
-#if BUILDFLAG(IS_FREEBSD)
+#if defined(OS_FREEBSD)
 #include <sys/user.h>
 #endif
 
@@ -59,7 +59,7 @@
 namespace base {
 namespace debug {
 
-#if BUILDFLAG(IS_APPLE) || BUILDFLAG(IS_BSD)
+#if defined(OS_APPLE) || defined(OS_BSD)
 
 // Based on Apple's recommended method as described in
 // http://developer.apple.com/qa/qa2004/qa1361.html
@@ -87,9 +87,8 @@ bool BeingDebugged() {
     KERN_PROC,
     KERN_PROC_PID,
     getpid()
-#if BUILDFLAG(IS_OPENBSD)
-        ,
-    sizeof(struct kinfo_proc),
+#if defined(OS_OPENBSD)
+    , sizeof(struct kinfo_proc),
     0
 #endif
   };
@@ -99,7 +98,7 @@ bool BeingDebugged() {
   struct kinfo_proc info;
   size_t info_size = sizeof(info);
 
-#if BUILDFLAG(IS_OPENBSD)
+#if defined(OS_OPENBSD)
   if (sysctl(mib, base::size(mib), NULL, &info_size, NULL, 0) < 0)
     return -1;
 
@@ -116,9 +115,9 @@ bool BeingDebugged() {
 
   // This process is being debugged if the P_TRACED flag is set.
   is_set = true;
-#if BUILDFLAG(IS_FREEBSD)
+#if defined(OS_FREEBSD)
   being_debugged = (info.ki_flag & P_TRACED) != 0;
-#elif BUILDFLAG(IS_BSD)
+#elif defined(OS_BSD)
   being_debugged = (info.p_flag & P_TRACED) != 0;
 #else
   being_debugged = (info.kp_proc.p_flag & P_TRACED) != 0;
@@ -143,8 +142,8 @@ void VerifyDebugger() {
 #endif
 }
 
-#elif BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || \
-    BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_AIX)
+#elif defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID) || \
+    defined(OS_AIX)
 
 // We can look in /proc/self/status for TracerPid.  We are likely used in crash
 // handling, so we are careful not to use the heap or have side effects.
@@ -262,14 +261,14 @@ void VerifyDebugger() {}
 #define DEBUG_BREAK_ASM() asm("int3")
 #endif
 
-#if defined(NDEBUG) && !BUILDFLAG(IS_APPLE) && !BUILDFLAG(IS_ANDROID)
+#if defined(NDEBUG) && !defined(OS_APPLE) && !defined(OS_ANDROID)
 #define DEBUG_BREAK() abort()
-#elif BUILDFLAG(IS_NACL)
+#elif defined(OS_NACL)
 // The NaCl verifier doesn't let use use int3.  For now, we call abort().  We
 // should ask for advice from some NaCl experts about the optimum thing here.
 // http://code.google.com/p/nativeclient/issues/detail?id=645
 #define DEBUG_BREAK() abort()
-#elif !BUILDFLAG(IS_APPLE)
+#elif !defined(OS_APPLE)
 // Though Android has a "helpful" process called debuggerd to catch native
 // signals on the general assumption that they are fatal errors. If no debugger
 // is attached, we call abort since Breakpad needs SIGABRT to create a dump.
@@ -315,7 +314,7 @@ void BreakDebuggerAsyncSafe() {
   Alias(&static_variable_to_make_this_function_unique);
 
   DEBUG_BREAK();
-#if BUILDFLAG(IS_ANDROID) && !defined(OFFICIAL_BUILD)
+#if defined(OS_ANDROID) && !defined(OFFICIAL_BUILD)
   // For Android development we always build release (debug builds are
   // unmanageably large), so the unofficial build is used for debugging. It is
   // helpful to be able to insert BreakDebugger() statements in the source,

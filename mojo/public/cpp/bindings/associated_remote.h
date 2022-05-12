@@ -6,11 +6,12 @@
 #define MOJO_PUBLIC_CPP_BINDINGS_ASSOCIATED_REMOTE_H_
 
 #include <cstdint>
-#include <tuple>
 #include <utility>
 
 #include "base/callback_forward.h"
 #include "base/check.h"
+#include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/task/sequenced_task_runner.h"
 #include "mojo/public/cpp/bindings/associated_interface_ptr_info.h"
@@ -180,9 +181,9 @@ class AssociatedRemote {
   // Any response callbacks or disconnection notifications will be scheduled to
   // run on |task_runner|. If |task_runner| is null, defaults to the current
   // SequencedTaskRunner.
-  [[nodiscard]] PendingAssociatedReceiver<Interface>
-  BindNewEndpointAndPassReceiver(
-      scoped_refptr<base::SequencedTaskRunner> task_runner = nullptr) {
+  PendingAssociatedReceiver<Interface> BindNewEndpointAndPassReceiver(
+      scoped_refptr<base::SequencedTaskRunner> task_runner = nullptr)
+      WARN_UNUSED_RESULT {
     DCHECK(!is_bound()) << "AssociatedRemote is already bound";
 
     ScopedInterfaceEndpointHandle remote_handle;
@@ -217,7 +218,7 @@ class AssociatedRemote {
     // do not use AssociatedRemote in transit, so binding to a pipe handle can
     // also imply binding to a SequencedTaskRunner and observing pipe handle
     // state.
-    std::ignore = internal_state_.instance();
+    ignore_result(internal_state_.instance());
   }
 
   // Binds this AssociatedRemote with the returned PendingAssociatedReceiver
@@ -229,8 +230,8 @@ class AssociatedRemote {
   // be ordered with respect to any other mojom interfaces. This is generally
   // useful for ignoring calls on an associated remote or for binding associated
   // endpoints in tests.
-  [[nodiscard]] PendingAssociatedReceiver<Interface>
-  BindNewEndpointAndPassDedicatedReceiver() {
+  PendingAssociatedReceiver<Interface> BindNewEndpointAndPassDedicatedReceiver()
+      WARN_UNUSED_RESULT {
     DCHECK(!is_bound()) << "AssociatedReceiver is already bound";
 
     PendingAssociatedReceiver<Interface> receiver =
@@ -250,7 +251,7 @@ class AssociatedRemote {
   // be considered in cases where satisfaction of that constraint can be proven.
   //
   // Must only be called on a bound AssociatedRemote.
-  [[nodiscard]] PendingAssociatedRemote<Interface> Unbind() {
+  PendingAssociatedRemote<Interface> Unbind() WARN_UNUSED_RESULT {
     DCHECK(is_bound());
     CHECK(!internal_state_.has_pending_callbacks());
     State state;

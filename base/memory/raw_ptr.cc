@@ -3,7 +3,6 @@
 // found in the LICENSE file.
 
 #include "base/memory/raw_ptr.h"
-#include <cstdint>
 
 #include "base/allocator/buildflags.h"
 
@@ -22,44 +21,45 @@ namespace base {
 
 namespace internal {
 
-void BackupRefPtrImpl::AcquireInternal(uintptr_t address) {
+void BackupRefPtrImpl::AcquireInternal(void* ptr) {
 #if DCHECK_IS_ON() || BUILDFLAG(ENABLE_BACKUP_REF_PTR_SLOW_CHECKS)
-  CHECK(IsManagedByPartitionAllocBRPPool(address));
+  CHECK(IsManagedByPartitionAllocBRPPool(ptr));
 #endif
-  uintptr_t slot_start = PartitionAllocGetSlotStartInBRPPool(address);
+  void* slot_start = PartitionAllocGetSlotStartInBRPPool(ptr);
   PartitionRefCountPointer(slot_start)->Acquire();
 }
 
-void BackupRefPtrImpl::ReleaseInternal(uintptr_t address) {
+void BackupRefPtrImpl::ReleaseInternal(void* ptr) {
 #if DCHECK_IS_ON() || BUILDFLAG(ENABLE_BACKUP_REF_PTR_SLOW_CHECKS)
-  CHECK(IsManagedByPartitionAllocBRPPool(address));
+  CHECK(IsManagedByPartitionAllocBRPPool(ptr));
 #endif
-  uintptr_t slot_start = PartitionAllocGetSlotStartInBRPPool(address);
+  void* slot_start = PartitionAllocGetSlotStartInBRPPool(ptr);
   if (PartitionRefCountPointer(slot_start)->Release())
     PartitionAllocFreeForRefCounting(slot_start);
 }
 
-bool BackupRefPtrImpl::IsPointeeAlive(uintptr_t address) {
+bool BackupRefPtrImpl::IsPointeeAlive(void* ptr) {
 #if DCHECK_IS_ON() || BUILDFLAG(ENABLE_BACKUP_REF_PTR_SLOW_CHECKS)
-  CHECK(IsManagedByPartitionAllocBRPPool(address));
+  CHECK(IsManagedByPartitionAllocBRPPool(ptr));
 #endif
-  uintptr_t slot_start = PartitionAllocGetSlotStartInBRPPool(address);
+  void* slot_start = PartitionAllocGetSlotStartInBRPPool(ptr);
   return PartitionRefCountPointer(slot_start)->IsAlive();
 }
 
-bool BackupRefPtrImpl::IsValidDelta(uintptr_t address,
-                                    ptrdiff_t delta_in_bytes) {
-  return PartitionAllocIsValidPtrDelta(address, delta_in_bytes);
+bool BackupRefPtrImpl::IsValidDelta(void* ptr, ptrdiff_t delta) {
+  return PartitionAllocIsValidPtrDelta(ptr, delta);
 }
 
 #if DCHECK_IS_ON() || BUILDFLAG(ENABLE_BACKUP_REF_PTR_SLOW_CHECKS)
-void CheckThatAddressIsntWithinFirstPartitionPage(uintptr_t address) {
-  if (IsManagedByDirectMap(address)) {
-    uintptr_t reservation_start = GetDirectMapReservationStart(address);
-    CHECK(address - reservation_start >= PartitionPageSize());
+void CheckThatAddressIsntWithinFirstPartitionPage(void* ptr) {
+  if (IsManagedByDirectMap(ptr)) {
+    uintptr_t reservation_start = GetDirectMapReservationStart(ptr);
+    CHECK(reinterpret_cast<uintptr_t>(ptr) - reservation_start >=
+          PartitionPageSize());
   } else {
-    CHECK(IsManagedByNormalBuckets(address));
-    CHECK(address % kSuperPageSize >= PartitionPageSize());
+    CHECK(IsManagedByNormalBuckets(ptr));
+    CHECK(reinterpret_cast<uintptr_t>(ptr) % kSuperPageSize >=
+          PartitionPageSize());
   }
 }
 #endif  // DCHECK_IS_ON() || BUILDFLAG(ENABLE_BACKUP_REF_PTR_SLOW_CHECKS)

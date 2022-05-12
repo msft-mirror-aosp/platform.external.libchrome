@@ -14,8 +14,8 @@
 #include "base/callback_helpers.h"
 #include "base/compiler_specific.h"
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/memory/ptr_util.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
 #include "base/message_loop/message_pump_for_io.h"
 #include "base/message_loop/message_pump_type.h"
@@ -43,13 +43,13 @@
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #include "base/android/java_handler_thread.h"
 #include "base/android/jni_android.h"
 #include "base/test/android/java_handler_thread_helpers.h"
 #endif
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "base/message_loop/message_pump_win.h"
 #include "base/process/memory.h"
 #include "base/win/current_module.h"
@@ -300,7 +300,7 @@ void QuitFunc(TaskList* order, int cookie) {
   order->RecordEnd(QUITMESSAGELOOP, cookie);
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 
 void SubPumpFunc(OnceClosure on_done) {
   CurrentThread::ScopedAllowApplicationTasksInNativeNestedLoop
@@ -383,7 +383,7 @@ void RecursiveFuncWin(scoped_refptr<SingleThreadTaskRunner> task_runner,
   }
 }
 
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
 void Post128KTasksThenQuit(SingleThreadTaskRunner* executor_task_runner,
                            TimeTicks begin_ticks,
@@ -422,7 +422,7 @@ void Post128KTasksThenQuit(SingleThreadTaskRunner* executor_task_runner,
                num_posts_done + 1));
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 
 class TestIOHandler : public MessagePumpForIO::IOHandler {
  public:
@@ -497,7 +497,7 @@ void RunTest_IOHandler() {
   thread.Stop();
 }
 
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
 }  // namespace
 
@@ -530,18 +530,18 @@ class SingleThreadTaskExecutorTypedTest
         return "UI_pump";
       case MessagePumpType::CUSTOM:
         break;
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
       case MessagePumpType::JAVA:
         break;
-#endif  // BUILDFLAG(IS_ANDROID)
-#if BUILDFLAG(IS_APPLE)
+#endif  // defined(OS_ANDROID)
+#if defined(OS_APPLE)
       case MessagePumpType::NS_RUNLOOP:
         break;
-#endif  // BUILDFLAG(IS_APPLE)
-#if BUILDFLAG(IS_WIN)
+#endif  // defined(OS_APPLE)
+#if defined(OS_WIN)
       case MessagePumpType::UI_WITH_WM_QUIT_SUPPORT:
         break;
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
     }
     NOTREACHED();
     return "";
@@ -757,7 +757,7 @@ class RecordDeletionProbe : public RefCounted<RecordDeletionProbe> {
   }
 
   scoped_refptr<RecordDeletionProbe> post_on_delete_;
-  raw_ptr<bool> was_deleted_;
+  bool* was_deleted_;
 };
 
 }  // namespace
@@ -1290,7 +1290,7 @@ TEST_P(SingleThreadTaskExecutorTypedTest, RunLoopQuitOrderAfter) {
 // On Linux, the pipe buffer size is 64KiB by default. The bug caused one byte
 // accumulated in the pipe per two posts, so we should repeat 128K times to
 // reproduce the bug.
-#if BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_CHROMEOS)
 // TODO(crbug.com/1188497): This test is unreasonably slow on CrOS and flakily
 // times out (100x slower than other platforms which take < 1s to complete
 // it).
@@ -1432,7 +1432,7 @@ INSTANTIATE_TEST_SUITE_P(All,
                                            MessagePumpType::IO),
                          SingleThreadTaskExecutorTypedTest::ParamInfoToString);
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 
 // Verifies that the SingleThreadTaskExecutor ignores WM_QUIT, rather than
 // quitting. Users of SingleThreadTaskExecutor typically expect to control when
@@ -1848,9 +1848,9 @@ TEST(SingleThreadTaskExecutorTest, NestingSupport2) {
   EXPECT_EQ(order.Get(17), TaskItem(RECURSIVE, 3, false));
 }
 
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 TEST(SingleThreadTaskExecutorTest, IOHandler) {
   RunTest_IOHandler();
 }
@@ -1895,7 +1895,7 @@ TEST(SingleThreadTaskExecutorTest, HighResolutionTimer) {
   Time::ResetHighResolutionTimerUsage();
 }
 
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
 namespace {
 // Inject a test point for recording the destructor calls for Closure objects
@@ -1920,8 +1920,8 @@ class DestructionObserverProbe : public RefCounted<DestructionObserverProbe> {
     *task_destroyed_ = true;
   }
 
-  raw_ptr<bool> task_destroyed_;
-  raw_ptr<bool> destruction_observer_called_;
+  bool* task_destroyed_;
+  bool* destruction_observer_called_;
 };
 
 class MLDestructionObserver : public CurrentThread::DestructionObserver {
@@ -1939,8 +1939,8 @@ class MLDestructionObserver : public CurrentThread::DestructionObserver {
   }
 
  private:
-  raw_ptr<bool> task_destroyed_;
-  raw_ptr<bool> destruction_observer_called_;
+  bool* task_destroyed_;
+  bool* destruction_observer_called_;
   bool task_destroyed_before_message_loop_;
 };
 
@@ -1996,7 +1996,7 @@ TEST(SingleThreadTaskExecutorTest, type) {
   EXPECT_EQ(executor.type(), MessagePumpType::UI);
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 void EmptyFunction() {}
 
 void PostMultipleTasks() {
@@ -2089,7 +2089,7 @@ TEST(SingleThreadTaskExecutorTest, AlwaysHaveUserMessageWhenNesting) {
 
   ASSERT_TRUE(UnregisterClass(MAKEINTATOM(atom), instance));
 }
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
 // Verify that tasks posted to and code running in the scope of the same
 // SingleThreadTaskExecutor access the same SequenceLocalStorage values.

@@ -42,14 +42,13 @@ class PartitionAllocMemoryReclaimerTest : public ::testing::Test {
     PartitionAllocGlobalInit(HandleOOM);
     PartitionAllocMemoryReclaimer::Instance()->ResetForTesting();
     allocator_ = std::make_unique<PartitionAllocator>();
-    allocator_->init({
-        PartitionOptions::AlignedAlloc::kDisallowed,
-        PartitionOptions::ThreadCache::kDisabled,
-        PartitionOptions::Quarantine::kAllowed,
-        PartitionOptions::Cookie::kAllowed,
-        PartitionOptions::BackupRefPtr::kDisabled,
-        PartitionOptions::UseConfigurablePool::kNo,
-    });
+    allocator_->init({PartitionOptions::AlignedAlloc::kDisallowed,
+                      PartitionOptions::ThreadCache::kDisabled,
+                      PartitionOptions::Quarantine::kAllowed,
+                      PartitionOptions::Cookie::kAllowed,
+                      PartitionOptions::BackupRefPtr::kDisabled,
+                      PartitionOptions::UseConfigurablePool::kNo,
+                      PartitionOptions::LazyCommit::kEnabled});
   }
 
   void TearDown() override {

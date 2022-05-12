@@ -262,27 +262,33 @@ public class RecordHistogram {
 
     /**
      * Returns the number of samples recorded in the given bucket of the given histogram.
-     * Does not reset between batched tests. Use HistogramTestRule instead.
      *
      * @param name name of the histogram to look up
      * @param sample the bucket containing this sample value will be looked up
      */
     @VisibleForTesting
-    @Deprecated
     public static int getHistogramValueCountForTesting(String name, int sample) {
-        return RecordHistogramJni.get().getHistogramValueCountForTesting(name, sample, 0);
+        return RecordHistogramJni.get().getHistogramValueCountForTesting(name, sample);
     }
 
     /**
      * Returns the number of samples recorded for the given histogram.
-     * Does not reset between batched tests. Use HistogramTestRule instead.
      *
      * @param name name of the histogram to look up
      */
     @VisibleForTesting
-    @Deprecated
     public static int getHistogramTotalCountForTesting(String name) {
-        return RecordHistogramJni.get().getHistogramTotalCountForTesting(name, 0);
+        return RecordHistogramJni.get().getHistogramTotalCountForTesting(name);
+    }
+
+    /**
+     * Forgets the given histogram, for testing purposes only.
+     *
+     * @param name name of the histogram to forget
+     */
+    @VisibleForTesting
+    public static void forgetHistogramForTesting(String name) {
+        RecordHistogramJni.get().forgetHistogramForTesting(name);
     }
 
     /**
@@ -290,9 +296,8 @@ public class RecordHistogram {
      */
     @NativeMethods
     public interface Natives {
-        int getHistogramValueCountForTesting(String name, int sample, long snapshotPtr);
-        int getHistogramTotalCountForTesting(String name, long snapshotPtr);
-        long createHistogramSnapshotForTesting();
-        void destroyHistogramSnapshotForTesting(long snapshotPtr);
+        int getHistogramValueCountForTesting(String name, int sample);
+        int getHistogramTotalCountForTesting(String name);
+        void forgetHistogramForTesting(String name);
     }
 }

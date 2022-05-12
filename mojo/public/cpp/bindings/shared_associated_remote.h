@@ -5,8 +5,7 @@
 #ifndef MOJO_PUBLIC_CPP_BINDINGS_SHARED_ASSOCIATED_REMOTE_H_
 #define MOJO_PUBLIC_CPP_BINDINGS_SHARED_ASSOCIATED_REMOTE_H_
 
-#include <tuple>
-
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/threading/sequenced_task_runner_handle.h"
 #include "mojo/public/cpp/bindings/associated_remote.h"
@@ -20,7 +19,7 @@ namespace internal {
 template <typename Interface>
 struct SharedRemoteTraits<AssociatedRemote<Interface>> {
   static void BindDisconnected(AssociatedRemote<Interface>& remote) {
-    std::ignore = remote.BindNewEndpointAndPassDedicatedReceiver();
+    ignore_result(remote.BindNewEndpointAndPassDedicatedReceiver());
   }
 };
 

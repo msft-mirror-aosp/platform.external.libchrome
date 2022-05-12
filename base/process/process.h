@@ -6,28 +6,29 @@
 #define BASE_PROCESS_PROCESS_H_
 
 #include "base/base_export.h"
+#include "base/macros.h"
 #include "base/process/process_handle.h"
 #include "base/strings/string_piece.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "base/win/scoped_handle.h"
 #endif
 
-#if BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_FUCHSIA)
 #include <lib/zx/process.h>
 #endif
 
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
 #include "base/feature_list.h"
 #include "base/process/port_provider_mac.h"
 #endif
 
 namespace base {
 
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
 extern const Feature kMacAllowBackgroundingProcesses;
 #endif
 
@@ -71,7 +72,7 @@ class BASE_EXPORT Process {
   // address space and duplicate handles).
   static Process OpenWithExtraPrivileges(ProcessId pid);
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   // Returns a Process for the given |pid|, using some |desired_access|.
   // See ::OpenProcess documentation for valid |desired_access|.
   static Process OpenWithAccess(ProcessId pid, DWORD desired_access);
@@ -96,7 +97,7 @@ class BASE_EXPORT Process {
   // Relinquishes ownership of the handle and sets this to kNullProcessHandle.
   // The result may be a pseudo-handle, depending on the OS and value stored in
   // this.
-  [[nodiscard]] ProcessHandle Release();
+  ProcessHandle Release() WARN_UNUSED_RESULT;
 
   // Get the PID for this process.
   ProcessId Pid() const;
@@ -120,7 +121,7 @@ class BASE_EXPORT Process {
   // (and maybe Fuchsia?), because the ProcessHandle will keep the zombie
   // process information available until itself has been released. But on Posix,
   // the OS may reuse the ProcessId.
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   bool IsRunning() const {
     return !WaitForExitWithTimeout(base::TimeDelta(), nullptr);
   }
@@ -133,7 +134,7 @@ class BASE_EXPORT Process {
   // NOTE: |exit_code| is only used on OS_WIN.
   bool Terminate(int exit_code, bool wait) const;
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   enum class WaitExitStatus {
     PROCESS_EXITED,
     STOP_EVENT_SIGNALED,
@@ -146,7 +147,7 @@ class BASE_EXPORT Process {
   WaitExitStatus WaitForExitOrEvent(
       const base::win::ScopedHandle& stop_event_handle,
       int* exit_code) const;
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // OS_WIN
 
   // Waits for the process to exit. Returns true on success.
   // On POSIX, if the process has been signaled then |exit_code| is set to -1.
@@ -168,7 +169,7 @@ class BASE_EXPORT Process {
   // process though that should be avoided.
   void Exited(int exit_code) const;
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
   // The Mac needs a Mach port in order to manipulate a process's priority,
   // and there's no good way to get that from base given the pid. These Mac
   // variants of the IsProcessBackgrounded and SetProcessBackgrounded API take
@@ -199,7 +200,7 @@ class BASE_EXPORT Process {
   // will be made "normal" - equivalent to default process priority.
   // Returns true if the priority was changed, false otherwise.
   bool SetProcessBackgrounded(bool value);
-#endif  // BUILDFLAG(IS_APPLE)
+#endif  // defined(OS_APPLE)
   // Returns an integer representing the priority of a process. The meaning
   // of this value is OS dependent.
   int GetPriority() const;
@@ -212,15 +213,15 @@ class BASE_EXPORT Process {
 #endif
 
  private:
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   win::ScopedHandle process_;
-#elif BUILDFLAG(IS_FUCHSIA)
+#elif defined(OS_FUCHSIA)
   zx::process process_;
 #else
   ProcessHandle process_;
 #endif
 
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_WIN) || defined(OS_FUCHSIA)
   bool is_current_process_;
 #endif
 };

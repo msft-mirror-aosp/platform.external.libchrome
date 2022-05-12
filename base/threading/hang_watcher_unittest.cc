@@ -10,7 +10,6 @@
 #include "base/bind.h"
 #include "base/callback.h"
 #include "base/callback_helpers.h"
-#include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/synchronization/lock.h"
@@ -102,7 +101,7 @@ class BlockingThread : public DelegateSimpleThread::Delegate {
   // Will be signaled once ThreadMain has run.
   WaitableEvent run_event_;
 
-  const raw_ptr<base::WaitableEvent> unblock_thread_;
+  base::WaitableEvent* const unblock_thread_;
 
   base::TimeDelta timeout_;
 };
@@ -964,7 +963,7 @@ TEST_F(WatchHangsInScopeBlockingTest, ScopeBlocksDuringCapture) {
   VerifyScopesDontBlock();
 }
 
-#if BUILDFLAG(IS_MAC) && defined(ARCH_CPU_ARM64)
+#if defined(OS_MAC) && defined(ARCH_CPU_ARM64)
 // Flaky hangs on arm64 Macs: https://crbug.com/1140207
 #define MAYBE_NewScopeDoesNotBlockDuringCapture \
   DISABLED_NewScopeDoesNotBlockDuringCapture

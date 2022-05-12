@@ -12,6 +12,7 @@
 
 #include "base/posix/eintr_wrapper.h"
 #include "build/build_config.h"
+#include "build/os_buildflags.h"
 #include "ipc/ipc_platform_file_attachment_posix.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -130,7 +131,7 @@ TEST(MessageAttachmentSet, WalkWrongOrder) {
   set->CommitAllDescriptors();
 }
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #define MAYBE_DontClose DISABLED_DontClose
 #else
 #define MAYBE_DontClose DontClose

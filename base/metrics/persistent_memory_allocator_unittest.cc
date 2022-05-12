@@ -10,7 +10,6 @@
 #include "base/files/file_util.h"
 #include "base/files/memory_mapped_file.h"
 #include "base/files/scoped_temp_dir.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/read_only_shared_memory_region.h"
 #include "base/memory/shared_memory_mapping.h"
 #include "base/memory/writable_shared_memory_region.h"
@@ -21,7 +20,6 @@
 #include "base/synchronization/condition_variable.h"
 #include "base/synchronization/lock.h"
 #include "base/threading/simple_thread.h"
-#include "build/build_config.h"
 #include "testing/gmock/include/gmock/gmock.h"
 
 namespace base {
@@ -415,11 +413,11 @@ class CounterThread : public SimpleThread {
   unsigned count() { return count_; }
 
  private:
-  raw_ptr<PersistentMemoryAllocator::Iterator> iterator_;
-  raw_ptr<Lock> lock_;
-  raw_ptr<ConditionVariable> condition_;
+  PersistentMemoryAllocator::Iterator* iterator_;
+  Lock* lock_;
+  ConditionVariable* condition_;
   unsigned count_;
-  raw_ptr<bool> wake_up_;
+  bool* wake_up_;
 };
 
 // Ensure that parallel iteration returns the same number of objects as
@@ -720,7 +718,8 @@ TEST(SharedPersistentMemoryAllocatorTest, CreationTest) {
   EXPECT_EQ(0, data[3]);
 }
 
-#if !BUILDFLAG(IS_NACL)
+
+#if !defined(OS_NACL)
 //----- FilePersistentMemoryAllocator ------------------------------------------
 
 TEST(FilePersistentMemoryAllocatorTest, CreationTest) {
@@ -998,6 +997,6 @@ TEST_F(PersistentMemoryAllocatorTest, TruncateTest) {
   }
 }
 
-#endif  // !BUILDFLAG(IS_NACL)
+#endif  // !defined(OS_NACL)
 
 }  // namespace base

@@ -9,9 +9,7 @@
 
 #include "base/allocator/allocator_shim.h"
 #include "base/debug/alias.h"
-#include "base/memory/raw_ptr.h"
 #include "base/rand_util.h"
-#include "base/sampling_heap_profiler/poisson_allocation_sampler.h"
 #include "base/synchronization/waitable_event.h"
 #include "base/threading/simple_thread.h"
 #include "build/build_config.h"
@@ -22,7 +20,7 @@ namespace base {
 class SamplingHeapProfilerTest : public ::testing::Test {
  public:
   void SetUp() override {
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
     allocator::InitializeAllocatorShim();
 #endif
     SamplingHeapProfiler::Init();
@@ -70,7 +68,7 @@ class SamplesCollector : public PoissonAllocationSampler::SamplesObserver {
 
  private:
   size_t watch_size_;
-  raw_ptr<void> sample_address_ = nullptr;
+  void* sample_address_ = nullptr;
 };
 
 TEST_F(SamplingHeapProfilerTest, SampleObserver) {
@@ -118,7 +116,7 @@ TEST_F(SamplingHeapProfilerTest, IntervalRandomizationSanity) {
   EXPECT_NEAR(1000, mean_samples, 100);  // 10% tolerance.
 }
 
-#if BUILDFLAG(IS_IOS)
+#if defined(OS_IOS)
 // iOS devices generally have ~4GB of RAM with no swap and therefore need a
 // lower allocation limit here.
 const int kNumberOfAllocations = 1000;
@@ -225,7 +223,7 @@ TEST_F(SamplingHeapProfilerTest, DISABLED_SequentialLargeSmallStats) {
 // Platform TLS: alloc+free[ns]: 22.184  alloc[ns]: 8.910  free[ns]: 13.274
 // thread_local: alloc+free[ns]: 18.353  alloc[ns]: 5.021  free[ns]: 13.331
 // TODO(crbug.com/1117342) Disabled on Mac
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 #define MAYBE_MANUAL_SamplerMicroBenchmark DISABLED_MANUAL_SamplerMicroBenchmark
 #else
 #define MAYBE_MANUAL_SamplerMicroBenchmark MANUAL_SamplerMicroBenchmark
@@ -275,7 +273,7 @@ class StartStopThread : public SimpleThread {
   }
 
  private:
-  raw_ptr<WaitableEvent> event_;
+  WaitableEvent* event_;
 };
 
 TEST_F(SamplingHeapProfilerTest, StartStop) {
@@ -292,7 +290,7 @@ TEST_F(SamplingHeapProfilerTest, StartStop) {
 }
 
 // TODO(crbug.com/1116543): Test is crashing on Mac.
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 #define MAYBE_ConcurrentStartStop DISABLED_ConcurrentStartStop
 #else
 #define MAYBE_ConcurrentStartStop ConcurrentStartStop
@@ -306,51 +304,6 @@ TEST_F(SamplingHeapProfilerTest, MAYBE_ConcurrentStartStop) {
   RunStartStopLoop(profiler);
   thread.Join();
   EXPECT_EQ(0, GetRunningSessionsCount());
-}
-
-TEST_F(SamplingHeapProfilerTest, HookedAllocatorMuted) {
-  EXPECT_FALSE(PoissonAllocationSampler::AreHookedSamplesMuted());
-
-  auto* sampler = PoissonAllocationSampler::Get();
-  sampler->SuppressRandomnessForTest(true);
-  sampler->SetSamplingInterval(1024);
-
-  {
-    PoissonAllocationSampler::ScopedMuteHookedSamplesForTesting mute_hooks;
-    EXPECT_TRUE(PoissonAllocationSampler::AreHookedSamplesMuted());
-
-    SamplesCollector collector(10000);
-
-    // A ScopedMuteHookedSamplesForTesting exists so hooked allocations should
-    // be ignored.
-    sampler->AddSamplesObserver(&collector);
-    void* volatile p = malloc(10000);
-    free(p);
-    sampler->RemoveSamplesObserver(&collector);
-    EXPECT_FALSE(collector.sample_added);
-    EXPECT_FALSE(collector.sample_removed);
-
-    // Manual allocations should be captured.
-    sampler->AddSamplesObserver(&collector);
-    void* const kAddress = reinterpret_cast<void*>(0x1234);
-    sampler->RecordAlloc(kAddress, 10000,
-                         PoissonAllocationSampler::kManualForTesting, nullptr);
-    sampler->RecordFree(kAddress);
-    sampler->RemoveSamplesObserver(&collector);
-    EXPECT_TRUE(collector.sample_added);
-    EXPECT_TRUE(collector.sample_removed);
-  }
-
-  EXPECT_FALSE(PoissonAllocationSampler::AreHookedSamplesMuted());
-
-  // Hooked allocations should be captured again.
-  SamplesCollector collector(10000);
-  sampler->AddSamplesObserver(&collector);
-  void* volatile p = malloc(10000);
-  free(p);
-  sampler->RemoveSamplesObserver(&collector);
-  EXPECT_TRUE(collector.sample_added);
-  EXPECT_TRUE(collector.sample_removed);
 }
 
 }  // namespace base

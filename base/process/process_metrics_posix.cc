@@ -14,17 +14,17 @@
 #include "base/logging.h"
 #include "build/build_config.h"
 
-#if !BUILDFLAG(IS_FUCHSIA)
+#if !defined(OS_FUCHSIA)
 #include <sys/resource.h>
 #endif
 
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
 #include <malloc/malloc.h>
 #else
 #include <malloc.h>
 #endif
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
 #include <features.h>
 #endif
 
@@ -39,23 +39,23 @@ int64_t TimeValToMicroseconds(const struct timeval& tv) {
 
 ProcessMetrics::~ProcessMetrics() = default;
 
-#if !BUILDFLAG(IS_FUCHSIA)
+#if !defined(OS_FUCHSIA)
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
 static const rlim_t kSystemDefaultMaxFds = 8192;
-#elif BUILDFLAG(IS_APPLE)
+#elif defined(OS_APPLE)
 static const rlim_t kSystemDefaultMaxFds = 256;
-#elif BUILDFLAG(IS_SOLARIS)
+#elif defined(OS_SOLARIS)
 static const rlim_t kSystemDefaultMaxFds = 8192;
-#elif BUILDFLAG(IS_FREEBSD)
+#elif defined(OS_FREEBSD)
 static const rlim_t kSystemDefaultMaxFds = 8192;
-#elif BUILDFLAG(IS_NETBSD)
+#elif defined(OS_NETBSD)
 static const rlim_t kSystemDefaultMaxFds = 1024;
-#elif BUILDFLAG(IS_OPENBSD)
+#elif defined(OS_OPENBSD)
 static const rlim_t kSystemDefaultMaxFds = 256;
-#elif BUILDFLAG(IS_ANDROID)
+#elif defined(OS_ANDROID)
 static const rlim_t kSystemDefaultMaxFds = 1024;
-#elif BUILDFLAG(IS_AIX)
+#elif defined(OS_AIX)
 static const rlim_t kSystemDefaultMaxFds = 8192;
 #endif
 
@@ -77,7 +77,7 @@ size_t GetMaxFds() {
 }
 
 size_t GetHandleLimit() {
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
   // Taken from a small test that allocated ports in a loop.
   return static_cast<size_t>(1 << 18);
 #else
@@ -103,9 +103,9 @@ void IncreaseFdLimitTo(unsigned int max_descriptors) {
   }
 }
 
-#endif  // !BUILDFLAG(IS_FUCHSIA)
+#endif  // !defined(OS_FUCHSIA)
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
 namespace {
 
 size_t GetMallocUsageMallinfo() {
@@ -119,21 +119,24 @@ size_t GetMallocUsageMallinfo() {
   struct mallinfo minfo = mallinfo();
 #endif
 #undef MALLINFO2_FOUND_IN_LIBC
+#if BUILDFLAG(USE_TCMALLOC)
+  return minfo.uordblks;
+#else
   return minfo.hblkhd + minfo.arena;
+#endif
 }
 
 }  // namespace
-#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) ||
-        // BUILDFLAG(IS_ANDROID)
+#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
 
 size_t ProcessMetrics::GetMallocUsage() {
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
   malloc_statistics_t stats = {0};
   malloc_zone_statistics(nullptr, &stats);
   return stats.size_in_use;
-#elif BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID)
+#elif defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
   return GetMallocUsageMallinfo();
-#elif BUILDFLAG(IS_FUCHSIA)
+#elif defined(OS_FUCHSIA)
   // TODO(fuchsia): Not currently exposed. https://crbug.com/735087.
   return 0;
 #endif

@@ -5,10 +5,11 @@
 #include "base/threading/platform_thread.h"
 
 #include <atomic>
+#include <memory>
+#include <ostream>
 
 #include "base/feature_list.h"
 #include "base/time/time.h"
-#include "build/build_config.h"
 
 namespace base {
 
@@ -27,6 +28,11 @@ const Feature kThreadPrioritiesFeature{"ThreadPriorities",
 std::atomic<bool> g_use_thread_priorities(true);
 
 }  // namespace
+
+std::ostream& operator<<(std::ostream& os, const PlatformThreadRef& ref) {
+  os << ref.id_;
+  return os;
+}
 
 // static
 void PlatformThread::SetCurrentThreadPriority(ThreadPriority priority) {
@@ -56,7 +62,7 @@ void InitializeThreadPrioritiesFeature() {
     g_use_thread_priorities.store(false);
   }
 
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
   PlatformThread::InitializeOptimizedRealtimeThreadingFeature();
 #endif
 }

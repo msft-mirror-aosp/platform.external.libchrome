@@ -8,7 +8,6 @@
 
 #include <algorithm>
 #include <iterator>
-#include <ostream>
 
 #include "base/atomicops.h"
 #include "base/check_op.h"

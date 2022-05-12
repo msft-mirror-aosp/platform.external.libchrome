@@ -41,7 +41,7 @@ extern const char kTestTinyTimeout[];
 extern const char kUiTestActionMaxTimeout[];
 extern const char kUiTestActionTimeout[];
 
-#if BUILDFLAG(IS_IOS)
+#if defined(OS_IOS)
 extern const char kEnableRunIOSUnittestsWithXCTest[];
 extern const char kWriteCompiledTestsJsonToWritablePath[];
 #endif

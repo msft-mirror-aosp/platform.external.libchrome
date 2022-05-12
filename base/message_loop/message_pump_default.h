@@ -6,6 +6,7 @@
 #define BASE_MESSAGE_LOOP_MESSAGE_PUMP_DEFAULT_H_
 
 #include "base/base_export.h"
+#include "base/macros.h"
 #include "base/message_loop/message_pump.h"
 #include "base/synchronization/waitable_event.h"
 #include "base/time/time.h"
@@ -27,7 +28,7 @@ class BASE_EXPORT MessagePumpDefault : public MessagePump {
   void Quit() override;
   void ScheduleWork() override;
   void ScheduleDelayedWork(const TimeTicks& delayed_work_time) override;
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
   void SetTimerSlack(TimerSlack timer_slack) override;
 #endif
 

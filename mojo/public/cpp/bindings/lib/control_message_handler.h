@@ -8,7 +8,7 @@
 #include <stdint.h>
 
 #include "base/component_export.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "mojo/public/cpp/bindings/message.h"
 
 namespace mojo {
@@ -42,7 +42,7 @@ class COMPONENT_EXPORT(MOJO_CPP_BINDINGS) ControlMessageHandler
            std::unique_ptr<MessageReceiverWithStatus> responder);
   bool RunOrClosePipe(Message* message);
 
-  const raw_ptr<InterfaceEndpointClient> owner_;
+  InterfaceEndpointClient* const owner_;
   uint32_t interface_version_;
 };
 

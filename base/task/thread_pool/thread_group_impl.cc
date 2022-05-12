@@ -19,7 +19,6 @@
 #include "base/feature_list.h"
 #include "base/location.h"
 #include "base/memory/ptr_util.h"
-#include "base/memory/raw_ptr.h"
 #include "base/metrics/histogram.h"
 #include "base/numerics/clamped_math.h"
 #include "base/ranges/algorithm.h"
@@ -38,12 +37,12 @@
 #include "build/build_config.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "base/win/scoped_com_initializer.h"
 #include "base/win/scoped_windows_thread_environment.h"
 #include "base/win/scoped_winrt_initializer.h"
 #include "base/win/windows_version.h"
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
 namespace base {
 namespace internal {
@@ -199,7 +198,7 @@ class ThreadGroupImpl::ScopedCommandsExecutor
     }
   }
 
-  const raw_ptr<ThreadGroupImpl> outer_;
+  ThreadGroupImpl* const outer_;
 
   WorkerContainer workers_to_wake_up_;
   WorkerContainer workers_to_start_;
@@ -296,11 +295,11 @@ class ThreadGroupImpl::WorkerThreadDelegateImpl : public WorkerThread::Delegate,
     size_t num_tasks_since_last_detach = 0;
 
     // Associated WorkerThread, if any, initialized in OnMainEntry().
-    raw_ptr<WorkerThread> worker_thread_;
+    WorkerThread* worker_thread_;
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
     std::unique_ptr<win::ScopedWindowsThreadEnvironment> win_thread_environment;
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
   } worker_only_;
 
   // Writes from the worker thread protected by |outer_->lock_|. Reads from any
@@ -571,10 +570,10 @@ void ThreadGroupImpl::WorkerThreadDelegateImpl::OnMainEntry(
 #endif
   }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   worker_only().win_thread_environment = GetScopedWindowsThreadEnvironment(
       outer_->after_start().worker_environment);
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
   PlatformThread::SetName(
       StringPrintf("ThreadPool%sWorker", outer_->thread_group_label_.c_str()));
@@ -803,9 +802,9 @@ void ThreadGroupImpl::WorkerThreadDelegateImpl::OnMainExit(
   }
 #endif
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   worker_only().win_thread_environment.reset();
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
   // Count cleaned up workers for tests. It's important to do this here instead
   // of at the end of CleanupLockRequired() because some side-effects of
@@ -1172,7 +1171,7 @@ void ThreadGroupImpl::AdjustMaxTasks() {
 void ThreadGroupImpl::ScheduleAdjustMaxTasks() {
   // |adjust_max_tasks_posted_| can't change before the task posted below runs.
   // Skip check on NaCl to avoid unsafe reference acquisition warning.
-#if !BUILDFLAG(IS_NACL)
+#if !defined(OS_NACL)
   DCHECK(TS_UNCHECKED_READ(adjust_max_tasks_posted_));
 #endif
 

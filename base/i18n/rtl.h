@@ -7,6 +7,7 @@
 
 #include <string>
 
+#include "base/compiler_specific.h"
 #include "base/i18n/base_i18n_export.h"
 #include "build/build_config.h"
 
@@ -153,16 +154,16 @@ BASE_I18N_EXPORT void WrapPathWithLTRFormatting(const FilePath& path,
 
 // Return the string in |text| wrapped with LRE (Left-To-Right Embedding) and
 // PDF (Pop Directional Formatting) marks, if needed for UI display purposes.
-[[nodiscard]] BASE_I18N_EXPORT std::u16string
-GetDisplayStringInLTRDirectionality(const std::u16string& text);
+BASE_I18N_EXPORT std::u16string GetDisplayStringInLTRDirectionality(
+    const std::u16string& text) WARN_UNUSED_RESULT;
 
 // Strip the beginning (U+202A..U+202B, U+202D..U+202E) and/or ending (U+202C)
 // explicit bidi control characters from |text|, if there are any. Otherwise,
 // return the text itself. Explicit bidi control characters display and have
 // semantic effect. They can be deleted so they might not always appear in a
 // pair.
-[[nodiscard]] BASE_I18N_EXPORT std::u16string
-StripWrappingBidiControlCharacters(const std::u16string& text);
+BASE_I18N_EXPORT std::u16string StripWrappingBidiControlCharacters(
+    const std::u16string& text) WARN_UNUSED_RESULT;
 
 }  // namespace i18n
 }  // namespace base

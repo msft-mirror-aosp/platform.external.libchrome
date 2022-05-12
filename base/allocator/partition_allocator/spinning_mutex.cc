@@ -7,11 +7,11 @@
 #include "base/allocator/partition_allocator/partition_alloc_check.h"
 #include "build/build_config.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include <windows.h>
 #endif
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 #include <pthread.h>
 #endif
 
@@ -25,7 +25,7 @@
 #if !defined(PA_HAS_FAST_MUTEX)
 #include "base/threading/platform_thread.h"
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 #include <sched.h>
 
 #define YIELD_THREAD sched_yield()
@@ -38,13 +38,17 @@
 
 #endif  // !defined(PA_HAS_FAST_MUTEX)
 
-namespace partition_alloc {
+namespace base {
+namespace internal {
 
 void SpinningMutex::Reinit() {
-#if !BUILDFLAG(IS_APPLE)
+#if !defined(OS_APPLE)
   // On most platforms, no need to re-init the lock, can just unlock it.
   Release();
 #else
+  // On macOS, os_unfair_lock cannot be unlocked from a thread which didn't lock
+  // it, otherwise an assertion is triggered inside its implementation.
+#if !defined(PA_NO_OS_UNFAIR_LOCK_CRBUG_1267256)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunguarded-availability"
 
@@ -55,8 +59,10 @@ void SpinningMutex::Reinit() {
 
 #pragma clang diagnostic pop
 
+#endif  // !defined(PA_NO_OS_UNFAIR_LOCK_CRBUG_1267256)
+
   Release();
-#endif  // BUILDFLAG(IS_APPLE)
+#endif  // defined(OS_APPLE)
 }
 
 #if defined(PA_HAS_FAST_MUTEX)
@@ -113,20 +119,20 @@ void SpinningMutex::LockSlow() {
   }
 }
 
-#elif BUILDFLAG(IS_WIN)
+#elif defined(OS_WIN)
 
 void SpinningMutex::LockSlow() {
   ::AcquireSRWLockExclusive(reinterpret_cast<PSRWLOCK>(&lock_));
 }
 
-#elif BUILDFLAG(IS_POSIX)
+#elif defined(OS_POSIX)
 
 void SpinningMutex::LockSlow() {
   int retval = pthread_mutex_lock(&lock_);
   PA_DCHECK(retval == 0);
 }
 
-#elif BUILDFLAG(IS_FUCHSIA)
+#elif defined(OS_FUCHSIA)
 
 void SpinningMutex::LockSlow() {
   sync_mutex_lock(&lock_);
@@ -147,11 +153,12 @@ void SpinningMutex::LockSlowSpinLock() {
       // thread that is unavailable to finish its work because of higher
       // priority threads spinning here. Sleeping should ensure that they make
       // progress.
-      base::PlatformThread::Sleep(base::Milliseconds(1));
+      PlatformThread::Sleep(Milliseconds(1));
     }
   } while (!TrySpinLock());
 }
 
 #endif  // defined(PA_HAS_FAST_MUTEX)
 
-}  // namespace partition_alloc
+}  // namespace internal
+}  // namespace base

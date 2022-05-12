@@ -18,7 +18,7 @@
 namespace base {
 namespace i18n {
 
-#if !BUILDFLAG(IS_NACL)
+#if !defined(OS_NACL)
 // Call this function to load ICU's data tables for the current process.  This
 // function should be called before ICU is used.
 BASE_I18N_EXPORT bool InitializeICU();
@@ -52,15 +52,15 @@ BASE_I18N_EXPORT bool InitializeExtraICUWithFileDescriptor(
 
 BASE_I18N_EXPORT void ResetGlobalsForTesting();
 
-#if BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_FUCHSIA)
 // Overrides the directory used by ICU for external time zone data.
 BASE_I18N_EXPORT void SetIcuTimeZoneDataDirForTesting(const char* dir);
-#endif  // BUILDFLAG(IS_FUCHSIA)
+#endif  // defined(OS_FUCHSIA)
 #endif  // ICU_UTIL_DATA_IMPL == ICU_UTIL_DATA_FILE
 
 // In a test binary, initialize functions might be called twice.
 BASE_I18N_EXPORT void AllowMultipleInitializeCallsForTesting();
-#endif  // !BUILDFLAG(IS_NACL)
+#endif  // !defined(OS_NACL)
 
 }  // namespace i18n
 }  // namespace base

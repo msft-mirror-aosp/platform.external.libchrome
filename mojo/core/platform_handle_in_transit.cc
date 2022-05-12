@@ -11,7 +11,7 @@
 #include "base/process/process_handle.h"
 #include "build/build_config.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include <ntstatus.h>
 #include <windows.h>
 
@@ -24,16 +24,21 @@ namespace core {
 
 namespace {
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 HANDLE TransferHandle(HANDLE handle,
                       base::ProcessHandle from_process,
-                      base::ProcessHandle to_process) {
+                      base::ProcessHandle to_process,
+                      bool check_on_failure = true) {
   HANDLE out_handle;
   BOOL result =
       ::DuplicateHandle(from_process, handle, to_process, &out_handle, 0, FALSE,
                         DUPLICATE_SAME_ACCESS | DUPLICATE_CLOSE_SOURCE);
   if (result) {
     return out_handle;
+  }
+
+  if (!check_on_failure) {
+    return INVALID_HANDLE_VALUE;
   }
 
   const DWORD error = ::GetLastError();
@@ -93,7 +98,7 @@ PlatformHandleInTransit::PlatformHandleInTransit(
 }
 
 PlatformHandleInTransit::~PlatformHandleInTransit() {
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   if (!owning_process_.IsValid()) {
     DCHECK_EQ(remote_handle_, INVALID_HANDLE_VALUE);
     return;
@@ -105,7 +110,7 @@ PlatformHandleInTransit::~PlatformHandleInTransit() {
 
 PlatformHandleInTransit& PlatformHandleInTransit::operator=(
     PlatformHandleInTransit&& other) {
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   if (owning_process_.IsValid()) {
     DCHECK_NE(remote_handle_, INVALID_HANDLE_VALUE);
     CloseHandleInProcess(remote_handle_, owning_process_);
@@ -125,21 +130,22 @@ PlatformHandle PlatformHandleInTransit::TakeHandle() {
 }
 
 void PlatformHandleInTransit::CompleteTransit() {
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   remote_handle_ = INVALID_HANDLE_VALUE;
 #endif
   handle_.release();
   owning_process_ = base::Process();
 }
 
-bool PlatformHandleInTransit::TransferToProcess(base::Process target_process) {
+bool PlatformHandleInTransit::TransferToProcess(base::Process target_process,
+                                                bool check_on_failure) {
   DCHECK(target_process.IsValid());
   DCHECK(!owning_process_.IsValid());
   DCHECK(handle_.is_valid());
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   remote_handle_ =
       TransferHandle(handle_.ReleaseHandle(), base::GetCurrentProcessHandle(),
-                     target_process.Handle());
+                     target_process.Handle(), check_on_failure);
   if (remote_handle_ == INVALID_HANDLE_VALUE)
     return false;
 #endif
@@ -147,7 +153,7 @@ bool PlatformHandleInTransit::TransferToProcess(base::Process target_process) {
   return true;
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 // static
 bool PlatformHandleInTransit::IsPseudoHandle(HANDLE handle) {
   // Note that there appears to be no official documentation covering the

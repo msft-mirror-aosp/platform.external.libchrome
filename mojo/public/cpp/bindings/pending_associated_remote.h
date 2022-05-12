@@ -10,6 +10,7 @@
 #include <utility>
 
 #include "base/compiler_specific.h"
+#include "base/macros.h"
 #include "build/build_config.h"
 #include "mojo/public/cpp/bindings/associated_interface_ptr_info.h"
 #include "mojo/public/cpp/bindings/lib/multiplex_router.h"
@@ -43,7 +44,7 @@ class PendingAssociatedRemote {
       : PendingAssociatedRemote(ptr_info.PassHandle(), ptr_info.version()) {}
 
   // Disabled on NaCl since it crashes old version of clang.
-#if !BUILDFLAG(IS_NACL)
+#if !defined(OS_NACL)
   // Move conversion operator for custom remote types. Only participates in
   // overload resolution if a typesafe conversion is supported.
   template <typename T,
@@ -56,7 +57,7 @@ class PendingAssociatedRemote {
       : PendingAssociatedRemote(
             PendingAssociatedRemoteConverter<T>::template To<Interface>(
                 std::move(other))) {}
-#endif  // !BUILDFLAG(IS_NACL)
+#endif  // !defined(OS_NACL)
 
   PendingAssociatedRemote(const PendingAssociatedRemote&) = delete;
   PendingAssociatedRemote& operator=(const PendingAssociatedRemote&) = delete;
@@ -89,8 +90,8 @@ class PendingAssociatedRemote {
   uint32_t version() const { return version_; }
   void set_version(uint32_t version) { version_ = version; }
 
-  [[nodiscard]] REINITIALIZES_AFTER_MOVE PendingAssociatedReceiver<Interface>
-  InitWithNewEndpointAndPassReceiver();
+  REINITIALIZES_AFTER_MOVE PendingAssociatedReceiver<Interface>
+  InitWithNewEndpointAndPassReceiver() WARN_UNUSED_RESULT;
 
   // Associates this endpoint with a dedicated message pipe. This allows the
   // entangled AssociatedReceiver/AssociatedRemote endpoints to be used

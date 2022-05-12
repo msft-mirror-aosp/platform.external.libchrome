@@ -4,6 +4,7 @@
 
 #include "base/memory/tagging.h"
 
+#include "base/compiler_specific.h"
 #include "base/cpu.h"
 #include "base/logging.h"
 #include "build/build_config.h"
@@ -16,17 +17,6 @@
 #define PR_SET_TAGGED_ADDR_CTRL 55
 #define PR_GET_TAGGED_ADDR_CTRL 56
 #define PR_TAGGED_ADDR_ENABLE (1UL << 0)
-
-#if BUILDFLAG(IS_LINUX)
-#include <linux/version.h>
-
-// Linux headers already provide these since v5.10.
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
-#define HAS_PR_MTE_MACROS
-#endif
-#endif
-
-#ifndef HAS_PR_MTE_MACROS
 #define PR_MTE_TCF_SHIFT 1
 #define PR_MTE_TCF_NONE (0UL << PR_MTE_TCF_SHIFT)
 #define PR_MTE_TCF_SYNC (1UL << PR_MTE_TCF_SHIFT)
@@ -35,9 +25,8 @@
 #define PR_MTE_TAG_SHIFT 3
 #define PR_MTE_TAG_MASK (0xffffUL << PR_MTE_TAG_SHIFT)
 #endif
-#endif
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #include "base/native_library.h"
 #define M_BIONIC_SET_HEAP_TAGGING_LEVEL (-204)
 
@@ -68,12 +57,12 @@ enum HeapTaggingLevel {
    */
   M_HEAP_TAGGING_LEVEL_SYNC = 3,
 };
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // defined(OS_ANDROID)
 
 namespace base {
 namespace memory {
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 void ChangeMemoryTaggingModeForAllThreadsPerProcess(
     TagViolationReportingMode m) {
 #if defined(HAS_MEMORY_TAGGING)
@@ -88,8 +77,8 @@ void ChangeMemoryTaggingModeForAllThreadsPerProcess(
     FilePath library_path = module_path.Append("libc.so");
     NativeLibrary library = LoadNativeLibrary(library_path, &load_error);
     if (!library) {
-      LOG(FATAL) << "ChangeMemoryTaggingModeForAllThreadsPerProcess: dlopen "
-                    "libc failure"
+      LOG(FATAL) << "ChangeMemoryTaggingModeForAllThreadsPerProcess: dlsym "
+                    "mallopt failure"
                  << load_error.ToString();
     }
     void* func_ptr = GetFunctionPointerFromNativeLibrary(library, "mallopt");
@@ -117,7 +106,7 @@ void ChangeMemoryTaggingModeForAllThreadsPerProcess(
   }
 #endif  // defined(HAS_MEMORY_TAGGING)
 }
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // defined(OS_ANDROID)
 
 #if defined(HAS_MEMORY_TAGGING)
 namespace {
@@ -149,7 +138,7 @@ void ChangeMemoryTaggingModeForCurrentThread(TagViolationReportingMode m) {
 }
 
 namespace {
-[[maybe_unused]] static bool CheckTagRegionParameters(void* ptr, size_t sz) {
+ALLOW_UNUSED_TYPE static bool CheckTagRegionParameters(void* ptr, size_t sz) {
   // Check that ptr and size are correct for MTE
   uintptr_t ptr_as_uint = reinterpret_cast<uintptr_t>(ptr);
   bool ret = (ptr_as_uint % kMemTagGranuleSize == 0) &&

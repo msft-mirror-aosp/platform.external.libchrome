@@ -19,7 +19,7 @@ _BUILD_ANDROID_GYP_ROOT = os.path.abspath(
     os.path.join(os.path.dirname(__file__), os.pardir))
 sys.path.insert(1, _BUILD_ANDROID_GYP_ROOT)
 
-import resource_utils
+import resource_utils  # pylint: disable=relative-import
 
 # pylint: disable=line-too-long
 

@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/observer_list.h"
 #include "build/build_config.h"
@@ -41,7 +42,7 @@ class DEVICE_BLUETOOTH_EXPORT BluetoothAdvertisement
                                    // through a platform API.
     ERROR_RESET_ADVERTISING,       // Error while resetting advertising.
     ERROR_ADAPTER_POWERED_OFF,     // Error because the adapter is off
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
     ERROR_INVALID_ADVERTISEMENT_INTERVAL,  // Advertisement interval specified
                                            // is out of valid range.
 #endif

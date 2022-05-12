@@ -24,9 +24,9 @@
 #include "base/files/scoped_file.h"
 #include "build/build_config.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "base/win/windows_types.h"
-#elif BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#elif defined(OS_POSIX) || defined(OS_FUCHSIA)
 #include <sys/stat.h>
 #include <unistd.h>
 #include "base/file_descriptor_posix.h"
@@ -86,7 +86,7 @@ BASE_EXPORT OnceCallback<void(const FilePath&)> GetDeleteFileCallback();
 BASE_EXPORT OnceCallback<void(const FilePath&)>
 GetDeletePathRecursivelyCallback();
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 // Schedules to delete the given path, whether it's a file or a directory, until
 // the operating system is restarted.
 // Note:
@@ -205,9 +205,7 @@ BASE_EXPORT bool ReadFileToStringWithMaxSize(const FilePath& path,
                                              size_t max_size);
 
 // As ReadFileToString, but reading from an open stream after seeking to its
-// start (if supported by the stream). This can also be used to read the whole
-// file from a file descriptor by converting the file descriptor into a stream
-// by using base::FileToFILE() before calling this function.
+// start (if supported by the stream).
 BASE_EXPORT bool ReadStreamToString(FILE* stream, std::string* contents);
 
 // As ReadFileToStringWithMaxSize, but reading from an open stream after seeking
@@ -216,7 +214,7 @@ BASE_EXPORT bool ReadStreamToStringWithMaxSize(FILE* stream,
                                                size_t max_size,
                                                std::string* contents);
 
-#if BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_POSIX) || defined(OS_FUCHSIA)
 
 // Read exactly |bytes| bytes from file descriptor |fd|, storing the result
 // in |buffer|. This function is protected against EINTR and partial reads.
@@ -229,9 +227,9 @@ BASE_EXPORT bool ReadFromFD(int fd, char* buffer, size_t bytes);
 BASE_EXPORT ScopedFD CreateAndOpenFdForTemporaryFileInDir(const FilePath& dir,
                                                           FilePath* path);
 
-#endif  // BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#endif  // defined(OS_POSIX) || defined(OS_FUCHSIA)
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 
 // ReadFileToStringNonBlocking is identical to ReadFileToString except it
 // guarantees that it will not block. This guarantee is provided on POSIX by
@@ -282,16 +280,16 @@ BASE_EXPORT bool SetPosixFilePermissions(const FilePath& path, int mode);
 BASE_EXPORT bool ExecutableExistsInPath(Environment* env,
                                         const FilePath::StringType& executable);
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_AIX)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_AIX)
 // Determine if files under a given |path| can be mapped and then mprotect'd
 // PROT_EXEC. This depends on the mount options used for |path|, which vary
 // among different Linux distributions and possibly local configuration. It also
 // depends on details of kernel--ChromeOS uses the noexec option for /dev/shm
 // but its kernel allows mprotect with PROT_EXEC anyway.
 BASE_EXPORT bool IsPathExecutable(const FilePath& path);
-#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_AIX)
+#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_AIX)
 
-#endif  // BUILDFLAG(IS_POSIX)
+#endif  // OS_POSIX
 
 // Returns true if the given directory is empty
 BASE_EXPORT bool IsDirectoryEmpty(const FilePath& dir_path);
@@ -381,7 +379,7 @@ BASE_EXPORT bool GetFileSize(const FilePath& file_path, int64_t* file_size);
 // fail if |real_path| would be longer than MAX_PATH characters.
 BASE_EXPORT bool NormalizeFilePath(const FilePath& path, FilePath* real_path);
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 
 // Given a path in NT native form ("\Device\HarddiskVolumeXX\..."),
 // return in |drive_letter_path| the equivalent path that starts with
@@ -455,7 +453,7 @@ BASE_EXPORT bool WriteFile(const FilePath& filename, span<const uint8_t> data);
 // do manual conversions from a char span to a uint8_t span.
 BASE_EXPORT bool WriteFile(const FilePath& filename, StringPiece data);
 
-#if BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_POSIX) || defined(OS_FUCHSIA)
 // Appends |data| to |fd|. Does not close |fd| when done.  Returns true iff all
 // of |data| were written to |fd|.
 BASE_EXPORT bool WriteFileDescriptor(int fd, span<const uint8_t> data);
@@ -558,7 +556,7 @@ PreReadFile(const FilePath& file_path,
             bool is_executable,
             int64_t max_bytes = std::numeric_limits<int64_t>::max());
 
-#if BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_POSIX) || defined(OS_FUCHSIA)
 
 // Creates a pipe. Returns true on success, otherwise false.
 // On success, |read_fd| will be set to the fd of the read side, and
@@ -595,9 +593,9 @@ BASE_EXPORT bool VerifyPathControlledByUser(const base::FilePath& base,
                                             const base::FilePath& path,
                                             uid_t owner_uid,
                                             const std::set<gid_t>& group_gids);
-#endif  // BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#endif  // defined(OS_POSIX) || defined(OS_FUCHSIA)
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 // Is |path| writable only by a user with administrator privileges?
 // This function uses Mac OS conventions.  The super user is assumed to have
 // uid 0, and the administrator group is assumed to be named "admin".
@@ -606,13 +604,13 @@ BASE_EXPORT bool VerifyPathControlledByUser(const base::FilePath& base,
 // "admin", are not writable by all users, and contain no symbolic links.
 // Will return false if |path| does not exist.
 BASE_EXPORT bool VerifyPathControlledByAdmin(const base::FilePath& path);
-#endif  // BUILDFLAG(IS_MAC)
+#endif  // defined(OS_MAC)
 
 // Returns the maximum length of path component on the volume containing
 // the directory |path|, in the number of FilePath::CharType, or -1 on failure.
 BASE_EXPORT int GetMaximumPathComponentLength(const base::FilePath& path);
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_AIX)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_AIX)
 // Broad categories of file systems as returned by statfs() on Linux.
 enum FileSystemType {
   FILE_SYSTEM_UNKNOWN,  // statfs failed.
@@ -632,7 +630,7 @@ enum FileSystemType {
 BASE_EXPORT bool GetFileSystemType(const FilePath& path, FileSystemType* type);
 #endif
 
-#if BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_POSIX) || defined(OS_FUCHSIA)
 // Get a temporary directory for shared memory files. The directory may depend
 // on whether the destination is intended for executable files, which in turn
 // depends on how /dev/shmem was mounted. As a result, you must supply whether
@@ -650,16 +648,16 @@ namespace internal {
 BASE_EXPORT bool MoveUnsafe(const FilePath& from_path,
                             const FilePath& to_path);
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 // Copy from_path to to_path recursively and then delete from_path recursively.
 // Returns true if all operations succeed.
 // This function simulates Move(), but unlike Move() it works across volumes.
 // This function is not transactional.
 BASE_EXPORT bool CopyAndDeleteDirectory(const FilePath& from_path,
                                         const FilePath& to_path);
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
 // CopyFileContentsWithSendfile will use the sendfile(2) syscall to perform a
 // file copy without moving the data between kernel and userspace. This is much
 // more efficient than sequences of read(2)/write(2) calls. The |retry_slow|
@@ -671,8 +669,7 @@ BASE_EXPORT bool CopyAndDeleteDirectory(const FilePath& from_path,
 BASE_EXPORT bool CopyFileContentsWithSendfile(File& infile,
                                               File& outfile,
                                               bool& retry_slow);
-#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) ||
-        // BUILDFLAG(IS_ANDROID)
+#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS) || defined(OS_ANDROID)
 
 // Used by PreReadFile() when no kernel support for prefetching is available.
 bool PreReadFileSlow(const FilePath& file_path, int64_t max_bytes);

@@ -42,6 +42,7 @@ PolicyLoaderLacros::PolicyLoaderLacros(
     scoped_refptr<base::SequencedTaskRunner> task_runner,
     PolicyPerProfileFilter per_profile)
     : AsyncPolicyLoader(task_runner, /*periodic_updates=*/false),
+      task_runner_(task_runner),
       per_profile_(per_profile) {
   auto* lacros_service = chromeos::LacrosService::Get();
   const crosapi::mojom::BrowserInitParams* init_params =
@@ -66,7 +67,7 @@ PolicyLoaderLacros::~PolicyLoaderLacros() {
 }
 
 void PolicyLoaderLacros::InitOnBackgroundThread() {
-  DCHECK(task_runner()->RunsTasksInCurrentSequence());
+  DCHECK(task_runner_->RunsTasksInCurrentSequence());
   DETACH_FROM_SEQUENCE(sequence_checker_);
   // We add this as observer on background thread to avoid a situation when
   // notification comes after the object is destroyed, but not removed from the
@@ -118,11 +119,9 @@ std::unique_ptr<PolicyBundle> PolicyLoaderLacros::Load() {
   // Remember if the policy is managed or not.
   g_is_main_user_managed_ = validator.policy_data()->state() ==
                             enterprise_management::PolicyData::ACTIVE;
-  if (g_is_main_user_managed_ &&
-      per_profile_ == PolicyPerProfileFilter::kFalse) {
+  if (g_is_main_user_managed_) {
     *MainUserPolicyDataStorage() = *validator.policy_data();
   }
-  policy_data_ = std::move(validator.policy_data());
 
   return bundle;
 }
@@ -132,13 +131,6 @@ void PolicyLoaderLacros::OnPolicyUpdated(
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   policy_fetch_response_ = policy_fetch_response;
   Reload(true);
-}
-
-enterprise_management::PolicyData* PolicyLoaderLacros::GetPolicyData() {
-  if (!policy_fetch_response_ || !policy_data_)
-    return nullptr;
-
-  return policy_data_.get();
 }
 
 // static

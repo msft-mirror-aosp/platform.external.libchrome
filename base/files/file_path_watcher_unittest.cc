@@ -11,6 +11,7 @@
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
+#include "base/compiler_specific.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
@@ -29,22 +30,22 @@
 #include "build/build_config.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include <windows.h>
 #include <aclapi.h>
-#elif BUILDFLAG(IS_POSIX)
+#elif defined(OS_POSIX)
 #include <sys/stat.h>
 #endif
 
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 #include "base/android/path_utils.h"
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // defined(OS_ANDROID)
 
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
 #include "base/files/file_descriptor_watcher_posix.h"
-#endif  // BUILDFLAG(IS_POSIX)
+#endif  // defined(OS_POSIX)
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
 #include "base/files/file_path_watcher_linux.h"
 #include "base/format_macros.h"
 #endif
@@ -156,7 +157,7 @@ class TestDelegate : public TestDelegateBase {
 class FilePathWatcherTest : public testing::Test {
  public:
   FilePathWatcherTest()
-#if BUILDFLAG(IS_POSIX)
+#if defined(OS_POSIX)
       : task_environment_(test::TaskEnvironment::MainThreadType::IO)
 #endif
   {
@@ -168,7 +169,7 @@ class FilePathWatcherTest : public testing::Test {
 
  protected:
   void SetUp() override {
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
     // Watching files is only permitted when all parent directories are
     // accessible, which is not the case for the default temp directory
     // on Android which is under /data/data.  Use /sdcard instead.
@@ -176,9 +177,9 @@ class FilePathWatcherTest : public testing::Test {
     FilePath parent_dir;
     ASSERT_TRUE(android::GetExternalStorageDirectory(&parent_dir));
     ASSERT_TRUE(temp_dir_.CreateUniqueTempDirUnderPath(parent_dir));
-#else   // BUILDFLAG(IS_ANDROID)
+#else   // defined(OS_ANDROID)
     ASSERT_TRUE(temp_dir_.CreateUniqueTempDir());
-#endif  // BUILDFLAG(IS_ANDROID)
+#endif  // defined(OS_ANDROID)
     collector_ = new NotificationCollector();
   }
 
@@ -192,16 +193,16 @@ class FilePathWatcherTest : public testing::Test {
     return temp_dir_.GetPath().AppendASCII("FilePathWatcherTest.lnk");
   }
 
-  [[nodiscard]] bool SetupWatch(const FilePath& target,
-                                FilePathWatcher* watcher,
-                                TestDelegateBase* delegate,
-                                FilePathWatcher::Type watch_type);
+  bool SetupWatch(const FilePath& target,
+                  FilePathWatcher* watcher,
+                  TestDelegateBase* delegate,
+                  FilePathWatcher::Type watch_type) WARN_UNUSED_RESULT;
 
-  [[nodiscard]] bool WaitForEvents() {
+  bool WaitForEvents() WARN_UNUSED_RESULT {
     return WaitForEventsWithTimeout(TestTimeouts::action_timeout());
   }
 
-  [[nodiscard]] bool WaitForEventsWithTimeout(TimeDelta timeout) {
+  bool WaitForEventsWithTimeout(TimeDelta timeout) WARN_UNUSED_RESULT {
     RunLoop run_loop;
     collector_->Reset(run_loop.QuitClosure());
 
@@ -450,12 +451,12 @@ TEST_F(FilePathWatcherTest, WatchDirectory) {
   VLOG(1) << "Waiting for file1 creation";
   ASSERT_TRUE(WaitForEvents());
 
-#if !BUILDFLAG(IS_APPLE)
+#if !defined(OS_APPLE)
   // Mac implementation does not detect files modified in a directory.
   ASSERT_TRUE(WriteFile(file1, "content v2"));
   VLOG(1) << "Waiting for file1 modification";
   ASSERT_TRUE(WaitForEvents());
-#endif  // !BUILDFLAG(IS_APPLE)
+#endif  // !OS_APPLE
 
   ASSERT_TRUE(base::DeleteFile(file1));
   VLOG(1) << "Waiting for file1 deletion";
@@ -520,13 +521,13 @@ TEST_F(FilePathWatcherTest, RecursiveWatch) {
 
 // Mac and Win don't generate events for Touch.
 // Android TouchFile returns false.
-#if !(BUILDFLAG(IS_APPLE) || BUILDFLAG(IS_WIN) || BUILDFLAG(IS_ANDROID))
+#if !(defined(OS_APPLE) || defined(OS_WIN) || defined(OS_ANDROID))
   // Touch "$dir".
   Time access_time;
   ASSERT_TRUE(Time::FromString("Wed, 16 Nov 1994, 00:00:00", &access_time));
   ASSERT_TRUE(base::TouchFile(dir, access_time, access_time));
   ASSERT_TRUE(WaitForEvents());
-#endif  // !(BUILDFLAG(IS_APPLE) || BUILDFLAG(IS_WIN) || BUILDFLAG(IS_ANDROID))
+#endif  // !(defined(OS_APPLE) || defined(OS_WIN) || defined(OS_ANDROID))
 
   // Create "$dir/subdir/subdir_file1".
   FilePath subdir_file1(subdir.AppendASCII("subdir_file1"));
@@ -552,7 +553,7 @@ TEST_F(FilePathWatcherTest, RecursiveWatch) {
 // would be preferable and allow testing file attributes and symlinks.
 // TODO(pauljensen): Re-enable when crbug.com/475568 is fixed and SetUp() places
 // the |temp_dir_| in /data.
-#if !BUILDFLAG(IS_ANDROID)
+#if !defined(OS_ANDROID)
   // Modify "$dir/subdir/subdir_child_dir/child_dir_file1" attributes.
   ASSERT_TRUE(base::MakeFileUnreadable(child_dir_file1));
   ASSERT_TRUE(WaitForEvents());
@@ -567,7 +568,7 @@ TEST_F(FilePathWatcherTest, RecursiveWatch) {
   ASSERT_TRUE(WaitForEvents());
 }
 
-#if BUILDFLAG(IS_POSIX) && !BUILDFLAG(IS_ANDROID)
+#if defined(OS_POSIX) && !defined(OS_ANDROID)
 // Apps cannot create symlinks on Android in /sdcard as /sdcard uses the
 // "fuse" file system, while /data uses "ext4".  Running these tests in /data
 // would be preferable and allow testing file attributes and symlinks.
@@ -613,7 +614,7 @@ TEST_F(FilePathWatcherTest, RecursiveWithSymLink) {
   ASSERT_TRUE(WriteFile(target2_file, "content"));
   ASSERT_TRUE(WaitForEvents());
 }
-#endif  // BUILDFLAG(IS_POSIX) && !BUILDFLAG(IS_ANDROID)
+#endif  // defined(OS_POSIX) && !defined(OS_ANDROID)
 
 TEST_F(FilePathWatcherTest, MoveChild) {
   FilePathWatcher file_watcher;
@@ -642,7 +643,7 @@ TEST_F(FilePathWatcherTest, MoveChild) {
 }
 
 // Verify that changing attributes on a file is caught
-#if BUILDFLAG(IS_ANDROID)
+#if defined(OS_ANDROID)
 // Apps cannot change file attributes on Android in /sdcard as /sdcard uses the
 // "fuse" file system, while /data uses "ext4".  Running these tests in /data
 // would be preferable and allow testing file attributes and symlinks.
@@ -662,7 +663,7 @@ TEST_F(FilePathWatcherTest, FileAttributesChanged) {
   ASSERT_TRUE(WaitForEvents());
 }
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
 
 // Verify that creating a symlink is caught.
 TEST_F(FilePathWatcherTest, CreateLink) {
@@ -1030,7 +1031,7 @@ TEST_F(FilePathWatcherTest, InotifyLimitInUpdateRecursive) {
   }
 }
 
-#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS)
 
 enum Permission {
   Read,
@@ -1038,7 +1039,7 @@ enum Permission {
   Execute
 };
 
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
 bool ChangeFilePermissions(const FilePath& path, Permission perm, bool allow) {
   struct stat stat_buf;
 
@@ -1067,9 +1068,9 @@ bool ChangeFilePermissions(const FilePath& path, Permission perm, bool allow) {
   }
   return chmod(path.value().c_str(), stat_buf.st_mode) == 0;
 }
-#endif  // BUILDFLAG(IS_APPLE)
+#endif  // defined(OS_APPLE)
 
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
 // Linux implementation of FilePathWatcher doesn't catch attribute changes.
 // http://crbug.com/78043
 // Windows implementation of FilePathWatcher catches attribute changes that
@@ -1105,9 +1106,9 @@ TEST_F(FilePathWatcherTest, DirAttributesChanged) {
   ASSERT_TRUE(ChangeFilePermissions(test_dir1, Execute, true));
 }
 
-#endif  // BUILDFLAG(IS_APPLE)
+#endif  // OS_APPLE
 
-#if BUILDFLAG(IS_MAC)
+#if defined(OS_MAC)
 
 // Fail fast if trying to trivially watch a non-existent item.
 TEST_F(FilePathWatcherTest, TrivialNoDir) {
@@ -1179,7 +1180,7 @@ TEST_F(FilePathWatcherTest, TrivialDirMove) {
   ASSERT_TRUE(WaitForEvents());
 }
 
-#endif  // BUILDFLAG(IS_MAC)
+#endif  // defined(OS_MAC)
 
 }  // namespace
 

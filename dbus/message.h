@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "base/files/scoped_file.h"
+#include "base/macros.h"
 #include "dbus/dbus_export.h"
 #include "dbus/object_path.h"
 

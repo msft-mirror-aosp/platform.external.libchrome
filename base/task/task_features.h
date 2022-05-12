@@ -48,7 +48,7 @@ extern const BASE_EXPORT Feature kWakeUpStrategyFeature;
 extern const BASE_EXPORT base::FeatureParam<WakeUpStrategy>
     kWakeUpStrategyParam;
 
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_APPLE)
+#if defined(OS_WIN) || defined(OS_APPLE)
 #define HAS_NATIVE_THREAD_POOL() 1
 #else
 #define HAS_NATIVE_THREAD_POOL() 0
@@ -67,9 +67,6 @@ extern const BASE_EXPORT Feature kUseBackgroundNativeThreadPool;
 // Whether threads in the ThreadPool should be reclaimed after being idle for 5
 // minutes, instead of 30 seconds.
 extern const BASE_EXPORT Feature kUseFiveMinutesThreadReclaimTime;
-
-// Controls whether or not canceled delayed tasks are removed from task queues.
-extern const BASE_EXPORT base::Feature kRemoveCanceledTasksInTaskQueue;
 
 }  // namespace base
 

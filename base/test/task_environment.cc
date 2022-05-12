@@ -12,7 +12,6 @@
 #include "base/location.h"
 #include "base/logging.h"
 #include "base/memory/ptr_util.h"
-#include "base/memory/raw_ptr.h"
 #include "base/message_loop/message_pump.h"
 #include "base/message_loop/message_pump_type.h"
 #include "base/no_destructor.h"
@@ -39,10 +38,9 @@
 #include "base/time/tick_clock.h"
 #include "base/time/time.h"
 #include "base/time/time_override.h"
-#include "build/build_config.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-#if BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_POSIX) || defined(OS_FUCHSIA)
 #include "base/files/file_descriptor_watcher_posix.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
 #endif
@@ -164,9 +162,7 @@ class TaskEnvironment::TestTaskTracker
 
 class TaskEnvironment::MockTimeDomain : public sequence_manager::TimeDomain {
  public:
-  explicit MockTimeDomain(
-      sequence_manager::internal::SequenceManagerImpl* sequence_manager)
-      : sequence_manager_(sequence_manager) {
+  explicit MockTimeDomain() {
     DCHECK_EQ(nullptr, current_mock_time_domain_);
     current_mock_time_domain_ = this;
   }
@@ -175,6 +171,8 @@ class TaskEnvironment::MockTimeDomain : public sequence_manager::TimeDomain {
     DCHECK_EQ(this, current_mock_time_domain_);
     current_mock_time_domain_ = nullptr;
   }
+
+  using TimeDomain::GetNextDelayedWakeUp;
 
   static MockTimeDomain* current_mock_time_domain_;
 
@@ -197,6 +195,13 @@ class TaskEnvironment::MockTimeDomain : public sequence_manager::TimeDomain {
       thread_pool_->ProcessRipeDelayedTasksForTesting();
   }
 
+  static std::unique_ptr<TaskEnvironment::MockTimeDomain> CreateAndRegister(
+      sequence_manager::SequenceManager* sequence_manager) {
+    auto mock_time_domain = std::make_unique<TaskEnvironment::MockTimeDomain>();
+    sequence_manager->RegisterTimeDomain(mock_time_domain.get());
+    return mock_time_domain;
+  }
+
   void SetThreadPool(internal::ThreadPoolImpl* thread_pool,
                      const TestTaskTracker* thread_pool_task_tracker) {
     DCHECK(!thread_pool_);
@@ -208,13 +213,18 @@ class TaskEnvironment::MockTimeDomain : public sequence_manager::TimeDomain {
   // sequence_manager::TimeDomain:
 
   base::TimeTicks GetNextDelayedTaskTime(
-      sequence_manager::WakeUp next_wake_up,
       sequence_manager::LazyNow* lazy_now) const override {
     DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
+    absl::optional<sequence_manager::DelayedWakeUp> wake_up =
+        GetNextDelayedWakeUp();
+    // Check if we've run out of delayed tasks.
+    if (!wake_up)
+      return base::TimeTicks::Max();
+
     // Check if we have a task that should be running now. Reading |now_ticks_|
     // from the main thread doesn't require the lock.
-    if (next_wake_up.time <= TS_UNCHECKED_READ(now_ticks_))
+    if (wake_up->time <= TS_UNCHECKED_READ(now_ticks_))
       return base::TimeTicks();
 
     // The next task is a future delayed task. Since we're using mock time, we
@@ -228,14 +238,12 @@ class TaskEnvironment::MockTimeDomain : public sequence_manager::TimeDomain {
   // This method is called when the underlying message pump has run out of
   // non-delayed work. Advances time to the next task unless
   // |quit_when_idle_requested| or TaskEnvironment controls mock time.
-  bool MaybeFastForwardToWakeUp(
-      absl::optional<sequence_manager::WakeUp> next_wake_up,
-      bool quit_when_idle_requested) override {
+  bool MaybeFastForwardToNextTask(bool quit_when_idle_requested) override {
     if (quit_when_idle_requested)
       return false;
 
-    return FastForwardToNextTaskOrCap(next_wake_up, TimeTicks::Max()) ==
-           NextTaskSource::kMainThreadHasWork;
+    return FastForwardToNextTaskOrCap(TimeTicks::Max()) ==
+           NextTaskSource::kMainThread;
   }
 
   const char* GetName() const override { return "MockTimeDomain"; }
@@ -252,21 +260,21 @@ class TaskEnvironment::MockTimeDomain : public sequence_manager::TimeDomain {
   enum class NextTaskSource {
     // Out of tasks under |fast_forward_cap|.
     kNone,
-    // There's now >=1 immediate task on the main thread (ThreadPool might have
-    // some too).
-    kMainThreadHasWork,
+    // There's now >=1 immediate task on the main thread.
+    kMainThread,
     // There's now >=1 immediate task in the thread pool.
-    kThreadPoolOnly,
+    kThreadPool,
   };
 
   // Advances time to the first of : next main thread delayed task, next thread
   // pool task, or |fast_forward_cap| (if it's not Max()). Ignores immediate
   // tasks, expected to be called after being just idle, racily scheduling
-  // immediate tasks doesn't affect the outcome of this call.
-  NextTaskSource FastForwardToNextTaskOrCap(
-      absl::optional<sequence_manager::WakeUp> next_main_thread_wake_up,
-      TimeTicks fast_forward_cap) {
+  // immediate tasks doesn't affect the outcome of this call
+  NextTaskSource FastForwardToNextTaskOrCap(TimeTicks fast_forward_cap) {
     DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+
+    absl::optional<sequence_manager::DelayedWakeUp> next_main_thread_wake_up =
+        GetNextDelayedWakeUp();
 
     // Consider the next thread pool tasks iff they're running.
     absl::optional<TimeTicks> next_thread_pool_task_time;
@@ -308,26 +316,13 @@ class TaskEnvironment::MockTimeDomain : public sequence_manager::TimeDomain {
         now_ticks_ = std::max(now_ticks_, *next_task_time);
       }
 
-      if (next_task_time == next_thread_pool_task_time)
+      if (next_task_time == next_thread_pool_task_time) {
+        // Let the thread pool know that it should post its now ripe delayed
+        // tasks.
         thread_pool_->ProcessRipeDelayedTasksForTesting();
-
-      if (next_main_thread_wake_up &&
-          next_task_time == next_main_thread_wake_up->time) {
-        return NextTaskSource::kMainThreadHasWork;
+        return NextTaskSource::kThreadPool;
       }
-
-      // The main thread doesn't have immediate work so it'll go to sleep after
-      // returning from this call. We must make sure it wakes up when the
-      // ThreadPool is done or the test may stall : crbug.com/1263149.
-      //
-      // Note: It is necessary to reach in SequenceManagerImpl to ScheduleWork
-      // instead of alternatives to waking the main thread, like posting a
-      // no-op task, as alternatives would prevent the main thread from
-      // achieving quiescence (which some task monitoring tests verify).
-      thread_pool_->FlushAsyncForTesting(BindOnce(
-          &sequence_manager::internal::SequenceManagerImpl::ScheduleWork,
-          Unretained(sequence_manager_)));
-      return NextTaskSource::kThreadPoolOnly;
+      return NextTaskSource::kMainThread;
     }
 
     if (!fast_forward_cap.is_max()) {
@@ -343,11 +338,8 @@ class TaskEnvironment::MockTimeDomain : public sequence_manager::TimeDomain {
  private:
   SEQUENCE_CHECKER(sequence_checker_);
 
-  raw_ptr<internal::ThreadPoolImpl> thread_pool_ = nullptr;
-  raw_ptr<const TestTaskTracker> thread_pool_task_tracker_ = nullptr;
-
-  const raw_ptr<sequence_manager::internal::SequenceManagerImpl>
-      sequence_manager_;
+  internal::ThreadPoolImpl* thread_pool_ = nullptr;
+  const TestTaskTracker* thread_pool_task_tracker_ = nullptr;
 
   // Protects |now_ticks_|
   mutable Lock now_ticks_lock_;
@@ -378,10 +370,7 @@ TaskEnvironment::TaskEnvironment(
           CreateSequenceManagerForMainThreadType(main_thread_type)),
       mock_time_domain_(
           time_source != TimeSource::SYSTEM_TIME
-              ? std::make_unique<TaskEnvironment::MockTimeDomain>(
-                    static_cast<
-                        sequence_manager::internal::SequenceManagerImpl*>(
-                        sequence_manager_.get()))
+              ? MockTimeDomain::CreateAndRegister(sequence_manager_.get())
               : nullptr),
       time_overrides_(time_source == TimeSource::MOCK_TIME
                           ? std::make_unique<subtle::ScopedTimeClockOverrides>(
@@ -410,11 +399,10 @@ TaskEnvironment::TaskEnvironment(
   // deferred until DeferredInitFromSubclass().
   if (!subclass_creates_default_taskrunner) {
     task_queue_ = sequence_manager_->CreateTaskQueue(
-        sequence_manager::TaskQueue::Spec("task_environment_default"));
+        sequence_manager::TaskQueue::Spec("task_environment_default")
+            .SetTimeDomain(mock_time_domain_.get()));
     task_runner_ = task_queue_->task_runner();
     sequence_manager_->SetDefaultTaskRunner(task_runner_);
-    if (mock_time_domain_)
-      sequence_manager_->SetTimeDomain(mock_time_domain_.get());
     simple_task_executor_ = std::make_unique<SimpleTaskExecutor>(task_runner_);
     CHECK(base::ThreadTaskRunnerHandle::IsSet())
         << "ThreadTaskRunnerHandle should've been set now.";
@@ -463,7 +451,7 @@ void TaskEnvironment::InitializeThreadPool() {
 
   ThreadPoolInstance::InitParams init_params(kNumForegroundThreadPoolThreads);
   init_params.suggested_reclaim_time = TimeDelta::Max();
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   if (thread_pool_com_environment_ == ThreadPoolCOMEnvironment::COM_MTA) {
     init_params.common_thread_pool_environment =
         ThreadPoolInstance::InitParams::CommonThreadPoolEnvironment::COM_MTA;
@@ -475,39 +463,27 @@ void TaskEnvironment::InitializeThreadPool() {
 void TaskEnvironment::CompleteInitialization() {
   DCHECK_CALLED_ON_VALID_THREAD(main_thread_checker_);
 
-#if BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#if defined(OS_POSIX) || defined(OS_FUCHSIA)
   if (main_thread_type() == MainThreadType::IO) {
     file_descriptor_watcher_ =
         std::make_unique<FileDescriptorWatcher>(GetMainThreadTaskRunner());
   }
-#endif  // BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#endif  // defined(OS_POSIX) || defined(OS_FUCHSIA)
 }
 
 TaskEnvironment::TaskEnvironment(TaskEnvironment&& other) = default;
 
 TaskEnvironment::~TaskEnvironment() {
   DCHECK_CALLED_ON_VALID_THREAD(main_thread_checker_);
-  DestroyTaskEnvironment();
-}
 
-void TaskEnvironment::DestroyTaskEnvironment() {
-  DCHECK_CALLED_ON_VALID_THREAD(main_thread_checker_);
-
-  // If we've been moved or already destroyed (i.e. subclass invoked
-  // DestroyTaskEnvironment() before ~TaskEnvironment()) then bail out.
+  // If we've been moved then bail out.
   if (!owns_instance_)
     return;
-  owns_instance_.reset();
-
   for (auto& observer : GetDestructionObservers())
     observer.WillDestroyCurrentTaskEnvironment();
-
   DestroyThreadPool();
   task_queue_ = nullptr;
-  // SequenceManagerImpl must outlive ThreadPoolInstance() (DestroyThreadPool()
-  // above) as TaskEnvironment::MockTimeDomain can invoke its
-  // SequenceManagerImpl* from worker threads.
-  sequence_manager_.reset();
+  NotifyDestructionObserversAndReleaseSequenceManager();
 }
 
 void TaskEnvironment::DestroyThreadPool() {
@@ -515,7 +491,6 @@ void TaskEnvironment::DestroyThreadPool() {
 
   if (threading_mode_ == ThreadingMode::MAIN_THREAD_ONLY)
     return;
-  DCHECK(ThreadPoolInstance::Get());
 
   // Ideally this would RunLoop().RunUntilIdle() here to catch any errors or
   // infinite post loop in the remaining work but this isn't possible right now
@@ -535,8 +510,9 @@ void TaskEnvironment::DestroyThreadPool() {
   ThreadPoolInstance::Set(nullptr);
 }
 
-sequence_manager::TimeDomain* TaskEnvironment::GetMockTimeDomain() const {
-  return mock_time_domain_.get();
+sequence_manager::TimeDomain* TaskEnvironment::GetTimeDomain() const {
+  return mock_time_domain_ ? mock_time_domain_.get()
+                           : sequence_manager_->GetRealTimeDomain();
 }
 
 sequence_manager::SequenceManager* TaskEnvironment::sequence_manager() const {
@@ -551,6 +527,19 @@ void TaskEnvironment::DeferredInitFromSubclass(
   task_runner_ = std::move(task_runner);
   sequence_manager_->SetDefaultTaskRunner(task_runner_);
   CompleteInitialization();
+}
+
+void TaskEnvironment::NotifyDestructionObserversAndReleaseSequenceManager() {
+  DCHECK_CALLED_ON_VALID_THREAD(main_thread_checker_);
+
+  // A derived classes may call this method early.
+  if (!sequence_manager_)
+    return;
+
+  if (mock_time_domain_)
+    sequence_manager_->UnregisterTimeDomain(mock_time_domain_.get());
+
+  sequence_manager_.reset();
 }
 
 scoped_refptr<base::SingleThreadTaskRunner>
@@ -674,8 +663,7 @@ void TaskEnvironment::FastForwardBy(TimeDelta delta) {
     // ReclaimMemory sweeps canceled delayed tasks, making sure
     // FastForwardToNextTaskOrCap isn't affected by canceled tasks.
     sequence_manager_->ReclaimMemory();
-  } while (mock_time_domain_->FastForwardToNextTaskOrCap(
-               sequence_manager_->GetNextWakeUp(), fast_forward_until) !=
+  } while (mock_time_domain_->FastForwardToNextTaskOrCap(fast_forward_until) !=
            MockTimeDomain::NextTaskSource::kNone);
 
   if (task_tracker_ && !could_run_tasks)
@@ -727,8 +715,8 @@ TimeDelta TaskEnvironment::NextMainThreadPendingTaskDelay() const {
   sequence_manager::LazyNow lazy_now(mock_time_domain_->NowTicks());
   if (!sequence_manager_->IsIdleForTesting())
     return TimeDelta();
-  absl::optional<sequence_manager::WakeUp> wake_up =
-      sequence_manager_->GetNextWakeUp();
+  absl::optional<sequence_manager::DelayedWakeUp> wake_up =
+      mock_time_domain_->GetNextDelayedWakeUp();
   return wake_up ? wake_up->time - lazy_now.Now() : TimeDelta::Max();
 }
 

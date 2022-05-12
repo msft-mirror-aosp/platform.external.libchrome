@@ -9,7 +9,6 @@
 #include <vector>
 
 #include "base/base_export.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
 #include "base/task/common/checked_lock.h"
 #include "base/task/thread_pool/priority_queue.h"
@@ -19,7 +18,7 @@
 #include "build/build_config.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 #include "base/win/scoped_windows_thread_environment.h"
 #endif
 
@@ -47,12 +46,12 @@ class BASE_EXPORT ThreadGroup {
   enum class WorkerEnvironment {
     // No special worker environment required.
     NONE,
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
     // Initialize a COM MTA on the worker.
     COM_MTA,
     // Initialize a COM STA on the worker.
     COM_STA,
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
   };
 
   ThreadGroup(const ThreadGroup&) = delete;
@@ -166,7 +165,7 @@ class BASE_EXPORT ThreadGroup {
     // should be enqueued.
     absl::optional<TransactionWithRegisteredTaskSource>
         transaction_with_task_source_;
-    raw_ptr<ThreadGroup> destination_thread_group_ = nullptr;
+    ThreadGroup* destination_thread_group_ = nullptr;
   };
 
   // |predecessor_thread_group| is a ThreadGroup whose lock can be acquired
@@ -180,7 +179,7 @@ class BASE_EXPORT ThreadGroup {
               TrackedRef<Delegate> delegate,
               ThreadGroup* predecessor_thread_group = nullptr);
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   static std::unique_ptr<win::ScopedWindowsThreadEnvironment>
   GetScopedWindowsThreadEnvironment(WorkerEnvironment environment);
 #endif
@@ -263,7 +262,7 @@ class BASE_EXPORT ThreadGroup {
   // If |replacement_thread_group_| is non-null, this ThreadGroup is invalid and
   // all task sources should be scheduled on |replacement_thread_group_|. Used
   // to support the UseNativeThreadPool experiment.
-  raw_ptr<ThreadGroup> replacement_thread_group_ = nullptr;
+  ThreadGroup* replacement_thread_group_ = nullptr;
 };
 
 }  // namespace internal

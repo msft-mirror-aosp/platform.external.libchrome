@@ -13,7 +13,7 @@
 
 #include "base/at_exit.h"
 #include "base/check.h"
-#include "base/memory/raw_ptr.h"
+#include "base/macros.h"
 #include "base/tracing_buildflags.h"
 #include "build/build_config.h"
 
@@ -42,9 +42,9 @@ class TestSuite {
   typedef bool (*TestMatch)(const testing::TestInfo&);
 
   TestSuite(int argc, char** argv);
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   TestSuite(int argc, wchar_t** argv);
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
   TestSuite(const TestSuite&) = delete;
   TestSuite& operator=(const TestSuite&) = delete;
@@ -86,9 +86,9 @@ class TestSuite {
   void AddTestLauncherResultPrinter();
 
   void InitializeFromCommandLine(int argc, char** argv);
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
   void InitializeFromCommandLine(int argc, wchar_t** argv);
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
   // Basic initialization for the test suite happens here.
   void PreInitialize();
@@ -99,7 +99,7 @@ class TestSuite {
 
   bool initialized_command_line_ = false;
 
-  raw_ptr<XmlUnitTestResultPrinter> printer_ = nullptr;
+  XmlUnitTestResultPrinter* printer_ = nullptr;
 
   std::unique_ptr<logging::ScopedLogAssertHandler> assert_handler_;
 

@@ -21,10 +21,9 @@
 #include "base/threading/hang_watcher.h"
 #include "base/time/time_override.h"
 #include "base/trace_event/base_tracing.h"
-#include "build/build_config.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
 
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
 #include "base/mac/scoped_nsautorelease_pool.h"
 #endif
 
@@ -231,14 +230,14 @@ void WorkerThread::ThreadMain() {
       case ThreadLabel::DEDICATED:
         RunBackgroundDedicatedWorker();
         return;
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
       case ThreadLabel::SHARED_COM:
         RunBackgroundSharedCOMWorker();
         return;
       case ThreadLabel::DEDICATED_COM:
         RunBackgroundDedicatedCOMWorker();
         return;
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
     }
   }
 
@@ -252,14 +251,14 @@ void WorkerThread::ThreadMain() {
     case ThreadLabel::DEDICATED:
       RunDedicatedWorker();
       return;
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
     case ThreadLabel::SHARED_COM:
       RunSharedCOMWorker();
       return;
     case ThreadLabel::DEDICATED_COM:
       RunDedicatedCOMWorker();
       return;
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
   }
 }
 
@@ -293,7 +292,7 @@ NOINLINE void WorkerThread::RunBackgroundDedicatedWorker() {
   NO_CODE_FOLDING();
 }
 
-#if BUILDFLAG(IS_WIN)
+#if defined(OS_WIN)
 NOINLINE void WorkerThread::RunSharedCOMWorker() {
   RunWorker();
   NO_CODE_FOLDING();
@@ -313,7 +312,7 @@ NOINLINE void WorkerThread::RunBackgroundDedicatedCOMWorker() {
   RunWorker();
   NO_CODE_FOLDING();
 }
-#endif  // BUILDFLAG(IS_WIN)
+#endif  // defined(OS_WIN)
 
 void WorkerThread::RunWorker() {
   DCHECK_EQ(self_, this);
@@ -348,7 +347,7 @@ void WorkerThread::RunWorker() {
   }
 
   while (!ShouldExit()) {
-#if BUILDFLAG(IS_APPLE)
+#if defined(OS_APPLE)
     mac::ScopedNSAutoreleasePool autorelease_pool;
 #endif
     absl::optional<WatchHangsInScope> hang_watch_scope;
@@ -376,15 +375,12 @@ void WorkerThread::RunWorker() {
     // Alias pointer for investigation of memory corruption. crbug.com/1218384
     TaskSource* task_source_before_run = task_source.get();
     base::debug::Alias(&task_source_before_run);
-    base::Location posted_from;
-    task_source =
-        task_tracker_->RunAndPopNextTask(std::move(task_source), &posted_from);
 
-    // Alias pointer and posted_from for investigation of memory corruption.
-    // crbug.com/1218384
+    task_source = task_tracker_->RunAndPopNextTask(std::move(task_source));
+
+    // Alias pointer for investigation of memory corruption. crbug.com/1218384
     TaskSource* task_source_before_move = task_source.get();
     base::debug::Alias(&task_source_before_move);
-    DEBUG_ALIAS_FOR_CSTR(posted_from_str, posted_from.ToString().c_str(), 128);
 
     delegate_->DidProcessTask(std::move(task_source));
 

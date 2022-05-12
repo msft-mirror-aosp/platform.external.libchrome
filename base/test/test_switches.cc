@@ -4,8 +4,6 @@
 
 #include "base/test/test_switches.h"
 
-#include "build/build_config.h"
-
 // Flag to show the help message.
 const char switches::kHelpFlag[] = "help";
 
@@ -125,7 +123,7 @@ const char switches::kTestTinyTimeout[] = "test-tiny-timeout";
 const char switches::kUiTestActionMaxTimeout[] = "ui-test-action-max-timeout";
 const char switches::kUiTestActionTimeout[] = "ui-test-action-timeout";
 
-#if BUILDFLAG(IS_IOS)
+#if defined(OS_IOS)
 // If enabled, runs unittests using the XCTest test runner.
 const char switches::kEnableRunIOSUnittestsWithXCTest[] =
     "enable-run-ios-unittests-with-xctest";

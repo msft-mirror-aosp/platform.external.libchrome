@@ -46,14 +46,13 @@ bool SetCurrentThreadPriorityForPlatform(ThreadPriority priority);
 // of CanIncreaseThreadPriority().
 absl::optional<ThreadPriority> GetCurrentThreadPriorityForPlatform();
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
 // Current thread id is cached in thread local storage for performance reasons.
-// In some rare cases it's important to invalidate that cache explicitly (e.g.
-// after going through clone() syscall which does not call pthread_atfork()
+// In some rare cases it's important to clear that cache explicitly (e.g. after
+// going through clone() syscall which does not call pthread_atfork()
 // handlers).
-// This can only be called when the process is single-threaded.
-BASE_EXPORT void InvalidateTidCache();
-#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+BASE_EXPORT void ClearTidCache();
+#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS)
 
 }  // namespace internal
 

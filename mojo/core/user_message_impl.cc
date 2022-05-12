@@ -5,9 +5,9 @@
 #include "mojo/core/user_message_impl.h"
 
 #include <algorithm>
-#include <atomic>
 #include <vector>
 
+#include "base/atomicops.h"
 #include "base/debug/dump_without_crashing.h"
 #include "base/memory/ptr_util.h"
 #include "base/no_destructor.h"
@@ -267,14 +267,14 @@ MojoResult CreateOrExtendSerializedEventMessage(
   return MOJO_RESULT_OK;
 }
 
-std::atomic<uint32_t> g_message_count{0};
+base::subtle::Atomic32 g_message_count = 0;
 
 void IncrementMessageCount() {
-  g_message_count.fetch_add(1, std::memory_order_relaxed);
+  base::subtle::NoBarrier_AtomicIncrement(&g_message_count, 1);
 }
 
 void DecrementMessageCount() {
-  g_message_count.fetch_add(-1, std::memory_order_relaxed);
+  base::subtle::NoBarrier_AtomicIncrement(&g_message_count, -1);
 }
 
 class MessageMemoryDumpProvider : public base::trace_event::MemoryDumpProvider {
@@ -300,7 +300,7 @@ class MessageMemoryDumpProvider : public base::trace_event::MemoryDumpProvider {
     auto* dump = pmd->CreateAllocatorDump("mojo/messages");
     dump->AddScalar(base::trace_event::MemoryAllocatorDump::kNameObjectCount,
                     base::trace_event::MemoryAllocatorDump::kUnitsObjects,
-                    g_message_count.load(std::memory_order_relaxed));
+                    base::subtle::NoBarrier_Load(&g_message_count));
     return true;
   }
 };

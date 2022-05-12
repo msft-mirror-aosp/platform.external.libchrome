@@ -4,8 +4,6 @@
 
 #include "ui/gfx/geometry/resize_utils.h"
 
-#include <ostream>
-
 #include "base/check_op.h"
 #include "base/cxx17_backports.h"
 #include "base/numerics/safe_conversions.h"
