@@ -89,11 +89,6 @@ backward-compatibility-add-deprecated-base-Bind-APIs.patch
 # TODO(b/204383858): Remove the patch when usage in mri_package is removed
 backward-compatibility-add-base-AdaptCallbackForRepaeting.patch media_perception
 
-# Backward compatibility patch to include <unistd.h> in build/build_config.h
-# Revert of r950791.
-# TODO(b/231676446): Remove when all usages are including unistd.h directly
-backward-compatibility-include-unistd.patch
-
 # Revert of r958410 (crrev.com/c/3366978)
 # This reverts the CL which uses getpid syscall in PlatformThread::CurrentId.
 # TODO(b/231676453): remove the patch when getpid has been added to all
