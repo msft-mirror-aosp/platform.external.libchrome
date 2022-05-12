@@ -20,9 +20,6 @@
 
 #include "base/allocator/allocator_shim_internals.h"
 
-// Disable custom memory allocator when asan is used.
-// https://crbug.com/807685
-#if !defined(DISABLE_ALLOCATOR_SANITIZER)
 extern "C" {
 
 SHIM_ALWAYS_EXPORT void* malloc(size_t size) __THROW {
@@ -80,4 +77,3 @@ SHIM_ALWAYS_EXPORT size_t malloc_usable_size(void* address) __THROW {
 //   struct mallinfo mallinfo(void);
 
 }  // extern "C"
-#endif

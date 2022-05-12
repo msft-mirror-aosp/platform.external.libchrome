@@ -66,9 +66,6 @@
 #define SHIM_CPP_SYMBOLS_EXPORT NOINLINE
 #endif
 
-// Disable custom memory allocator when asan is used.
-// https://crbug.com/807685
-#if !defined(DISABLE_ALLOCATOR_SANITIZER)
 SHIM_CPP_SYMBOLS_EXPORT void* operator new(size_t size) {
   return ShimCppNew(size);
 }
@@ -167,4 +164,3 @@ ALIGN_LINKAGE SHIM_CPP_SYMBOLS_EXPORT void
 ALIGN_DEL_ARR_NOTHROW(void* p, ALIGN_VAL_T, const std::nothrow_t&) __THROW {
   ShimCppDelete(p);
 }
-#endif

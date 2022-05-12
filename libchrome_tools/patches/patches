@@ -12,6 +12,9 @@
 
 # ========= LONG TERM PATCHES =========================
 
+# Disable custom memory allocator when asan is used.
+disable-allocator-sanitizer.patch
+
 # Remove glib dependency.
 # TODO(hidehiko): Fix the config in AOSP libchrome.
 libchrome-Remove-glib-dependency.patch
@@ -92,4 +95,3 @@ backward-compatibility-include-unistd.patch
 # TODO(b/231676453): remove the patch when getpid has been added to all
 # necessary policy files.
 Revert-Linux-Don-t-access-TLS-in-a-pthread_atfork-ha.patch
-
