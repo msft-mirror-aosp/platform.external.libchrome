@@ -11,6 +11,7 @@
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
+#include "base/memory/raw_ptr.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/task/sequence_manager/thread_controller_power_monitor.h"
 #include "base/task/single_thread_task_runner.h"
@@ -151,8 +152,10 @@ class FakeSequencedTaskSource : public internal::SequencedTaskSource {
     DCHECK(tasks_.empty() || delayed_run_time.is_null() ||
            tasks_.back().delayed_run_time < delayed_run_time);
     tasks_.push(
-        Task(internal::PostedTask(nullptr, std::move(task), posted_from),
-             delayed_run_time, EnqueueOrder::FromIntForTesting(13)));
+        Task(internal::PostedTask(nullptr, std::move(task), posted_from,
+                                  delayed_run_time,
+                                  base::subtle::DelayPolicy::kFlexibleNoSooner),
+             EnqueueOrder::FromIntForTesting(13)));
   }
 
   bool HasPendingHighResolutionTasks() override {
@@ -166,7 +169,7 @@ class FakeSequencedTaskSource : public internal::SequencedTaskSource {
   bool OnSystemIdle() override { return false; }
 
  private:
-  TickClock* clock_;
+  raw_ptr<TickClock> clock_;
   std::queue<Task> tasks_;
   std::vector<Task> running_stack_;
   bool has_pending_high_resolution_tasks = false;
@@ -205,7 +208,7 @@ class ThreadControllerWithMessagePumpTest : public testing::Test {
   }
 
  protected:
-  MockMessagePump* message_pump_;
+  raw_ptr<MockMessagePump> message_pump_;
   SequenceManager::Settings settings_;
   SimpleTestTickClock clock_;
   ThreadControllerForTest thread_controller_;
@@ -709,7 +712,7 @@ TEST_F(ThreadControllerWithMessagePumpTest, RunWithTimeout) {
   thread_controller_.Run(true, base::Seconds(15));
 }
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 TEST_F(ThreadControllerWithMessagePumpTest, SetHighResolutionTimer) {
   MockCallback<OnceClosure> task;
   task_source_.AddTask(FROM_HERE, task.Get(), Seconds(5));
@@ -741,9 +744,9 @@ TEST_F(ThreadControllerWithMessagePumpTest, SetHighResolutionTimer) {
   RunLoop run_loop;
   run_loop.Run();
 }
-#endif  // OS_WIN
+#endif  // BUILDFLAG(IS_WIN)
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 TEST_F(ThreadControllerWithMessagePumpTest,
        SetHighResolutionTimerWithPowerSuspend) {
   MockCallback<OnceClosure> task;
@@ -782,7 +785,7 @@ TEST_F(ThreadControllerWithMessagePumpTest,
   RunLoop run_loop;
   run_loop.Run();
 }
-#endif  // OS_WIN
+#endif  // BUILDFLAG(IS_WIN)
 
 TEST_F(ThreadControllerWithMessagePumpTest,
        ScheduleDelayedWorkWithPowerSuspend) {

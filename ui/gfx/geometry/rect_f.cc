@@ -12,6 +12,7 @@
 #include "base/strings/stringprintf.h"
 #include "build/build_config.h"
 #include "ui/gfx/geometry/insets_f.h"
+#include "ui/gfx/geometry/outsets_f.h"
 
 #if defined(OS_IOS)
 #include <CoreGraphics/CoreGraphics.h>
@@ -50,6 +51,10 @@ void RectF::Inset(float left, float top, float right, float bottom) {
   origin_ += Vector2dF(left, top);
   set_width(std::max(width() - left - right, 0.0f));
   set_height(std::max(height() - top - bottom, 0.0f));
+}
+
+void RectF::Outset(const OutsetsF& outsets) {
+  Outset(outsets.left(), outsets.top(), outsets.right(), outsets.bottom());
 }
 
 void RectF::Offset(float horizontal, float vertical) {
@@ -326,6 +331,17 @@ RectF MaximumCoveredRect(const RectF& a, const RectF& b) {
     }
   }
   return maximum;
+}
+
+RectF MapRect(const RectF& r, const RectF& src_rect, const RectF& dest_rect) {
+  if (src_rect.IsEmpty())
+    return RectF();
+
+  float width_scale = dest_rect.width() / src_rect.width();
+  float height_scale = dest_rect.height() / src_rect.height();
+  return RectF(dest_rect.x() + (r.x() - src_rect.x()) * width_scale,
+               dest_rect.y() + (r.y() - src_rect.y()) * height_scale,
+               r.width() * width_scale, r.height() * height_scale);
 }
 
 std::string RectF::ToString() const {

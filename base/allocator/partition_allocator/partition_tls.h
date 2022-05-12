@@ -9,11 +9,11 @@
 #include "base/compiler_specific.h"
 #include "build/build_config.h"
 
-#if defined(OS_POSIX)
+#if BUILDFLAG(IS_POSIX)
 #include <pthread.h>
 #endif
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 #include "base/win/windows_types.h"
 #endif
 
@@ -23,21 +23,56 @@
 namespace base {
 namespace internal {
 
-#if defined(OS_POSIX) || defined(OS_FUCHSIA)
+#if BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
 typedef pthread_key_t PartitionTlsKey;
+
+#if BUILDFLAG(IS_MAC) && defined(ARCH_CPU_X86_64)
+namespace {
+
+ALWAYS_INLINE void* FastTlsGet(intptr_t index) {
+  // On macOS, pthread_getspecific() is in libSystem, so a call to it has to go
+  // through PLT. However, and contrary to some other platforms, *all* TLS keys
+  // are in a static array in the thread structure. So they are *always* at a
+  // fixed offset from the segment register holding the thread structure
+  // address.
+  //
+  // We could use _pthread_getspecific_direct(), but it is not
+  // exported. However, on all macOS versions we support, the TLS array is at
+  // %gs. This is used in V8 to back up InternalGetExistingThreadLocal(), and
+  // can also be seen by looking at pthread_getspecific() disassembly:
+  //
+  // libsystem_pthread.dylib`pthread_getspecific:
+  // libsystem_pthread.dylib[0x7ff800316099] <+0>: movq   %gs:(,%rdi,8), %rax
+  // libsystem_pthread.dylib[0x7ff8003160a2] <+9>: retq
+  //
+  // This function is essentially inlining the content of pthread_getspecific()
+  // here.
+  intptr_t result;
+  asm("movq %%gs:(,%1,8), %0;" : "=r"(result) : "r"(index));
+
+  return reinterpret_cast<void*>(result);
+}
+
+}  // namespace
+#endif  // BUILDFLAG(IS_MAC) && defined(ARCH_CPU_X86_64)
 
 ALWAYS_INLINE bool PartitionTlsCreate(PartitionTlsKey* key,
                                       void (*destructor)(void*)) {
   return !pthread_key_create(key, destructor);
 }
 ALWAYS_INLINE void* PartitionTlsGet(PartitionTlsKey key) {
+#if BUILDFLAG(IS_MAC) && defined(ARCH_CPU_X86_64)
+  PA_DCHECK(pthread_getspecific(key) == FastTlsGet(key));
+  return FastTlsGet(key);
+#else
   return pthread_getspecific(key);
+#endif
 }
 ALWAYS_INLINE void PartitionTlsSet(PartitionTlsKey key, void* value) {
   int ret = pthread_setspecific(key, value);
   PA_DCHECK(!ret);
 }
-#elif defined(OS_WIN)
+#elif BUILDFLAG(IS_WIN)
 // Note: supports only a single TLS key on Windows. Not a hard constraint, may
 // be lifted.
 typedef unsigned long PartitionTlsKey;
@@ -89,7 +124,7 @@ ALWAYS_INLINE void* PartitionTlsGet(PartitionTlsKey key) {
 ALWAYS_INLINE void PartitionTlsSet(PartitionTlsKey key, void* value) {
   IMMEDIATE_CRASH();
 }
-#endif  // defined(OS_WIN)
+#endif  // BUILDFLAG(IS_WIN)
 
 }  // namespace internal
 }  // namespace base

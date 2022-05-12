@@ -1,4 +1,4 @@
-From 1b156f63b8cae4cb628e1b5c0d1ebcf9478505a6 Mon Sep 17 00:00:00 2001
+From de454ad78645b0dbdf95053589b396c9297d6ce9 Mon Sep 17 00:00:00 2001
 From: Alexei Svitkine <asvitkine@chromium.org>
 Date: Mon, 14 Feb 2022 16:48:01 -0800
 Subject: [PATCH] Revert StatisticsRecorder back to use a base::Lock.
@@ -24,13 +24,13 @@ Cr-Commit-Position: refs/heads/main@{#970942}
 
 CrOS-Libchrome-Original-Commit: 501d8927b54030ae2d4b044bf1d58e475f2f3cef
 ---
- base/metrics/statistics_recorder.cc          | 64 +++++++++-----------
- base/metrics/statistics_recorder.h           | 27 +++++----
+ base/metrics/statistics_recorder.cc          | 65 +++++++++-----------
+ base/metrics/statistics_recorder.h           | 27 ++++----
  base/metrics/statistics_recorder_unittest.cc | 21 +------
- 3 files changed, 46 insertions(+), 66 deletions(-)
+ 3 files changed, 47 insertions(+), 66 deletions(-)
 
 diff --git a/base/metrics/statistics_recorder.cc b/base/metrics/statistics_recorder.cc
-index b2a2cae2d6..c1fc3fa012 100644
+index 188db060a8fc..37da78e495f8 100644
 --- a/base/metrics/statistics_recorder.cc
 +++ b/base/metrics/statistics_recorder.cc
 @@ -32,7 +32,7 @@ bool HistogramNameLesser(const base::HistogramBase* a,
@@ -195,7 +195,7 @@ index b2a2cae2d6..c1fc3fa012 100644
    EnsureGlobalRecorderWhileLocked();
  
    const HistogramMap::iterator found = top_->histograms_.find(name);
-@@ -372,21 +366,21 @@ void StatisticsRecorder::ForgetHistogramForTesting(base::StringPiece name) {
+@@ -372,14 +366,14 @@ void StatisticsRecorder::ForgetHistogramForTesting(base::StringPiece name) {
  // static
  std::unique_ptr<StatisticsRecorder>
  StatisticsRecorder::CreateTemporaryForTesting() {
@@ -212,15 +212,18 @@ index b2a2cae2d6..c1fc3fa012 100644
    EnsureGlobalRecorderWhileLocked();
    top_->record_checker_ = std::move(record_checker);
  }
- 
+@@ -387,7 +381,8 @@ void StatisticsRecorder::SetRecordChecker(
  // static
  bool StatisticsRecorder::ShouldRecordHistogram(uint32_t histogram_hash) {
--  const absl::MutexLock auto_lock(lock_.Pointer());
+-  const absl::ReaderMutexLock auto_lock(lock_.Pointer());
+-  return !top_ || !top_->record_checker_ ||
 +  const AutoLock auto_lock(lock_.Get());
-   EnsureGlobalRecorderWhileLocked();
-   return !top_->record_checker_ ||
++  EnsureGlobalRecorderWhileLocked();
++  return !top_->record_checker_ ||
           top_->record_checker_->ShouldRecord(histogram_hash);
-@@ -401,7 +395,7 @@ StatisticsRecorder::Histograms StatisticsRecorder::GetHistograms() {
+ }
+ 
+@@ -400,7 +395,7 @@ StatisticsRecorder::Histograms StatisticsRecorder::GetHistograms() {
  
    Histograms out;
  
@@ -229,7 +232,7 @@ index b2a2cae2d6..c1fc3fa012 100644
    EnsureGlobalRecorderWhileLocked();
  
    out.reserve(top_->histograms_.size());
-@@ -456,7 +450,7 @@ void StatisticsRecorder::ImportGlobalPersistentHistograms() {
+@@ -455,7 +450,7 @@ void StatisticsRecorder::ImportGlobalPersistentHistograms() {
  }
  
  StatisticsRecorder::StatisticsRecorder() {
@@ -238,7 +241,7 @@ index b2a2cae2d6..c1fc3fa012 100644
    previous_ = top_;
    top_ = this;
    InitLogOnShutdownWhileLocked();
-@@ -464,7 +458,7 @@ StatisticsRecorder::StatisticsRecorder() {
+@@ -463,7 +458,7 @@ StatisticsRecorder::StatisticsRecorder() {
  
  // static
  void StatisticsRecorder::InitLogOnShutdownWhileLocked() {
@@ -248,7 +251,7 @@ index b2a2cae2d6..c1fc3fa012 100644
      is_vlog_initialized_ = true;
      const auto dump_to_vlog = [](void*) {
 diff --git a/base/metrics/statistics_recorder.h b/base/metrics/statistics_recorder.h
-index 921d717765..fa07a14e34 100644
+index e611b13cc38b..9868e8e82fa8 100644
 --- a/base/metrics/statistics_recorder.h
 +++ b/base/metrics/statistics_recorder.h
 @@ -29,9 +29,8 @@
@@ -305,7 +308,7 @@ index 921d717765..fa07a14e34 100644
    ObserverMap observers_;
 @@ -361,14 +363,13 @@ class BASE_EXPORT StatisticsRecorder {
    // Previous global recorder that existed when this one was created.
-   StatisticsRecorder* previous_ = nullptr;
+   raw_ptr<StatisticsRecorder> previous_ = nullptr;
  
 -  // Global lock for internal synchronization. Uses an absl::Mutex to
 -  // support read/write lock semantics.
@@ -322,7 +325,7 @@ index 921d717765..fa07a14e34 100644
    // Tracks whether InitLogOnShutdownWhileLocked() has registered a logging
    // function that will be called when the program finishes.
 diff --git a/base/metrics/statistics_recorder_unittest.cc b/base/metrics/statistics_recorder_unittest.cc
-index 28fcdfbecd..0364bab09c 100644
+index 28fcdfbecd34..0364bab09cff 100644
 --- a/base/metrics/statistics_recorder_unittest.cc
 +++ b/base/metrics/statistics_recorder_unittest.cc
 @@ -94,26 +94,11 @@ class StatisticsRecorderTest : public testing::TestWithParam<bool> {

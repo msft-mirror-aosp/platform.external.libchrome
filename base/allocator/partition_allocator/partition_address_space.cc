@@ -17,7 +17,7 @@
 #include "base/debug/alias.h"
 #include "build/build_config.h"
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 #include <windows.h>
 #endif
 
@@ -29,7 +29,7 @@ namespace internal {
 
 namespace {
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 NOINLINE void HandleGigaCageAllocFailureOutOfVASpace() {
   NO_CODE_FOLDING();
   PA_CHECK(false);
@@ -39,7 +39,7 @@ NOINLINE void HandleGigaCageAllocFailureOutOfCommitCharge() {
   NO_CODE_FOLDING();
   PA_CHECK(false);
 }
-#endif  // defined(OS_WIN)
+#endif  // BUILDFLAG(IS_WIN)
 
 NOINLINE void HandleGigaCageAllocFailure() {
   NO_CODE_FOLDING();
@@ -47,7 +47,7 @@ NOINLINE void HandleGigaCageAllocFailure() {
   PA_DEBUG_DATA_ON_STACK("error", static_cast<size_t>(alloc_page_error_code));
   // It's important to easily differentiate these two failures on Windows, so
   // crash with different stacks.
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   if (alloc_page_error_code == ERROR_NOT_ENOUGH_MEMORY) {
     // The error code says NOT_ENOUGH_MEMORY, but since we only do MEM_RESERVE,
     // it must be VA space exhaustion.
@@ -58,7 +58,7 @@ NOINLINE void HandleGigaCageAllocFailure() {
     // committed (see crbug.com/1101421#c16).
     HandleGigaCageAllocFailureOutOfCommitCharge();
   } else
-#endif  // defined(OS_WIN)
+#endif  // BUILDFLAG(IS_WIN)
   {
     PA_CHECK(false);
   }
@@ -82,14 +82,12 @@ void PartitionAddressSpace::Init() {
   setup_.regular_pool_ = internal::AddressPoolManager::GetInstance()->Add(
       setup_.regular_pool_base_address_, kRegularPoolSize);
   PA_CHECK(setup_.regular_pool_ == kRegularPoolHandle);
-  PA_DCHECK(!IsInRegularPool(
-      reinterpret_cast<void*>(setup_.regular_pool_base_address_ - 1)));
-  PA_DCHECK(IsInRegularPool(
-      reinterpret_cast<void*>(setup_.regular_pool_base_address_)));
-  PA_DCHECK(IsInRegularPool(reinterpret_cast<void*>(
-      setup_.regular_pool_base_address_ + kRegularPoolSize - 1)));
-  PA_DCHECK(!IsInRegularPool(reinterpret_cast<void*>(
-      setup_.regular_pool_base_address_ + kRegularPoolSize)));
+  PA_DCHECK(!IsInRegularPool(setup_.regular_pool_base_address_ - 1));
+  PA_DCHECK(IsInRegularPool(setup_.regular_pool_base_address_));
+  PA_DCHECK(IsInRegularPool(setup_.regular_pool_base_address_ +
+                            kRegularPoolSize - 1));
+  PA_DCHECK(
+      !IsInRegularPool(setup_.regular_pool_base_address_ + kRegularPoolSize));
 
   // Reserve an extra allocation granularity unit before the BRP pool, but keep
   // the pool aligned at kBRPPoolSize. A pointer immediately past an allocation
@@ -108,27 +106,24 @@ void PartitionAddressSpace::Init() {
   setup_.brp_pool_ = internal::AddressPoolManager::GetInstance()->Add(
       setup_.brp_pool_base_address_, kBRPPoolSize);
   PA_CHECK(setup_.brp_pool_ == kBRPPoolHandle);
-  PA_DCHECK(
-      !IsInBRPPool(reinterpret_cast<void*>(setup_.brp_pool_base_address_ - 1)));
-  PA_DCHECK(
-      IsInBRPPool(reinterpret_cast<void*>(setup_.brp_pool_base_address_)));
-  PA_DCHECK(IsInBRPPool(reinterpret_cast<void*>(setup_.brp_pool_base_address_ +
-                                                kBRPPoolSize - 1)));
-  PA_DCHECK(!IsInBRPPool(
-      reinterpret_cast<void*>(setup_.brp_pool_base_address_ + kBRPPoolSize)));
+  PA_DCHECK(!IsInBRPPool(setup_.brp_pool_base_address_ - 1));
+  PA_DCHECK(IsInBRPPool(setup_.brp_pool_base_address_));
+  PA_DCHECK(IsInBRPPool(setup_.brp_pool_base_address_ + kBRPPoolSize - 1));
+  PA_DCHECK(!IsInBRPPool(setup_.brp_pool_base_address_ + kBRPPoolSize));
 
 #if PA_STARSCAN_USE_CARD_TABLE
   // Reserve memory for PCScan quarantine card table.
-  void* requested_address =
-      reinterpret_cast<void*>(setup_.regular_pool_base_address_);
-  char* actual_address = internal::AddressPoolManager::GetInstance()->Reserve(
-      setup_.regular_pool_, requested_address, kSuperPageSize);
+  uintptr_t requested_address = setup_.regular_pool_base_address_;
+  uintptr_t actual_address =
+      internal::AddressPoolManager::GetInstance()->Reserve(
+          setup_.regular_pool_, requested_address, kSuperPageSize);
   PA_CHECK(requested_address == actual_address)
       << "QuarantineCardTable is required to be allocated at the beginning of "
          "the regular pool";
 #endif  // PA_STARSCAN_USE_CARD_TABLE
 }
 
+// TODO(bartekn): Consider void* -> uintptr_t
 void PartitionAddressSpace::InitConfigurablePool(void* address, size_t size) {
   // The ConfigurablePool must only be initialized once.
   PA_CHECK(!IsConfigurablePoolInitialized());

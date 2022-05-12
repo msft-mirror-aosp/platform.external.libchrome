@@ -70,32 +70,31 @@
 
 #include "base/base_export.h"
 #include "base/check_op.h"
-#include "base/compiler_specific.h"
 #include "base/numerics/clamped_math.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
 
-#if defined(OS_FUCHSIA)
+#if BUILDFLAG(IS_FUCHSIA)
 #include <zircon/types.h>
 #endif
 
-#if defined(OS_APPLE)
+#if BUILDFLAG(IS_APPLE)
 #include <CoreFoundation/CoreFoundation.h>
 #include <mach/mach_time.h>
 // Avoid Mac system header macro leak.
 #undef TYPE_BOOL
 #endif
 
-#if defined(OS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
 #include <jni.h>
 #endif
 
-#if defined(OS_POSIX) || defined(OS_FUCHSIA)
+#if BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
 #include <unistd.h>
 #include <sys/time.h>
 #endif
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
 #include "base/gtest_prod_util.h"
 #include "base/win/windows_types.h"
 
@@ -118,21 +117,21 @@ class BASE_EXPORT TimeDelta {
  public:
   constexpr TimeDelta() = default;
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   static TimeDelta FromQPCValue(LONGLONG qpc_value);
   // TODO(crbug.com/989694): Avoid base::TimeDelta factory functions
   // based on absolute time
   static TimeDelta FromFileTime(FILETIME ft);
   static TimeDelta FromWinrtDateTime(ABI::Windows::Foundation::DateTime dt);
-#elif defined(OS_POSIX) || defined(OS_FUCHSIA)
+#elif BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
   static TimeDelta FromTimeSpec(const timespec& ts);
 #endif
-#if defined(OS_FUCHSIA)
+#if BUILDFLAG(IS_FUCHSIA)
   static TimeDelta FromZxDuration(zx_duration_t nanos);
 #endif
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
   static TimeDelta FromMachTime(uint64_t mach_time);
-#endif  // defined(OS_MAC)
+#endif  // BUILDFLAG(IS_MAC)
 
   // Converts an integer value representing TimeDelta to a class. This is used
   // when deserializing a |TimeDelta| structure, using a value known to be
@@ -196,13 +195,13 @@ class BASE_EXPORT TimeDelta {
   constexpr bool is_min() const { return *this == Min(); }
   constexpr bool is_inf() const { return is_min() || is_max(); }
 
-#if defined(OS_POSIX) || defined(OS_FUCHSIA)
+#if BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
   struct timespec ToTimeSpec() const;
 #endif
-#if defined(OS_FUCHSIA)
+#if BUILDFLAG(IS_FUCHSIA)
   zx_duration_t ToZxDuration() const;
 #endif
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   ABI::Windows::Foundation::DateTime ToWinrtDateTime() const;
 #endif
 
@@ -517,7 +516,7 @@ class BASE_EXPORT Time : public time_internal::TimeBase<Time> {
   static constexpr int64_t kTimeTToMicrosecondsOffset =
       INT64_C(11644473600000000);
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   // To avoid overflow in QPC to Microseconds calculations, since we multiply
   // by kMicrosecondsPerSecond, then the QPC value should not exceed
   // (2^63 - 1) / 1E6. If it exceeds that threshold, we divide then multiply.
@@ -532,16 +531,16 @@ class BASE_EXPORT Time : public time_internal::TimeBase<Time> {
 //
 // WARNING: These are not the same limits for the inverse functionality,
 // UTCExplode() and LocalExplode(). See method comments for further details.
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   static constexpr int kExplodedMinYear = 1601;
   static constexpr int kExplodedMaxYear = 30827;
-#elif defined(OS_IOS) && !__LP64__
+#elif BUILDFLAG(IS_IOS) && !__LP64__
   static constexpr int kExplodedMinYear = std::numeric_limits<int>::min();
   static constexpr int kExplodedMaxYear = std::numeric_limits<int>::max();
-#elif defined(OS_APPLE)
+#elif BUILDFLAG(IS_APPLE)
   static constexpr int kExplodedMinYear = 1902;
   static constexpr int kExplodedMaxYear = std::numeric_limits<int>::max();
-#elif defined(OS_ANDROID)
+#elif BUILDFLAG(IS_ANDROID)
   // Though we use 64-bit time APIs on both 32 and 64 bit Android, some OS
   // versions like KitKat (ARM but not x86 emulator) can't handle some early
   // dates (e.g. before 1170). So we set min conservatively here.
@@ -627,7 +626,7 @@ class BASE_EXPORT Time : public time_internal::TimeBase<Time> {
   static Time FromDoubleT(double dt);
   double ToDoubleT() const;
 
-#if defined(OS_POSIX) || defined(OS_FUCHSIA)
+#if BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
   // Converts the timespec structure to time. MacOS X 10.8.3 (and tentatively,
   // earlier versions) will have the |ts|'s tv_nsec component zeroed out,
   // having a 1 second resolution, which agrees with
@@ -653,17 +652,17 @@ class BASE_EXPORT Time : public time_internal::TimeBase<Time> {
   static Time FromJavaTime(int64_t ms_since_epoch);
   int64_t ToJavaTime() const;
 
-#if defined(OS_POSIX) || defined(OS_FUCHSIA)
+#if BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
   static Time FromTimeVal(struct timeval t);
   struct timeval ToTimeVal() const;
 #endif
 
-#if defined(OS_FUCHSIA)
+#if BUILDFLAG(IS_FUCHSIA)
   static Time FromZxTime(zx_time_t time);
   zx_time_t ToZxTime() const;
 #endif
 
-#if defined(OS_APPLE)
+#if BUILDFLAG(IS_APPLE)
   static Time FromCFAbsoluteTime(CFAbsoluteTime t);
   CFAbsoluteTime ToCFAbsoluteTime() const;
 #if defined(__OBJC__)
@@ -672,7 +671,7 @@ class BASE_EXPORT Time : public time_internal::TimeBase<Time> {
 #endif
 #endif
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   static Time FromFileTime(FILETIME ft);
   FILETIME ToFileTime() const;
 
@@ -709,7 +708,7 @@ class BASE_EXPORT Time : public time_internal::TimeBase<Time> {
   // undefined.
   static void ResetHighResolutionTimerUsage();
   static double GetHighResolutionTimerUsage();
-#endif  // defined(OS_WIN)
+#endif  // BUILDFLAG(IS_WIN)
 
   // Converts an exploded structure representing either the local time or UTC
   // into a Time class. Returns false on a failure when, for example, a day of
@@ -717,12 +716,12 @@ class BASE_EXPORT Time : public time_internal::TimeBase<Time> {
   // FromLocalExploded respects the current time zone but does not attempt to
   // use the calendar or day-of-week encoding from the current locale - see the
   // comments on base::Time::Exploded for more information.
-  static bool FromUTCExploded(const Exploded& exploded,
-                              Time* time) WARN_UNUSED_RESULT {
+  [[nodiscard]] static bool FromUTCExploded(const Exploded& exploded,
+                                            Time* time) {
     return FromExploded(false, exploded, time);
   }
-  static bool FromLocalExploded(const Exploded& exploded,
-                                Time* time) WARN_UNUSED_RESULT {
+  [[nodiscard]] static bool FromLocalExploded(const Exploded& exploded,
+                                              Time* time) {
     return FromExploded(true, exploded, time);
   }
 
@@ -740,12 +739,12 @@ class BASE_EXPORT Time : public time_internal::TimeBase<Time> {
   //
   // TODO(iyengar) Move the FromString/FromTimeT/ToTimeT/FromFileTime to
   // a new time converter class.
-  static bool FromString(const char* time_string,
-                         Time* parsed_time) WARN_UNUSED_RESULT {
+  [[nodiscard]] static bool FromString(const char* time_string,
+                                       Time* parsed_time) {
     return FromStringInternal(time_string, true, parsed_time);
   }
-  static bool FromUTCString(const char* time_string,
-                            Time* parsed_time) WARN_UNUSED_RESULT {
+  [[nodiscard]] static bool FromUTCString(const char* time_string,
+                                          Time* parsed_time) {
     return FromStringInternal(time_string, false, parsed_time);
   }
 
@@ -793,19 +792,19 @@ class BASE_EXPORT Time : public time_internal::TimeBase<Time> {
   // |is_local = true| or UTC |is_local = false|. Function returns false on
   // failure and sets |time| to Time(0). Otherwise returns true and sets |time|
   // to non-exploded time.
-  static bool FromExploded(bool is_local,
-                           const Exploded& exploded,
-                           Time* time) WARN_UNUSED_RESULT;
+  [[nodiscard]] static bool FromExploded(bool is_local,
+                                         const Exploded& exploded,
+                                         Time* time);
 
   // Some platforms use the ICU library to provide To/FromExploded, when their
   // native library implementations are insufficient in some way.
   static void ExplodeUsingIcu(int64_t millis_since_unix_epoch,
                               bool is_local,
                               Exploded* exploded);
-  static bool FromExplodedUsingIcu(bool is_local,
-                                   const Exploded& exploded,
-                                   int64_t* millis_since_unix_epoch)
-      WARN_UNUSED_RESULT;
+  [[nodiscard]] static bool FromExplodedUsingIcu(
+      bool is_local,
+      const Exploded& exploded,
+      int64_t* millis_since_unix_epoch);
 
   // Rounds down the time to the nearest day in either local time
   // |is_local = true| or UTC |is_local = false|.
@@ -818,18 +817,19 @@ class BASE_EXPORT Time : public time_internal::TimeBase<Time> {
   // UTC |is_local = false| is assumed. A timezone that cannot be parsed
   // (e.g. "UTC" which is not specified in RFC822) is treated as if the
   // timezone is not specified.
-  static bool FromStringInternal(const char* time_string,
-                                 bool is_local,
-                                 Time* parsed_time) WARN_UNUSED_RESULT;
+  [[nodiscard]] static bool FromStringInternal(const char* time_string,
+                                               bool is_local,
+                                               Time* parsed_time);
 
   // Comparison does not consider |day_of_week| when doing the operation.
-  static bool ExplodedMostlyEquals(const Exploded& lhs,
-                                   const Exploded& rhs) WARN_UNUSED_RESULT;
+  [[nodiscard]] static bool ExplodedMostlyEquals(const Exploded& lhs,
+                                                 const Exploded& rhs);
 
   // Converts the provided time in milliseconds since the Unix epoch (1970) to a
   // Time object, avoiding overflows.
-  static bool FromMillisecondsSinceUnixEpoch(int64_t unix_milliseconds,
-                                             Time* time) WARN_UNUSED_RESULT;
+  [[nodiscard]] static bool FromMillisecondsSinceUnixEpoch(
+      int64_t unix_milliseconds,
+      Time* time);
 
   // Returns the milliseconds since the Unix epoch (1970), rounding the
   // microseconds towards -infinity.
@@ -1030,35 +1030,38 @@ class BASE_EXPORT TimeTicks : public time_internal::TimeBase<TimeTicks> {
   // Now() will return high resolution values. Note that, on systems where the
   // high resolution clock works but is deemed inefficient, the low resolution
   // clock will be used instead.
-  static bool IsHighResolution() WARN_UNUSED_RESULT;
+  [[nodiscard]] static bool IsHighResolution();
 
   // Returns true if TimeTicks is consistent across processes, meaning that
   // timestamps taken on different processes can be safely compared with one
   // another. (Note that, even on platforms where this returns true, time values
   // from different threads that are within one tick of each other must be
   // considered to have an ambiguous ordering.)
-  static bool IsConsistentAcrossProcesses() WARN_UNUSED_RESULT;
+  [[nodiscard]] static bool IsConsistentAcrossProcesses();
 
-#if defined(OS_FUCHSIA)
+#if BUILDFLAG(IS_FUCHSIA)
   // Converts between TimeTicks and an ZX_CLOCK_MONOTONIC zx_time_t value.
   static TimeTicks FromZxTime(zx_time_t nanos_since_boot);
   zx_time_t ToZxTime() const;
 #endif
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   // Translates an absolute QPC timestamp into a TimeTicks value. The returned
   // value has the same origin as Now(). Do NOT attempt to use this if
   // IsHighResolution() returns false.
   static TimeTicks FromQPCValue(LONGLONG qpc_value);
 #endif
 
-#if defined(OS_MAC)
+#if BUILDFLAG(IS_MAC)
   static TimeTicks FromMachAbsoluteTime(uint64_t mach_absolute_time);
 
-  static mach_timebase_info_data_t* MachTimebaseInfoForTesting();
-#endif  // defined(OS_MAC)
+  // Sets the current Mach timebase to `timebase`. Returns the old timebase.
+  static mach_timebase_info_data_t SetMachTimebaseInfoForTesting(
+      mach_timebase_info_data_t timebase);
 
-#if defined(OS_ANDROID) || BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_MAC)
+
+#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_CHROMEOS_ASH)
   // Converts to TimeTicks the value obtained from SystemClock.uptimeMillis().
   // Note: this convertion may be non-monotonic in relation to previously
   // obtained TimeTicks::Now() values because of the truncation (to
@@ -1101,7 +1104,7 @@ class BASE_EXPORT TimeTicks : public time_internal::TimeBase<TimeTicks> {
   }
 
  protected:
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   typedef DWORD (*TickFunctionType)(void);
   static TickFunctionType SetMockTickFunction(TickFunctionType ticker);
 #endif
@@ -1126,11 +1129,11 @@ class BASE_EXPORT ThreadTicks : public time_internal::TimeBase<ThreadTicks> {
   constexpr ThreadTicks() : TimeBase(0) {}
 
   // Returns true if ThreadTicks::Now() is supported on this system.
-  static bool IsSupported() WARN_UNUSED_RESULT {
+  [[nodiscard]] static bool IsSupported() {
 #if (defined(_POSIX_THREAD_CPUTIME) && (_POSIX_THREAD_CPUTIME >= 0)) || \
-    defined(OS_MAC) || defined(OS_ANDROID) || defined(OS_FUCHSIA)
+    BUILDFLAG(IS_MAC) || BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_FUCHSIA)
     return true;
-#elif defined(OS_WIN)
+#elif BUILDFLAG(IS_WIN)
     return IsSupportedWin();
 #else
     return false;
@@ -1140,7 +1143,7 @@ class BASE_EXPORT ThreadTicks : public time_internal::TimeBase<ThreadTicks> {
   // Waits until the initialization is completed. Needs to be guarded with a
   // call to IsSupported().
   static void WaitUntilInitialized() {
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
     WaitUntilInitializedWin();
 #endif
   }
@@ -1154,7 +1157,7 @@ class BASE_EXPORT ThreadTicks : public time_internal::TimeBase<ThreadTicks> {
   // absolutely needed, call WaitUntilInitialized() before this method.
   static ThreadTicks Now();
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   // Similar to Now() above except this returns thread-specific CPU time for an
   // arbitrary thread. All comments for Now() method above apply apply to this
   // method as well.
@@ -1181,7 +1184,7 @@ class BASE_EXPORT ThreadTicks : public time_internal::TimeBase<ThreadTicks> {
   // internal use and testing.
   constexpr explicit ThreadTicks(int64_t us) : TimeBase(us) {}
 
-#if defined(OS_WIN)
+#if BUILDFLAG(IS_WIN)
   FRIEND_TEST_ALL_PREFIXES(TimeTicks, TSCTicksPerSecond);
 
 #if defined(ARCH_CPU_ARM64)
@@ -1196,7 +1199,7 @@ class BASE_EXPORT ThreadTicks : public time_internal::TimeBase<ThreadTicks> {
   static double TSCTicksPerSecond();
 #endif
 
-  static bool IsSupportedWin() WARN_UNUSED_RESULT;
+  [[nodiscard]] static bool IsSupportedWin();
   static void WaitUntilInitializedWin();
 #endif
 };
