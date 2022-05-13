@@ -24,6 +24,7 @@
 #include "base/location.h"
 #include "base/logging.h"
 #include "base/memory/ptr_util.h"
+#include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted_memory.h"
 #include "base/memory/singleton.h"
 #include "base/process/process_handle.h"
@@ -174,14 +175,14 @@ class TraceEventTestFixture : public testing::Test {
   void TearDown() override {
     if (TraceLog::GetInstance())
       EXPECT_FALSE(TraceLog::GetInstance()->IsEnabled());
-    PlatformThread::SetName(old_thread_name_ ? old_thread_name_ : "");
+    PlatformThread::SetName(old_thread_name_ ? old_thread_name_.get() : "");
     free(old_thread_name_);
     old_thread_name_ = nullptr;
     // We want our singleton torn down after each test.
     TraceLog::ResetForTesting();
   }
 
-  char* old_thread_name_;
+  raw_ptr<char> old_thread_name_;
   Value trace_parsed_;
   TraceResultBuffer trace_buffer_;
   TraceResultBuffer::SimpleOutput json_output_;
@@ -207,8 +208,8 @@ void TraceEventTestFixture::OnTraceDataCollected(
   trace_buffer_.AddFragment(events_str->data());
   trace_buffer_.Finish();
 
-  absl::optional<Value> root =
-      base::JSONReader::Read(json_output_.json_output, JSON_PARSE_RFC);
+  absl::optional<Value> root = base::JSONReader::Read(
+      json_output_.json_output, JSON_PARSE_RFC | JSON_ALLOW_CONTROL_CHARS);
 
   if (!root.has_value()) {
     LOG(ERROR) << json_output_.json_output;
@@ -1147,7 +1148,7 @@ TEST_F(TraceEventTestFixture, AddMetadataEvent) {
     }
 
    private:
-    int* num_calls_;
+    raw_ptr<int> num_calls_;
   };
 
   std::unique_ptr<ConvertableToTraceFormat> conv1(new Convertable(&num_calls));

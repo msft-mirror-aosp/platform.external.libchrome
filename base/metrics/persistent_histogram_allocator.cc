@@ -35,6 +35,10 @@
 #include "base/synchronization/lock.h"
 #include "build/build_config.h"
 
+#if BUILDFLAG(IS_APPLE)
+#include "base/mac/backup_util.h"
+#endif
+
 namespace base {
 
 namespace {
@@ -676,17 +680,17 @@ void GlobalHistogramAllocator::CreateWithLocalMemory(
       std::make_unique<LocalPersistentMemoryAllocator>(size, id, name))));
 }
 
-#if !defined(OS_NACL)
+#if !BUILDFLAG(IS_NACL)
 // static
 bool GlobalHistogramAllocator::CreateWithFile(const FilePath& file_path,
                                               size_t size,
                                               uint64_t id,
                                               StringPiece name,
                                               bool exclusive_write) {
-  uint32_t flags = File::FLAG_OPEN_ALWAYS | File::FLAG_SHARE_DELETE |
+  uint32_t flags = File::FLAG_OPEN_ALWAYS | File::FLAG_WIN_SHARE_DELETE |
                    File::FLAG_READ | File::FLAG_WRITE;
   if (exclusive_write)
-    flags |= File::FLAG_EXCLUSIVE_WRITE;
+    flags |= File::FLAG_WIN_EXCLUSIVE_WRITE;
   File file(file_path, flags);
   if (!file.IsValid())
     return false;
@@ -703,6 +707,15 @@ bool GlobalHistogramAllocator::CreateWithFile(const FilePath& file_path,
       !FilePersistentMemoryAllocator::IsFileAcceptable(*mmfile, true)) {
     return false;
   }
+
+#if BUILDFLAG(IS_APPLE)
+  // This prevents backing up and then later restoring the file created above.
+  // Preventing backup saves space and bandwidth. There is little value in
+  // backing up this file since the metrics stored in this file will likely
+  // have already been uploaded at some point between the time the backup was
+  // created and the time it is restored.
+  base::mac::SetBackupExclusion(file_path);
+#endif
 
   Set(WrapUnique(new GlobalHistogramAllocator(
       std::make_unique<FilePersistentMemoryAllocator>(std::move(mmfile), 0, id,
@@ -828,12 +841,21 @@ bool GlobalHistogramAllocator::CreateSpareFile(const FilePath& spare_path,
   if (success)
     success = ReplaceFile(temp_spare_path, spare_path, nullptr);
 
+#if BUILDFLAG(IS_APPLE)
+  // Then purpose of the "spare" file created above is to save time during the
+  // next startup, when this file can be used instead of creating a new one.
+  // However, this file is large, so it's not worth the storage and bandwidth
+  // costs to back up and restore it; instead, after restoration, a new file
+  // will be created on the next startup.
+  base::mac::SetBackupExclusion(spare_path);
+#endif
+
   if (!success)
     DeleteFile(temp_spare_path);
 
   return success;
 }
-#endif  // !defined(OS_NACL)
+#endif  // !BUILDFLAG(IS_NACL)
 
 // static
 void GlobalHistogramAllocator::CreateWithSharedMemoryRegion(
@@ -902,7 +924,7 @@ const FilePath& GlobalHistogramAllocator::GetPersistentLocation() const {
 }
 
 bool GlobalHistogramAllocator::WriteToPersistentLocation() {
-#if defined(OS_NACL)
+#if BUILDFLAG(IS_NACL)
   // NACL doesn't support file operations, including ImportantFileWriter.
   NOTREACHED();
   return false;
@@ -929,7 +951,7 @@ bool GlobalHistogramAllocator::WriteToPersistentLocation() {
 void GlobalHistogramAllocator::DeletePersistentLocation() {
   memory_allocator()->SetMemoryState(PersistentMemoryAllocator::MEMORY_DELETED);
 
-#if defined(OS_NACL)
+#if BUILDFLAG(IS_NACL)
   NOTREACHED();
 #else
   if (persistent_location_.empty())

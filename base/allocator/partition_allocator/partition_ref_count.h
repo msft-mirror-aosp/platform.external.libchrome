@@ -92,6 +92,8 @@ class BASE_EXPORT PartitionRefCount {
     CheckCookie();
 #endif
 
+    // TODO(bartekn): Make the double-free check more effective. Once freed, the
+    // ref-count is overwritten by an encoded freelist-next pointer.
     int32_t old_count = count_.fetch_sub(1, std::memory_order_release);
     if (UNLIKELY(!(old_count & 1)))
       DoubleFreeOrCorruptionDetected();
@@ -142,12 +144,19 @@ class BASE_EXPORT PartitionRefCount {
     return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(this)) ^
            kCookieSalt;
   }
+#endif  // DCHECK_IS_ON() || BUILDFLAG(ENABLE_BACKUP_REF_PTR_SLOW_CHECKS)
 
+  // Note that in free slots, this is overwritten by encoded freelist
+  // pointer(s). The way the pointers are encoded on 64-bit little-endian
+  // architectures, count_ happens stay even, which works well with the
+  // double-free-detection in ReleaseFromAllocator(). Don't change the layout of
+  // this class, to preserve this functionality.
+  std::atomic<int32_t> count_{1};
+
+#if DCHECK_IS_ON() || BUILDFLAG(ENABLE_BACKUP_REF_PTR_SLOW_CHECKS)
   static constexpr uint32_t kCookieSalt = 0xc01dbeef;
   volatile uint32_t brp_cookie_;
 #endif  // DCHECK_IS_ON() || BUILDFLAG(ENABLE_BACKUP_REF_PTR_SLOW_CHECKS)
-
-  std::atomic<int32_t> count_{1};
 };
 
 ALWAYS_INLINE PartitionRefCount::PartitionRefCount()
@@ -178,25 +187,23 @@ static_assert((sizeof(PartitionRefCount) * (kSuperPageSize / SystemPageSize()) *
               "PartitionRefCount Bitmap size must be smaller than or equal to "
               "<= SystemPageSize().");
 
-ALWAYS_INLINE PartitionRefCount* PartitionRefCountPointer(void* slot_start) {
+ALWAYS_INLINE PartitionRefCount* PartitionRefCountPointer(
+    uintptr_t slot_start) {
   PA_DCHECK(slot_start == memory::RemaskPtr(slot_start));
 #if DCHECK_IS_ON() || BUILDFLAG(ENABLE_BACKUP_REF_PTR_SLOW_CHECKS)
   CheckThatSlotOffsetIsZero(slot_start);
 #endif
-  uintptr_t slot_start_as_uintptr = reinterpret_cast<uintptr_t>(slot_start);
-  if (LIKELY(slot_start_as_uintptr & SystemPageOffsetMask())) {
-    uintptr_t refcount_ptr_as_uintptr =
-        slot_start_as_uintptr - sizeof(PartitionRefCount);
+  if (LIKELY(slot_start & SystemPageOffsetMask())) {
+    uintptr_t refcount_address = slot_start - sizeof(PartitionRefCount);
 #if DCHECK_IS_ON() || BUILDFLAG(ENABLE_BACKUP_REF_PTR_SLOW_CHECKS)
-    PA_CHECK(refcount_ptr_as_uintptr % alignof(PartitionRefCount) == 0);
+    PA_CHECK(refcount_address % alignof(PartitionRefCount) == 0);
 #endif
-    return reinterpret_cast<PartitionRefCount*>(refcount_ptr_as_uintptr);
+    return reinterpret_cast<PartitionRefCount*>(refcount_address);
   } else {
     PartitionRefCount* bitmap_base = reinterpret_cast<PartitionRefCount*>(
-        (slot_start_as_uintptr & kSuperPageBaseMask) + SystemPageSize() * 2);
-    size_t index =
-        ((slot_start_as_uintptr & kSuperPageOffsetMask) >> SystemPageShift()) *
-        kPartitionRefCountIndexMultiplier;
+        (slot_start & kSuperPageBaseMask) + SystemPageSize() * 2);
+    size_t index = ((slot_start & kSuperPageOffsetMask) >> SystemPageShift()) *
+                   kPartitionRefCountIndexMultiplier;
 #if DCHECK_IS_ON() || BUILDFLAG(ENABLE_BACKUP_REF_PTR_SLOW_CHECKS)
     PA_CHECK(sizeof(PartitionRefCount) * index <= SystemPageSize());
 #endif
@@ -216,7 +223,8 @@ constexpr size_t kPartitionRefCountOffsetAdjustment = kInSlotRefCountBufferSize;
 // only then we'll be able to find ref-count in that slot.
 constexpr size_t kPartitionPastAllocationAdjustment = 1;
 
-ALWAYS_INLINE PartitionRefCount* PartitionRefCountPointer(void* slot_start) {
+ALWAYS_INLINE PartitionRefCount* PartitionRefCountPointer(
+    uintptr_t slot_start) {
 #if DCHECK_IS_ON() || BUILDFLAG(ENABLE_BACKUP_REF_PTR_SLOW_CHECKS)
   CheckThatSlotOffsetIsZero(slot_start);
 #endif

@@ -116,7 +116,8 @@
 // Annotate a function indicating the caller must examine the return value.
 // Use like:
 //   int foo() WARN_UNUSED_RESULT;
-// To explicitly ignore a result, see |ignore_result()| in base/macros.h.
+// To explicitly ignore a result, see |ignore_result()| in
+// base/ignore_result.h.
 #undef WARN_UNUSED_RESULT
 #if defined(COMPILER_GCC) || defined(__clang__)
 #define WARN_UNUSED_RESULT __attribute__((warn_unused_result))
@@ -242,13 +243,6 @@
 #define HAS_FEATURE(FEATURE) __has_feature(FEATURE)
 #else
 #define HAS_FEATURE(FEATURE) 0
-#endif
-
-// Macro for telling -Wimplicit-fallthrough that a fallthrough is intentional.
-#if defined(__clang__)
-#define FALLTHROUGH [[clang::fallthrough]]
-#else
-#define FALLTHROUGH
 #endif
 
 #if defined(COMPILER_GCC)

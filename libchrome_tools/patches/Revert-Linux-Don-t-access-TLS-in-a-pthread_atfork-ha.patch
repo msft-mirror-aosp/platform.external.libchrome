@@ -1,0 +1,188 @@
+From e0663b346e2dde60aa112be04461a59b07017bb5 Mon Sep 17 00:00:00 2001
+From: hscham <hscham@chromium.org>
+Date: Fri, 6 May 2022 17:13:27 +0900
+Subject: [PATCH] Revert "[Linux] Don't access TLS in a pthread_atfork handler"
+
+This reverts commit c4d427dcf9a200519908f13323387e86fdbae126.
+
+Change-Id: Ia98cbc64ed7d826ab6056d34398cdbfb08ed97dd
+---
+ base/process/launch_posix.cc                  |  4 +-
+ .../platform_thread_internal_posix.h          |  7 +--
+ base/threading/platform_thread_posix.cc       | 61 +++++--------------
+ base/threading/platform_thread_unittest.cc    | 12 ++--
+ 4 files changed, 25 insertions(+), 59 deletions(-)
+
+diff --git a/base/process/launch_posix.cc b/base/process/launch_posix.cc
+index 5130a0baa2c7..b530705d02d3 100644
+--- a/base/process/launch_posix.cc
++++ b/base/process/launch_posix.cc
+@@ -738,9 +738,9 @@ pid_t ForkWithFlags(unsigned long flags, pid_t* ptid, pid_t* ctid) {
+ 
+ #if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+   // Since we use clone() directly, it does not call any pthread_aftork()
+-  // callbacks, we explicitly invalidate tid cache here (normally this call is
++  // callbacks, we explicitly clear tid cache here (normally this call is
+   // done as pthread_aftork() callback).  See crbug.com/902514.
+-  base::internal::InvalidateTidCache();
++  base::internal::ClearTidCache();
+ #endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+ 
+   return 0;
+diff --git a/base/threading/platform_thread_internal_posix.h b/base/threading/platform_thread_internal_posix.h
+index 63cba08fca59..68437a370791 100644
+--- a/base/threading/platform_thread_internal_posix.h
++++ b/base/threading/platform_thread_internal_posix.h
+@@ -48,11 +48,10 @@ absl::optional<ThreadPriority> GetCurrentThreadPriorityForPlatform();
+ 
+ #if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+ // Current thread id is cached in thread local storage for performance reasons.
+-// In some rare cases it's important to invalidate that cache explicitly (e.g.
+-// after going through clone() syscall which does not call pthread_atfork()
++// In some rare cases it's important to clear that cache explicitly (e.g. after
++// going through clone() syscall which does not call pthread_atfork()
+ // handlers).
+-// This can only be called when the process is single-threaded.
+-BASE_EXPORT void InvalidateTidCache();
++BASE_EXPORT void ClearTidCache();
+ #endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+ 
+ }  // namespace internal
+diff --git a/base/threading/platform_thread_posix.cc b/base/threading/platform_thread_posix.cc
+index c68a7743659d..a1b4be46d22a 100644
+--- a/base/threading/platform_thread_posix.cc
++++ b/base/threading/platform_thread_posix.cc
+@@ -33,7 +33,6 @@
+ 
+ #if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+ #include <sys/syscall.h>
+-#include <atomic>
+ #endif
+ 
+ #if BUILDFLAG(IS_FUCHSIA)
+@@ -160,32 +159,19 @@ bool CreateThread(size_t stack_size,
+ #if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+ 
+ // Store the thread ids in local storage since calling the SWI can be
+-// expensive and PlatformThread::CurrentId is used liberally.
++// expensive and PlatformThread::CurrentId is used liberally. Clear
++// the stored value after a fork() because forking changes the thread
++// id. Forking without going through fork() (e.g. clone()) is not
++// supported, but there is no known usage. Using thread_local is
++// fine here (despite being banned) since it is going to be allowed
++// but is blocked on a clang bug for Mac (https://crbug.com/829078)
++// and we can't use ThreadLocalStorage because of re-entrancy due to
++// CHECK/DCHECKs.
+ thread_local pid_t g_thread_id = -1;
+ 
+-// A boolean value that indicates that the value stored in |g_thread_id| on the
+-// main thread is invalid, because it hasn't been updated since the process
+-// forked.
+-//
+-// This used to work by setting |g_thread_id| to -1 in a pthread_atfork handler.
+-// However, when a multithreaded process forks, it is only allowed to call
+-// async-signal-safe functions until it calls an exec() syscall. However,
+-// accessing TLS may allocate (see crbug.com/1275748), which is not
+-// async-signal-safe and therefore causes deadlocks, corruption, and crashes.
+-//
+-// It's Atomic to placate TSAN.
+-std::atomic<bool> g_main_thread_tid_cache_valid = false;
+-
+-// Tracks whether the current thread is the main thread, and therefore whether
+-// |g_main_thread_tid_cache_valid| is relevant for the current thread. This is
+-// also updated by PlatformThread::CurrentId().
+-thread_local bool g_is_main_thread = true;
+-
+ class InitAtFork {
+  public:
+-  InitAtFork() {
+-    pthread_atfork(nullptr, nullptr, internal::InvalidateTidCache);
+-  }
++  InitAtFork() { pthread_atfork(nullptr, nullptr, internal::ClearTidCache); }
+ };
+ 
+ #endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+@@ -196,8 +182,8 @@ class InitAtFork {
+ 
+ namespace internal {
+ 
+-void InvalidateTidCache() {
+-  g_main_thread_tid_cache_valid.store(false, std::memory_order_relaxed);
++void ClearTidCache() {
++  g_thread_id = -1;
+ }
+ 
+ }  // namespace internal
+@@ -212,28 +198,13 @@ PlatformThreadId PlatformThread::CurrentId() {
+   return pthread_mach_thread_np(pthread_self());
+ #elif BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+   static InitAtFork init_at_fork;
+-  if (g_thread_id == -1 ||
+-      (g_is_main_thread &&
+-       !g_main_thread_tid_cache_valid.load(std::memory_order_relaxed))) {
+-    // Update the cached tid.
++  if (g_thread_id == -1) {
+     g_thread_id = syscall(__NR_gettid);
+-    // If this is the main thread, we can mark the tid_cache as valid.
+-    // Otherwise, stop the current thread from always entering this slow path.
+-    if (g_thread_id == getpid()) {
+-      g_main_thread_tid_cache_valid.store(true, std::memory_order_relaxed);
+-    } else {
+-      g_is_main_thread = false;
+-    }
+   } else {
+-#if DCHECK_IS_ON()
+-    if (g_thread_id != syscall(__NR_gettid)) {
+-      RAW_LOG(
+-          FATAL,
+-          "Thread id stored in TLS is different from thread id returned by "
+-          "the system. It is likely that the process was forked without going "
+-          "through fork().");
+-    }
+-#endif
++    DCHECK_EQ(g_thread_id, syscall(__NR_gettid))
++        << "Thread id stored in TLS is different from thread id returned by "
++           "the system. It is likely that the process was forked without going "
++           "through fork().";
+   }
+   return g_thread_id;
+ #elif BUILDFLAG(IS_ANDROID)
+diff --git a/base/threading/platform_thread_unittest.cc b/base/threading/platform_thread_unittest.cc
+index 397afea3123d..89c1bdf18e67 100644
+--- a/base/threading/platform_thread_unittest.cc
++++ b/base/threading/platform_thread_unittest.cc
+@@ -30,14 +30,6 @@
+ #include "base/time/time.h"
+ #endif
+ 
+-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+-#include <pthread.h>
+-#include <sys/syscall.h>
+-#include <sys/types.h>
+-#include <sys/wait.h>
+-#include <unistd.h>
+-#endif
+-
+ namespace base {
+ 
+ // Trivial tests that thread runs and doesn't crash on create, join, or detach -
+@@ -576,6 +568,7 @@ INSTANTIATE_TEST_SUITE_P(
+ 
+ }  // namespace
+ 
++<<<<<<< HEAD
+ #endif  // BUILDFLAG(IS_APPLE)
+ 
+ #if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+@@ -648,5 +641,8 @@ TEST(PlatformThreadTidCacheTest, MainThreadSecond) {
+ }  // namespace
+ 
+ #endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
++=======
++#endif
++>>>>>>> parent of c4d427dcf9a2 ([Linux] Don't access TLS in a pthread_atfork handler)
+ 
+ }  // namespace base
+-- 
+2.36.0.512.ge40c2bad7a-goog
+

@@ -5,8 +5,8 @@
 #include "base/test/test_future.h"
 
 #include "base/dcheck_is_on.h"
+#include "base/ignore_result.h"
 #include "base/logging.h"
-#include "base/macros.h"
 #include "base/run_loop.h"
 #include "base/synchronization/waitable_event.h"
 #include "base/task/post_task.h"
@@ -77,7 +77,7 @@ TEST_F(TestFutureTest, WaitShouldBlockUntilValueArrives) {
   PostDelayedTask(base::BindOnce(future.GetCallback(), expected_value),
                   base::Milliseconds(1));
 
-  future.Wait();
+  (void)future.Wait();
 
   EXPECT_EQ(expected_value, future.Get());
 }

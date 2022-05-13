@@ -8,7 +8,6 @@
 #include <memory>
 
 #include "base/compiler_specific.h"
-#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/observer_list_types.h"
 #include "base/task/lazy_thread_pool_task_runner.h"
@@ -355,16 +354,19 @@ class TaskEnvironment {
     return thread_pool_execution_mode_;
   }
 
-  // Returns the TimeDomain driving this TaskEnvironment.
-  sequence_manager::TimeDomain* GetTimeDomain() const;
+  // Returns the MockTimeDomain driving this TaskEnvironment if this instance is
+  // using TimeSource::MOCK_TIME, nullptr otherwise.
+  sequence_manager::TimeDomain* GetMockTimeDomain() const;
 
   sequence_manager::SequenceManager* sequence_manager() const;
 
   void DeferredInitFromSubclass(
       scoped_refptr<base::SingleThreadTaskRunner> task_runner);
 
-  // Derived classes may need to control when the sequence manager goes away.
-  void NotifyDestructionObserversAndReleaseSequenceManager();
+  // Derived classes may need to control when the task environment goes away
+  // (e.g. ~FooTaskEnvironment() may want to effectively trigger
+  // ~TaskEnvironment() before its members are destroyed).
+  void DestroyTaskEnvironment();
 
  private:
   class MockTimeDomain;
@@ -406,7 +408,7 @@ class TaskEnvironment {
   // Only set for instances using TimeSource::MOCK_TIME.
   std::unique_ptr<Clock> mock_clock_;
 
-#if defined(OS_POSIX) || defined(OS_FUCHSIA)
+#if BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
   // Enables the FileDescriptorWatcher API iff running a MainThreadType::IO.
   std::unique_ptr<FileDescriptorWatcher> file_descriptor_watcher_;
 #endif
