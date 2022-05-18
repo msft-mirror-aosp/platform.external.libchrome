@@ -90,9 +90,3 @@ backward-compatibility-add-deprecated-base-Bind-APIs.patch
 # Backward compatibility patch to temporarily add base::AdaptCallbackForRepeating
 # TODO(b/204383858): Remove the patch when usage in mri_package is removed
 backward-compatibility-add-base-AdaptCallbackForRepaeting.patch media_perception
-
-# Revert of r958410 (crrev.com/c/3366978)
-# This reverts the CL which uses getpid syscall in PlatformThread::CurrentId.
-# TODO(b/231676453): remove the patch when getpid has been added to all
-# necessary policy files.
-Revert-Linux-Don-t-access-TLS-in-a-pthread_atfork-ha.patch
