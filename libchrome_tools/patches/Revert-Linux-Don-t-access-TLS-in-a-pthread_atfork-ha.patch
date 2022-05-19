@@ -166,23 +166,6 @@ index 397afea3123d..89c1bdf18e67 100644
  namespace base {
  
  // Trivial tests that thread runs and doesn't crash on create, join, or detach -
-@@ -576,6 +568,7 @@ INSTANTIATE_TEST_SUITE_P(
- 
- }  // namespace
- 
-+<<<<<<< HEAD
- #endif  // BUILDFLAG(IS_APPLE)
- 
- #if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
-@@ -648,5 +641,8 @@ TEST(PlatformThreadTidCacheTest, MainThreadSecond) {
- }  // namespace
- 
- #endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
-+=======
-+#endif
-+>>>>>>> parent of c4d427dcf9a2 ([Linux] Don't access TLS in a pthread_atfork handler)
- 
- }  // namespace base
 -- 
 2.36.0.512.ge40c2bad7a-goog
 
