@@ -75,6 +75,10 @@ Make-mojo-attributes-from-enums-be-EnumValue.patch
 Mojo-Extensible-union-support.patch
 
 # ==================== BACKWARD / FORWARD COMPATIBILITY PATCHES FOR UPREVS ===
+# TODO(b/192529039): Remove when all base::Optional usages are migrated to
+# std::optional
+backward-compatibility-Add-base-Optional-as-alias-of-absl-optional.patch
+
 # Backward compatibility for r890000 uprev
 # Adds base::Callback, base::Bind, etc as there are still many usages in CrOS
 # TODO(crbug.com/1205291): remove when they are all migrated to Once/Repeating
