@@ -20,6 +20,9 @@ BAD_KEYWORDS = {
     # removal of deprecated base::Bind APIs
     r'base::(Bind\(|Closure|Callback|CancelableCallback|CancelableClosure)':
     'Deprecated base::Bind APIs. Please use the Once or Repeating variants. See crbug/714018.',
+    # unify *::optionals to std::optional
+    r'(include.*(base|absl/types)/optional.h|(base|absl)::((O|o)ptional|make_optional|nullopt))':
+    'Use std::optional. base::Optional will be removed and absl::optional is an alias of std::optional. See go/use-std-optional-in-cros for discussion.',
     # removal of WARN_UNUSED_RESULT in r961763
     r'WARN_UNUSED_RESULT':
     'The macro will be removed after r961763, use C++17 attribute [[nodiscard]] instead, see crbug.com/1287045.',
