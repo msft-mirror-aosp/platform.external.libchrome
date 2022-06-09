@@ -52,7 +52,7 @@ ALWAYS_WANT = [re.compile(rb'base/hash/(md5|sha1)_nacl\.(h|cc)$')]
 # KEEP-KEEP_EXCLUDE must NOT intersect with WANT-WANT_EXCLUDE
 KEEP = [
     re.compile(
-        b'(Android.bp|BUILD.gn|crypto|libchrome_tools|MODULE_LICENSE_BSD|NOTICE|OWNERS|PRESUBMIT.cfg|soong|testrunner.cc|third_party)(/.*)?$'
+        b'(BUILD.gn|crypto|libchrome_tools|MODULE_LICENSE_BSD|NOTICE|OWNERS|PRESUBMIT.cfg|soong|testrunner.cc|third_party)(/.*)?$'
     ),
     re.compile(rb'[^/]*$'),
     re.compile(rb'.*buildflags.h'),
