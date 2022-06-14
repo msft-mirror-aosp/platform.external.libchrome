@@ -18,9 +18,7 @@
 #include "build/build_config.h"
 
 #if (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)) && !BUILDFLAG(IS_NACL)
-// TODO(b/190018559): linux_syscall_support.h is not provided at current libchrome tree.
-// #include "third_party/lss/linux_syscall_support.h"
-#include <sys/random.h>
+#include "third_party/lss/linux_syscall_support.h"
 #elif BUILDFLAG(IS_MAC)
 // TODO(crbug.com/995996): Waiting for this header to appear in the iOS SDK.
 // (See below.)
@@ -65,20 +63,10 @@ namespace base {
 // it or some form of it.
 void RandBytes(void* output, size_t output_length) {
 #if (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)) && !BUILDFLAG(IS_NACL)
-#if 0
   // We have to call `getrandom` via Linux Syscall Support, rather than through
   // the libc wrapper, because we might not have an up-to-date libc (e.g. on
   // some bots).
   const ssize_t r = HANDLE_EINTR(sys_getrandom(output, output_length, 0));
-#elif defined(LIBCHROME_USE_DEV_URANDOM)
-  // For reasons unknown yet at b/182295239, gale didn't boot if getrandom is called.
-  // Currently we suspect some seccomp filters or kernel/glibc version but
-  // there's no deterministic evidence to point to any of them.
-  // Use this workaround to skip to /dev/urandom fallback.
-  const ssize_t r = -1;
-#else
-  const ssize_t r = HANDLE_EINTR(getrandom(output, output_length, 0));
-#endif
 
   // Return success only on total success. In case errno == ENOSYS (or any other
   // error), we'll fall through to reading from urandom below.

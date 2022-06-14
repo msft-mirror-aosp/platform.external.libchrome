@@ -35,6 +35,9 @@ revert-crbug-1001171.patch
 keep-hash-sha1-old-implementation.patch
 Do-not-use-boringssl-in-base-UnguessableToken.patch
 
+# Some bots might not support libc wrapped getrandom syscall
+Call-getrandom-via-Linux-Syscall-Support.patch
+
 # libchrome does not support trace_event
 # Compatmentalize patches to reduce chance of failing to apply them.
 disable-trace_event-in-base.patch
