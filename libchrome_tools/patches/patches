@@ -11,6 +11,7 @@
 # Note: add flag to IUSE in libchrome ebuild if it is not already there.
 
 # ========= LONG TERM PATCHES =========================
+Add-libchrome-specific-build-configs.patch
 
 # Unsupported in libchrome
 disable-SharedMemoryTracker.patch
