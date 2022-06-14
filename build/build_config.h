@@ -74,10 +74,6 @@
 #elif !defined(__ANDROID_HOST__)  // Chrome OS
 
 #define OS_CHROMEOS 1
-// TODO: Remove these once the GLib MessageLoopForUI isn't being used:
-// https://crbug.com/361635
-#define USE_GLIB 1
-#define USE_OZONE 1
 
 #endif  // defined(__ANDROID__)
 

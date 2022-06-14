@@ -15,10 +15,6 @@
 # Disable custom memory allocator when asan is used.
 disable-allocator-sanitizer.patch
 
-# Remove glib dependency.
-# TODO(hidehiko): Fix the config in AOSP libchrome.
-libchrome-Remove-glib-dependency.patch
-
 # Refer to crbug/1093642 on upstream or abandon these two patches.
 # Add MockObjectManager, which is removed upstream.
 add-mock-object-manager.patch
