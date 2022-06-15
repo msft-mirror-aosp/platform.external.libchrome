@@ -800,17 +800,7 @@ LogMessage::~LogMessage() {
         priority = ANDROID_LOG_FATAL;
         break;
     }
-#if 0 // This is for building Chromium browser on Android.
     const char kAndroidLogTag[] = "chromium";
-#else
-    const char* kAndroidLogTag = nullptr;
-    std::string androidLogTag;
-    if (base::CommandLine::InitializedForCurrentProcess()) {
-        androidLogTag = base::CommandLine::ForCurrentProcess()->
-                GetProgram().BaseName().value();
-        kAndroidLogTag = androidLogTag.c_str();
-    }
-#endif
 #if DCHECK_IS_ON()
     // Split the output by new lines to prevent the Android system from
     // truncating the log.

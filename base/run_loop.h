@@ -273,7 +273,7 @@ class BASE_EXPORT RunLoop {
   FRIEND_TEST_ALL_PREFIXES(SingleThreadTaskExecutorTypedTest,
                            RunLoopQuitOrderAfter);
 
-#if BUILDFLAG(IS_ANDROID) && 0
+#if BUILDFLAG(IS_ANDROID)
   // Android doesn't support the blocking RunLoop::Run, so it calls
   // BeforeRun and AfterRun directly.
   friend class MessagePumpForUI;

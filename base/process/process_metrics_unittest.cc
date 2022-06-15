@@ -686,7 +686,6 @@ MULTIPROCESS_TEST_MAIN(ChildMain) {
 
 // ARC note: don't compile as SpawnMultiProcessTestChild brings in a lot of
 // extra dependency.
-#if !defined(OS_ANDROID) && !defined(__ANDROID_HOST__)
 TEST(ProcessMetricsTest, GetChildOpenFdCount) {
   ScopedTempDir temp_dir;
   ASSERT_TRUE(temp_dir.CreateUniqueTempDir());
@@ -721,7 +720,6 @@ TEST(ProcessMetricsTest, GetChildOpenFdCount) {
 
   ASSERT_TRUE(child.Terminate(0, true));
 }
-#endif  // !defined(OS_ANDROID) && !defined(__ANDROID_HOST__)
 
 TEST(ProcessMetricsTest, GetOpenFdCount) {
   base::ProcessHandle process = base::GetCurrentProcessHandle();

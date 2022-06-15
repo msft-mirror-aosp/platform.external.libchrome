@@ -13,7 +13,7 @@
 
 namespace base {
 
-#if !BUILDFLAG(IS_ANDROID) && !defined(__ANDROID_HOST__)
+#if !BUILDFLAG(IS_ANDROID)
 Process SpawnMultiProcessTestChild(const std::string& procname,
                                    const CommandLine& base_command_line,
                                    const LaunchOptions& options) {
@@ -39,7 +39,7 @@ bool TerminateMultiProcessTestChild(const Process& process,
   return process.Terminate(exit_code, wait);
 }
 
-#endif  // !BUILDFLAG(IS_ANDROID) && !__ANDROID_HOST__
+#endif  // !BUILDFLAG(IS_ANDROID)
 
 CommandLine GetMultiProcessTestChildBaseCommandLine() {
   base::ScopedAllowBlockingForTesting allow_blocking;

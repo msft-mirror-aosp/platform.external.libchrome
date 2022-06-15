@@ -580,11 +580,7 @@ bool GetTempDir(FilePath* path) {
   }
 
 #if BUILDFLAG(IS_ANDROID)
-#if 0 // This is for building Chromium browser on Android.
   return PathService::Get(DIR_CACHE, path);
-#endif
-  *path = FilePath("/data/local/tmp");
-  return true;
 #else
   *path = FilePath("/tmp");
   return true;

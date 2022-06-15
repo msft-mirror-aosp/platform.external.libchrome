@@ -12,7 +12,7 @@
 
 #if BUILDFLAG(IS_WIN)
 #include "base/message_loop/message_pump_win.h"
-#elif BUILDFLAG(IS_ANDROID) && 0
+#elif BUILDFLAG(IS_ANDROID)
 #include "base/message_loop/message_pump_android.h"
 #elif BUILDFLAG(IS_APPLE)
 #include "base/message_loop/message_pump.h"
@@ -32,10 +32,8 @@ namespace base {
 // Windows defines it as-is.
 using MessagePumpForUI = MessagePumpForUI;
 #elif BUILDFLAG(IS_ANDROID)
-#if 0 // Drop support for MessagePumpForUI for libchrome on Android targets.
 // Android defines it as-is.
 using MessagePumpForUI = MessagePumpForUI;
-#endif
 #elif BUILDFLAG(IS_APPLE)
 // MessagePumpForUI isn't bound to a specific impl on Mac. While each impl can
 // be represented by a plain MessagePump: MessagePumpMac::Create() must be used
