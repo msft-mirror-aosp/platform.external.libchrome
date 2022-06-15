@@ -513,6 +513,8 @@ gensrcs {
 
 cc_defaults {
     name: "libchrome-defaults",
+    // Set clang to "true" to force clang or "false" to force gcc.
+    // clang: true,
 
     cflags: [
         "-Wall",
@@ -772,13 +774,7 @@ libchromeLinuxSrc = [
     "base/threading/platform_thread_linux.cc",
 ]
 
-libchromeMuslSrc = [
-    "base/debug/stack_trace_posix.cc",
-    "base/memory/platform_shared_memory_region_posix.cc",
-    "base/memory/shared_memory_handle_posix.cc",
-]
-
-libchromeGlibcSrc = [
+libchromeLinuxGlibcSrc = [
     "base/allocator/allocator_shim.cc",
     "base/allocator/allocator_shim_default_dispatch_to_glibc.cc",
     "base/debug/stack_trace_posix.cc",
@@ -819,7 +815,6 @@ libchromeAndroidSrc = [
 cc_library {
     name: "libchrome",
     host_supported: true,
-    ramdisk_available: true,
     recovery_available: true,
     vendor_available: true,
     defaults: ["libchrome-defaults"],
@@ -854,11 +849,8 @@ cc_library {
                 "liblog",
             ],
         },
-        glibc: {
-            srcs: libchromeGlibcSrc,
-        },
-        musl: {
-            srcs: libchromeMuslSrc,
+        linux_glibc: {
+            srcs: libchromeLinuxGlibcSrc,
         },
         android: {
             srcs: libchromeAndroidSrc,
@@ -868,7 +860,6 @@ cc_library {
             ],
         },
     },
-    min_sdk_version: "30",
 }
 
 // libchrome-crypto shared library for device
