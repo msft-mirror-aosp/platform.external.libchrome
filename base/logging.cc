@@ -500,8 +500,7 @@ bool ShouldLogToStderr(int severity) {
 #if !BUILDFLAG(IS_FUCHSIA)
   // High-severity logs go to stderr by default, except on Fuchsia.
   if (severity >= kAlwaysPrintErrorLevel)
-    return true;
-    // return (g_logging_destination & ~LOG_TO_FILE) == LOG_NONE;
+    return (g_logging_destination & ~LOG_TO_FILE) == LOG_NONE;
 #endif
   return false;
 }
