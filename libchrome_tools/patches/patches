@@ -12,6 +12,9 @@
 
 # ========= LONG TERM PATCHES =========================
 
+# Unsupported in libchrome
+disable-SharedMemoryTracker.patch
+
 # Disable custom memory allocator when asan is used.
 disable-allocator-sanitizer.patch
 

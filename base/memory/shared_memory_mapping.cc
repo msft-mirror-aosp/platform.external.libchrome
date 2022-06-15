@@ -8,8 +8,7 @@
 
 #include "base/logging.h"
 #include "base/memory/shared_memory_security_policy.h"
-// Unsupported in libchrome
-// #include "base/memory/shared_memory_tracker.h"
+#include "base/memory/shared_memory_tracker.h"
 #include "base/unguessable_token.h"
 #include "build/build_config.h"
 
@@ -60,8 +59,7 @@ SharedMemoryMapping::SharedMemoryMapping(void* memory,
                                          size_t mapped_size,
                                          const UnguessableToken& guid)
     : memory_(memory), size_(size), mapped_size_(mapped_size), guid_(guid) {
-  // Unsupported in libchrome.
-  // SharedMemoryTracker::GetInstance()->IncrementMemoryUsage(*this);
+  SharedMemoryTracker::GetInstance()->IncrementMemoryUsage(*this);
 }
 
 void SharedMemoryMapping::Unmap() {
@@ -69,8 +67,7 @@ void SharedMemoryMapping::Unmap() {
     return;
 
   SharedMemorySecurityPolicy::ReleaseReservationForMapping(size_);
-  // Unsupported in libchrome.
-  // SharedMemoryTracker::GetInstance()->DecrementMemoryUsage(*this);
+  SharedMemoryTracker::GetInstance()->DecrementMemoryUsage(*this);
 #if BUILDFLAG(IS_WIN)
   if (!UnmapViewOfFile(memory_))
     DPLOG(ERROR) << "UnmapViewOfFile";

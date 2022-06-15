@@ -1,0 +1,46 @@
+From 86a64848816164947efaaab7c0aec6ae4e7d09a6 Mon Sep 17 00:00:00 2001
+From: Grace Cham <hscham@chromium.org>
+Date: Wed, 15 Jun 2022 21:59:29 +0900
+Subject: [PATCH] disable SharedMemoryTracker
+
+---
+ base/memory/shared_memory_mapping.cc | 9 ++++++---
+ 1 file changed, 6 insertions(+), 3 deletions(-)
+
+diff --git a/base/memory/shared_memory_mapping.cc b/base/memory/shared_memory_mapping.cc
+index d54af134db..805d12569f 100644
+--- a/base/memory/shared_memory_mapping.cc
++++ b/base/memory/shared_memory_mapping.cc
+@@ -8,7 +8,8 @@
+ 
+ #include "base/logging.h"
+ #include "base/memory/shared_memory_security_policy.h"
+-#include "base/memory/shared_memory_tracker.h"
++// Unsupported in libchrome
++// #include "base/memory/shared_memory_tracker.h"
+ #include "base/unguessable_token.h"
+ #include "build/build_config.h"
+ 
+@@ -59,7 +60,8 @@ SharedMemoryMapping::SharedMemoryMapping(void* memory,
+                                          size_t mapped_size,
+                                          const UnguessableToken& guid)
+     : memory_(memory), size_(size), mapped_size_(mapped_size), guid_(guid) {
+-  SharedMemoryTracker::GetInstance()->IncrementMemoryUsage(*this);
++  // Unsupported in libchrome.
++  // SharedMemoryTracker::GetInstance()->IncrementMemoryUsage(*this);
+ }
+ 
+ void SharedMemoryMapping::Unmap() {
+@@ -67,7 +69,8 @@ void SharedMemoryMapping::Unmap() {
+     return;
+ 
+   SharedMemorySecurityPolicy::ReleaseReservationForMapping(size_);
+-  SharedMemoryTracker::GetInstance()->DecrementMemoryUsage(*this);
++  // Unsupported in libchrome.
++  // SharedMemoryTracker::GetInstance()->DecrementMemoryUsage(*this);
+ #if BUILDFLAG(IS_WIN)
+   if (!UnmapViewOfFile(memory_))
+     DPLOG(ERROR) << "UnmapViewOfFile";
+-- 
+2.36.1.476.g0c4daa206d-goog
+
