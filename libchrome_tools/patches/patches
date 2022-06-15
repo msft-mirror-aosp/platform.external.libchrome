@@ -15,6 +15,11 @@
 # Unsupported in libchrome
 disable-SharedMemoryTracker.patch
 
+# ICU dependency was introduced for Explode implementation to tackle Y2038
+# problem but it signigicantly increases binary size. Removed as Y2038 boards
+# will be EOL by then.
+Remove-ICU-dependency-for-base-Time-Explode.patch
+
 # Disable custom memory allocator when asan is used.
 disable-allocator-sanitizer.patch
 
