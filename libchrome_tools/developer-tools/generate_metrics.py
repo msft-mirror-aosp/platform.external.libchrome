@@ -18,9 +18,9 @@ import requests
 
 # Path to the libchrome dir.
 LIBCHROME_DIR = Path(__file__).resolve().parent.parent.parent
-# Find chromite relative to $CHROMEOS_CHECKOUT/src/aosp/external/libchrome/, so
+# Find chromite relative to $CHROMEOS_CHECKOUT/src/platform/libchrome/, so
 # go up four dirs. For importing following the chromite libraries.
-sys.path.insert(0, str(LIBCHROME_DIR.parent.parent.parent.parent))
+sys.path.insert(0, str(LIBCHROME_DIR.parent.parent.parent))
 
 # pylint: disable=wrong-import-position
 from chromite.lib import gerrit
@@ -96,7 +96,7 @@ def getLibchromeRevision() -> str:
   file at HEAD.
   """
   libchrome_BASEVER = requests.get(
-      "https://chromium.googlesource.com/aosp/platform/external/libchrome/+/refs/heads/master/BASE_VER/?format=TEXT")
+      "https://chromium.googlesource.com/chromiumos/platform/libchrome/+/refs/heads/main/BASE_VER/?format=TEXT")
   if not libchrome_BASEVER.text:
     raise Exception('Cannot get CrOS ToT libchrome BASE_VER file')
   # Decode and remove trailing newline character.
