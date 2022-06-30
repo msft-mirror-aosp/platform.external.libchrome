@@ -813,13 +813,7 @@ if (use.mojo) {
     sources =
         [
           "ipc/ipc_message.cc",
-          "ipc/ipc_message_attachment.cc",
           "ipc/ipc_message_attachment_set.cc",
-          "ipc/ipc_message_utils.cc",
-          "ipc/ipc_mojo_handle_attachment.cc",
-          "ipc/ipc_mojo_message_helper.cc",
-          "ipc/ipc_mojo_param_traits.cc",
-          "ipc/ipc_platform_file_attachment_posix.cc",
           "ipc/native_handle_type_converters.cc",
           "mojo/core/atomic_flag.cc",
           "mojo/core/broker_host.cc",
@@ -904,7 +898,6 @@ if (use.mojo) {
           "mojo/public/cpp/bindings/lib/message_internal.cc",
           "mojo/public/cpp/bindings/lib/message_quota_checker.cc",
           "mojo/public/cpp/bindings/lib/multiplex_router.cc",
-          "mojo/public/cpp/bindings/lib/native_struct_serialization.cc",
           "mojo/public/cpp/bindings/lib/pending_receiver_state.cc",
           "mojo/public/cpp/bindings/lib/pending_remote_state.cc",
           "mojo/public/cpp/bindings/lib/pipe_control_message_handler.cc",
