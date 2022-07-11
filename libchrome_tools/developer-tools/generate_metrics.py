@@ -30,20 +30,20 @@ chromium_helper = gerrit.GetGerritHelper(gob='chromium', print_cmd=False)
 chrome_helper = gerrit.GetGerritHelper(gob='chrome-internal', print_cmd=False)
 
 # String for current uprev's bug, used to identify CLs associated to it.
-current_bug = 'b:228144902'
+current_bug = 'b:238297537'
 # String for previous uprev's bug, used to identify CLs associated to it.
-previous_bug = 'b:211560276'
+previous_bug = 'b:228144902'
 # String for individual post-uprev cleanup's bug(s), used to identify CLs
 # associated to them.
-previous_bug_cleanup = ['b:231676453', 'b:231676446']
+previous_bug_cleanup = ['b:238169790']
 # String for date of previous uprev's submission date, used to identify
 # post-uprev CLs.
-previous_uprev_date = '2022-05-12'
+previous_uprev_date = '2022-07-07'
 # For formatting output string used in go/libchrome-uprev-metrics-edit
 # indicates whether current uprev data should be put in "Uprev A CLs" coloumn
 # (will put in 'Uprev B CLS' if set to false).
 # The value alternates whenever there is a new uprev.
-current_is_uprev_A = True
+current_is_uprev_A = False
 
 
 def datetime_to_string(day: datetime) -> str:
