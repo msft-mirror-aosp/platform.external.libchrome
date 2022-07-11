@@ -69,6 +69,10 @@ always-include-platform-thread-h.patch
 # is used in CrOS.
 Revert-Make-base-VerifyPathControlledByUser-Mac-only.patch
 
+# TODO(b/229799189): Remove once performance problems with spaced in chrome
+# are fixed.
+libchrome-Query-spaced-for-free-total-disk-space.patch
+
 # ==================== CHERRY PICKS ===========================
 # Cherry-pick [Extensible] support for union.
 # Cherry-pick of r991539
