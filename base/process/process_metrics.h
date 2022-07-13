@@ -19,7 +19,6 @@
 #include "base/strings/string_piece.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 
 #if BUILDFLAG(IS_APPLE)
 #include <mach/mach.h>
@@ -132,6 +131,27 @@ class BASE_EXPORT ProcessMetrics {
   // at a rate higher than wall-clock time, e.g. two cores at full utilization
   // will result in a time delta of 2 seconds/per 1 wall-clock second.
   [[nodiscard]] TimeDelta GetCumulativeCPUUsage();
+
+#if BUILDFLAG(IS_WIN)
+  // TODO(pmonette): Remove the precise version of the CPU usage functions once
+  // we're validated that they are indeed better than the regular version above
+  // and that they can replace the old implementation.
+
+  // Returns the percentage of time spent executing, across all threads of the
+  // process, in the interval since the last time the method was called.
+  //
+  // Same as GetPlatformIndependentCPUUSage() but implemented using
+  // `QueryProcessCycleTime` for higher precision.
+  [[nodiscard]] double GetPreciseCPUUsage();
+
+  // Returns the cumulative CPU usage across all threads of the process since
+  // process start. In case of multi-core processors, a process can consume CPU
+  // at a rate higher than wall-clock time, e.g. two cores at full utilization
+  // will result in a time delta of 2 seconds/per 1 wall-clock second.
+  //
+  // This is implemented using `QueryProcessCycleTime` for higher precision.
+  [[nodiscard]] TimeDelta GetPreciseCumulativeCPUUsage();
+#endif  // BUILDFLAG(IS_WIN)
 
 #if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID) || \
     BUILDFLAG(IS_AIX)
@@ -267,6 +287,11 @@ class BASE_EXPORT ProcessMetrics {
   TimeDelta last_cumulative_cpu_;
 #endif
 
+#if BUILDFLAG(IS_WIN)
+  TimeTicks last_cpu_time_for_precise_cpu_usage_;
+  TimeDelta last_precise_cumulative_cpu_;
+#endif
+
 #if BUILDFLAG(IS_APPLE) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || \
     BUILDFLAG(IS_AIX)
   // Same thing for idle wakeups.
@@ -373,10 +398,10 @@ struct BASE_EXPORT SystemMemoryInfoKB {
 #endif  // BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_LINUX) ||
         // BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_AIX) BUILDFLAG(IS_FUCHSIA)
 
-#if BUILDFLAG(IS_CHROMEOS_ASH) || BUILDFLAG(IS_CHROMEOS_LACROS)
+#if BUILDFLAG(IS_CHROMEOS)
   int shmem = 0;
   int slab = 0;
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH) || BUILDFLAG(IS_CHROMEOS_LACROS)
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 #if BUILDFLAG(IS_APPLE)
   int speculative = 0;
@@ -476,7 +501,7 @@ BASE_EXPORT TimeDelta GetUserCpuTimeSinceBoot();
 #endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) ||
         // BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_AIX)
 
-#if BUILDFLAG(IS_CHROMEOS_ASH) || BUILDFLAG(IS_CHROMEOS_LACROS)
+#if BUILDFLAG(IS_CHROMEOS)
 // Data from files in directory /sys/block/zram0 about ZRAM usage.
 struct BASE_EXPORT SwapInfo {
   SwapInfo()
@@ -529,7 +554,7 @@ struct BASE_EXPORT GraphicsMemoryInfoKB {
 // reading the graphics memory info is slow, this function returns false.
 BASE_EXPORT bool GetGraphicsMemoryInfo(GraphicsMemoryInfoKB* gpu_meminfo);
 
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH) || BUILDFLAG(IS_CHROMEOS_LACROS)
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 struct BASE_EXPORT SystemPerformanceInfo {
   SystemPerformanceInfo();
@@ -590,7 +615,7 @@ class BASE_EXPORT SystemMetrics {
   VmStatInfo vmstat_info_;
   SystemDiskInfo disk_info_;
 #endif
-#if BUILDFLAG(IS_CHROMEOS_ASH) || BUILDFLAG(IS_CHROMEOS_LACROS)
+#if BUILDFLAG(IS_CHROMEOS)
   SwapInfo swap_info_;
   GraphicsMemoryInfoKB gpu_memory_info_;
 #endif

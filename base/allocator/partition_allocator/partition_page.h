@@ -13,8 +13,8 @@
 #include "base/allocator/buildflags.h"
 #include "base/allocator/partition_allocator/address_pool_manager.h"
 #include "base/allocator/partition_allocator/address_pool_manager_types.h"
-#include "base/allocator/partition_allocator/base/bits.h"
 #include "base/allocator/partition_allocator/partition_address_space.h"
+#include "base/allocator/partition_allocator/partition_alloc_base/bits.h"
 #include "base/allocator/partition_allocator/partition_alloc_check.h"
 #include "base/allocator/partition_allocator/partition_alloc_constants.h"
 #include "base/allocator/partition_allocator/partition_alloc_forward.h"
@@ -133,6 +133,12 @@ struct __attribute__((packed)) SlotSpanMetadata {
   // System page size is not a constant on Apple OSes, but is either 4 or 16kiB
   // (1 << 12 or 1 << 14), as checked in PartitionRoot::Init(). And
   // PartitionPageSize() is 4 times the OS page size.
+  static constexpr size_t kMaxSlotsPerSlotSpan =
+      4 * (1 << 14) / kSmallestBucket;
+#elif BUILDFLAG(IS_LINUX) && defined(ARCH_CPU_ARM64)
+  // System page size can be 4, 16, or 64 kiB on Linux on arm64. 64 kiB is
+  // currently (kMaxSlotsPerSlotSpanBits == 13) not supported by the code,
+  // so we use the 16 kiB maximum (64 kiB will crash).
   static constexpr size_t kMaxSlotsPerSlotSpan =
       4 * (1 << 14) / kSmallestBucket;
 #else

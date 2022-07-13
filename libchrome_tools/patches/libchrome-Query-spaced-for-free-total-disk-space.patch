@@ -282,7 +282,7 @@ index 9ee252ec26..160e46f423 100644
 +  SysInfo::SetChromeOSGetAppOutputForTest(nullptr);
 +}
 +
- #endif  // BUILDFLAG(IS_CHROMEOS_ASH) || BUILDFLAG(IS_CHROMEOS_LACROS)
+ #endif  // BUILDFLAG(IS_CHROMEOS)
  
  }  // namespace base
 -- 

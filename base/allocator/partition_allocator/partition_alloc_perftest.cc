@@ -9,11 +9,11 @@
 #include <vector>
 
 #include "base/allocator/partition_allocator/partition_alloc.h"
+#include "base/allocator/partition_allocator/partition_alloc_base/logging.h"
 #include "base/allocator/partition_allocator/partition_alloc_check.h"
 #include "base/allocator/partition_allocator/thread_cache.h"
 #include "base/bind.h"
 #include "base/callback.h"
-#include "base/logging.h"
 #include "base/strings/stringprintf.h"
 #include "base/threading/platform_thread.h"
 #include "base/time/time.h"
@@ -93,11 +93,8 @@ class SystemAllocator : public Allocator {
 
 class PartitionAllocator : public Allocator {
  public:
-  explicit PartitionAllocator(bool use_alternate_bucket_dist) {
-    if (!use_alternate_bucket_dist)
-      alloc_.SwitchToDenserBucketDistribution();
-  }
-  ~PartitionAllocator() override = default;
+  PartitionAllocator() = default;
+  ~PartitionAllocator() override { alloc_.DestructForTesting(); }
 
   void* Alloc(size_t size) override {
     return alloc_.AllocWithFlagsNoHooks(0, size, PartitionPageSize());
@@ -133,6 +130,8 @@ class PartitionAllocatorWithThreadCache : public Allocator {
     ThreadCacheRegistry::Instance().PurgeAll();
     if (!use_alternate_bucket_dist)
       g_partition_root->SwitchToDenserBucketDistribution();
+    else
+      g_partition_root->ResetBucketDistributionForTesting();
   }
   ~PartitionAllocatorWithThreadCache() override = default;
 
@@ -325,7 +324,7 @@ std::unique_ptr<Allocator> CreateAllocator(AllocatorType type,
     case AllocatorType::kSystem:
       return std::make_unique<SystemAllocator>();
     case AllocatorType::kPartitionAlloc:
-      return std::make_unique<PartitionAllocator>(use_alternate_bucket_dist);
+      return std::make_unique<PartitionAllocator>();
     case AllocatorType::kPartitionAllocWithThreadCache:
       return std::make_unique<PartitionAllocatorWithThreadCache>(
           use_alternate_bucket_dist);
@@ -336,9 +335,9 @@ void LogResults(int thread_count,
                 AllocatorType alloc_type,
                 uint64_t total_laps_per_second,
                 uint64_t min_laps_per_second) {
-  LOG(INFO) << "RESULTSCSV: " << thread_count << ","
-            << static_cast<int>(alloc_type) << "," << total_laps_per_second
-            << "," << min_laps_per_second;
+  PA_LOG(INFO) << "RESULTSCSV: " << thread_count << ","
+               << static_cast<int>(alloc_type) << "," << total_laps_per_second
+               << "," << min_laps_per_second;
 }
 
 void RunTest(int thread_count,
@@ -429,13 +428,11 @@ TEST_P(PartitionAllocMemoryAllocationPerfTest, SingleBucketWithFree) {
 }
 
 #if !defined(MEMORY_CONSTRAINED)
-#if !BUILDFLAG(IS_LINUX)  // crbug.com/1302681
 TEST_P(PartitionAllocMemoryAllocationPerfTest, MultiBucket) {
   auto params = GetParam();
   RunTest(std::get<int>(params), std::get<bool>(params),
           std::get<AllocatorType>(params), MultiBucket, nullptr, "MultiBucket");
 }
-#endif  // !BUILDFLAG(IS_LINUX)
 #endif  // defined(MEMORY_CONSTRAINED)
 
 TEST_P(PartitionAllocMemoryAllocationPerfTest, MultiBucketWithFree) {

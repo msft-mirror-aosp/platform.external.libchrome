@@ -8,7 +8,6 @@
 #include <memory>
 
 #include "base/base_export.h"
-#include "base/check_op.h"
 #include "base/compiler_specific.h"
 #include "base/dcheck_is_on.h"
 #include "base/gtest_prod_util.h"
@@ -147,12 +146,6 @@ namespace cc {
 class CompletionEvent;
 class TileTaskManagerImpl;
 }  // namespace cc
-namespace chrome {
-#if BUILDFLAG(IS_MAC)
-void DeveloperIDCertificateReauthorizeInApp();
-void PurgeStaleScreenCapturePermission();
-#endif  // BUILDFLAG(IS_MAC)
-}  // namespace chrome
 namespace chromecast {
 class CrashUtil;
 }
@@ -211,9 +204,13 @@ class Bus;
 namespace device {
 class UsbContext;
 }
+namespace base {
+class FilePath;
+}
 namespace disk_cache {
 class BackendImpl;
 class InFlightIO;
+bool CleanupDirectorySync(const base::FilePath&);
 }  // namespace disk_cache
 namespace enterprise_connectors {
 class LinuxKeyRotationCommand;
@@ -495,15 +492,13 @@ class BASE_EXPORT ScopedAllowBlocking {
   friend class weblayer::ProfileImpl;
   friend class weblayer::WebLayerPathProvider;
 
+  // Sorting with function name (with namespace), ignoring the return type.
   friend Profile* ::GetLastProfileMac();  // crbug.com/1176734
+  friend bool ::HasWaylandDisplay(base::Environment* env);  // crbug.com/1246928
   friend bool PathProviderWin(int, FilePath*);
-#if BUILDFLAG(IS_MAC)
-  friend void chrome::DeveloperIDCertificateReauthorizeInApp();
-  friend void chrome::PurgeStaleScreenCapturePermission();
-#endif  // BUILDFLAG(IS_MAC)
   friend bool chromeos::system::IsCoreSchedulingAvailable();
   friend int chromeos::system::NumberOfPhysicalCores();
-  friend bool ::HasWaylandDisplay(base::Environment* env);  // crbug.com/1246928
+  friend bool disk_cache::CleanupDirectorySync(const base::FilePath&);
 
   ScopedAllowBlocking(const Location& from_here = Location::Current());
   ~ScopedAllowBlocking();

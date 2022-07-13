@@ -92,7 +92,14 @@ AslrMask(uintptr_t bits) {
     }
     PAGE_ALLOCATOR_CONSTANTS_DECLARE_CONSTEXPR ALWAYS_INLINE uintptr_t
     ASLROffset() {
-      return AslrAddress(0x1000000000ULL);
+      // Be careful, there is a zone where macOS will not map memory, at least
+      // on ARM64. From an ARM64 machine running 12.3, the range seems to be
+      // [0x1000000000, 0x7000000000). Make sure that the range we use is
+      // outside these bounds. In 12.3, there is a reserved area between
+      // MACH_VM_MIN_GPU_CARVEOUT_ADDRESS and MACH_VM_MAX_GPU_CARVEOUT_ADDRESS,
+      // which is reserved on ARM64. See these constants in XNU's source code
+      // for details (xnu-8019.80.24/osfmk/mach/arm/vm_param.h).
+      return AslrAddress(0x10000000000ULL);
     }
 
   #elif BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
@@ -119,6 +126,21 @@ AslrMask(uintptr_t bits) {
       }
       constexpr ALWAYS_INLINE uintptr_t ASLROffset() {
         return AslrAddress(0x20000000ULL);
+      }
+
+      #elif BUILDFLAG(IS_LINUX)
+
+      // Linux on arm64 can use 39, 42, 48, or 52-bit user space, depending on
+      // page size and number of levels of translation pages used. We use
+      // 39-bit as base as all setups should support this, lowered to 38-bit
+      // as ASLROffset() could cause a carry.
+      PAGE_ALLOCATOR_CONSTANTS_DECLARE_CONSTEXPR ALWAYS_INLINE uintptr_t
+      ASLRMask() {
+        return AslrMask(38);
+      }
+      PAGE_ALLOCATOR_CONSTANTS_DECLARE_CONSTEXPR ALWAYS_INLINE uintptr_t
+      ASLROffset() {
+        return AslrAddress(0x1000000000ULL);
       }
 
       #else

@@ -21,6 +21,7 @@ POLICY_EXPORT extern const char kDlpReportingEnabled[];
 POLICY_EXPORT extern const char kDlpRulesList[];
 #if BUILDFLAG(IS_MAC)
 POLICY_EXPORT extern const char kEnterpriseMDMManagementMac[];
+POLICY_EXPORT extern const char kScreenTimeEnabled[];
 #endif
 POLICY_EXPORT extern const char kLastPolicyStatisticsUpdate[];
 POLICY_EXPORT extern const char kNativeWindowOcclusionEnabled[];
@@ -32,6 +33,7 @@ POLICY_EXPORT extern const char kUrlAllowlist[];
 POLICY_EXPORT extern const char kUserPolicyRefreshRate[];
 POLICY_EXPORT extern const char kIntensiveWakeUpThrottlingEnabled[];
 POLICY_EXPORT extern const char kUserAgentClientHintsGREASEUpdateEnabled[];
+POLICY_EXPORT extern const char kUrlParamFilterEnabled[];
 POLICY_EXPORT extern const char kSetTimeoutWithout1MsClampEnabled[];
 #if BUILDFLAG(IS_ANDROID)
 POLICY_EXPORT extern const char kBackForwardCacheEnabled[];

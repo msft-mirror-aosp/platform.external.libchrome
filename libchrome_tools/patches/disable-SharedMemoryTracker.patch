@@ -24,7 +24,7 @@ index d54af134db..805d12569f 100644
 @@ -59,7 +60,8 @@ SharedMemoryMapping::SharedMemoryMapping(void* memory,
                                           size_t mapped_size,
                                           const UnguessableToken& guid)
-     : memory_(memory), size_(size), mapped_size_(mapped_size), guid_(guid) {
+     : mapped_span_(mapped_span), size_(size), guid_(guid), mapper_(mapper) {
 -  SharedMemoryTracker::GetInstance()->IncrementMemoryUsage(*this);
 +  // Unsupported in libchrome.
 +  // SharedMemoryTracker::GetInstance()->IncrementMemoryUsage(*this);
@@ -38,9 +38,9 @@ index d54af134db..805d12569f 100644
 -  SharedMemoryTracker::GetInstance()->DecrementMemoryUsage(*this);
 +  // Unsupported in libchrome.
 +  // SharedMemoryTracker::GetInstance()->DecrementMemoryUsage(*this);
- #if BUILDFLAG(IS_WIN)
-   if (!UnmapViewOfFile(memory_))
-     DPLOG(ERROR) << "UnmapViewOfFile";
+ 
+   SharedMemoryMapper* mapper = mapper_;
+   if (!mapper)
 -- 
 2.36.1.476.g0c4daa206d-goog
 

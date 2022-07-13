@@ -12,7 +12,6 @@
 #include "base/containers/intrusive_heap.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/raw_ptr.h"
-#include "base/memory/ref_counted.h"
 #include "base/synchronization/atomic_flag.h"
 #include "base/task/common/checked_lock.h"
 #include "base/task/thread_pool/task.h"
@@ -129,6 +128,9 @@ class BASE_EXPORT DelayedTaskManager {
 
   IntrusiveHeap<DelayedTask, std::greater<>> delayed_task_queue_
       GUARDED_BY(queue_lock_);
+
+  bool align_wake_ups_ GUARDED_BY(queue_lock_) = false;
+  TimeDelta task_leeway_ GUARDED_BY(queue_lock_){PendingTask::kDefaultLeeway};
 };
 
 }  // namespace internal

@@ -1,5 +1,18 @@
+From c8c0553a9140345e735e7c1b4fd022e2cf150184 Mon Sep 17 00:00:00 2001
+From: Grace Cham <hscham@chromium.org>
+Date: Fri, 17 Jun 2022 17:51:52 +0900
+Subject: [PATCH] Revert crbug/1001171
+
+The patch was added to investigate crbug_1001171 which is not needed in
+libchrome.
+
+Change-Id: Ib2233fe7211882fb3b60b36473abed63ccace5f8
+---
+ mojo/public/tools/bindings/mojom_bindings_generator.py | 9 +--------
+ 1 file changed, 1 insertion(+), 8 deletions(-)
+
 diff --git a/mojo/public/tools/bindings/mojom_bindings_generator.py b/mojo/public/tools/bindings/mojom_bindings_generator.py
-index da9efc71cefd..0467500755af 100755
+index 96b1d9c9ad..a81853e4f0 100755
 --- a/mojo/public/tools/bindings/mojom_bindings_generator.py
 +++ b/mojo/public/tools/bindings/mojom_bindings_generator.py
 @@ -44,10 +44,6 @@ from mojom.generate import template_expander
@@ -13,10 +26,15 @@ index da9efc71cefd..0467500755af 100755
  
  _BUILTIN_GENERATORS = {
      "c++": "mojom_cpp_generator",
-@@ -386,5 +382,4 @@ def main():
+@@ -386,7 +382,4 @@ def main():
  
  
  if __name__ == "__main__":
 -  with crbug_1001171.DumpStateOnLookupError():
--    sys.exit(main())
-+  sys.exit(main())
+-    # Exit without running GC, which can save multiple seconds due to the large
+-    # number of object created.
+-    os._exit(main())
++  os._exit(main())
+-- 
+2.36.1.476.g0c4daa206d-goog
+

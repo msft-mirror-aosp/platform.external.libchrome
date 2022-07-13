@@ -12,19 +12,19 @@
 #include <utility>
 
 #include "base/callback.h"
-#include "base/check_op.h"
-#include "base/compiler_specific.h"
 #include "base/component_export.h"
+#include "base/dcheck_is_on.h"
 #include "base/location.h"
 #include "base/memory/raw_ptr.h"
-#include "base/memory/ref_counted.h"
+#include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/sequence_checker.h"
+#include "base/strings/string_piece_forward.h"
 #include "base/synchronization/lock.h"
 #include "base/task/sequenced_task_runner.h"
+#include "base/thread_annotations.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
-#include "mojo/public/cpp/bindings/associated_group.h"
 #include "mojo/public/cpp/bindings/connection_error_callback.h"
 #include "mojo/public/cpp/bindings/connection_group.h"
 #include "mojo/public/cpp/bindings/disconnect_reason.h"
@@ -112,7 +112,7 @@ class COMPONENT_EXPORT(MOJO_CPP_BINDINGS) InterfaceEndpointClient
   // and notifies all interfaces running on this pipe.
   void RaiseError();
 
-  void CloseWithReason(uint32_t custom_reason, const std::string& description);
+  void CloseWithReason(uint32_t custom_reason, base::StringPiece description);
 
   // Used by ControlMessageProxy to send messages through this endpoint.
   void SendControlMessage(Message* message);
@@ -303,11 +303,12 @@ class COMPONENT_EXPORT(MOJO_CPP_BINDINGS) InterfaceEndpointClient
   std::unique_ptr<AssociatedGroup> associated_group_;
   // `controller_` is not a raw_ptr<...> for performance reasons (based on
   // analysis of sampling profiler data).
-  InterfaceEndpointController* controller_ = nullptr;
+  RAW_PTR_EXCLUSION InterfaceEndpointController* controller_ = nullptr;
 
   // `incoming_receiver_` is not a raw_ptr<...> for performance reasons (based
   // on analysis of sampling profiler data).
-  MessageReceiverWithResponderStatus* const incoming_receiver_ = nullptr;
+  RAW_PTR_EXCLUSION MessageReceiverWithResponderStatus* const
+      incoming_receiver_ = nullptr;
   HandleIncomingMessageThunk thunk_{this};
   MessageDispatcher dispatcher_;
 

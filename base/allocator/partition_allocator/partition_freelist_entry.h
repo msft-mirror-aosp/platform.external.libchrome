@@ -9,8 +9,9 @@
 #include <cstdint>
 
 #include "base/allocator/buildflags.h"
-#include "base/allocator/partition_allocator/base/bits.h"
 #include "base/allocator/partition_allocator/partition_alloc-inl.h"
+#include "base/allocator/partition_allocator/partition_alloc_base/bits.h"
+#include "base/allocator/partition_allocator/partition_alloc_base/sys_byteorder.h"
 #include "base/allocator/partition_allocator/partition_alloc_check.h"
 #include "base/allocator/partition_allocator/partition_alloc_config.h"
 #include "base/allocator/partition_allocator/partition_alloc_constants.h"
@@ -18,18 +19,19 @@
 #include "base/compiler_specific.h"
 #include "base/dcheck_is_on.h"
 #include "base/immediate_crash.h"
-#include "base/sys_byteorder.h"
 #include "build/build_config.h"
 
 namespace partition_alloc::internal {
 
-// TODO(thakis): Move this back to `NOINLINE static` once
-// https://llvm.org/PR54599 is fixed and the fix is rolled in.
-[[noreturn]] NOINLINE inline void FreelistCorruptionDetected(size_t extra) {
+namespace {
+
+[[noreturn]] NOINLINE void FreelistCorruptionDetected(size_t extra) {
   // Make it visible in minidumps.
   PA_DEBUG_DATA_ON_STACK("extra", extra);
   IMMEDIATE_CRASH();
 }
+
+}  // namespace
 
 class PartitionFreelistEntry;
 

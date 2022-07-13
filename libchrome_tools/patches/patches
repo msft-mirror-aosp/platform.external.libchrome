@@ -71,12 +71,11 @@ Revert-Make-base-VerifyPathControlledByUser-Mac-only.patch
 # are fixed.
 libchrome-Query-spaced-for-free-total-disk-space.patch
 
+# update_engine compiles with -Wnon-virtual-dtor flag.
+# TODO(b/244130449): upstream the patch and move it to cherry-picks.
+add-virtual-dtor-for-base-SharedMemoryMapper.patch
+
 # ==================== CHERRY PICKS ===========================
-# Cherry-pick [Extensible] support for union.
-# Cherry-pick of r991539
-Make-mojo-attributes-from-enums-be-EnumValue.patch
-# Cherry-pick of r993092
-Mojo-Extensible-union-support.patch
 
 # ==================== BACKWARD / FORWARD COMPATIBILITY PATCHES FOR UPREVS ===
 # Backward compatibility for r890000 uprev
@@ -88,6 +87,17 @@ backward-compatibility-add-deprecated-base-Bind-APIs.patch
 # Backward compatibility patch to temporarily add base::AdaptCallbackForRepeating
 # TODO(b/204383858): Remove the patch when usage in mri_package is removed
 backward-compatibility-add-base-AdaptCallbackForRepaeting.patch media_perception
+
+# Backward compatibility for r1000000 uprev
+# bit_cast was moved to base:: namespce in r998789 (crrev.com/c/3615258)
+# TODO(b/240121598): remove when all usage is migrated to base::bit_cast.
+backward-compatibility-Alias-bit_cast-to-base-bit_cast.patch
+
+# Backward compatibility for r1000000 uprev
+# r991946 (crrev.com/c/3574675) moves the SharedMemoryHandle out of
+# PlatformSharedMemoryRegion and into its own PlatformSharedMemoryHandle type.
+# TODO(b/241722539): remove when all usage is migrated PlatformSharedMemoryHandle
+backward-compatibility-add-SharedMemoryHandle-back-into-PlatformSharedMemoryRegion.patch
 
 # base::JSONReader::ValueWithError will be migrated to return
 # base::expected<base::Value, Error> instead of ValueWithError in libchrome r1017954

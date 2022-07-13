@@ -13,12 +13,18 @@ struct Track {
   constexpr Track() : uuid(0), parent_uuid(0) {}
   constexpr Track(uint64_t id, Track parent = Track())
       : uuid(id ^ parent.uuid), parent_uuid(parent.uuid) {}
+  static Track FromPointer(const void* ptr, Track parent = Track()) {
+    return Track();
+  }
   const uint64_t uuid;
   const uint64_t parent_uuid;
 };
 
 struct ThreadTrack : public Track {
   static ThreadTrack Current() { return ThreadTrack(); }
+  static ThreadTrack ForThread(base::PlatformThreadId tid_) {
+    return ThreadTrack();
+  }
 
 private:
   ThreadTrack() = default;

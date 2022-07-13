@@ -44,24 +44,6 @@ constexpr bool ThreadSafe = true;
 template <bool thread_safe>
 struct SlotSpanMetadata;
 
-}  // namespace internal
-
-class PartitionStatsDumper;
-
-}  // namespace partition_alloc
-
-namespace base {
-
-// TODO(https://crbug.com/1288247): Remove these 'using' declarations once
-// the migration to the new namespaces gets done.
-using ::partition_alloc::PartitionStatsDumper;
-using ::partition_alloc::internal::kAlignment;
-
-namespace internal {
-
-using ::partition_alloc::internal::SlotSpanMetadata;
-using ::partition_alloc::internal::ThreadSafe;
-
 #if (DCHECK_IS_ON() || BUILDFLAG(ENABLE_BACKUP_REF_PTR_SLOW_CHECKS)) && \
     BUILDFLAG(USE_BACKUP_REF_PTR)
 BASE_EXPORT void CheckThatSlotOffsetIsZero(uintptr_t address);
@@ -69,29 +51,25 @@ BASE_EXPORT void CheckThatSlotOffsetIsZero(uintptr_t address);
 
 }  // namespace internal
 
-template <bool thread_safe = true>
+class PartitionStatsDumper;
+
+template <bool thread_safe = internal::ThreadSafe>
 struct PartitionRoot;
 
 using ThreadSafePartitionRoot = PartitionRoot<internal::ThreadSafe>;
 
-}  // namespace base
+}  // namespace partition_alloc
 
-namespace partition_alloc {
+namespace base {
 
 // TODO(https://crbug.com/1288247): Remove these 'using' declarations once
 // the migration to the new namespaces gets done.
-using ::base::PartitionRoot;
+using ::partition_alloc::PartitionRoot;
+using ::partition_alloc::PartitionStatsDumper;
+using ::partition_alloc::ThreadSafePartitionRoot;
+using ::partition_alloc::internal::kAlignment;
 
-namespace internal {
-
-#if (DCHECK_IS_ON() || BUILDFLAG(ENABLE_BACKUP_REF_PTR_SLOW_CHECKS)) && \
-    BUILDFLAG(USE_BACKUP_REF_PTR)
-using ::base::internal::CheckThatSlotOffsetIsZero;
-#endif
-
-}  // namespace internal
-
-}  // namespace partition_alloc
+}  // namespace base
 
 // From https://clang.llvm.org/docs/AttributeReference.html#malloc:
 //

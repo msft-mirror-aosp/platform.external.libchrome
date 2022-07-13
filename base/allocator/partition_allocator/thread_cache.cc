@@ -31,7 +31,7 @@ namespace tools {
 uintptr_t kThreadCacheNeedleArray[kThreadCacheNeedleArraySize] = {
     kNeedle1, reinterpret_cast<uintptr_t>(&g_instance),
 #if BUILDFLAG(RECORD_ALLOC_INFO)
-    reinterpret_cast<uintptr_t>(&g_allocs),
+    reinterpret_cast<uintptr_t>(&internal::g_allocs),
 #else
     0,
 #endif
@@ -189,7 +189,13 @@ void ThreadCacheRegistry::ForcePurgeAllThreadAfterForkUnsafe() {
     // passes. See crbug.com/1216964.
     tcache->cached_memory_ = tcache->CachedMemory();
 
-    tcache->TryPurge();
+    // At this point, we should call |TryPurge|. However, due to the thread
+    // cache being possibly inconsistent at this point, this may crash. Rather
+    // than crash, we'd prefer to simply not purge, even though this may leak
+    // memory in some cases.
+    //
+    // see crbug.com/1289092 for details of the crashes.
+
     tcache = tcache->next_;
   }
 }
@@ -288,7 +294,7 @@ void ThreadCacheRegistry::RunPeriodicPurge() {
   // of cached memory cannot change between calls (since we do not purge
   // background threads, but only ask them to purge their own cache at the next
   // allocation).
-  periodic_purge_next_interval_ = std::clamp(
+  periodic_purge_next_interval_ = base::clamp(
       periodic_purge_next_interval_, kMinPurgeInterval, kMaxPurgeInterval);
 
   PurgeAll();

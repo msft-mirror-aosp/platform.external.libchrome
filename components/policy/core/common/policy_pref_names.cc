@@ -21,6 +21,9 @@ const char kEnterpriseMDMManagementWindows[] =
 // Integer pref that stores the Mac enterprise MDM management authority.
 const char kEnterpriseMDMManagementMac[] =
     "management.platform.enterprise_mdm_mac";
+// Boolean pref that indicates whether integration with macOS Screen Time should
+// be enabled.
+const char kScreenTimeEnabled[] = "policy.screen_time";
 #endif
 
 // 64-bit serialization of the time last policy usage statistics were collected
@@ -90,6 +93,10 @@ const char kBackForwardCacheEnabled[] = "policy.back_forward_cache_enabled";
 // updated GREASE algorithm feature.
 const char kUserAgentClientHintsGREASEUpdateEnabled[] =
     "policy.user_agent_client_hints_grease_update_enabled";
+
+// Boolean policy preference to disable the URL parameter
+// filter.
+const char kUrlParamFilterEnabled[] = "policy.url_param_filter_enabled";
 
 // Boolean policy to allow isolated apps developer mode.
 const char kIsolatedAppsDeveloperModeAllowed[] =

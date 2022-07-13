@@ -148,15 +148,15 @@ WritableSharedMemoryMapping MapForTesting(
 
 WritableSharedMemoryMapping MapAtForTesting(
     subtle::PlatformSharedMemoryRegion* region,
-    off_t offset,
+    uint64_t offset,
     size_t size) {
-  void* memory = nullptr;
-  size_t mapped_size = 0;
-  if (!region->MapAt(offset, size, &memory, &mapped_size))
+  SharedMemoryMapper* mapper = SharedMemoryMapper::GetDefaultInstance();
+  auto result = region->MapAt(offset, size, mapper);
+  if (!result.has_value())
     return {};
 
-  return WritableSharedMemoryMapping(memory, size, mapped_size,
-                                     region->GetGUID());
+  return WritableSharedMemoryMapping(result.value(), size, region->GetGUID(),
+                                     mapper);
 }
 
 template <>
