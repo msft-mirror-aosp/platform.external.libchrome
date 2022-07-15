@@ -96,11 +96,3 @@ backward-compatibility-add-base-AdaptCallbackForRepaeting.patch media_perception
 # TODO(b/231676453): remove the patch when getpid has been added to all
 # necessary policy files.
 Revert-Linux-Don-t-access-TLS-in-a-pthread_atfork-ha.patch
-
-# Backward compatibility for r960000 uprev
-# base::Value::TakeList were removed in r967544 (crrev.com/c/3440910) but the
-# new base::Value::List type will not be added until r971315
-# (crrev.com/c/3443197).
-# TODO(b/238169790): Migrate to the new type directly after uprev then remove
-# this patch.
-backward-compatibility-Add-base-Value-TakeList.patch
