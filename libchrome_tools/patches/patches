@@ -49,7 +49,7 @@ disable-trace_event-in-base.patch
 disable-trace_event-in-mojo.patch
 disable-trace_event-in-ipc.patch
 # To avoid redefinition error when client packages uses real perfetto
-add-libchrome-namespace-to-trace_event-stub-perfetto.patch
+add-libchrome-namespace-to-trace_event-stub-perfetto.sh
 
 # Revert of r921558
 # When malloc of more than (or close to) max size is called, it should return
