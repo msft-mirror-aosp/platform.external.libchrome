@@ -1,0 +1,14 @@
+# ========= LONG TERM PATCHES =========================
+
+# ==================== CHERRY PICKS ===========================
+# cherry-pick of r201 for  reason bar.
+cherry-pick-r201-bar.patch
+# cherry-pick of r101 for  reason foo.
+cherry-pick-r101-foo.patch
+
+# cherry-pick of r876 for  reason baz.
+cherry-pick-r876-baz.patch
+
+# ==================== BACKWARD COMPATIBILITY PATCHES FOR UPREVS =========
+
+# ==================== FORWARD COMPATIBILITY PATCHES FOR UPREVS ==========

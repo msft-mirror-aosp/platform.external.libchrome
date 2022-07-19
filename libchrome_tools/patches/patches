@@ -9,6 +9,10 @@
 # * To apply foo.patch to board installing package baz only, add
 #   `foo.patch board_use_baz`
 # Note: add flag to IUSE in libchrome ebuild if it is not already there.
+#
+# For cherry-picks, start the patch name with 'cherry-pick-r<revision number>'.
+# Once uprev-ed to a version after that of the patch, all leading comments (and
+# empty line, if any) will be removed together with  the patch.
 
 # ========= LONG TERM PATCHES =========================
 Add-libchrome-specific-build-configs.patch
