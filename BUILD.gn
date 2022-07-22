@@ -9,6 +9,8 @@ import("//common-mk/mojom_bindings_generator.gni")
 import("//common-mk/mojom_type_mappings_generator.gni")
 import("//common-mk/pkg_config.gni")
 
+libchrome_basever = read_file("BASE_VER", "trim string")
+
 group("all") {
   deps = [
     ":install_basever",
@@ -628,7 +630,7 @@ libchrome_exported_cflags = [
   "-I/usr/include/libchrome",
   "-I/usr/include/perfetto",
   "-Wno-unused-local-typedefs",
-  "-DBASE_VER=${libbase_ver}",
+  "-DBASE_VER=${libchrome_basever}",
 ]
 
 if (use.asan) {
@@ -641,7 +643,7 @@ if (use.asan) {
 generate_pkg_config("libchrome") {
   deps = [ ":base" ]
   description = "chrome base library"
-  version = "${libbase_ver}"
+  version = "${libchrome_basever}"
   requires_private = []
   foreach(attr, libbase_sublibs) {
     if ((!defined(attr.testonly) || !attr.testonly) && defined(attr.pkg_deps)) {
@@ -698,7 +700,7 @@ action("base-test") {
 generate_pkg_config("libchrome-test") {
   deps = [ ":base-test" ]
   description = "chrome base test library"
-  version = "${libbase_ver}"
+  version = "${libchrome_basever}"
   requires_private = []
   foreach(attr, libbase_sublibs) {
     if (defined(attr.testonly) && attr.testonly && defined(attr.pkg_deps)) {
@@ -935,7 +937,7 @@ if (use.mojo) {
   generate_pkg_config("libmojo") {
     deps = [ ":mojo" ]
     description = "Chrome Mojo IPC library"
-    version = "${libbase_ver}"
+    version = "${libchrome_basever}"
     libs = [ "-lmojo" ]
     cflags = [
       "-I/usr/include/libchrome",
