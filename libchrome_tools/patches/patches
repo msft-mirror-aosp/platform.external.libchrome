@@ -73,13 +73,6 @@ libchrome-Query-spaced-for-free-total-disk-space.patch
 Add-TerminateBecauseOutOfMemory-back-to-base.patch
 
 # ==================== CHERRY PICKS ===========================
-# [Cherry-pick: 1017954]
-# base::JSONReader::ValueWithError will be migrated to return
-# base::expected<base::Value, Error> instead of ValueWithError in libchrome r1017954
-# (crrev.com/c/3696611).
-# Since client code is ready for migration, cherry-pick the change to avoid
-# regression.
-cherry-pick-r1017954-Modernising-base-JsonReader-to-return-base-expected.patch
 
 # ==================== BACKWARD COMPATIBILITY PATCHES FOR UPREVS =========
 # Backward compatibility for r890000 uprev
@@ -92,11 +85,25 @@ backward-compatibility-add-deprecated-base-Bind-APIs.patch
 # TODO(b/204383858): Remove the patch when usage in mri_package is removed
 backward-compatibility-add-base-AdaptCallbackForRepaeting.patch media_perception
 
-
-# Backward compatibility patch to revert r1008071 (crrev.com/c/3569842) which
-# introduced new uses of statfs.
-# TODO(b/245844506): Remove the patch when all affected packages have statfs in
+# TODO(b/245844506): Remove the patches when all affected packages have statfs in
 # seccomp filter
+# Following are revert of CLs that built on top of the reverted r1008071 change.
+# Remove together with the r1008071 revert when b/245844506 is resolved.
+backward-compatibility-Revert-posix-Terminate-processes-with-SIGKILL-when-b.patch
+backward-compatibility-Revert-Avoid-calling-OneGroupPerRendererEnabled.patch
+# Backward compatibility patch to revert r1008071 (crrev.com/c/3569842) which
+# introduced new uses of statfs (...One-cgroup-per-render-on-Chrome-OS.patch).
 backward-compatibility-Revert-One-cgroup-per-renderer-on-Chrome-OS.patch
+
+# Backward compatibility patch to add back base::{IsValidCodepoint,
+# IsValidCharacter,ReadUnicodeCharacter} that take uint32_t after they were
+# changed to take base_icu::UChar32 in 1009178 (crrev.com/c/3668788).
+# TODO(b/240121620): remove when all usages are migrated to take the new type.
+backward-compatibility-add-UTF-handling-functions-that-take_uint32_t.patch
+
+# Backward compatibility patch to add back ctor of base-DelegateSimpleThread
+# that takes int as input.
+# TODO(b/240121761): remove when all usages are migrated to take size_t.
+backward-compatibility-add-base-DelegateSimpleThread.patch
 
 # ==================== FORWARD COMPATIBILITY PATCHES FOR UPREVS ==========

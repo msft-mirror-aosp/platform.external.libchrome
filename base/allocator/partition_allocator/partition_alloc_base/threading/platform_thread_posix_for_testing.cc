@@ -12,10 +12,11 @@
 #include <sys/time.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <memory>
 
-#include "base/allocator/buildflags.h"
 #include "base/allocator/partition_allocator/partition_alloc_base/logging.h"
 #include "base/allocator/partition_allocator/partition_alloc_base/threading/platform_thread_internal_posix.h"
+#include "base/allocator/partition_allocator/partition_alloc_buildflags.h"
 #include "base/allocator/partition_allocator/partition_alloc_check.h"
 #include "build/build_config.h"
 

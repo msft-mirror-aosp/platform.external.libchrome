@@ -9,20 +9,19 @@
 #include <array>
 #include <limits>
 
-#include "base/allocator/buildflags.h"
 #include "base/allocator/partition_allocator/address_pool_manager_types.h"
 #include "base/allocator/partition_allocator/page_allocator_constants.h"
 #include "base/allocator/partition_allocator/partition_alloc_base/bits.h"
 #include "base/allocator/partition_allocator/partition_alloc_base/compiler_specific.h"
+#include "base/allocator/partition_allocator/partition_alloc_base/component_export.h"
+#include "base/allocator/partition_allocator/partition_alloc_buildflags.h"
 #include "base/allocator/partition_allocator/partition_alloc_check.h"
 #include "base/allocator/partition_allocator/partition_alloc_config.h"
 #include "base/allocator/partition_allocator/partition_alloc_constants.h"
 #include "base/allocator/partition_allocator/partition_alloc_forward.h"
 #include "base/allocator/partition_allocator/partition_alloc_notreached.h"
 #include "base/allocator/partition_allocator/tagging.h"
-#include "base/base_export.h"
 #include "build/build_config.h"
-#include "build/buildflag.h"
 
 // The feature is not applicable to 32-bit address space.
 #if defined(PA_HAS_64_BITS_POINTERS)
@@ -32,7 +31,7 @@ namespace partition_alloc {
 namespace internal {
 
 // Reserves address space for PartitionAllocator.
-class BASE_EXPORT PartitionAddressSpace {
+class PA_COMPONENT_EXPORT(PARTITION_ALLOC) PartitionAddressSpace {
  public:
   // BRP stands for BackupRefPtr. GigaCage is split into pools, one which
   // supports BackupRefPtr and one that doesn't.

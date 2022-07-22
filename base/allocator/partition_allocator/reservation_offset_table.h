@@ -10,14 +10,15 @@
 #include <limits>
 #include <tuple>
 
-#include "base/allocator/buildflags.h"
 #include "base/allocator/partition_allocator/address_pool_manager.h"
 #include "base/allocator/partition_allocator/partition_address_space.h"
 #include "base/allocator/partition_allocator/partition_alloc_base/compiler_specific.h"
+#include "base/allocator/partition_allocator/partition_alloc_base/component_export.h"
+#include "base/allocator/partition_allocator/partition_alloc_base/debug/debugging_buildflags.h"
+#include "base/allocator/partition_allocator/partition_alloc_buildflags.h"
 #include "base/allocator/partition_allocator/partition_alloc_check.h"
 #include "base/allocator/partition_allocator/partition_alloc_constants.h"
 #include "base/allocator/partition_allocator/tagging.h"
-#include "base/base_export.h"
 #include "build/build_config.h"
 
 namespace partition_alloc::internal {
@@ -62,7 +63,7 @@ static constexpr uint16_t kOffsetTagNormalBuckets =
 //    further determine which part of the supe page is used by PartitionAlloc.
 //    This isn't a problem in 64-bit mode, where allocation granularity is
 //    kSuperPageSize.
-class BASE_EXPORT ReservationOffsetTable {
+class PA_COMPONENT_EXPORT(PARTITION_ALLOC) ReservationOffsetTable {
  public:
 #if defined(PA_HAS_64_BITS_POINTERS)
   // There is one reservation offset table per Pool in 64-bit mode.
@@ -252,22 +253,5 @@ PA_ALWAYS_INLINE bool IsManagedByNormalBucketsOrDirectMap(uintptr_t address) {
 }
 
 }  // namespace partition_alloc::internal
-
-namespace base::internal {
-
-// TODO(https://crbug.com/1288247): Remove these 'using' declarations once
-// the migration to the new namespaces gets done.
-using ::partition_alloc::internal::GetDirectMapReservationStart;
-using ::partition_alloc::internal::GetReservationOffsetTable;
-using ::partition_alloc::internal::GetReservationOffsetTableEnd;
-using ::partition_alloc::internal::IsManagedByDirectMap;
-using ::partition_alloc::internal::IsManagedByNormalBuckets;
-using ::partition_alloc::internal::IsManagedByNormalBucketsOrDirectMap;
-using ::partition_alloc::internal::IsReservationStart;
-using ::partition_alloc::internal::kOffsetTagNormalBuckets;
-using ::partition_alloc::internal::kOffsetTagNotAllocated;
-using ::partition_alloc::internal::ReservationOffsetPointer;
-
-}  // namespace base::internal
 
 #endif  // BASE_ALLOCATOR_PARTITION_ALLOCATOR_RESERVATION_OFFSET_TABLE_H_

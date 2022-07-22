@@ -1,7 +1,7 @@
-From c3cdc5ddd90ce3a72a8fa5b2b4c68f0f59280670 Mon Sep 17 00:00:00 2001
+From 7330132329bcf31f7ba6cafc88e68a4e7c944cef Mon Sep 17 00:00:00 2001
 From: Grace Cham <hscham@chromium.org>
-Date: Fri, 9 Sep 2022 10:05:03 +0900
-Subject: [PATCH] Revert "One cgroup per renderer on Chrome OS"
+Date: Wed, 14 Sep 2022 10:58:28 +0900
+Subject: [PATCH 3/3] Revert "One cgroup per renderer on Chrome OS"
 
 This reverts commit bbf8d272c416f2a6b90d46ce4837ebc6df140868.
 ---
@@ -12,7 +12,7 @@ This reverts commit bbf8d272c416f2a6b90d46ce4837ebc6df140868.
  4 files changed, 29 insertions(+), 550 deletions(-)
 
 diff --git a/base/process/process.h b/base/process/process.h
-index 619374c011..19d2c2efb5 100644
+index 619374c01101..19d2c2efb54b 100644
 --- a/base/process/process.h
 +++ b/base/process/process.h
 @@ -20,13 +20,10 @@
@@ -126,7 +126,7 @@ index 619374c011..19d2c2efb5 100644
  
  #if BUILDFLAG(IS_CHROMEOS)
 diff --git a/base/process/process_linux.cc b/base/process/process_linux.cc
-index 3d916bd3e5..a5cf7bae3d 100644
+index 3d916bd3e57d..a5cf7bae3d1d 100644
 --- a/base/process/process_linux.cc
 +++ b/base/process/process_linux.cc
 @@ -7,49 +7,21 @@
@@ -444,7 +444,7 @@ index 3d916bd3e5..a5cf7bae3d 100644
 -
  }  // namespace base
 diff --git a/base/process/process_posix.cc b/base/process/process_posix.cc
-index f9f633a9fa..bc49d4d45f 100644
+index f9f633a9fa1d..bc49d4d45f4e 100644
 --- a/base/process/process_posix.cc
 +++ b/base/process/process_posix.cc
 @@ -231,27 +231,21 @@ bool WaitForExitWithTimeoutImpl(base::ProcessHandle handle,
@@ -519,7 +519,7 @@ index f9f633a9fa..bc49d4d45f 100644
  int Process::GetPriority() const {
    DCHECK(IsValid());
 diff --git a/base/process/process_unittest.cc b/base/process/process_unittest.cc
-index 261cbee805..3e64014163 100644
+index 261cbee80583..3e64014163c4 100644
 --- a/base/process/process_unittest.cc
 +++ b/base/process/process_unittest.cc
 @@ -17,22 +17,6 @@

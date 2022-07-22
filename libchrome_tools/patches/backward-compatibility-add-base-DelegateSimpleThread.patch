@@ -1,0 +1,48 @@
+From 3106b957960c9a58663c24312f40041c1e04e1ae Mon Sep 17 00:00:00 2001
+From: Grace Cham <hscham@chromium.org>
+Date: Fri, 22 Jul 2022 23:00:21 +0900
+Subject: [PATCH] backward compatibility: add base::DelegateSimpleThreadPool
+ int ctor
+
+It was changed to take size_t in r1016422 (crrev.com/c/3709036).
+
+Change-Id: Ifa35cab1bcf4bc1ed2087ae7ef8dc6d5a5905544
+---
+ base/threading/simple_thread.cc | 8 ++++++++
+ base/threading/simple_thread.h  | 1 +
+ 2 files changed, 9 insertions(+)
+
+diff --git a/base/threading/simple_thread.cc b/base/threading/simple_thread.cc
+index f3878203cc13..35f1481b2b19 100644
+--- a/base/threading/simple_thread.cc
++++ b/base/threading/simple_thread.cc
+@@ -107,6 +107,14 @@ DelegateSimpleThreadPool::DelegateSimpleThreadPool(
+       dry_(WaitableEvent::ResetPolicy::MANUAL,
+            WaitableEvent::InitialState::NOT_SIGNALED) {}
+ 
++DelegateSimpleThreadPool::DelegateSimpleThreadPool(
++    const std::string& name_prefix,
++    int num_threads)
++    : name_prefix_(name_prefix),
++      num_threads_(static_cast<size_t>(num_threads)),
++      dry_(WaitableEvent::ResetPolicy::MANUAL,
++           WaitableEvent::InitialState::NOT_SIGNALED) {}
++
+ DelegateSimpleThreadPool::~DelegateSimpleThreadPool() {
+   DCHECK(threads_.empty());
+   DCHECK(delegates_.empty());
+diff --git a/base/threading/simple_thread.h b/base/threading/simple_thread.h
+index 654cda59b23e..34dd2c7933dd 100644
+--- a/base/threading/simple_thread.h
++++ b/base/threading/simple_thread.h
+@@ -197,6 +197,7 @@ class BASE_EXPORT DelegateSimpleThreadPool
+   typedef DelegateSimpleThread::Delegate Delegate;
+ 
+   DelegateSimpleThreadPool(const std::string& name_prefix, size_t num_threads);
++  DelegateSimpleThreadPool(const std::string& name_prefix, int num_threads);
+ 
+   DelegateSimpleThreadPool(const DelegateSimpleThreadPool&) = delete;
+   DelegateSimpleThreadPool& operator=(const DelegateSimpleThreadPool&) = delete;
+-- 
+2.37.1.359.gd136c6c3e2-goog
+

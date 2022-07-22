@@ -15,6 +15,7 @@ public:
   void set_ipc_hash(uint32_t) {}
   void set_mojo_interface_tag(std::string) {}
   void set_watcher_notify_interface_tag(std::string) {}
+  void set_mojo_interface_method_iid(uint64_t) {}
 };
 
 } // namespace pbzero

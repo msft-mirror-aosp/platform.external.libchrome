@@ -8,13 +8,12 @@
 #include <algorithm>
 #include <atomic>
 
-#include "base/allocator/buildflags.h"
 #include "base/allocator/partition_allocator/partition_alloc_base/compiler_specific.h"
+#include "base/allocator/partition_allocator/partition_alloc_base/component_export.h"
 #include "base/allocator/partition_allocator/partition_alloc_base/thread_annotations.h"
 #include "base/allocator/partition_allocator/partition_alloc_check.h"
 #include "base/allocator/partition_allocator/partition_alloc_config.h"
 #include "base/allocator/partition_allocator/yield_processor.h"
-#include "base/base_export.h"
 #include "build/build_config.h"
 
 #if BUILDFLAG(IS_WIN)
@@ -52,20 +51,18 @@ namespace partition_alloc::internal {
 // We don't rely on base::Lock which we could make spin (by calling Try() in a
 // loop), as performance is below a custom spinlock as seen on high-level
 // benchmarks. Instead this implements a simple non-recursive mutex on top of
-// the futex() syscall on Linux, and SRWLock on Windows. The main difference
-// between this and a libc implementation is that it only supports the simplest
-// path: private (to a process), non-recursive mutexes with no priority
-// inheritance, no timed waits.
+// the futex() syscall on Linux, SRWLock on Windows, os_unfair_lock on macOS,
+// and pthread_mutex on POSIX. The main difference between this and a libc
+// implementation is that it only supports the simplest path: private (to a
+// process), non-recursive mutexes with no priority inheritance, no timed waits.
 //
 // As an interesting side-effect to be used in the allocator, this code does not
 // make any allocations, locks are small with a constexpr constructor and no
 // destructor.
 //
 // 2. Otherwise: This is a simple SpinLock, in the sense that it does not have
-// any awareness of other threads' behavior. One exception: x86 macOS uses
-// os_unfair_lock() if available, which is the case for macOS >= 10.12, that is
-// most clients.
-class PA_LOCKABLE BASE_EXPORT SpinningMutex {
+// any awareness of other threads' behavior.
+class PA_LOCKABLE PA_COMPONENT_EXPORT(PARTITION_ALLOC) SpinningMutex {
  public:
   inline constexpr SpinningMutex();
   PA_ALWAYS_INLINE void Acquire() PA_EXCLUSIVE_LOCK_FUNCTION();
@@ -99,6 +96,8 @@ class PA_LOCKABLE BASE_EXPORT SpinningMutex {
   std::atomic<int32_t> state_{kUnlocked};
 #elif BUILDFLAG(IS_WIN)
   PA_CHROME_SRWLOCK lock_ = SRWLOCK_INIT;
+#elif BUILDFLAG(IS_APPLE)
+  os_unfair_lock unfair_lock_ = OS_UNFAIR_LOCK_INIT;
 #elif BUILDFLAG(IS_POSIX)
   pthread_mutex_t lock_ = PTHREAD_MUTEX_INITIALIZER;
 #elif BUILDFLAG(IS_FUCHSIA)
@@ -108,17 +107,10 @@ class PA_LOCKABLE BASE_EXPORT SpinningMutex {
 #else  // defined(PA_HAS_FAST_MUTEX)
   std::atomic<bool> lock_{false};
 
-#if BUILDFLAG(IS_APPLE)
-
-  os_unfair_lock unfair_lock_ = OS_UNFAIR_LOCK_INIT;
-
-#endif  // BUILDFLAG(IS_APPLE)
-
   // Spinlock-like, fallback.
   PA_ALWAYS_INLINE bool TrySpinLock();
   PA_ALWAYS_INLINE void ReleaseSpinLock();
   void LockSlowSpinLock();
-
 #endif  // defined(PA_HAS_FAST_MUTEX)
 };
 
@@ -184,6 +176,16 @@ PA_ALWAYS_INLINE void SpinningMutex::Release() {
   ::ReleaseSRWLockExclusive(reinterpret_cast<PSRWLOCK>(&lock_));
 }
 
+#elif BUILDFLAG(IS_APPLE)
+
+PA_ALWAYS_INLINE bool SpinningMutex::Try() {
+  return os_unfair_lock_trylock(&unfair_lock_);
+}
+
+PA_ALWAYS_INLINE void SpinningMutex::Release() {
+  return os_unfair_lock_unlock(&unfair_lock_);
+}
+
 #elif BUILDFLAG(IS_POSIX)
 
 PA_ALWAYS_INLINE bool SpinningMutex::Try() {
@@ -211,46 +213,20 @@ PA_ALWAYS_INLINE void SpinningMutex::Release() {
 
 #else  // defined(PA_HAS_FAST_MUTEX)
 
-PA_ALWAYS_INLINE bool SpinningMutex::TrySpinLock() {
+PA_ALWAYS_INLINE bool SpinningMutex::Try() {
   // Possibly faster than CAS. The theory is that if the cacheline is shared,
   // then it can stay shared, for the contended case.
   return !lock_.load(std::memory_order_relaxed) &&
          !lock_.exchange(true, std::memory_order_acquire);
 }
 
-PA_ALWAYS_INLINE void SpinningMutex::ReleaseSpinLock() {
+PA_ALWAYS_INLINE void SpinningMutex::Release() {
   lock_.store(false, std::memory_order_release);
-}
-
-#if BUILDFLAG(IS_APPLE)
-
-PA_ALWAYS_INLINE bool SpinningMutex::Try() {
-  return os_unfair_lock_trylock(&unfair_lock_);
-}
-
-PA_ALWAYS_INLINE void SpinningMutex::Release() {
-  return os_unfair_lock_unlock(&unfair_lock_);
-}
-
-PA_ALWAYS_INLINE void SpinningMutex::LockSlow() {
-  return os_unfair_lock_lock(&unfair_lock_);
-}
-
-#else
-
-PA_ALWAYS_INLINE bool SpinningMutex::Try() {
-  return TrySpinLock();
-}
-
-PA_ALWAYS_INLINE void SpinningMutex::Release() {
-  return ReleaseSpinLock();
 }
 
 PA_ALWAYS_INLINE void SpinningMutex::LockSlow() {
   return LockSlowSpinLock();
 }
-
-#endif  // BUILDFLAG(IS_APPLE)
 
 #endif  // defined(PA_HAS_FAST_MUTEX)
 

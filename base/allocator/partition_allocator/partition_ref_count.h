@@ -8,15 +8,16 @@
 #include <atomic>
 #include <cstdint>
 
-#include "base/allocator/buildflags.h"
 #include "base/allocator/partition_allocator/partition_alloc_base/compiler_specific.h"
+#include "base/allocator/partition_allocator/partition_alloc_base/component_export.h"
+#include "base/allocator/partition_allocator/partition_alloc_base/debug/debugging_buildflags.h"
 #include "base/allocator/partition_allocator/partition_alloc_base/immediate_crash.h"
+#include "base/allocator/partition_allocator/partition_alloc_buildflags.h"
 #include "base/allocator/partition_allocator/partition_alloc_check.h"
 #include "base/allocator/partition_allocator/partition_alloc_config.h"
 #include "base/allocator/partition_allocator/partition_alloc_constants.h"
 #include "base/allocator/partition_allocator/partition_alloc_forward.h"
 #include "base/allocator/partition_allocator/tagging.h"
-#include "base/base_export.h"
 #include "build/build_config.h"
 
 #if BUILDFLAG(ENABLE_DANGLING_RAW_PTR_CHECKS)
@@ -48,7 +49,7 @@ DoubleFreeOrCorruptionDetected() {
 //
 // This protects against double-free's, as we check whether the reference count
 // is odd in |ReleaseFromAllocator()|, and if not we have a double-free.
-class BASE_EXPORT PartitionRefCount {
+class PA_COMPONENT_EXPORT(PARTITION_ALLOC) PartitionRefCount {
  public:
   // This class holds an atomic bit field: `count_`. It holds up to 4 values:
   //
@@ -339,7 +340,12 @@ PA_ALWAYS_INLINE PartitionRefCount* PartitionRefCountPointer(
 #if BUILDFLAG(PA_DCHECK_IS_ON) || BUILDFLAG(ENABLE_BACKUP_REF_PTR_SLOW_CHECKS)
     PA_CHECK(refcount_address % alignof(PartitionRefCount) == 0);
 #endif
-    return reinterpret_cast<PartitionRefCount*>(refcount_address);
+    // Have to remask because the previous pointer's tag is unpredictable. There
+    // could be a race condition though if the previous slot is freed/retagged
+    // concurrently, so ideally the ref count should occupy its own MTE granule.
+    // TODO(richard.townsend@arm.com): improve this.
+    return ::partition_alloc::internal::RemaskPtr(
+        reinterpret_cast<PartitionRefCount*>(refcount_address));
   } else {
     PartitionRefCount* bitmap_base = reinterpret_cast<PartitionRefCount*>(
         (slot_start & kSuperPageBaseMask) + SystemPageSize() * 2);
@@ -387,20 +393,5 @@ constexpr size_t kPartitionRefCountOffsetAdjustment = 0;
 constexpr size_t kPartitionRefCountSizeAdjustment = kInSlotRefCountBufferSize;
 
 }  // namespace partition_alloc::internal
-
-namespace base::internal {
-
-// TODO(https://crbug.com/1288247): Remove these 'using' declarations once
-// the migration to the new namespaces gets done.
-#if BUILDFLAG(USE_BACKUP_REF_PTR)
-using ::partition_alloc::internal::kPartitionPastAllocationAdjustment;
-using ::partition_alloc::internal::PartitionRefCount;
-using ::partition_alloc::internal::PartitionRefCountPointer;
-#endif  // BUILDFLAG(USE_BACKUP_REF_PTR)
-using ::partition_alloc::internal::kInSlotRefCountBufferSize;
-using ::partition_alloc::internal::kPartitionRefCountOffsetAdjustment;
-using ::partition_alloc::internal::kPartitionRefCountSizeAdjustment;
-
-}  // namespace base::internal
 
 #endif  // BASE_ALLOCATOR_PARTITION_ALLOCATOR_PARTITION_REF_COUNT_H_

@@ -8,12 +8,13 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "base/allocator/buildflags.h"
 #include "base/allocator/partition_allocator/partition_alloc-inl.h"
 #include "base/allocator/partition_allocator/partition_alloc_base/bits.h"
 #include "base/allocator/partition_allocator/partition_alloc_base/compiler_specific.h"
+#include "base/allocator/partition_allocator/partition_alloc_base/debug/debugging_buildflags.h"
 #include "base/allocator/partition_allocator/partition_alloc_base/immediate_crash.h"
 #include "base/allocator/partition_allocator/partition_alloc_base/sys_byteorder.h"
+#include "base/allocator/partition_allocator/partition_alloc_buildflags.h"
 #include "base/allocator/partition_allocator/partition_alloc_check.h"
 #include "base/allocator/partition_allocator/partition_alloc_config.h"
 #include "base/allocator/partition_allocator/partition_alloc_constants.h"
@@ -325,13 +326,5 @@ PA_ALWAYS_INLINE PartitionFreelistEntry* PartitionFreelistEntry::GetNext(
 }
 
 }  // namespace partition_alloc::internal
-
-namespace base::internal {
-
-// TODO(https://crbug.com/1288247): Remove these 'using' declarations once
-// the migration to the new namespaces gets done.
-using ::partition_alloc::internal::PartitionFreelistEntry;
-
-}  // namespace base::internal
 
 #endif  // BASE_ALLOCATOR_PARTITION_ALLOCATOR_PARTITION_FREELIST_ENTRY_H_
