@@ -21,17 +21,14 @@ BAD_KEYWORDS = {
     r'base::(Bind\(|Closure|Callback|CancelableCallback|CancelableClosure)':
     'Deprecated base::Bind APIs. Please use the Once or Repeating variants. See crbug/714018.',
     # unify *::optionals to std::optional
-    r'(include.*(base|absl/types)/optional.h|(base|absl)::((O|o)ptional|make_optional|nullopt))':
-    'Use std::optional. base::Optional will be removed and absl::optional is an alias of std::optional. See go/use-std-optional-in-cros for discussion.',
-    # removal of WARN_UNUSED_RESULT in r961763
-    r'WARN_UNUSED_RESULT':
-    'The macro will be removed after r961763, use C++17 attribute [[nodiscard]] instead, see crbug.com/1287045.',
-    # removal of return by out-param base::FilePath::GetComponents in r970764
-    r'GetComponents\(.+\)':
-    'The return by out-param version of base::FilePath::GetComponents Will be deprecated after r970764, get output directly as return value instead.',
-    # removal of base::{size,empty,data} in r979799 (crrev.com/c/3511268)
-    r'base::(size|empty|data)':
-    'The functions will be removed from base/cxx17_backports.h, use the std counterparts instead.',
+     r'(include.*absl/types/optional.h|absl::(optional|make_optional|nullopt))':
+     'Use std::optional. absl::optional is an alias of std::optional. See go/use-std-optional-in-cros for discussion.',
+    # r1009170 (crrev.com/c/3668914) removed base::CountLeadingZeroBits{32,64}
+    r'base::CountLeadingZeroBits(32|64)':
+    'Deprecated in r1009170, use base::CountLeadingZeroBits.',
+    # r1011665 (crrev.com/c/3693745) removed base::LowerCaseEqualsASCII
+    r'base::LowerCaseEqualsASCII':
+    'Deprecated in r1011665, use base::EqualsCaseInsensitiveASCII.',
 }
 
 LINE_NUMBER_RE=re.compile(r'^@@ [0-9\,\+\-]+ \+([0-9]+)[ \,][0-9 ]*@@')
