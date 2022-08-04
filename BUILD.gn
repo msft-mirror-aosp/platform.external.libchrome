@@ -1008,6 +1008,7 @@ install_config("install_test_support_header") {
     "base/test/task_environment.h",
     "base/test/test_file_util.h",
     "base/test/test_future.h",
+    "base/test/test_future_internal.h",
     "base/test/test_mock_time_task_runner.h",
     "base/test/test_pending_task.h",
     "base/test/test_switches.h",
