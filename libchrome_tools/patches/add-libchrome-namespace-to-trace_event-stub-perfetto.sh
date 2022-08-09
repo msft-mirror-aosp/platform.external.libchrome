@@ -13,6 +13,14 @@ for f in $(grep -rl perfetto:: --exclude-dir=libchrome_tools/); do
   sed -i 's/perfetto::/perfetto_libchrome::/g' ${f}
 done
 
+for f in $(grep -rl protozero:: --exclude-dir=libchrome_tools/); do
+  sed -i 's/protozero::/protozero_libchrome::/g' ${f}
+done
+
 for f in $(grep -rl "namespace perfetto {" --exclude-dir=libchrome_tools/); do
-  sed -i 's/namespace perfetto {/namespace perfetto_libchrome{/g' ${f}
+  sed -i 's/namespace perfetto {/namespace perfetto_libchrome {/g' ${f}
+done
+
+for f in $(grep -rl "namespace protozero {" --exclude-dir=libchrome_tools/); do
+  sed -i 's/namespace protozero {/namespace protozero_libchrome {/g' ${f}
 done

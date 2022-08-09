@@ -1,0 +1,7 @@
+This directory provides a stub implementation of perfetto.
+
+Perfetto backs libchrome tracing. Disabling tracing creates divergence between
+libchrome and Chromium. But we would prefer not to have tracing really enabled
+at this momenet.
+So we introduced a stub implementation of perfetto, so we can enable tracing on
+libchrome but it doesn't do anything underlying.
