@@ -11,7 +11,7 @@ WANT = [
     re.compile(rb'base/((?!(third_party)/).*$)'),
     re.compile(rb'base/third_party/(dynamic_annotation|icu|nspr|valgrind)'),
     re.compile(
-        rb'build/(android/(gyp/util|pylib/([^/]*$|constants))|[^/]*\.(h|py)$)'),
+        rb'build/(android/(gyp/util|pylib/([^/]*$|constants))|[^/]*\.(h|py)$|buildflag_header.gni)'),
     re.compile(rb'mojo/'),
     re.compile(rb'dbus/'),
     re.compile(rb'ipc/.*(\.cc|\.h|\.mojom)$'),
