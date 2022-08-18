@@ -1038,7 +1038,10 @@ install_config("install_base_header") {
 }
 
 install_config("install_third_party_header") {
-  sources = [ "third_party/perfetto" ]
+  sources = [
+    "third_party/abseil-cpp",
+    "third_party/perfetto",
+  ]
   install_path = "/usr/include/libchrome/third_party"
   recursive = true
 }
