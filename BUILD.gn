@@ -14,25 +14,19 @@ libchrome_basever = read_file("BASE_VER", "trim string")
 
 group("all") {
   deps = [
-    ":install_base_header",
     ":install_basever",
     ":install_buildflag_header",
-    ":install_test_support_header",
-    ":install_third_party_header",
+    ":install_header",
     ":libchrome",
     ":libchrome-test",
   ]
   if (use.mojo) {
     deps += [
-      ":install_mojo_buildflag_header",
       ":libmojo",
     ]
   }
   if (use.test) {
     deps += [ ":optional_unittests" ]
-  }
-  if (use.crypto) {
-    deps += [ ":install_crypto_header" ]
   }
 }
 
@@ -1157,33 +1151,10 @@ install_config("install_basever") {
   install_path = "/usr/share/libchrome"
 }
 
-install_config("install_crypto_header") {
-  sources = [
-    "crypto/crypto_export.h",
-    "crypto/hmac.h",
-    "crypto/libcrypto-compat.h",
-    "crypto/nss_key_util.h",
-    "crypto/nss_util.h",
-    "crypto/nss_util_internal.h",
-    "crypto/openssl_util.h",
-    "crypto/p224.h",
-    "crypto/p224_spake.h",
-    "crypto/random.h",
-    "crypto/rsa_private_key.h",
-    "crypto/scoped_nss_types.h",
-    "crypto/scoped_openssl_types.h",
-    "crypto/scoped_test_nss_db.h",
-    "crypto/secure_hash.h",
-    "crypto/secure_util.h",
-    "crypto/sha2.h",
-    "crypto/signature_creator.h",
-    "crypto/signature_verifier.h",
-  ]
-  install_path = "/usr/include/libchrome/crypto"
-}
-
-install_config("install_test_support_header") {
-  sources = [
+install_config("install_header") {
+  sources = []
+  sources += [ "base/tracing/protos/chrome_track_event.pbzero.h" ]
+  sources += [
     "base/test/bind.h",
     "base/test/mock_callback.h",
     "base/test/scoped_chromeos_version_info.h",
@@ -1201,37 +1172,50 @@ install_config("install_test_support_header") {
     "base/test/test_switches.h",
     "base/test/test_timeouts.h",
   ]
-  install_path = "/usr/include/libchrome/base/test"
-}
-
-install_config("install_base_header") {
-  sources = [ "base/tracing/protos/chrome_track_event.pbzero.h" ]
-  install_path = "/usr/include/libchrome/base/tracing/protos"
-}
-
-install_config("install_third_party_header") {
-  sources = [
-    "third_party/abseil-cpp",
-    "third_party/perfetto",
+  sources += [
+    "third_party/abseil-cpp/**/*.h",
+    "third_party/perfetto/**/*.h",
   ]
-  install_path = "/usr/include/libchrome/third_party"
-  recursive = true
+  if (use.crypto) {
+    sources += [
+      "crypto/crypto_export.h",
+      "crypto/hmac.h",
+      "crypto/libcrypto-compat.h",
+      "crypto/nss_key_util.h",
+      "crypto/nss_util.h",
+      "crypto/nss_util_internal.h",
+      "crypto/openssl_util.h",
+      "crypto/p224.h",
+      "crypto/p224_spake.h",
+      "crypto/random.h",
+      "crypto/rsa_private_key.h",
+      "crypto/scoped_nss_types.h",
+      "crypto/scoped_openssl_types.h",
+      "crypto/scoped_test_nss_db.h",
+      "crypto/secure_hash.h",
+      "crypto/secure_util.h",
+      "crypto/sha2.h",
+      "crypto/signature_creator.h",
+      "crypto/signature_verifier.h",
+    ]
+  }
+  install_path = "/usr/include/libchrome"
+  glob = true
+  tree_relative_to = "."
 }
 
 install_config("install_buildflag_header") {
   sources = [
-    "${root_gen_dir}/libchrome/base",
-    "${root_gen_dir}/libchrome/build",
+    "${root_gen_dir}/libchrome/base/**/*buildflags.h",
+    "${root_gen_dir}/libchrome/build/**/*buildflags.h",
   ]
-  recursive = true
+  if (use.mojo) {
+    sources += [
+      "${root_gen_dir}/libchrome/ipc/**/*buildflags.h",
+      "${root_gen_dir}/libchrome/mojo/**/*buildflags.h",
+    ]
+  }
   install_path = "/usr/include/libchrome"
-}
-
-install_config("install_mojo_buildflag_header") {
-  sources = [
-    "${root_gen_dir}/libchrome/ipc",
-    "${root_gen_dir}/libchrome/mojo",
-  ]
-  recursive = true
-  install_path = "/usr/include/libchrome"
+  glob = true
+  tree_relative_to = "${root_gen_dir}/libchrome"
 }
