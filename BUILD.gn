@@ -1155,6 +1155,68 @@ install_config("install_header") {
   sources = []
   sources += [ "base/tracing/protos/chrome_track_event.pbzero.h" ]
   sources += [
+    "base/*.h",
+    "base/allocator/*.h",
+    "base/allocator/partition_allocator/*.h",
+    "base/allocator/partition_allocator/starscan/*.h",
+    "base/containers/*.h",
+    "base/debug/*.h",
+    "base/files/*.h",
+    "base/functional/*.h",
+    "base/hash/*.h",
+    "base/i18n/*.h",
+    "base/json/*.h",
+    "base/memory/*.h",
+    "base/message_loop/*.h",
+    "base/metrics/*.h",
+    "base/numerics/*.h",
+    "base/posix/*.h",
+    "base/power_monitor/*.h",
+    "base/process/*.h",
+    "base/profiler/*.h",
+    "base/ranges/*.h",
+    "base/strings/*.h",
+    "base/synchronization/*.h",
+    "base/system/*.h",
+    "base/task/*.h",
+    "base/task/common/*.h",
+    "base/task/sequence_manager/*.h",
+    "base/task/thread_pool/*.h",
+    "base/third_party/icu/*.h",
+    "base/third_party/nspr/*.h",
+    "base/third_party/valgrind/*.h",
+    "base/threading/*.h",
+    "base/time/*.h",
+    "base/timer/*.h",
+    "base/trace_event/*.h",
+    "base/trace_event/common/*.h",
+    "base/types/*.h",
+    "build/*.h",
+    "components/policy/*.h",
+    "components/policy/core/common/*.h",
+    "testing/gmock/include/gmock/*.h",
+    "testing/gtest/include/gtest/*.h",
+  ]
+  if (use.dbus) {
+    sources += [
+      "dbus/*.h",
+    ]
+  }
+  if (use.mojo) {
+    sources += [
+      "ipc/*.h",
+      "mojo/core/*.h",
+      "mojo/core/embedder/*.h",
+      "mojo/core/ports/*.h",
+      "mojo/public/c/system/*.h",
+      "mojo/public/cpp/base/*.h",
+      "mojo/public/cpp/bindings/*.h",
+      "mojo/public/cpp/bindings/lib/*.h",
+      "mojo/public/cpp/platform/*.h",
+      "mojo/public/cpp/system/*.h",
+    ]
+  }
+  sources += [
     "base/test/bind.h",
     "base/test/mock_callback.h",
     "base/test/repeating_test_future.h",
