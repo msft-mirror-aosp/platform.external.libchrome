@@ -8,7 +8,6 @@
 import("//common-mk/mojom_bindings_generator.gni")
 import("//common-mk/mojom_type_mappings_generator.gni")
 import("//common-mk/pkg_config.gni")
-import("//libchrome/build/buildflag_header.gni")
 
 libchrome_basever = read_file("BASE_VER", "trim string")
 
@@ -16,17 +15,13 @@ group("all") {
   deps = [
     ":install_base_header",
     ":install_basever",
-    ":install_buildflag_header",
     ":install_test_support_header",
     ":install_third_party_header",
     ":libchrome",
     ":libchrome-test",
   ]
   if (use.mojo) {
-    deps += [
-      ":install_mojo_buildflag_header",
-      ":libmojo",
-    ]
+    deps += [ ":libmojo" ]
   }
   if (use.test) {
     deps += [ ":optional_unittests" ]
@@ -53,10 +48,7 @@ config("libchrome_config") {
     ]
   }
 
-  include_dirs = [
-    ".",
-    "${root_gen_dir}/libchrome", # for generated buildflags headers
-  ]
+  include_dirs = [ "." ]
   cflags = [
     "-Wno-deprecated-register",
     "-Wno-narrowing",
@@ -116,146 +108,6 @@ config("mojo_export_config") {
   defines = [ "COMPONENT_BUILD" ]
 }
 
-source_set("buildflag_header_h") {
-  sources = [ "build/buildflag.h" ]
-}
-
-buildflag_header("allocator_buildflags") {
-  header = "base/allocator/buildflags.h"
-  flags = [
-    "USE_ALLOCATOR_SHIM=false",
-    "USE_PARTITION_ALLOC=false",
-    "USE_PARTITION_ALLOC_AS_MALLOC=false",
-    "USE_BACKUP_REF_PTR=false",
-    "USE_ASAN_BACKUP_REF_PTR=false",
-    "ENABLE_BACKUP_REF_PTR_SLOW_CHECKS=false",
-    "ENABLE_DANGLING_RAW_PTR_CHECKS=false",
-    "PUT_REF_COUNT_IN_PREVIOUS_SLOT=false",
-    "USE_MTE_CHECKED_PTR=false",
-    # "USE_FAKE_BINARY_EXPERIMENT=",
-  ]
-}
-
-buildflag_header("branding_buildflags") {
-  header = "build/branding_buildflags.h"
-
-  flags = [
-    "CHROMIUM_BRANDING=true",
-    "GOOGLE_CHROME_BRANDING=false",
-  ]
-}
-
-buildflag_header("cfi_buildflags") {
-  header = "base/cfi_buildflags.h"
-  flags = [
-    "CFI_ICALL_CHECK=false",
-    "CFI_ENFORCEMENT_TRAP=false",
-  ]
-}
-
-buildflag_header("chromecast_buildflags") {
-  header = "build/chromecast_buildflags.h"
-  flags = [ "IS_CHROME_CAST=false" ]
-}
-
-buildflag_header("chromeos_buildflags") {
-  header = "build/chromeos_buildflags.h"
-  flags = [
-    "IS_CHROMEOS_DEVICE=false",
-    "IS_CHROMEOS_LACROS=false",
-    "IS_CHROMEOS_ASH=true",
-    # "IS_CHROMEOS_WITH_HW_DETAILS=",
-    # "IS_REVEN=",
-  ]
-}
-
-buildflag_header("clang_profiling_buildflags") {
-  header = "base/clang_profiling_buildflags.h"
-  flags = [
-    "CLANG_PROFILING=false",
-    # "CLANG_PROFILING_INSIDE_SANDBOX=",
-    # "USE_CLANG_COVERAGE=",
-  ]
-}
-
-buildflag_header("compiler_buildflags") {
-  header = "build/config/compiler/compiler_buildflags.h"
-  flags = [
-    "CLANG_PGO=0",
-    "SYMBOL_LEVEL=1",
-  ]
-}
-
-buildflag_header("debugging_buildflags") {
-  header = "base/debug/debugging_buildflags.h"
-  flags = [
-    # "DCHECK_IS_CONFIGURABLE=",
-    "ENABLE_LOCATION_SOURCE=true",
-    "FROM_HERE_USES_LOCATION_BUILTINS=true",
-    "ENABLE_PROFILING=false",
-    "CAN_UNWIND_WITH_FRAME_POINTERS=true",
-    # "UNSAFE_DEVELOPER_BUILD=",
-    "CAN_UNWIND_WITH_CFI_TABLE=false",
-    # "EXCLUDE_UNWIND_TABLES=",
-    "ENABLE_GDBINIT_WARNING=false",
-    # "ENABLE_LLDBINIT_WARNING=",
-    "EXPENSIVE_DCHECKS_ARE_ON=false",
-    # "ENABLE_STACK_TRACE_LINE_NUMBERS=",
-  ]
-}
-
-buildflag_header("feature_list_buildflags") {
-  header = "base/feature_list_buildflags.h"
-  flags = [ "ENABLE_BANNED_BASE_FEATURE_PREFIX=false" ]
-}
-
-buildflag_header("ios_cronet_buildflags") {
-  header = "base/message_loop/ios_cronet_buildflags.h"
-  flags = [ "CRONET_BUILD=false" ]
-}
-
-buildflag_header("ipc_buildflags") {
-  header = "ipc/ipc_buildflags.h"
-  flags = [ "IPC_MESSAGE_LOG_ENABLED=false" ]
-}
-
-buildflag_header("mojo_buildflags") {
-  header = "mojo/public/cpp/bindings/mojo_buildflags.h"
-  flags = [
-    "MOJO_TRACE_ENABLED=false",
-    "MOJO_RANDOM_DELAYS_ENABLED=false",
-  ]
-}
-
-buildflag_header("parsing_buildflags") {
-  header = "base/parsing_buildflags.h"
-  flags = [ "BUILD_RUST_JSON_PARSER=false" ]
-}
-
-buildflag_header("profiler_buildflags") {
-  header = "base/profiler/profiler_buildflags.h"
-  flags = [
-    "ENABLE_ARM_CFI_TABLE=false",
-    "IOS_STACK_PROFILER_ENABLED=true",
-    "USE_ANDROID_UNWINDER_V2=false",
-  ]
-}
-
-buildflag_header("synchronization_buildflags") {
-  header = "base/synchronization/synchronization_buildflags.h"
-  flags =
-      [ "ENABLE_MUTEX_PRIORITY_INHERITANCE=false" ]
-}
-
-buildflag_header("tracing_buildflags") {
-  header = "base/tracing_buildflags.h"
-  flags = [
-    "ENABLE_BASE_TRACING=true",
-    "USE_PERFETTO_CLIENT_LIBRARY=false",
-    # "OPTIONAL_TRACE_EVENTS_ENABLED=",
-  ]
-}
-
 libbase_sublibs = [
   {
     name = "base-core"
@@ -274,22 +126,6 @@ libbase_sublibs = [
     configs = [
       ":base_core_config",
       ":base_export_config",
-    ]
-    deps = [
-      ":allocator_buildflags",
-      ":branding_buildflags",
-      ":cfi_buildflags",
-      ":chromecast_buildflags",
-      ":chromeos_buildflags",
-      ":clang_profiling_buildflags",
-      ":compiler_buildflags",
-      ":debugging_buildflags",
-      ":feature_list_buildflags",
-      ":ios_cronet_buildflags",
-      ":parsing_buildflags",
-      ":profiler_buildflags",
-      ":synchronization_buildflags",
-      ":tracing_buildflags",
     ]
     sources = [
       "base/at_exit.cc",
@@ -652,11 +488,6 @@ libbase_sublibs = [
       "base/test/test_switches.cc",
       "base/test/test_timeouts.cc",
     ]
-    deps = [
-      ":chromeos_buildflags",
-      ":debugging_buildflags",
-      ":tracing_buildflags",
-    ]
   },
 ]
 
@@ -980,9 +811,6 @@ if (use.mojo) {
       ":base-core",
       ":base-crypto",
       ":mojom_bindings_gen",
-      ":mojom_bindings_gen",
-      ":mojo_buildflags",
-      ":ipc_buildflags",
 
       # ":mojom_bindings_native_gen",
       # ":mojom_type_mappings",
@@ -1216,22 +1044,4 @@ install_config("install_third_party_header") {
   ]
   install_path = "/usr/include/libchrome/third_party"
   recursive = true
-}
-
-install_config("install_buildflag_header") {
-  sources = [
-    "${root_gen_dir}/libchrome/base",
-    "${root_gen_dir}/libchrome/build",
-  ]
-  recursive = true
-  install_path = "/usr/include/libchrome"
-}
-
-install_config("install_mojo_buildflag_header") {
-  sources = [
-    "${root_gen_dir}/libchrome/ipc",
-    "${root_gen_dir}/libchrome/mojo",
-  ]
-  recursive = true
-  install_path = "/usr/include/libchrome"
 }

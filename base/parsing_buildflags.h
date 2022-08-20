@@ -1,0 +1,8 @@
+#ifndef BASE_PARSING_BUILDFLAGS_H_
+#define BASE_PARSING_BUILDFLAGS_H_
+
+#include "build/buildflag.h"
+
+#define BUILDFLAG_INTERNAL_BUILD_RUST_JSON_PARSER() (0)
+
+#endif  // BASE_PARSING_BUILDFLAGS_H_
