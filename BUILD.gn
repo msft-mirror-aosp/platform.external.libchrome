@@ -1157,6 +1157,7 @@ install_config("install_header") {
   sources += [
     "base/test/bind.h",
     "base/test/mock_callback.h",
+    "base/test/repeating_test_future.h",
     "base/test/scoped_chromeos_version_info.h",
     "base/test/scoped_feature_list.h",
     "base/test/scoped_run_loop_timeout.h",
