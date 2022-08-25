@@ -43,6 +43,9 @@ Do-not-use-boringssl-in-base-UnguessableToken.patch
 # Some bots might not support libc wrapped getrandom syscall
 Call-getrandom-via-Linux-Syscall-Support.patch
 
+# b/239650106 breaks cts.CameraTest#testPreviewFpsRange at volteer.voema with ZLS on.
+Revert-Change-MojoHandle-to-64-bits.patch
+
 # To avoid redefinition error when client packages uses real perfetto
 add-libchrome-namespace-to-trace_event-stub-perfetto.sh
 
