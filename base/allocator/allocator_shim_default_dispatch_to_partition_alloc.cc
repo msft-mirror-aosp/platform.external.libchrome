@@ -95,7 +95,17 @@ class LeakySingleton {
   T* GetSlowPath();
 
   std::atomic<T*> instance_;
+  // Before C++20, having an initializer here causes a "variable does not have a
+  // constant initializer" error.  In C++20, omitting it causes a similar error.
+  // Presumably this is due to the C++20 changes to make atomic initialization
+  // (of the other members of this class) sane, so guarding under that
+  // feature-test.
+#if !defined(__cpp_lib_atomic_value_initialization) || \
+    __cpp_lib_atomic_value_initialization < 201911L
   alignas(T) uint8_t instance_buffer_[sizeof(T)];
+#else
+  alignas(T) uint8_t instance_buffer_[sizeof(T)] = {0};
+#endif
   std::atomic<bool> initialization_lock_;
 };
 
@@ -241,13 +251,13 @@ void* AllocateAlignedMemory(size_t alignment, size_t size) {
   // Note that all "AlignedFree()" variants (_aligned_free() on Windows for
   // instance) directly call PartitionFree(), so there is no risk of
   // mismatch. (see below the default_dispatch definition).
-  if (alignment <= base::kAlignment) {
+  if (alignment <= partition_alloc::internal::kAlignment) {
     // This is mandated by |posix_memalign()| and friends, so should never fire.
     PA_CHECK(base::bits::IsPowerOfTwo(alignment));
     // TODO(bartekn): See if the compiler optimizes branches down the stack on
     // Mac, where PartitionPageSize() isn't constexpr.
-    return Allocator()->AllocWithFlagsNoHooks(0, size,
-                                              base::PartitionPageSize());
+    return Allocator()->AllocWithFlagsNoHooks(
+        0, size, partition_alloc::PartitionPageSize());
   }
 
   return AlignedAllocator()->AlignedAllocWithFlags(
@@ -286,7 +296,8 @@ void PartitionAllocSetCallNewHandlerOnMallocFailure(bool value) {
 void* PartitionMalloc(const AllocatorDispatch*, size_t size, void* context) {
   ScopedDisallowAllocations guard{};
   return Allocator()->AllocWithFlagsNoHooks(
-      0 | g_alloc_flags, MaybeAdjustSize(size), PartitionPageSize());
+      0 | g_alloc_flags, MaybeAdjustSize(size),
+      partition_alloc::PartitionPageSize());
 }
 
 void* PartitionMallocUnchecked(const AllocatorDispatch*,
@@ -295,7 +306,7 @@ void* PartitionMallocUnchecked(const AllocatorDispatch*,
   ScopedDisallowAllocations guard{};
   return Allocator()->AllocWithFlagsNoHooks(
       partition_alloc::AllocFlags::kReturnNull | g_alloc_flags,
-      MaybeAdjustSize(size), PartitionPageSize());
+      MaybeAdjustSize(size), partition_alloc::PartitionPageSize());
 }
 
 void* PartitionCalloc(const AllocatorDispatch*,
@@ -306,7 +317,7 @@ void* PartitionCalloc(const AllocatorDispatch*,
   const size_t total = base::CheckMul(n, MaybeAdjustSize(size)).ValueOrDie();
   return Allocator()->AllocWithFlagsNoHooks(
       partition_alloc::AllocFlags::kZeroFill | g_alloc_flags, total,
-      PartitionPageSize());
+      partition_alloc::PartitionPageSize());
 }
 
 void* PartitionMemalign(const AllocatorDispatch*,
@@ -575,7 +586,7 @@ void ConfigurePartitions(
     }
     PA_DCHECK(!enable_brp);
     PA_DCHECK(!use_dedicated_aligned_partition);
-    PA_DCHECK(!current_root->with_thread_cache);
+    PA_DCHECK(!current_root->flags.with_thread_cache);
     return;
   }
 
