@@ -16,7 +16,6 @@
 #include "base/allocator/partition_allocator/partition_alloc_constants.h"
 #include "base/allocator/partition_allocator/partition_root.h"
 #include "base/base_export.h"
-#include "base/callback.h"
 #include "base/compiler_specific.h"
 #include "base/dcheck_is_on.h"
 #include "build/build_config.h"
@@ -61,7 +60,7 @@ void OnDllProcessDetach() {
   // mitigated inside the thread cache (since getting to it requires querying
   // TLS), but the PartitionRoot associated wih the thread cache can be made to
   // not use the thread cache anymore.
-  g_thread_cache_root.load(std::memory_order_relaxed)->flags.with_thread_cache =
+  g_thread_cache_root.load(std::memory_order_relaxed)->with_thread_cache =
       false;
 }
 #endif
@@ -446,9 +445,9 @@ ThreadCache* ThreadCache::Create(PartitionRoot<internal::ThreadSafe>* root) {
   size_t usable_size;
   bool already_zeroed;
 
-  auto* bucket = root->buckets +
-                 PartitionRoot<internal::ThreadSafe>::SizeToBucketIndex(
-                     raw_size, root->flags.with_denser_bucket_distribution);
+  auto* bucket =
+      root->buckets + PartitionRoot<internal::ThreadSafe>::SizeToBucketIndex(
+                          raw_size, root->with_denser_bucket_distribution);
   uintptr_t buffer = root->RawAlloc(bucket, AllocFlags::kZeroFill, raw_size,
                                     internal::PartitionPageSize(), &usable_size,
                                     &already_zeroed);
@@ -475,7 +474,7 @@ ThreadCache* ThreadCache::Create(PartitionRoot<internal::ThreadSafe>* root) {
 ThreadCache::ThreadCache(PartitionRoot<>* root)
     : should_purge_(false),
       root_(root),
-      thread_id_(base::PlatformThread::CurrentId()),
+      thread_id_(internal::base::PlatformThread::CurrentId()),
       next_(nullptr),
       prev_(nullptr) {
   ThreadCacheRegistry::Instance().RegisterThreadCache(this);

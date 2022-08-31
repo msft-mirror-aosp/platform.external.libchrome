@@ -16,6 +16,7 @@
 #include "base/allocator/partition_allocator/allocation_guard.h"
 #include "base/allocator/partition_allocator/memory_reclaimer.h"
 #include "base/allocator/partition_allocator/partition_alloc.h"
+#include "base/allocator/partition_allocator/partition_alloc_base/threading/platform_thread.h"
 #include "base/allocator/partition_allocator/partition_alloc_check.h"
 #include "base/allocator/partition_allocator/partition_alloc_config.h"
 #include "base/allocator/partition_allocator/partition_alloc_constants.h"
@@ -26,6 +27,7 @@
 #include "base/feature_list.h"
 #include "base/memory/nonscannable_memory.h"
 #include "base/numerics/checked_math.h"
+#include "base/threading/platform_thread.h"
 #include "build/build_config.h"
 #include "build/chromecast_buildflags.h"
 
@@ -143,7 +145,7 @@ T* LeakySingleton<T, Constructor>::GetSlowPath() {
 
 class MainPartitionConstructor {
  public:
-  static base::ThreadSafePartitionRoot* New(void* buffer) {
+  static partition_alloc::ThreadSafePartitionRoot* New(void* buffer) {
     constexpr base::PartitionOptions::ThreadCache thread_cache =
 #if BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
         // Additional partitions may be created in ConfigurePartitions(). Since
@@ -157,7 +159,7 @@ class MainPartitionConstructor {
         // and only one is supported at a time.
         base::PartitionOptions::ThreadCache::kDisabled;
 #endif  // BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
-    auto* new_root = new (buffer) base::ThreadSafePartitionRoot({
+    auto* new_root = new (buffer) partition_alloc::ThreadSafePartitionRoot({
         base::PartitionOptions::AlignedAlloc::kAllowed,
         thread_cache,
         base::PartitionOptions::Quarantine::kAllowed,
@@ -170,30 +172,32 @@ class MainPartitionConstructor {
   }
 };
 
-LeakySingleton<base::ThreadSafePartitionRoot, MainPartitionConstructor> g_root
-    CONSTINIT = {};
-base::ThreadSafePartitionRoot* Allocator() {
+LeakySingleton<partition_alloc::ThreadSafePartitionRoot,
+               MainPartitionConstructor>
+    g_root CONSTINIT = {};
+partition_alloc::ThreadSafePartitionRoot* Allocator() {
   return g_root.Get();
 }
 
 // Original g_root_ if it was replaced by ConfigurePartitions().
-std::atomic<base::ThreadSafePartitionRoot*> g_original_root(nullptr);
+std::atomic<partition_alloc::ThreadSafePartitionRoot*> g_original_root(nullptr);
 
 class AlignedPartitionConstructor {
  public:
-  static base::ThreadSafePartitionRoot* New(void* buffer) {
+  static partition_alloc::ThreadSafePartitionRoot* New(void* buffer) {
     return g_root.Get();
   }
 };
 
-LeakySingleton<base::ThreadSafePartitionRoot, AlignedPartitionConstructor>
+LeakySingleton<partition_alloc::ThreadSafePartitionRoot,
+               AlignedPartitionConstructor>
     g_aligned_root CONSTINIT = {};
 
-base::ThreadSafePartitionRoot* OriginalAllocator() {
+partition_alloc::ThreadSafePartitionRoot* OriginalAllocator() {
   return g_original_root.load(std::memory_order_relaxed);
 }
 
-base::ThreadSafePartitionRoot* AlignedAllocator() {
+partition_alloc::ThreadSafePartitionRoot* AlignedAllocator() {
   return g_aligned_root.Get();
 }
 
@@ -356,7 +360,7 @@ void* PartitionAlignedRealloc(const AllocatorDispatch* dispatch,
   } else {
     // size == 0 and address != null means just "free(address)".
     if (address)
-      base::ThreadSafePartitionRoot::FreeNoHooks(address);
+      partition_alloc::ThreadSafePartitionRoot::FreeNoHooks(address);
   }
   // The original memory block (specified by address) is unchanged if ENOMEM.
   if (!new_ptr)
@@ -364,11 +368,12 @@ void* PartitionAlignedRealloc(const AllocatorDispatch* dispatch,
   // TODO(tasak): Need to compare the new alignment with the address' alignment.
   // If the two alignments are not the same, need to return nullptr with EINVAL.
   if (address) {
-    size_t usage = base::ThreadSafePartitionRoot::GetUsableSize(address);
+    size_t usage =
+        partition_alloc::ThreadSafePartitionRoot::GetUsableSize(address);
     size_t copy_size = usage > size ? size : usage;
     memcpy(new_ptr, address, copy_size);
 
-    base::ThreadSafePartitionRoot::FreeNoHooks(address);
+    partition_alloc::ThreadSafePartitionRoot::FreeNoHooks(address);
   }
   return new_ptr;
 }
@@ -429,7 +434,7 @@ void PartitionFree(const AllocatorDispatch*, void* object, void* context) {
   }
 #endif
 
-  base::ThreadSafePartitionRoot::FreeNoHooks(object);
+  partition_alloc::ThreadSafePartitionRoot::FreeNoHooks(object);
 }
 
 #if BUILDFLAG(IS_APPLE)
@@ -446,7 +451,7 @@ void PartitionFreeDefiniteSize(const AllocatorDispatch*,
   ScopedDisallowAllocations guard{};
   // TODO(lizeb): Optimize PartitionAlloc to use the size information. This is
   // still useful though, as we avoid double-checking that the address is owned.
-  base::ThreadSafePartitionRoot::FreeNoHooks(address);
+  partition_alloc::ThreadSafePartitionRoot::FreeNoHooks(address);
 }
 #endif  // BUILDFLAG(IS_APPLE)
 
@@ -468,7 +473,8 @@ size_t PartitionGetSizeEstimate(const AllocatorDispatch*,
 #endif  // BUILDFLAG(IS_APPLE)
 
   // TODO(lizeb): Returns incorrect values for aligned allocations.
-  const size_t size = base::ThreadSafePartitionRoot::GetUsableSize(address);
+  const size_t size =
+      partition_alloc::ThreadSafePartitionRoot::GetUsableSize(address);
 #if BUILDFLAG(IS_APPLE)
   // The object pointed to by `address` is allocated by the PartitionAlloc.
   // So, this function must not return zero so that the malloc zone dispatcher
@@ -546,13 +552,13 @@ void EnablePartitionAllocMemoryReclaimer() {
   }
 }
 
-alignas(base::ThreadSafePartitionRoot) uint8_t
+alignas(partition_alloc::ThreadSafePartitionRoot) uint8_t
     g_allocator_buffer_for_new_main_partition[sizeof(
-        base::ThreadSafePartitionRoot)];
+        partition_alloc::ThreadSafePartitionRoot)];
 
-alignas(base::ThreadSafePartitionRoot) uint8_t
+alignas(partition_alloc::ThreadSafePartitionRoot) uint8_t
     g_allocator_buffer_for_aligned_alloc_partition[sizeof(
-        base::ThreadSafePartitionRoot)];
+        partition_alloc::ThreadSafePartitionRoot)];
 
 void ConfigurePartitions(
     EnableBrp enable_brp,
@@ -586,7 +592,7 @@ void ConfigurePartitions(
     }
     PA_DCHECK(!enable_brp);
     PA_DCHECK(!use_dedicated_aligned_partition);
-    PA_DCHECK(!current_root->flags.with_thread_cache);
+    PA_DCHECK(!current_root->with_thread_cache);
     return;
   }
 
@@ -603,7 +609,7 @@ void ConfigurePartitions(
           base::PartitionOptions::UseConfigurablePool::kNo,
       });
 
-  base::ThreadSafePartitionRoot* new_aligned_root;
+  partition_alloc::ThreadSafePartitionRoot* new_aligned_root;
   if (use_dedicated_aligned_partition) {
     // TODO(bartekn): Use the original root instead of creating a new one. It'd
     // result in one less partition, but come at a cost of commingling types.
@@ -647,6 +653,8 @@ void ConfigurePartitions(
 
 #if defined(PA_ALLOW_PCSCAN)
 void EnablePCScan(base::internal::PCScan::InitConfig config) {
+  partition_alloc::internal::base::PlatformThread::SetThreadNameHook(
+      &::base::PlatformThread::SetName);
   internal::PCScan::Initialize(config);
 
   internal::PCScan::RegisterScannableRoot(Allocator());

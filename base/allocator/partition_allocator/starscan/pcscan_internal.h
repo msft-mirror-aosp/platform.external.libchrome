@@ -13,12 +13,12 @@
 #include <utility>
 #include <vector>
 
+#include "base/allocator/partition_allocator/partition_alloc_base/memory/scoped_refptr.h"
 #include "base/allocator/partition_allocator/partition_alloc_base/no_destructor.h"
 #include "base/allocator/partition_allocator/starscan/metadata_allocator.h"
 #include "base/allocator/partition_allocator/starscan/pcscan.h"
 #include "base/allocator/partition_allocator/starscan/starscan_fwd.h"
 #include "base/allocator/partition_allocator/starscan/write_protector.h"
-#include "base/memory/scoped_refptr.h"
 
 // TODO(crbug.com/1288247): Remove this when migration is complete.
 namespace partition_alloc::internal {
@@ -114,11 +114,12 @@ class PCScanInternal final {
   friend class partition_alloc::internal::StarScanSnapshot;
 
   using StackTops = std::unordered_map<
-      ::base::PlatformThreadId,
+      internal::base::PlatformThreadId,
       void*,
-      std::hash<::base::PlatformThreadId>,
+      std::hash<internal::base::PlatformThreadId>,
       std::equal_to<>,
-      MetadataAllocator<std::pair<const ::base::PlatformThreadId, void*>>>;
+      MetadataAllocator<
+          std::pair<const internal::base::PlatformThreadId, void*>>>;
 
   PCScanInternal();
 
