@@ -71,10 +71,6 @@ Revert-Make-base-VerifyPathControlledByUser-Mac-only.patch
 # are fixed.
 libchrome-Query-spaced-for-free-total-disk-space.patch
 
-# update_engine compiles with -Wnon-virtual-dtor flag.
-# TODO(b/244130449): upstream the patch and move it to cherry-picks.
-add-virtual-dtor-for-base-SharedMemoryMapper.patch
-
 # ==================== CHERRY PICKS ===========================
 
 # ==================== BACKWARD / FORWARD COMPATIBILITY PATCHES FOR UPREVS ===
