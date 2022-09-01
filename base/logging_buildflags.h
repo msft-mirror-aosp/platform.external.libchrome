@@ -1,4 +1,6 @@
-// TODO(fqj) use generated ones.
+// This buildflag header file will remain manually edited since value of NDEBUG
+// or DCHECK_ALWAYS_ON cannot be passed from BUILD.gn using buildflag_header.
+
 #ifndef BASE_LOGGING_BUILDFLAGS_H_
 #define BASE_LOGGING_BUILDFLAGS_H_
 #include "build/buildflag.h"
