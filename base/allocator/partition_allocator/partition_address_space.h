@@ -201,17 +201,28 @@ class BASE_EXPORT PartitionAddressSpace {
   static constexpr size_t kBRPPoolSize = kPoolMaxSize;
   static_assert(base::bits::IsPowerOfTwo(kRegularPoolSize) &&
                 base::bits::IsPowerOfTwo(kBRPPoolSize));
-#if BUILDFLAG(IS_IOS)
-  // TODO(crbug.com/1250788): Remove the iOS special case.
-  static constexpr size_t kConfigurablePoolMaxSize = kPoolMaxSize;
-  static constexpr size_t kConfigurablePoolMinSize = kPoolMaxSize;
-#else
   static constexpr size_t kConfigurablePoolMaxSize = kPoolMaxSize;
   static constexpr size_t kConfigurablePoolMinSize = 1 * kGiB;
-#endif
   static_assert(kConfigurablePoolMinSize <= kConfigurablePoolMaxSize);
   static_assert(base::bits::IsPowerOfTwo(kConfigurablePoolMaxSize) &&
                 base::bits::IsPowerOfTwo(kConfigurablePoolMinSize));
+
+#if BUILDFLAG(IS_IOS)
+
+#if !defined(PA_USE_DYNAMICALLY_SIZED_GIGA_CAGE)
+#error iOS is only supported with a dynamically sized GigaCase.
+#endif
+
+  // We can't afford pool sizes as large as kPoolMaxSize in iOS EarlGrey tests,
+  // since the test process cannot use an extended virtual address space (see
+  // crbug.com/1250788).
+  static constexpr size_t kRegularPoolSizeForIOSTestProcess = kGiB / 4;
+  static constexpr size_t kBRPPoolSizeForIOSTestProcess = kGiB / 4;
+  static_assert(kRegularPoolSizeForIOSTestProcess < kRegularPoolSize);
+  static_assert(kBRPPoolSizeForIOSTestProcess < kBRPPoolSize);
+  static_assert(base::bits::IsPowerOfTwo(kRegularPoolSizeForIOSTestProcess) &&
+                base::bits::IsPowerOfTwo(kBRPPoolSizeForIOSTestProcess));
+#endif  // BUILDFLAG(IOS_IOS)
 
 #if !defined(PA_USE_DYNAMICALLY_SIZED_GIGA_CAGE)
   // Masks used to easy determine belonging to a pool.
@@ -333,27 +344,6 @@ ALWAYS_INLINE bool IsConfigurablePoolAvailable() {
 }
 
 }  // namespace partition_alloc
-
-namespace base {
-
-// TODO(https://crbug.com/1288247): Remove these 'using' declarations once
-// the migration to the new namespaces gets done.
-using ::partition_alloc::IsConfigurablePoolAvailable;
-using ::partition_alloc::IsManagedByPartitionAlloc;
-using ::partition_alloc::IsManagedByPartitionAllocBRPPool;
-using ::partition_alloc::IsManagedByPartitionAllocConfigurablePool;
-using ::partition_alloc::IsManagedByPartitionAllocRegularPool;
-
-namespace internal {
-
-using ::partition_alloc::internal::GetPool;
-using ::partition_alloc::internal::GetPoolAndOffset;
-using ::partition_alloc::internal::OffsetInBRPPool;
-using ::partition_alloc::internal::PartitionAddressSpace;
-
-}  // namespace internal
-
-}  // namespace base
 
 #endif  // defined(PA_HAS_64_BITS_POINTERS)
 

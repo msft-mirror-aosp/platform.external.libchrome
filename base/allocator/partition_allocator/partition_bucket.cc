@@ -94,7 +94,7 @@ uintptr_t ReserveMemoryFromGigaCage(pool_handle pool,
                                     size_t requested_size) {
   PA_DCHECK(!(requested_address % kSuperPageSize));
 
-  uintptr_t reserved_address = AddressPoolManager::GetInstance()->Reserve(
+  uintptr_t reserved_address = AddressPoolManager::GetInstance().Reserve(
       pool, requested_address, requested_size);
 
   // In 32-bit mode, when allocating from BRP pool, verify that the requested
@@ -107,12 +107,12 @@ uintptr_t ReserveMemoryFromGigaCage(pool_handle pool,
           AreAllowedSuperPagesForBRPPool(reserved_address,
                                          reserved_address + requested_size))
         break;
-      AddressPoolManager::GetInstance()->UnreserveAndDecommit(
+      AddressPoolManager::GetInstance().UnreserveAndDecommit(
           pool, reserved_address, requested_size);
       // No longer try to honor |requested_address|, because it didn't work for
       // us last time.
       reserved_address =
-          AddressPoolManager::GetInstance()->Reserve(pool, 0, requested_size);
+          AddressPoolManager::GetInstance().Reserve(pool, 0, requested_size);
     }
 
     // If the allocation attempt succeeds, we will break out of the following
@@ -129,10 +129,10 @@ uintptr_t ReserveMemoryFromGigaCage(pool_handle pool,
           AreAllowedSuperPagesForBRPPool(reserved_address,
                                          reserved_address + requested_size))
         break;
-      AddressPoolManager::GetInstance()->UnreserveAndDecommit(
+      AddressPoolManager::GetInstance().UnreserveAndDecommit(
           pool, reserved_address, requested_size);
       // Reserve() can return a different pointer than attempted.
-      reserved_address = AddressPoolManager::GetInstance()->Reserve(
+      reserved_address = AddressPoolManager::GetInstance().Reserve(
           pool, address_to_try, requested_size);
     }
 
@@ -141,7 +141,7 @@ uintptr_t ReserveMemoryFromGigaCage(pool_handle pool,
     if (reserved_address &&
         !AreAllowedSuperPagesForBRPPool(reserved_address,
                                         reserved_address + requested_size)) {
-      AddressPoolManager::GetInstance()->UnreserveAndDecommit(
+      AddressPoolManager::GetInstance().UnreserveAndDecommit(
           pool, reserved_address, requested_size);
       reserved_address = 0;
     }
@@ -155,8 +155,8 @@ uintptr_t ReserveMemoryFromGigaCage(pool_handle pool,
   // If `MarkUsed` was called earlier, the other thread could incorrectly
   // determine that the allocation had come form PartitionAlloc.
   if (reserved_address)
-    AddressPoolManager::GetInstance()->MarkUsed(pool, reserved_address,
-                                                requested_size);
+    AddressPoolManager::GetInstance().MarkUsed(pool, reserved_address,
+                                               requested_size);
 #endif
 
   PA_DCHECK(!(reserved_address % kSuperPageSize));
@@ -166,7 +166,7 @@ uintptr_t ReserveMemoryFromGigaCage(pool_handle pool,
 template <bool thread_safe>
 SlotSpanMetadata<thread_safe>* PartitionDirectMap(
     PartitionRoot<thread_safe>* root,
-    int flags,
+    unsigned int flags,
     size_t raw_size,
     size_t slot_span_alignment) {
   using ::partition_alloc::internal::ScopedUnlockGuard;
@@ -383,10 +383,10 @@ SlotSpanMetadata<thread_safe>* PartitionDirectMap(
       {
         ScopedSyscallTimer timer{root};
 #if !defined(PA_HAS_64_BITS_POINTERS)
-        AddressPoolManager::GetInstance()->MarkUnused(pool, reservation_start,
-                                                      reservation_size);
+        AddressPoolManager::GetInstance().MarkUnused(pool, reservation_start,
+                                                     reservation_size);
 #endif
-        AddressPoolManager::GetInstance()->UnreserveAndDecommit(
+        AddressPoolManager::GetInstance().UnreserveAndDecommit(
             pool, reservation_start, reservation_size);
       }
 
@@ -562,7 +562,7 @@ void PartitionBucket<thread_safe>::Init(uint32_t new_slot_size) {
 template <bool thread_safe>
 ALWAYS_INLINE SlotSpanMetadata<thread_safe>*
 PartitionBucket<thread_safe>::AllocNewSlotSpan(PartitionRoot<thread_safe>* root,
-                                               int flags,
+                                               unsigned int flags,
                                                size_t slot_span_alignment) {
   PA_DCHECK(!(reinterpret_cast<uintptr_t>(root->next_partition_page) %
               PartitionPageSize()));
@@ -664,7 +664,7 @@ PartitionBucket<thread_safe>::AllocNewSlotSpan(PartitionRoot<thread_safe>* root,
 template <bool thread_safe>
 ALWAYS_INLINE uintptr_t PartitionBucket<thread_safe>::AllocNewSuperPage(
     PartitionRoot<thread_safe>* root,
-    int flags) {
+    unsigned int flags) {
   // Need a new super page. We want to allocate super pages in a contiguous
   // address region as much as possible. This is important for not causing
   // page table bloat and not fragmenting address spaces in 32 bit
@@ -1106,7 +1106,7 @@ void PartitionBucket<thread_safe>::SortSlotSpanFreelists() {
 template <bool thread_safe>
 uintptr_t PartitionBucket<thread_safe>::SlowPathAlloc(
     PartitionRoot<thread_safe>* root,
-    int flags,
+    unsigned int flags,
     size_t raw_size,
     size_t slot_span_alignment,
     bool* is_already_zeroed) {

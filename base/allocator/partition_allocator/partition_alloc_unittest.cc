@@ -53,7 +53,7 @@
 #include <sys/time.h>
 #endif  // BUILDFLAG(IS_POSIX)
 
-#if BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC) && BUILDFLAG(IS_APPLE)
+#if BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC) && BUILDFLAG(IS_MAC)
 #include <OpenCL/opencl.h>
 
 #include <base/mac/mac_util.h>
@@ -155,7 +155,7 @@ constexpr size_t kTestSizesCount = std::size(kTestSizes);
 void AllocateRandomly(
     partition_alloc::PartitionRoot<partition_alloc::internal::ThreadSafe>* root,
     size_t count,
-    int flags) {
+    unsigned int flags) {
   std::vector<void*> allocations(count, nullptr);
   for (size_t i = 0; i < count; ++i) {
     const size_t size =
@@ -3123,7 +3123,8 @@ TEST_P(PartitionAllocTest, OverrideHooks) {
   memset(overridden_allocation, kOverriddenChar, kOverriddenSize);
 
   PartitionAllocHooks::SetOverrideHooks(
-      [](void** out, int flags, size_t size, const char* type_name) -> bool {
+      [](void** out, unsigned int flags, size_t size,
+         const char* type_name) -> bool {
         if (size == kOverriddenSize && type_name == kOverriddenType) {
           *out = overridden_allocation;
           return true;
@@ -4160,7 +4161,7 @@ TEST_P(PartitionAllocDeathTest, CheckTriggered) {
 // https://ci.chromium.org/ui/p/chromium/builders/ci/Cast%20Audio%20Linux/98492/overview
 #if BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC) &&                \
     defined(GTEST_HAS_DEATH_TEST) && !BUILDFLAG(IS_ANDROID) && \
-    !BUILDFLAG(IS_CHROMECAST)
+    !BUILDFLAG(IS_CASTOS)
 
 namespace {
 
@@ -4238,7 +4239,7 @@ TEST_P(PartitionAllocTest, DISABLED_PreforkHandler) {
 
 #endif  // BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC) &&
         // defined(GTEST_HAS_DEATH_TEST) && !BUILDFLAG(IS_ANDROID) &&
-        // !BUILDFLAG(IS_CHROMECAST)
+        // !BUILDFLAG(IS_CASTOS)
 
 // Checks the bucket index logic.
 TEST_P(PartitionAllocTest, GetIndex) {
@@ -4515,7 +4516,7 @@ TEST_P(PartitionAllocTest, PartitionTagBasic) {
 #endif  // defined(PA_USE_MTE_CHECKED_PTR_WITH_64_BITS_POINTERS)
 
 #if BUILDFLAG(IS_ANDROID) && BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC) && \
-    BUILDFLAG(IS_CHROMECAST)
+    BUILDFLAG(IS_CASTOS)
 extern "C" {
 void* __real_malloc(size_t);
 }  // extern "C"
@@ -4678,13 +4679,9 @@ class ScopedOpenCLNoOpKernel {
 
 // On macOS 10.11, allocations are made with PartitionAlloc, but the pointer
 // is incorrectly passed by CoreFoundation to the previous default zone,
-// causing crashes. This is intended to detect these issues coming back.
+// causing crashes. This is intended to detect these issues regressing in future
+// versions of macOS.
 TEST_P(PartitionAllocTest, OpenCL) {
-  // Skip on 10.11, as it fails there.
-  // TODO(crbug.com/1268776): Make it pass on macOS 10.11.
-  if (base::mac::IsOS10_11())
-    return;
-
   ScopedOpenCLNoOpKernel kernel;
   kernel.SetUp();
 #if !defined(ARCH_CPU_ARM64)
