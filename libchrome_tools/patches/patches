@@ -73,6 +73,13 @@ libchrome-Query-spaced-for-free-total-disk-space.patch
 Add-TerminateBecauseOutOfMemory-back-to-base.patch
 
 # ==================== CHERRY PICKS ===========================
+# [Cherry-pick: 1017954]
+# base::JSONReader::ValueWithError will be migrated to return
+# base::expected<base::Value, Error> instead of ValueWithError in libchrome r1017954
+# (crrev.com/c/3696611).
+# Since client code is ready for migration, cherry-pick the change to avoid
+# regression.
+cherry-pick-r1017954-Modernising-base-JsonReader-to-return-base-expected.patch
 
 # ==================== BACKWARD COMPATIBILITY PATCHES FOR UPREVS =========
 # Backward compatibility for r890000 uprev
@@ -93,8 +100,3 @@ backward-compatibility-add-base-AdaptCallbackForRepaeting.patch media_perception
 backward-compatibility-Revert-One-cgroup-per-renderer-on-Chrome-OS.patch
 
 # ==================== FORWARD COMPATIBILITY PATCHES FOR UPREVS ==========
-# base::JSONReader::ValueWithError will be migrated to return
-# base::expected<base::Value, Error> instead of ValueWithError in libchrome r1017954
-# (crrev.com/c/3696611).
-# This stub ValueWithError with functions commonly used by the new return type.
-forward-compatibility-stub-base-JSONReader-ValueWithError.patch

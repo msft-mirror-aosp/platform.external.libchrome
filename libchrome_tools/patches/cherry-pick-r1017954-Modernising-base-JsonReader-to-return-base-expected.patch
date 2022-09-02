@@ -1,0 +1,589 @@
+From ed1c5531e292cee3ae0ee0de31297603f1df14c1 Mon Sep 17 00:00:00 2001
+From: Claudio DeSouza <cdesouza@igalia.com>
+Date: Sat, 25 Jun 2022 05:00:48 -0700
+Subject: [PATCH] Modernising base::JsonReader to return base::expected
+
+This CL adjusts JsonReader::ReadAndReturnValueWithError to
+use base::expected, as it provides a more intuitive way to
+communicate success/failure.
+
+Bug: 1338575
+Change-Id: I3dfa8248aad7c099133db6ee9e67b8063e7b78c1
+Reviewed-on: https://chromium-review.googlesource.com/c/chromium/src/+/3696611
+Reviewed-by: Yann Dago <ydago@chromium.org>
+Reviewed-by: Eric Orth <ericorth@chromium.org>
+Reviewed-by: Erik Chen <erikchen@chromium.org>
+Reviewed-by: Ken Buchanan <kenrb@chromium.org>
+Reviewed-by: Gabriel Charette <gab@chromium.org>
+Reviewed-by: Maxim Kolosovskiy <kolos@chromium.org>
+Reviewed-by: Claudio M <claudiomagni@chromium.org>
+Reviewed-by: Siddhartha S <ssid@chromium.org>
+Reviewed-by: Vasiliy Telezhnikov <vasilyt@chromium.org>
+Reviewed-by: Mark Cogan <marq@chromium.org>
+Reviewed-by: Will Harris <wfh@chromium.org>
+Reviewed-by: Anqing Zhao <anqing@chromium.org>
+Reviewed-by: Alex Moshchuk <alexmos@chromium.org>
+Reviewed-by: Robert Sesek <rsesek@chromium.org>
+Commit-Queue: Claudio DeSouza <cdesouza@igalia.com>
+Reviewed-by: David Pennington <dpenning@chromium.org>
+Reviewed-by: Justin Cohen <justincohen@chromium.org>
+Reviewed-by: Mark Seaborn <mseaborn@chromium.org>
+Reviewed-by: Cici Ruan <cuicuiruan@google.com>
+Reviewed-by: Austin Sullivan <asully@chromium.org>
+Reviewed-by: Luciano Pacheco <lucmult@chromium.org>
+Reviewed-by: Luca Hunkeler <hluca@google.com>
+Reviewed-by: Dan H <harringtond@chromium.org>
+Reviewed-by: Jimmy Gong <jimmyxgong@chromium.org>
+Reviewed-by: Devlin Cronin <rdevlin.cronin@chromium.org>
+Reviewed-by: Wez <wez@chromium.org>
+Reviewed-by: Matt Reynolds <mattreynolds@chromium.org>
+Reviewed-by: Ahmed Fakhry <afakhry@chromium.org>
+Reviewed-by: Charlie Harrison <csharrison@chromium.org>
+Reviewed-by: Dominick Ng <dominickn@chromium.org>
+Reviewed-by: Daniel Rubery <drubery@chromium.org>
+Reviewed-by: John Chen <johnchen@chromium.org>
+Reviewed-by: Toni Barzic <tbarzic@chromium.org>
+Reviewed-by: Daniel Cheng <dcheng@chromium.org>
+Reviewed-by: Hirokazu Honda <hiroh@chromium.org>
+Reviewed-by: Guido Urdaneta <guidou@chromium.org>
+Cr-Commit-Position: refs/heads/main@{#1017954}
+
+CrOS-Libchrome-Original-Commit: 8e71b8677f674bab739791d555b1bc32df30c392
+Change-Id: I1f5f83f0219693798cb37230d36fb35ebe6f6c32
+---
+ base/json/json_correctness_fuzzer.cc          | 13 ++---
+ base/json/json_perftest_decodebench.cc        |  7 ++-
+ base/json/json_reader.cc                      | 57 ++++++++++---------
+ base/json/json_reader.h                       | 36 ++++++------
+ base/json/json_reader_fuzzer.cc               |  6 +-
+ base/json/json_reader_unittest.cc             | 45 +++++++--------
+ base/json/json_string_value_serializer.cc     |  8 +--
+ base/json/json_writer_unittest.cc             |  6 +-
+ base/test/values_test_util.cc                 | 17 +++---
+ .../core/common/policy_loader_command_line.cc | 15 +++--
+ .../core/common/policy_proto_decoders.cc      | 11 ++--
+ components/policy/core/common/schema.cc       | 14 ++---
+ 12 files changed, 116 insertions(+), 119 deletions(-)
+
+diff --git a/base/json/json_correctness_fuzzer.cc b/base/json/json_correctness_fuzzer.cc
+index 179c866051..a710b2d64d 100644
+--- a/base/json/json_correctness_fuzzer.cc
++++ b/base/json/json_correctness_fuzzer.cc
+@@ -32,21 +32,20 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
+   base::StringPiece input_string(input.get(), size - 1);
+ 
+   const int options = data[size - 1];
+-  base::JSONReader::ValueWithError result =
++  auto result =
+       base::JSONReader::ReadAndReturnValueWithError(input_string, options);
+-  if (!result.value)
++  if (!result.has_value())
+     return 0;
+ 
+   std::string parsed_output;
+-  bool b = base::JSONWriter::Write(*result.value, &parsed_output);
++  bool b = base::JSONWriter::Write(*result, &parsed_output);
+   LOG_ASSERT(b);
+ 
+-  base::JSONReader::ValueWithError double_result =
++  auto double_result =
+       base::JSONReader::ReadAndReturnValueWithError(parsed_output, options);
+-  LOG_ASSERT(double_result.value);
++  LOG_ASSERT(double_result.has_value());
+   std::string double_parsed_output;
+-  bool b2 =
+-      base::JSONWriter::Write(*double_result.value, &double_parsed_output);
++  bool b2 = base::JSONWriter::Write(*double_result, &double_parsed_output);
+   LOG_ASSERT(b2);
+ 
+   LOG_ASSERT(parsed_output == double_parsed_output)
+diff --git a/base/json/json_perftest_decodebench.cc b/base/json/json_perftest_decodebench.cc
+index 47a659623c..eeb096a37a 100644
+--- a/base/json/json_perftest_decodebench.cc
++++ b/base/json/json_perftest_decodebench.cc
+@@ -71,11 +71,12 @@ int main(int argc, char* argv[]) {
+ 
+       if (i == 0) {
+         if (average) {
+-          error_message = std::move(v.error_message);
++          error_message =
++              !v.has_value() ? std::move(v.error().message) : std::string();
+         } else {
+           std::cout << "# " << filename;
+-          if (!v.error_message.empty()) {
+-            std::cout << ": " << v.error_message;
++          if (!v.has_value() && !v.error().message.empty()) {
++            std::cout << ": " << v.error().message;
+           }
+           std::cout << std::endl;
+         }
+diff --git a/base/json/json_reader.cc b/base/json/json_reader.cc
+index ce986df7d8..8591df6d15 100644
+--- a/base/json/json_reader.cc
++++ b/base/json/json_reader.cc
+@@ -23,9 +23,8 @@ namespace base {
+ 
+ namespace {
+ 
+-base::JSONReader::ValueWithError DecodeJSONInRust(const base::StringPiece& json,
+-                                                  int options,
+-                                                  size_t max_depth) {
++base::expected<Value, JSONReader::Error>
++DecodeJSONInRust(const base::StringPiece& json, int options, size_t max_depth) {
+   int32_t error_line;
+   int32_t error_column;
+   base::ffi::json::json_parser::JsonOptions rust_options;
+@@ -38,38 +37,41 @@ base::JSONReader::ValueWithError DecodeJSONInRust(const base::StringPiece& json,
+   rust_options.allow_control_chars = options & base::JSON_ALLOW_CONTROL_CHARS;
+   rust_options.allow_x_escapes = options & base::JSON_ALLOW_X_ESCAPES;
+   rust_options.max_depth = max_depth;
+-  base::JSONReader::ValueWithError ret;
++  base::JSONReader::Error error;
++  absl::optional<base::Value> value;
+   bool ok = base::ffi::json::json_parser::decode_json_from_cpp(
+-      base::StringPieceToRustSlice(json), rust_options, ret.value, error_line,
+-      error_column, ret.error_message);
++      base::StringPieceToRustSlice(json), rust_options, value, error_line,
++      error_column, error.message);
+   if (!ok) {
+-    ret.value.reset();
+-    ret.error_line = error_line;
+-    ret.error_column = error_column;
++    error.line = error_line;
++    error.column = error_column;
++    return base::unexpected(std::move(error));
+   }
+-  return ret;
++  return std::move(*value);
+ }
+ 
+ }  // anonymous namespace
+ 
+ #endif  // BUILDFLAG(BUILD_RUST_JSON_PARSER)
+ 
+-JSONReader::ValueWithError::ValueWithError() = default;
++JSONReader::Error::Error() = default;
+ 
+-JSONReader::ValueWithError::ValueWithError(ValueWithError&& other) = default;
++JSONReader::Error::Error(Error&& other) = default;
+ 
+-JSONReader::ValueWithError::~ValueWithError() = default;
++JSONReader::Error::~Error() = default;
+ 
+-JSONReader::ValueWithError& JSONReader::ValueWithError::operator=(
+-    ValueWithError&& other) = default;
++JSONReader::Error& JSONReader::Error::operator=(Error&& other) = default;
+ 
+ // static
+ absl::optional<Value> JSONReader::Read(StringPiece json,
+                                        int options,
+                                        size_t max_depth) {
+ #if BUILDFLAG(BUILD_RUST_JSON_PARSER)
+-  ValueWithError result = DecodeJSONInRust(json, options, max_depth);
+-  return std::move(result.value);
++  auto result = DecodeJSONInRust(json, options, max_depth);
++  if (!result.has_value()) {
++    return absl::nullopt;
++  }
++  return std::move(*result);
+ #else   // BUILDFLAG(BUILD_RUST_JSON_PARSER)
+   internal::JSONParser parser(options, max_depth);
+   return parser.Parse(json);
+@@ -85,21 +87,22 @@ std::unique_ptr<Value> JSONReader::ReadDeprecated(StringPiece json,
+ }
+ 
+ // static
+-JSONReader::ValueWithError JSONReader::ReadAndReturnValueWithError(
+-    StringPiece json,
+-    int options) {
++JSONReader::Result JSONReader::ReadAndReturnValueWithError(StringPiece json,
++                                                           int options) {
+ #if BUILDFLAG(BUILD_RUST_JSON_PARSER)
+   return DecodeJSONInRust(json, options, internal::kAbsoluteMaxDepth);
+ #else   // BUILDFLAG(BUILD_RUST_JSON_PARSER)
+   internal::JSONParser parser(options);
+-  ValueWithError ret;
+-  ret.value = parser.Parse(json);
+-  if (!ret.value) {
+-    ret.error_message = parser.GetErrorMessage();
+-    ret.error_line = parser.error_line();
+-    ret.error_column = parser.error_column();
++  auto value = parser.Parse(json);
++  if (!value) {
++    Error error;
++    error.message = parser.GetErrorMessage();
++    error.line = parser.error_line();
++    error.column = parser.error_column();
++    return base::unexpected(std::move(error));
+   }
+-  return ret;
++
++  return std::move(*value);
+ #endif  // BUILDFLAG(BUILD_RUST_JSON_PARSER)
+ }
+ 
+diff --git a/base/json/json_reader.h b/base/json/json_reader.h
+index 84b303d78d..1246eca689 100644
+--- a/base/json/json_reader.h
++++ b/base/json/json_reader.h
+@@ -42,6 +42,7 @@
+ #include "base/base_export.h"
+ #include "base/json/json_common.h"
+ #include "base/strings/string_piece.h"
++#include "base/types/expected.h"
+ #include "base/values.h"
+ #include "third_party/abseil-cpp/absl/types/optional.h"
+ 
+@@ -86,25 +87,23 @@ enum JSONParserOptions {
+ 
+ class BASE_EXPORT JSONReader {
+  public:
+-  struct BASE_EXPORT ValueWithError {
+-    ValueWithError();
+-    ValueWithError(ValueWithError&& other);
+-    ValueWithError& operator=(ValueWithError&& other);
++  struct BASE_EXPORT Error {
++    Error();
++    Error(Error&& other);
++    Error& operator=(Error&& other);
+ 
+-    ValueWithError(const ValueWithError&) = delete;
+-    ValueWithError& operator=(const ValueWithError&) = delete;
++    Error(const Error&) = delete;
++    Error& operator=(const Error&) = delete;
+ 
+-    ~ValueWithError();
++    ~Error();
+ 
+-    absl::optional<Value> value;
+-
+-    // Contains default values if |value| exists, or the error status if |value|
+-    // is absl::nullopt.
+-    std::string error_message;
+-    int error_line = 0;
+-    int error_column = 0;
++    std::string message;
++    int line = 0;
++    int column = 0;
+   };
+ 
++  using Result = base::expected<Value, Error>;
++
+   // This class contains only static methods.
+   JSONReader() = delete;
+   JSONReader(const JSONReader&) = delete;
+@@ -127,10 +126,11 @@ class BASE_EXPORT JSONReader {
+       int options = JSON_PARSE_CHROMIUM_EXTENSIONS,
+       size_t max_depth = internal::kAbsoluteMaxDepth);
+ 
+-  // Reads and parses |json| like Read(). Returns a ValueWithError, which on
+-  // error, will be populated with a formatted error message, an error code, and
+-  // the error location if appropriate.
+-  static ValueWithError ReadAndReturnValueWithError(
++  // Reads and parses |json| like Read(). On success returns a Value as the
++  // expected value. Otherwise, it returns an Error instance, populated with a
++  // formatted error message, an error code, and the error location if
++  // appropriate as the error value of the expected type.
++  static Result ReadAndReturnValueWithError(
+       StringPiece json,
+       int options = JSON_PARSE_CHROMIUM_EXTENSIONS);
+ };
+diff --git a/base/json/json_reader_fuzzer.cc b/base/json/json_reader_fuzzer.cc
+index 7267d26eea..3cde253a6f 100644
+--- a/base/json/json_reader_fuzzer.cc
++++ b/base/json/json_reader_fuzzer.cc
+@@ -23,12 +23,12 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
+ 
+   const int options = data[size - 1];
+ 
+-  JSONReader::ValueWithError json_val =
++  auto json_val =
+       JSONReader::ReadAndReturnValueWithError(input_string, options);
+-  if (json_val.value) {
++  if (json_val.has_value()) {
+     // Check that the value can be serialized and deserialized back to an
+     // equivalent |Value|.
+-    const Value& value = json_val.value.value();
++    const Value& value = *json_val;
+     std::string serialized;
+     CHECK(JSONWriter::Write(value, &serialized));
+ 
+diff --git a/base/json/json_reader_unittest.cc b/base/json/json_reader_unittest.cc
+index 9743a5d3c4..29d8d4fb38 100644
+--- a/base/json/json_reader_unittest.cc
++++ b/base/json/json_reader_unittest.cc
+@@ -202,9 +202,9 @@ TEST(JSONReaderTest, Doubles) {
+   EXPECT_DOUBLE_EQ(122.416294033786585, root->GetDouble());
+ 
+   // This is syntaxtically valid, but out of range of a double.
+-  auto value_with_error =
++  auto value =
+       JSONReader::ReadAndReturnValueWithError("1e1000", JSON_PARSE_RFC);
+-  ASSERT_FALSE(value_with_error.value);
++  ASSERT_FALSE(value.has_value());
+ }
+ 
+ TEST(JSONReaderTest, FractionalNumbers) {
+@@ -678,10 +678,9 @@ TEST(JSONReaderTest, DISABLED_ReadFromFile) {
+   std::string input;
+   ASSERT_TRUE(ReadFileToString(path.AppendASCII("bom_feff.json"), &input));
+ 
+-  JSONReader::ValueWithError root =
+-      JSONReader::ReadAndReturnValueWithError(input);
+-  ASSERT_TRUE(root.value) << root.error_message;
+-  EXPECT_TRUE(root.value->is_dict());
++  auto root = JSONReader::ReadAndReturnValueWithError(input);
++  ASSERT_TRUE(root.has_value()) << root.error().message;
++  EXPECT_TRUE(root->is_dict());
+ }
+ 
+ // Tests that the root of a JSON object can be deleted safely while its
+@@ -768,20 +767,18 @@ TEST(JSONReaderTest, InvalidSanity) {
+ 
+   for (size_t i = 0; i < std::size(kInvalidJson); ++i) {
+     LOG(INFO) << "Sanity test " << i << ": <" << kInvalidJson[i] << ">";
+-    JSONReader::ValueWithError root =
+-        JSONReader::ReadAndReturnValueWithError(kInvalidJson[i]);
+-    EXPECT_FALSE(root.value);
+-    EXPECT_NE("", root.error_message);
++    auto root = JSONReader::ReadAndReturnValueWithError(kInvalidJson[i]);
++    EXPECT_FALSE(root.has_value());
++    EXPECT_NE("", root.error().message);
+   }
+ }
+ 
+ TEST(JSONReaderTest, IllegalTrailingNull) {
+   const char json[] = {'"', 'n', 'u', 'l', 'l', '"', '\0'};
+   std::string json_string(json, sizeof(json));
+-  JSONReader::ValueWithError root =
+-      JSONReader::ReadAndReturnValueWithError(json_string);
+-  EXPECT_FALSE(root.value);
+-  EXPECT_NE("", root.error_message);
++  auto root = JSONReader::ReadAndReturnValueWithError(json_string);
++  EXPECT_FALSE(root.has_value());
++  EXPECT_NE("", root.error().message);
+ }
+ 
+ TEST(JSONReaderTest, ASCIIControlCodes) {
+@@ -1038,11 +1035,11 @@ TEST(JSONReaderTest, LineColumnCounting) {
+     auto test_case = kCases[i];
+     SCOPED_TRACE(StringPrintf("case %u: \"%s\"", i, test_case.input));
+ 
+-    JSONReader::ValueWithError root = JSONReader::ReadAndReturnValueWithError(
++    auto root = JSONReader::ReadAndReturnValueWithError(
+         test_case.input, JSON_PARSE_RFC | JSON_ALLOW_CONTROL_CHARS);
+-    EXPECT_FALSE(root.value);
+-    EXPECT_EQ(test_case.error_line, root.error_line);
+-    EXPECT_EQ(test_case.error_column, root.error_column);
++    EXPECT_FALSE(root.has_value());
++    EXPECT_EQ(test_case.error_line, root.error().line);
++    EXPECT_EQ(test_case.error_column, root.error().column);
+   }
+ }
+ 
+@@ -1071,21 +1068,21 @@ TEST(JSONReaderTest, ChromiumExtensions) {
+     SCOPED_TRACE(testing::Message() << "case " << i);
+     const auto& test_case = kCases[i];
+ 
+-    JSONReader::ValueWithError result = JSONReader::ReadAndReturnValueWithError(
+-        test_case.input, JSON_PARSE_RFC);
+-    EXPECT_FALSE(result.value);
++    auto result = JSONReader::ReadAndReturnValueWithError(test_case.input,
++                                                          JSON_PARSE_RFC);
++    EXPECT_FALSE(result.has_value());
+ 
+     result = JSONReader::ReadAndReturnValueWithError(
+         test_case.input, JSON_PARSE_RFC | test_case.option);
+-    EXPECT_TRUE(result.value);
++    EXPECT_TRUE(result.has_value());
+ 
+     result = JSONReader::ReadAndReturnValueWithError(
+         test_case.input, JSON_PARSE_CHROMIUM_EXTENSIONS);
+-    EXPECT_TRUE(result.value);
++    EXPECT_TRUE(result.has_value());
+ 
+     result = JSONReader::ReadAndReturnValueWithError(
+         test_case.input, JSON_PARSE_CHROMIUM_EXTENSIONS & ~test_case.option);
+-    EXPECT_FALSE(result.value);
++    EXPECT_FALSE(result.has_value());
+   }
+ }
+ 
+diff --git a/base/json/json_string_value_serializer.cc b/base/json/json_string_value_serializer.cc
+index cc3c0bd344..279b1bd16e 100644
+--- a/base/json/json_string_value_serializer.cc
++++ b/base/json/json_string_value_serializer.cc
+@@ -49,14 +49,14 @@ JSONStringValueDeserializer::~JSONStringValueDeserializer() = default;
+ std::unique_ptr<Value> JSONStringValueDeserializer::Deserialize(
+     int* error_code,
+     std::string* error_str) {
+-  base::JSONReader::ValueWithError ret =
++  auto ret =
+       base::JSONReader::ReadAndReturnValueWithError(json_string_, options_);
+-  if (ret.value)
+-    return base::Value::ToUniquePtrValue(std::move(*ret.value));
++  if (ret.has_value())
++    return base::Value::ToUniquePtrValue(std::move(*ret));
+ 
+   if (error_code)
+     *error_code = base::ValueDeserializer::kErrorCodeInvalidFormat;
+   if (error_str)
+-    *error_str = std::move(ret.error_message);
++    *error_str = std::move(ret.error().message);
+   return nullptr;
+ }
+diff --git a/base/json/json_writer_unittest.cc b/base/json/json_writer_unittest.cc
+index cd6e5f041e..709d215824 100644
+--- a/base/json/json_writer_unittest.cc
++++ b/base/json/json_writer_unittest.cc
+@@ -203,10 +203,10 @@ TEST(JSONWriterTest, TestMaxDepthWithValidNodes) {
+   }
+ 
+   // Ensure we can read and write the JSON
+-  JSONReader::ValueWithError json_val = JSONReader::ReadAndReturnValueWithError(
++  auto json_val = JSONReader::ReadAndReturnValueWithError(
+       nested_json, JSON_ALLOW_TRAILING_COMMAS);
+-  EXPECT_TRUE(json_val.value);
+-  const Value& value = json_val.value.value();
++  EXPECT_TRUE(json_val.has_value());
++  const Value& value = *json_val;
+   std::string serialized;
+   EXPECT_TRUE(JSONWriter::Write(value, &serialized));
+ }
+diff --git a/base/test/values_test_util.cc b/base/test/values_test_util.cc
+index c2c2daed91..bda9283a3c 100644
+--- a/base/test/values_test_util.cc
++++ b/base/test/values_test_util.cc
+@@ -195,13 +195,12 @@ bool IsJsonMatcher::MatchAndExplain(
+   // This is almost the same logic as ParseJson, but the parser uses stricter
+   // options for JSON data that is assumed to be generated by the code under
+   // test rather than written by hand as part of a unit test.
+-  JSONReader::ValueWithError ret =
+-      JSONReader::ReadAndReturnValueWithError(json, JSON_PARSE_RFC);
+-  if (!ret.value) {
+-    *listener << "Failed to parse \"" << json << "\": " << ret.error_message;
++  auto ret = JSONReader::ReadAndReturnValueWithError(json, JSON_PARSE_RFC);
++  if (!ret.has_value()) {
++    *listener << "Failed to parse \"" << json << "\": " << ret.error().message;
+     return false;
+   }
+-  return MatchAndExplain(*ret.value, listener);
++  return MatchAndExplain(*ret, listener);
+ }
+ 
+ bool IsJsonMatcher::MatchAndExplain(
+@@ -231,14 +230,14 @@ void IsJsonMatcher::DescribeNegationTo(std::ostream* os) const {
+ }
+ 
+ Value ParseJson(StringPiece json) {
+-  JSONReader::ValueWithError result = JSONReader::ReadAndReturnValueWithError(
++  auto result = JSONReader::ReadAndReturnValueWithError(
+       json, JSON_PARSE_CHROMIUM_EXTENSIONS | JSON_ALLOW_TRAILING_COMMAS);
+-  if (!result.value) {
++  if (!result.has_value()) {
+     ADD_FAILURE() << "Failed to parse \"" << json
+-                  << "\": " << result.error_message;
++                  << "\": " << result.error().message;
+     return Value();
+   }
+-  return std::move(result.value.value());
++  return std::move(*result);
+ }
+ 
+ std::unique_ptr<Value> ParseJsonDeprecated(StringPiece json) {
+diff --git a/components/policy/core/common/policy_loader_command_line.cc b/components/policy/core/common/policy_loader_command_line.cc
+index b0912cf86a..ffa681b5be 100644
+--- a/components/policy/core/common/policy_loader_command_line.cc
++++ b/components/policy/core/common/policy_loader_command_line.cc
+@@ -24,22 +24,21 @@ std::unique_ptr<PolicyBundle> PolicyLoaderCommandLine::Load() {
+   if (!command_line_.HasSwitch(switches::kChromePolicy))
+     return bundle;
+ 
+-  base::JSONReader::ValueWithError policies =
+-      base::JSONReader::ReadAndReturnValueWithError(
+-          command_line_.GetSwitchValueASCII(switches::kChromePolicy),
+-          base::JSONParserOptions::JSON_ALLOW_TRAILING_COMMAS);
++  auto policies = base::JSONReader::ReadAndReturnValueWithError(
++      command_line_.GetSwitchValueASCII(switches::kChromePolicy),
++      base::JSONParserOptions::JSON_ALLOW_TRAILING_COMMAS);
+ 
+-  if (!policies.value) {
+-    VLOG(1) << "Command line policy error: " << policies.error_message;
++  if (!policies.has_value()) {
++    VLOG(1) << "Command line policy error: " << policies.error().message;
+     return bundle;
+   }
+-  if (!policies.value->is_dict()) {
++  if (!policies->is_dict()) {
+     VLOG(1) << "Command line policy is not a dictionary";
+     return bundle;
+   }
+ 
+   bundle->Get(PolicyNamespace(POLICY_DOMAIN_CHROME, std::string()))
+-      .LoadFrom(&base::Value::AsDictionaryValue(*policies.value),
++      .LoadFrom(&base::Value::AsDictionaryValue(*policies),
+                 POLICY_LEVEL_MANDATORY, POLICY_SCOPE_MACHINE,
+                 POLICY_SOURCE_COMMAND_LINE);
+   return bundle;
+diff --git a/components/policy/core/common/policy_proto_decoders.cc b/components/policy/core/common/policy_proto_decoders.cc
+index 963c27e2e2..f92fb0b4da 100644
+--- a/components/policy/core/common/policy_proto_decoders.cc
++++ b/components/policy/core/common/policy_proto_decoders.cc
+@@ -93,22 +93,21 @@ base::Value DecodeStringListProto(const em::StringListPolicyProto& proto) {
+ base::Value DecodeJsonProto(const em::StringPolicyProto& proto,
+                             std::string* error) {
+   const std::string& json = proto.value();
+-  base::JSONReader::ValueWithError value_with_error =
+-      base::JSONReader::ReadAndReturnValueWithError(
+-          json, base::JSONParserOptions::JSON_ALLOW_TRAILING_COMMAS);
++  auto value_with_error = base::JSONReader::ReadAndReturnValueWithError(
++      json, base::JSONParserOptions::JSON_ALLOW_TRAILING_COMMAS);
+ 
+-  if (!value_with_error.value) {
++  if (!value_with_error.has_value()) {
+     // Can't parse as JSON so return it as a string, and leave it to the handler
+     // to validate.
+     LOG(WARNING) << "Invalid JSON: " << json;
+-    *error = value_with_error.error_message;
++    *error = value_with_error.error().message;
+     return base::Value(json);
+   }
+ 
+   // Accept any Value type that parsed as JSON, and leave it to the handler to
+   // convert and check the concrete type.
+   error->clear();
+-  return std::move(value_with_error.value.value());
++  return std::move(*value_with_error);
+ }
+ 
+ bool PerProfileMatches(bool policy_per_profile,
+diff --git a/components/policy/core/common/schema.cc b/components/policy/core/common/schema.cc
+index ff75b196a5..e2d80a8b33 100644
+--- a/components/policy/core/common/schema.cc
++++ b/components/policy/core/common/schema.cc
+@@ -1443,15 +1443,15 @@ absl::optional<base::Value> Schema::ParseToDictAndValidate(
+     const std::string& schema,
+     int validator_options,
+     std::string* error) {
+-  base::JSONReader::ValueWithError value_with_error =
+-      base::JSONReader::ReadAndReturnValueWithError(
+-          schema, base::JSONParserOptions::JSON_ALLOW_TRAILING_COMMAS |
+-                      base::JSONParserOptions::JSON_PARSE_CHROMIUM_EXTENSIONS);
+-  *error = value_with_error.error_message;
++  auto value_with_error = base::JSONReader::ReadAndReturnValueWithError(
++      schema, base::JSONParserOptions::JSON_ALLOW_TRAILING_COMMAS |
++                  base::JSONParserOptions::JSON_PARSE_CHROMIUM_EXTENSIONS);
+ 
+-  if (!value_with_error.value)
++  if (!value_with_error.has_value()) {
++    *error = value_with_error.error().message;
+     return absl::nullopt;
+-  base::Value json = std::move(value_with_error.value.value());
++  }
++  base::Value json = std::move(*value_with_error);
+   if (!json.is_dict()) {
+     *error = "Schema must be a JSON object";
+     return absl::nullopt;
+-- 
+2.37.2.789.g6183377224-goog
+
