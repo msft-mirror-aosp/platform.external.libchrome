@@ -23,14 +23,6 @@ BAD_KEYWORDS = {
     # unify *::optionals to std::optional
     r'(include.*absl/types/optional.h|absl::(optional|make_optional|nullopt))':
     'Use std::optional. absl::optional is an alias of std::optional. See go/use-std-optional-in-cros for discussion.',
-    # r991946 (crrev.com/c/3574675) SharedMemoryHandle moved out of
-    # PlatformSharedMemoryRegion and into its own PlatformSharedMemoryHandle
-    # type.
-    r'PlatformSharedMemoryRegion::ScopedPlatformHandle':
-    'Use (base::subtle::)PlatformSharedMemoryHandle. The type was moved out of PlatformSharedMemoryRegion and into its own PlatformSharedMemoryHandle type.',
-    # r998789 (crrev.com/c/3615258) bit_cast moved to base:: namespace
-    r' bit_cast':
-    'Use base::bit_cast. The function was moved to base:: namespace.',
     # r1009170 (crrev.com/c/3668914) removed base::CountLeadingZeroBits{32,64}
     r'base::CountLeadingZeroBits(32|64)':
     'Deprecated in r1009170, use base::CountLeadingZeroBits.',

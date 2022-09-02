@@ -84,17 +84,6 @@ backward-compatibility-add-deprecated-base-Bind-APIs.patch
 # TODO(b/204383858): Remove the patch when usage in mri_package is removed
 backward-compatibility-add-base-AdaptCallbackForRepaeting.patch media_perception
 
-# Backward compatibility for r1000000 uprev
-# bit_cast was moved to base:: namespce in r998789 (crrev.com/c/3615258)
-# TODO(b/240121598): remove when all usage is migrated to base::bit_cast.
-backward-compatibility-Alias-bit_cast-to-base-bit_cast.patch
-
-# Backward compatibility for r1000000 uprev
-# r991946 (crrev.com/c/3574675) moves the SharedMemoryHandle out of
-# PlatformSharedMemoryRegion and into its own PlatformSharedMemoryHandle type.
-# TODO(b/241722539): remove when all usage is migrated PlatformSharedMemoryHandle
-backward-compatibility-add-SharedMemoryHandle-back-into-PlatformSharedMemoryRegion.patch
-
 # base::JSONReader::ValueWithError will be migrated to return
 # base::expected<base::Value, Error> instead of ValueWithError in libchrome r1017954
 # (crrev.com/c/3696611).
