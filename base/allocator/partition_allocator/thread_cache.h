@@ -10,6 +10,7 @@
 #include <limits>
 #include <memory>
 
+#include "base/allocator/partition_allocator/partition_alloc_base/gtest_prod_util.h"
 #include "base/allocator/partition_allocator/partition_alloc_config.h"
 #include "base/allocator/partition_allocator/partition_alloc_forward.h"
 #include "base/allocator/partition_allocator/partition_bucket_lookup.h"
@@ -20,7 +21,6 @@
 #include "base/base_export.h"
 #include "base/compiler_specific.h"
 #include "base/dcheck_is_on.h"
-#include "base/gtest_prod_util.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
 
@@ -306,7 +306,7 @@ class BASE_EXPORT ThreadCache {
     return buckets_[index].count;
   }
 
-  base::PlatformThreadId thread_id() const { return thread_id_; }
+  internal::base::PlatformThreadId thread_id() const { return thread_id_; }
 
   // Sets the maximum size of allocations that may be cached by the thread
   // cache. This applies to all threads. However, the maximum size is bounded by
@@ -325,6 +325,15 @@ class BASE_EXPORT ThreadCache {
       ThreadCacheLimits::kDefaultSizeThreshold;
   static constexpr size_t kLargeSizeThreshold =
       ThreadCacheLimits::kLargeSizeThreshold;
+
+  const ThreadCache* prev_for_testing() const
+      EXCLUSIVE_LOCKS_REQUIRED(ThreadCacheRegistry::GetLock()) {
+    return prev_;
+  }
+  const ThreadCache* next_for_testing() const
+      EXCLUSIVE_LOCKS_REQUIRED(ThreadCacheRegistry::GetLock()) {
+    return next_;
+  }
 
  private:
   friend class tools::HeapDumper;
@@ -405,7 +414,8 @@ class BASE_EXPORT ThreadCache {
 
   // Cold data below.
   PartitionRoot<>* const root_;
-  const base::PlatformThreadId thread_id_;
+
+  const internal::base::PlatformThreadId thread_id_;
 #if DCHECK_IS_ON()
   bool is_in_thread_cache_ = false;
 #endif
@@ -418,26 +428,29 @@ class BASE_EXPORT ThreadCache {
   friend class ThreadCacheRegistry;
   friend class PartitionAllocThreadCacheTest;
   friend class tools::ThreadCacheInspector;
-  FRIEND_TEST_ALL_PREFIXES(PartitionAllocThreadCacheTest, Simple);
-  FRIEND_TEST_ALL_PREFIXES(PartitionAllocThreadCacheTest,
-                           MultipleObjectsCachedPerBucket);
-  FRIEND_TEST_ALL_PREFIXES(PartitionAllocThreadCacheTest,
-                           LargeAllocationsAreNotCached);
-  FRIEND_TEST_ALL_PREFIXES(PartitionAllocThreadCacheTest, MultipleThreadCaches);
-  FRIEND_TEST_ALL_PREFIXES(PartitionAllocThreadCacheTest, RecordStats);
-  FRIEND_TEST_ALL_PREFIXES(PartitionAllocThreadCacheTest, ThreadCacheRegistry);
-  FRIEND_TEST_ALL_PREFIXES(PartitionAllocThreadCacheTest,
-                           MultipleThreadCachesAccounting);
-  FRIEND_TEST_ALL_PREFIXES(PartitionAllocThreadCacheTest,
-                           DynamicCountPerBucket);
-  FRIEND_TEST_ALL_PREFIXES(PartitionAllocThreadCacheTest,
-                           DynamicCountPerBucketClamping);
-  FRIEND_TEST_ALL_PREFIXES(PartitionAllocThreadCacheTest,
-                           DynamicCountPerBucketMultipleThreads);
-  FRIEND_TEST_ALL_PREFIXES(PartitionAllocThreadCacheTest, DynamicSizeThreshold);
-  FRIEND_TEST_ALL_PREFIXES(PartitionAllocThreadCacheTest,
-                           DynamicSizeThresholdPurge);
-  FRIEND_TEST_ALL_PREFIXES(PartitionAllocThreadCacheTest, ClearFromTail);
+  PA_FRIEND_TEST_ALL_PREFIXES(PartitionAllocThreadCacheTest, Simple);
+  PA_FRIEND_TEST_ALL_PREFIXES(PartitionAllocThreadCacheTest,
+                              MultipleObjectsCachedPerBucket);
+  PA_FRIEND_TEST_ALL_PREFIXES(PartitionAllocThreadCacheTest,
+                              LargeAllocationsAreNotCached);
+  PA_FRIEND_TEST_ALL_PREFIXES(PartitionAllocThreadCacheTest,
+                              MultipleThreadCaches);
+  PA_FRIEND_TEST_ALL_PREFIXES(PartitionAllocThreadCacheTest, RecordStats);
+  PA_FRIEND_TEST_ALL_PREFIXES(PartitionAllocThreadCacheTest,
+                              ThreadCacheRegistry);
+  PA_FRIEND_TEST_ALL_PREFIXES(PartitionAllocThreadCacheTest,
+                              MultipleThreadCachesAccounting);
+  PA_FRIEND_TEST_ALL_PREFIXES(PartitionAllocThreadCacheTest,
+                              DynamicCountPerBucket);
+  PA_FRIEND_TEST_ALL_PREFIXES(PartitionAllocThreadCacheTest,
+                              DynamicCountPerBucketClamping);
+  PA_FRIEND_TEST_ALL_PREFIXES(PartitionAllocThreadCacheTest,
+                              DynamicCountPerBucketMultipleThreads);
+  PA_FRIEND_TEST_ALL_PREFIXES(PartitionAllocThreadCacheTest,
+                              DynamicSizeThreshold);
+  PA_FRIEND_TEST_ALL_PREFIXES(PartitionAllocThreadCacheTest,
+                              DynamicSizeThresholdPurge);
+  PA_FRIEND_TEST_ALL_PREFIXES(PartitionAllocThreadCacheTest, ClearFromTail);
 };
 
 ALWAYS_INLINE bool ThreadCache::MaybePutInCache(uintptr_t slot_start,

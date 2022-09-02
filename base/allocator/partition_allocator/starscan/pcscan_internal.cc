@@ -27,7 +27,10 @@
 #include "base/allocator/partition_allocator/partition_alloc_base/bits.h"
 #include "base/allocator/partition_allocator/partition_alloc_base/cpu.h"
 #include "base/allocator/partition_allocator/partition_alloc_base/debug/alias.h"
+#include "base/allocator/partition_allocator/partition_alloc_base/memory/ref_counted.h"
+#include "base/allocator/partition_allocator/partition_alloc_base/memory/scoped_refptr.h"
 #include "base/allocator/partition_allocator/partition_alloc_base/no_destructor.h"
+#include "base/allocator/partition_allocator/partition_alloc_base/threading/platform_thread.h"
 #include "base/allocator/partition_allocator/partition_alloc_check.h"
 #include "base/allocator/partition_allocator/partition_alloc_config.h"
 #include "base/allocator/partition_allocator/partition_alloc_constants.h"
@@ -45,9 +48,6 @@
 #include "base/allocator/partition_allocator/thread_cache.h"
 #include "base/compiler_specific.h"
 #include "base/immediate_crash.h"
-#include "base/memory/ref_counted.h"
-#include "base/memory/scoped_refptr.h"
-#include "base/threading/platform_thread.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
 
@@ -62,11 +62,6 @@
 #endif
 
 namespace partition_alloc::internal {
-
-namespace base {
-using ::base::MakeRefCounted;
-using ::base::RefCountedThreadSafe;
-}  // namespace base
 
 [[noreturn]] NOINLINE NOT_TAIL_CALLED void DoubleFreeAttempt() {
   PA_NO_CODE_FOLDING();
@@ -1217,7 +1212,7 @@ class PCScan::PCScanThread final {
                   // Ideally we should avoid mixing base:: and std:: API for
                   // threading, but this is useful for visualizing the pcscan
                   // thread in chrome://tracing.
-                  base::PlatformThread::SetName(kThreadName);
+                  internal::base::PlatformThread::SetName(kThreadName);
                   instance->TaskLoop();
                 },
                 this}
@@ -1440,8 +1435,8 @@ void PCScanInternal::RegisterScannableRoot(Root* root) {
       return;
     PA_CHECK(!root->IsQuarantineEnabled());
     super_pages = GetSuperPagesAndCommitStateBitmaps(*root);
-    root->flags.scan_mode = Root::ScanMode::kEnabled;
-    root->flags.quarantine_mode = Root::QuarantineMode::kEnabled;
+    root->scan_mode = Root::ScanMode::kEnabled;
+    root->quarantine_mode = Root::QuarantineMode::kEnabled;
   }
   std::lock_guard<std::mutex> lock(roots_mutex_);
   PA_DCHECK(!scannable_roots_.count(root));
@@ -1462,7 +1457,7 @@ void PCScanInternal::RegisterNonScannableRoot(Root* root) {
     if (root->IsQuarantineEnabled())
       return;
     super_pages = GetSuperPagesAndCommitStateBitmaps(*root);
-    root->flags.quarantine_mode = Root::QuarantineMode::kEnabled;
+    root->quarantine_mode = Root::QuarantineMode::kEnabled;
   }
   std::lock_guard<std::mutex> lock(roots_mutex_);
   PA_DCHECK(!nonscannable_roots_.count(root));
@@ -1582,12 +1577,12 @@ void PCScanInternal::ClearRootsForTesting() {
   // Set all roots as non-scannable and non-quarantinable.
   for (auto& pair : scannable_roots_) {
     Root* root = pair.first;
-    root->flags.scan_mode = Root::ScanMode::kDisabled;
-    root->flags.quarantine_mode = Root::QuarantineMode::kDisabledByDefault;
+    root->scan_mode = Root::ScanMode::kDisabled;
+    root->quarantine_mode = Root::QuarantineMode::kDisabledByDefault;
   }
   for (auto& pair : nonscannable_roots_) {
     Root* root = pair.first;
-    root->flags.quarantine_mode = Root::QuarantineMode::kDisabledByDefault;
+    root->quarantine_mode = Root::QuarantineMode::kDisabledByDefault;
   }
   // Make sure to destroy maps so that on the following ReinitForTesting() call
   // the maps don't attempt to destroy the backing.
