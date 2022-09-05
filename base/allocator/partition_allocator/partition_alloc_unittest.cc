@@ -13,6 +13,7 @@
 #include <limits>
 #include <memory>
 #include <random>
+#include <set>
 #include <tuple>
 #include <vector>
 
@@ -22,13 +23,17 @@
 #include "base/allocator/partition_allocator/page_allocator_constants.h"
 #include "base/allocator/partition_allocator/partition_address_space.h"
 #include "base/allocator/partition_allocator/partition_alloc_base/bits.h"
+#include "base/allocator/partition_allocator/partition_alloc_base/compiler_specific.h"
 #include "base/allocator/partition_allocator/partition_alloc_base/cpu.h"
 #include "base/allocator/partition_allocator/partition_alloc_base/logging.h"
 #include "base/allocator/partition_allocator/partition_alloc_base/numerics/checked_math.h"
 #include "base/allocator/partition_allocator/partition_alloc_base/rand_util.h"
+#include "base/allocator/partition_allocator/partition_alloc_base/strings/stringprintf.h"
+#include "base/allocator/partition_allocator/partition_alloc_base/thread_annotations.h"
 #include "base/allocator/partition_allocator/partition_alloc_base/threading/platform_thread_for_testing.h"
 #include "base/allocator/partition_allocator/partition_alloc_config.h"
 #include "base/allocator/partition_allocator/partition_alloc_constants.h"
+#include "base/allocator/partition_allocator/partition_bucket.h"
 #include "base/allocator/partition_allocator/partition_cookie.h"
 #include "base/allocator/partition_allocator/partition_freelist_entry.h"
 #include "base/allocator/partition_allocator/partition_page.h"
@@ -37,7 +42,7 @@
 #include "base/allocator/partition_allocator/partition_tag_bitmap.h"
 #include "base/allocator/partition_allocator/reservation_offset_table.h"
 #include "base/allocator/partition_allocator/tagging.h"
-#include "base/strings/stringprintf.h"
+#include "base/debug/debugging_buildflags.h"
 #include "base/system/sys_info.h"
 #include "build/build_config.h"
 #include "build/chromecast_buildflags.h"
@@ -218,7 +223,7 @@ namespace partition_alloc::internal {
 using SlotSpan = SlotSpanMetadata<ThreadSafe>;
 
 const size_t kTestAllocSize = 16;
-#if !DCHECK_IS_ON()
+#if !BUILDFLAG(PA_DCHECK_IS_ON)
 const size_t kPointerOffset = kPartitionRefCountOffsetAdjustment;
 const size_t kExtraAllocSize = kInSlotRefCountBufferSize;
 #else
@@ -265,6 +270,7 @@ class PartitionAllocTest : public testing::TestWithParam<bool> {
   ~PartitionAllocTest() override = default;
 
   void SetUp() override {
+    PartitionRoot<ThreadSafe>::EnableSortActiveSlotSpans();
     PartitionAllocGlobalInit(HandleOOM);
     allocator.init({
 #if !BUILDFLAG(USE_BACKUP_REF_PTR) || BUILDFLAG(PUT_REF_COUNT_IN_PREVIOUS_SLOT)
@@ -460,11 +466,11 @@ class PartitionAllocTest : public testing::TestWithParam<bool> {
 
   void RunRefCountReallocSubtest(size_t orig_size, size_t new_size);
 
-  NOINLINE PA_MALLOC_FN void* Alloc(size_t size) {
+  PA_NOINLINE PA_MALLOC_FN void* Alloc(size_t size) {
     return allocator.root()->Alloc(size, "");
   }
 
-  NOINLINE void Free(void* ptr) { allocator.root()->Free(ptr); }
+  PA_NOINLINE void Free(void* ptr) { allocator.root()->Free(ptr); }
 
   PartitionAllocator<internal::ThreadSafe> allocator;
   PartitionAllocator<internal::ThreadSafe> aligned_allocator;
@@ -933,7 +939,7 @@ TEST_P(PartitionAllocTest, Alloc) {
   // Check that the realloc copied correctly.
   char* new_char_ptr = static_cast<char*>(new_ptr);
   EXPECT_EQ(*new_char_ptr, 'A');
-#if EXPENSIVE_DCHECKS_ARE_ON()
+#if BUILDFLAG(EXPENSIVE_DCHECKS_ARE_ON)
   // Subtle: this checks for an old bug where we copied too much from the
   // source of the realloc. The condition can be detected by a trashing of
   // the uninitialized value in the space of the upsized allocation.
@@ -1050,7 +1056,7 @@ TEST_P(PartitionAllocTest, AllocSizes) {
     allocator.root()->Free(new_ptr_2);
     allocator.root()->Free(ptr4);
 
-#if EXPENSIVE_DCHECKS_ARE_ON()
+#if BUILDFLAG(EXPENSIVE_DCHECKS_ARE_ON)
     // |SlotSpanMetadata::Free| must poison the slot's contents with
     // |kFreedByte|.
     EXPECT_EQ(kFreedByte,
@@ -1360,7 +1366,7 @@ TEST_P(PartitionAllocTest, Realloc) {
   char* char_ptr2 = static_cast<char*>(ptr2);
   EXPECT_EQ('A', char_ptr2[0]);
   EXPECT_EQ('A', char_ptr2[size - 1]);
-#if EXPENSIVE_DCHECKS_ARE_ON()
+#if BUILDFLAG(EXPENSIVE_DCHECKS_ARE_ON)
   EXPECT_EQ(kUninitializedByte, static_cast<unsigned char>(char_ptr2[size]));
 #endif
 
@@ -1372,7 +1378,7 @@ TEST_P(PartitionAllocTest, Realloc) {
   char* char_ptr = static_cast<char*>(ptr);
   EXPECT_EQ('A', char_ptr[0]);
   EXPECT_EQ('A', char_ptr[size - 2]);
-#if EXPENSIVE_DCHECKS_ARE_ON()
+#if BUILDFLAG(EXPENSIVE_DCHECKS_ARE_ON)
   EXPECT_EQ(kUninitializedByte, static_cast<unsigned char>(char_ptr[size - 1]));
 #endif
 
@@ -1392,7 +1398,7 @@ TEST_P(PartitionAllocTest, Realloc) {
   char_ptr2 = static_cast<char*>(ptr2);
   EXPECT_EQ('A', char_ptr2[0]);
   EXPECT_EQ('A', char_ptr2[size - 1]);
-#if EXPENSIVE_DCHECKS_ARE_ON()
+#if BUILDFLAG(EXPENSIVE_DCHECKS_ARE_ON)
   EXPECT_EQ(kUninitializedByte, static_cast<unsigned char>(char_ptr2[size]));
 #endif
   allocator.root()->Free(ptr2);
@@ -1408,7 +1414,7 @@ TEST_P(PartitionAllocTest, Realloc) {
   char_ptr2 = static_cast<char*>(ptr2);
   EXPECT_EQ('A', char_ptr2[0]);
   EXPECT_EQ('A', char_ptr2[size / 2 - 1]);
-#if DCHECK_IS_ON()
+#if BUILDFLAG(PA_DCHECK_IS_ON)
   // For single-slot slot spans, the cookie is always placed immediately after
   // the allocation.
   EXPECT_EQ(kCookieValue[0], static_cast<unsigned char>(char_ptr2[size / 2]));
@@ -2063,8 +2069,8 @@ INSTANTIATE_TEST_SUITE_P(AlternateBucketDistribution,
 // Performing them as death tests causes them to be forked into their own
 // process, so they won't pollute other tests.
 //
-// These tests are *very* slow when DCHECK_IS_ON(), because they memset() many
-// GiB of data (see crbug.com/1168168).
+// These tests are *very* slow when BUILDFLAG(PA_DCHECK_IS_ON), because they
+// memset() many GiB of data (see crbug.com/1168168).
 // TODO(lizeb): make these tests faster.
 TEST_P(PartitionAllocDeathTest, RepeatedAllocReturnNullDirect) {
   // A direct-mapped allocation size.
@@ -2283,8 +2289,8 @@ TEST_P(PartitionAllocDeathTest, FreelistCorruption) {
   uaf_data[0] = previous_uaf_data;
 }
 
-// With DCHECK_IS_ON(), cookie already handles off-by-one detection.
-#if !DCHECK_IS_ON()
+// With BUILDFLAG(PA_DCHECK_IS_ON), cookie already handles off-by-one detection.
+#if !BUILDFLAG(PA_DCHECK_IS_ON)
 TEST_P(PartitionAllocDeathTest, OffByOneDetection) {
   base::CPU cpu;
   const size_t alloc_size = 2 * sizeof(void*);
@@ -2326,7 +2332,7 @@ TEST_P(PartitionAllocDeathTest, OffByOneDetectionWithRealisticData) {
     array[2] = previous_value;
   }
 }
-#endif  // !DCHECK_IS_ON()
+#endif  // !BUILDFLAG(PA_DCHECK_IS_ON)
 
 #endif  // !BUILDFLAG(USE_BACKUP_REF_PTR) &&
         // defined(PA_HAS_FREELIST_SHADOW_ENTRY)
@@ -2827,7 +2833,7 @@ TEST_P(PartitionAllocTest, PurgeDiscardableManyPages) {
   const size_t kSecondAllocPages = kHasLargePages ? 31 : 61;
 
   // Detect case (1) from above.
-  DCHECK_LT(kFirstAllocPages * SystemPageSize(), 1UL << kMaxBucketedOrder);
+  PA_DCHECK(kFirstAllocPages * SystemPageSize() < (1UL << kMaxBucketedOrder));
 
   const size_t kDeltaPages = kFirstAllocPages - kSecondAllocPages;
 
@@ -4070,7 +4076,7 @@ TEST_P(PartitionAllocTest, CheckReservationType) {
   // Freeing releases direct-map super pages.
   address_to_check =
       partition_alloc::internal::base::bits::AlignDown(address, kSuperPageSize);
-#if DCHECK_IS_ON()
+#if BUILDFLAG(PA_DCHECK_IS_ON)
   // Expect to DCHECK on unallocated region.
   EXPECT_DEATH_IF_SUPPORTED(IsReservationStart(address_to_check), "");
 #endif
@@ -4147,7 +4153,7 @@ TEST_P(PartitionAllocTest, FastPathOrReturnNull) {
 
 TEST_P(PartitionAllocDeathTest, CheckTriggered) {
   using ::testing::ContainsRegex;
-#if DCHECK_IS_ON()
+#if BUILDFLAG(PA_DCHECK_IS_ON)
   EXPECT_DEATH(PA_CHECK(5 == 7), ContainsRegex("Check failed.*5 == 7"));
 #endif
   EXPECT_DEATH(PA_CHECK(5 == 7), ContainsRegex("Check failed.*5 == 7"));
@@ -4165,7 +4171,7 @@ TEST_P(PartitionAllocDeathTest, CheckTriggered) {
 
 namespace {
 
-NOINLINE void FreeForTest(void* data) {
+PA_NOINLINE void FreeForTest(void* data) {
   free(data);
 }
 
@@ -4186,7 +4192,7 @@ class ThreadDelegateForPreforkHandler
 
       // A simple malloc() / free() pair can be discarded by the compiler (and
       // is), making the test fail. It is sufficient to make |FreeForTest()| a
-      // NOINLINE function for the call to not be eliminated, but it is
+      // PA_NOINLINE function for the call to not be eliminated, but it is
       // required.
       FreeForTest(ptr);
     }
@@ -4285,7 +4291,7 @@ TEST_P(PartitionAllocTest, ConfigurablePool) {
   const size_t min_pool_size = PartitionAddressSpace::ConfigurablePoolMinSize();
   for (size_t pool_size = max_pool_size; pool_size >= min_pool_size;
        pool_size /= 2) {
-    DCHECK(partition_alloc::internal::base::bits::IsPowerOfTwo(pool_size));
+    PA_DCHECK(partition_alloc::internal::base::bits::IsPowerOfTwo(pool_size));
     EXPECT_FALSE(IsConfigurablePoolAvailable());
     uintptr_t pool_base = AllocPages(
         pool_size, pool_size, PageAccessibilityConfiguration::kInaccessible,
@@ -4368,16 +4374,16 @@ TEST_P(PartitionAllocTest, EmptySlotSpanSizeIsCapped) {
     root.Free(ptr);
 
   // Still have some committed empty slot spans.
-  // TS_UNCHECKED_READ() is not an issue here, since everything is
+  // PA_TS_UNCHECKED_READ() is not an issue here, since everything is
   // single-threaded.
-  EXPECT_GT(TS_UNCHECKED_READ(root.empty_slot_spans_dirty_bytes), 0u);
+  EXPECT_GT(PA_TS_UNCHECKED_READ(root.empty_slot_spans_dirty_bytes), 0u);
   // But not all, as the cap triggered.
-  EXPECT_LT(TS_UNCHECKED_READ(root.empty_slot_spans_dirty_bytes),
+  EXPECT_LT(PA_TS_UNCHECKED_READ(root.empty_slot_spans_dirty_bytes),
             single_slot_count * single_slot_size);
 
   // Nothing left after explicit purge.
   root.PurgeMemory(PurgeFlags::kDecommitEmptySlotSpans);
-  EXPECT_EQ(TS_UNCHECKED_READ(root.empty_slot_spans_dirty_bytes), 0u);
+  EXPECT_EQ(PA_TS_UNCHECKED_READ(root.empty_slot_spans_dirty_bytes), 0u);
 
   for (void* ptr : allocated_memory)
     root.Free(ptr);
@@ -4412,7 +4418,7 @@ TEST_P(PartitionAllocTest, IncreaseEmptySlotSpanRingSize) {
   single_slot_allocated_memory.clear();
 
   // Some of the free()-s above overflowed the slot span ring.
-  EXPECT_EQ(TS_UNCHECKED_READ(root.empty_slot_spans_dirty_bytes),
+  EXPECT_EQ(PA_TS_UNCHECKED_READ(root.empty_slot_spans_dirty_bytes),
             kDefaultEmptySlotSpanRingSize * bucket_size);
 
   // Now can cache more slot spans.
@@ -4429,7 +4435,7 @@ TEST_P(PartitionAllocTest, IncreaseEmptySlotSpanRingSize) {
   single_slot_allocated_memory.clear();
 
   // No overflow this time.
-  EXPECT_EQ(TS_UNCHECKED_READ(root.empty_slot_spans_dirty_bytes),
+  EXPECT_EQ(PA_TS_UNCHECKED_READ(root.empty_slot_spans_dirty_bytes),
             single_slot_large_count * bucket_size);
 
   constexpr size_t single_slot_too_many_count = kMaxFreeableSpans + 10;
@@ -4443,7 +4449,7 @@ TEST_P(PartitionAllocTest, IncreaseEmptySlotSpanRingSize) {
   single_slot_allocated_memory.clear();
 
   // Overflow still works.
-  EXPECT_EQ(TS_UNCHECKED_READ(root.empty_slot_spans_dirty_bytes),
+  EXPECT_EQ(PA_TS_UNCHECKED_READ(root.empty_slot_spans_dirty_bytes),
             kMaxFreeableSpans * bucket_size);
 }
 
@@ -4707,6 +4713,74 @@ TEST_P(PartitionAllocTest, SmallSlotSpanWaste) {
     if (slot_size <= MaxRegularSlotSpanSize())
       EXPECT_LE(small_system_page_count, MaxSystemPagesPerRegularSlotSpan());
   }
+}
+
+TEST_P(PartitionAllocTest, SortActiveSlotSpans) {
+  auto run_test = [](size_t count) {
+    PartitionBucket<ThreadSafe> bucket;
+    bucket.Init(16);
+    bucket.active_slot_spans_head = nullptr;
+
+    std::vector<SlotSpanMetadata<ThreadSafe>> slot_spans;
+    slot_spans.reserve(count);
+
+    // Add slot spans with random freelist length.
+    for (size_t i = 0; i < count; i++) {
+      slot_spans.emplace_back(&bucket);
+      auto& slot_span = slot_spans.back();
+      slot_span.num_unprovisioned_slots =
+          partition_alloc::internal::base::RandGenerator(
+              bucket.get_slots_per_span() / 2);
+      slot_span.num_allocated_slots =
+          partition_alloc::internal::base::RandGenerator(
+              bucket.get_slots_per_span() - slot_span.num_unprovisioned_slots);
+      slot_span.next_slot_span = bucket.active_slot_spans_head;
+      bucket.active_slot_spans_head = &slot_span;
+    }
+
+    bucket.SortActiveSlotSpans();
+
+    std::set<SlotSpanMetadata<ThreadSafe>*> seen_slot_spans;
+    std::vector<SlotSpanMetadata<ThreadSafe>*> sorted_slot_spans;
+    for (auto* slot_span = bucket.active_slot_spans_head; slot_span;
+         slot_span = slot_span->next_slot_span) {
+      sorted_slot_spans.push_back(slot_span);
+      seen_slot_spans.insert(slot_span);
+    }
+
+    // None repeated, none missing.
+    EXPECT_EQ(seen_slot_spans.size(), sorted_slot_spans.size());
+    EXPECT_EQ(seen_slot_spans.size(), slot_spans.size());
+
+    // The first slot spans are sorted.
+    size_t sorted_spans_count =
+        std::min(PartitionBucket<ThreadSafe>::kMaxSlotSpansToSort, count);
+    EXPECT_TRUE(std::is_sorted(sorted_slot_spans.begin(),
+                               sorted_slot_spans.begin() + sorted_spans_count,
+                               partition_alloc::internal::CompareSlotSpans));
+
+    // Slot spans with no freelist entries are at the end of the sorted run.
+    auto has_empty_freelist = [](SlotSpanMetadata<ThreadSafe>* a) {
+      return a->GetFreelistLength() == 0;
+    };
+    auto it = std::find_if(sorted_slot_spans.begin(),
+                           sorted_slot_spans.begin() + sorted_spans_count,
+                           has_empty_freelist);
+    if (it != sorted_slot_spans.end()) {
+      EXPECT_TRUE(std::all_of(it,
+                              sorted_slot_spans.begin() + sorted_spans_count,
+                              has_empty_freelist));
+    }
+  };
+
+  // Everything is sorted.
+  run_test(PartitionBucket<ThreadSafe>::kMaxSlotSpansToSort / 2);
+  // Only the first slot spans are sorted.
+  run_test(PartitionBucket<ThreadSafe>::kMaxSlotSpansToSort * 2);
+
+  // Corner cases.
+  run_test(0);
+  run_test(1);
 }
 
 }  // namespace partition_alloc::internal

@@ -1,0 +1,92 @@
+From 47e635ac64d752dbc3891665fb6a8237b9d1757e Mon Sep 17 00:00:00 2001
+From: Grace Cham <hscham@chromium.org>
+Date: Mon, 5 Sep 2022 10:44:10 +0900
+Subject: [PATCH] Add TerminateBecauseOutOfMemory back to base/
+
+r1007458 (crrev.com/c/3635217) moved base::TerminateBecauseOutOfMemory
+to partition_allocator:: namespace, but it is used outside of PA e.g.
+base/metrics/field_trial.cc and CrOS libchrome is avoiding to build PA.
+The CL kept the base::alias so no other change is needed.
+
+Change-Id: I9640f9c4f8aba5153ecec0132ee5b48126e5300c
+---
+ base/process/memory.cc | 30 ++++++++++++++++++++++++++++++
+ base/process/memory.h  | 14 ++++++++++----
+ 2 files changed, 40 insertions(+), 4 deletions(-)
+
+diff --git a/base/process/memory.cc b/base/process/memory.cc
+index be6cdfb6bf8c..0592f0d0135c 100644
+--- a/base/process/memory.cc
++++ b/base/process/memory.cc
+@@ -26,6 +26,36 @@
+ 
+ namespace base {
+ 
++size_t g_oom_size = 0U;
++
++namespace internal {
++
++// Crash server classifies base::internal::OnNoMemoryInternal as OOM.
++NOINLINE void OnNoMemoryInternal(size_t size) {
++  g_oom_size = size;
++  size_t tmp_size = size;
++  base::debug::Alias(&tmp_size);
++
++  // Note: Don't add anything that may allocate here. Depending on the
++  // allocator, this may be called from within the allocator (e.g. with
++  // PartitionAlloc), and would deadlock as our locks are not recursive.
++  //
++  // Additionally, this is unlikely to work, since allocating from an OOM
++  // handler is likely to fail.
++  //
++  // Use IMMEDIATE_CRASH() so that the top frame in the crash is our code,
++  // rather than using abort() or similar; this avoids the crash server needing
++  // to be able to successfully unwind through libc to get to the correct
++  // address, which is particularly an issue on Android.
++  IMMEDIATE_CRASH();
++}
++
++}  // namespace internal
++
++void TerminateBecauseOutOfMemory(size_t size) {
++  internal::OnNoMemoryInternal(size);
++}
++
+ // Defined in memory_mac.mm for macOS + use_allocator="none".  In case of
+ // USE_PARTITION_ALLOC_AS_MALLOC, no need to route the call to the system
+ // default calloc of macOS.
+diff --git a/base/process/memory.h b/base/process/memory.h
+index 625a110ca7d2..6614df3bf549 100644
+--- a/base/process/memory.h
++++ b/base/process/memory.h
+@@ -7,7 +7,6 @@
+ 
+ #include <stddef.h>
+ 
+-#include "base/allocator/partition_allocator/oom.h"
+ #include "base/base_export.h"
+ #include "base/process/process_handle.h"
+ #include "build/build_config.h"
+@@ -21,9 +20,16 @@ BASE_EXPORT void EnableTerminationOnHeapCorruption();
+ // Turns on process termination if memory runs out.
+ BASE_EXPORT void EnableTerminationOnOutOfMemory();
+ 
+-// The function has been moved to partition_alloc:: namespace. The base:: alias
+-// has been provided to avoid changing too many callers.
+-using partition_alloc::TerminateBecauseOutOfMemory;
++// Terminates process. Should be called only for out of memory errors.
++// |size| is the size of the failed allocation, or 0 if not known.
++// Crash reporting classifies such crashes as OOM.
++// Must be allocation-safe.
++BASE_EXPORT void TerminateBecauseOutOfMemory(size_t size);
++
++// Records the size of the allocation that caused the current OOM crash, for
++// consumption by Breakpad.
++// TODO: this can be removed when Breakpad is no longer supported.
++BASE_EXPORT extern size_t g_oom_size;
+ 
+ #if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID) || \
+     BUILDFLAG(IS_AIX)
+-- 
+2.37.2.789.g6183377224-goog
+

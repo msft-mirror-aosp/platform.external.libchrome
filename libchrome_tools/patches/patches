@@ -71,6 +71,10 @@ Revert-Make-base-VerifyPathControlledByUser-Mac-only.patch
 # are fixed.
 libchrome-Query-spaced-for-free-total-disk-space.patch
 
+# Add base::TerminateBecauseOutOfMemory (moved to base::partition_alloc:: in
+# r1007458 (crrev.com/c/3635217)) to avoid building PA.
+Add-TerminateBecauseOutOfMemory-back-to-base.patch
+
 # ==================== CHERRY PICKS ===========================
 
 # ==================== BACKWARD COMPATIBILITY PATCHES FOR UPREVS =========
@@ -83,6 +87,13 @@ backward-compatibility-add-deprecated-base-Bind-APIs.patch
 # Backward compatibility patch to temporarily add base::AdaptCallbackForRepeating
 # TODO(b/204383858): Remove the patch when usage in mri_package is removed
 backward-compatibility-add-base-AdaptCallbackForRepaeting.patch media_perception
+
+
+# Backward compatibility patch to revert r1008071 (crrev.com/c/3569842) which
+# introduced new uses of statfs.
+# TODO(b/245844506): Remove the patch when all affected packages have statfs in
+# seccomp filter
+backward-compatibility-Revert-One-cgroup-per-renderer-on-Chrome-OS.patch
 
 # ==================== FORWARD COMPATIBILITY PATCHES FOR UPREVS ==========
 # base::JSONReader::ValueWithError will be migrated to return

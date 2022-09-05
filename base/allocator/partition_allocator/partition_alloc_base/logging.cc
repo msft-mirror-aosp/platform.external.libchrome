@@ -4,13 +4,19 @@
 
 #include "base/allocator/partition_allocator/partition_alloc_base/logging.h"
 
-#ifdef BASE_CHECK_H_
+// TODO(1151236): After finishing copying //base files to PA library, remove
+// defined(BASE_CHECK_H_) from here.
+#if defined(                                                             \
+    BASE_ALLOCATOR_PARTITION_ALLOCATOR_PARTITION_ALLOC_BASE_CHECK_H_) || \
+    defined(BASE_CHECK_H_) ||                                            \
+    defined(BASE_ALLOCATOR_PARTITION_ALLOCATOR_PARTITION_ALLOC_CHECK_H_)
 #error "logging.h should not include check.h"
 #endif
 
 #include "base/allocator/partition_allocator/partition_alloc_base/debug/alias.h"
+#include "base/allocator/partition_allocator/partition_alloc_base/immediate_crash.h"
+#include "base/allocator/partition_allocator/partition_alloc_base/strings/stringprintf.h"
 #include "base/base_export.h"
-#include "base/immediate_crash.h"
 #include "build/build_config.h"
 
 #if BUILDFLAG(IS_WIN)
@@ -195,13 +201,14 @@ BASE_EXPORT std::string SystemErrorCodeToString(SystemErrorCode error_code) {
     size_t whitespace_pos = message.find_last_not_of("\n\r ");
     if (whitespace_pos != std::string::npos)
       message.erase(whitespace_pos + 1);
-    return message + base::StringPrintf(" (0x%lX)", error_code);
+    return message + base::TruncatingStringPrintf(" (0x%lX)", error_code);
   }
-  return base::StringPrintf("Error (0x%lX) while retrieving error. (0x%lX)",
-                            GetLastError(), error_code);
+  return base::TruncatingStringPrintf(
+      "Error (0x%lX) while retrieving error. (0x%lX)", GetLastError(),
+      error_code);
 #elif BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
   return base::safe_strerror(error_code) +
-         base::StringPrintf(" (%d)", error_code);
+         base::TruncatingStringPrintf(" (%d)", error_code);
 #endif  // BUILDFLAG(IS_WIN)
 }
 
@@ -253,7 +260,7 @@ void RawLog(int level, const char* message) {
   }
 
   if (level == LOGGING_FATAL)
-    IMMEDIATE_CRASH();
+    PA_IMMEDIATE_CRASH();
 }
 
 // This was defined at the beginning of this file.
