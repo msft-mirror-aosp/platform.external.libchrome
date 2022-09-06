@@ -45,23 +45,3 @@ WANT_EXCLUDE = [
 
 # ALWAYS_WANT is a WANT, but not excluded by WANT_EXCLUDE
 ALWAYS_WANT = [re.compile(rb'base/hash/(md5|sha1)_nacl\.(h|cc)$')]
-
-# Files matching KEEP should not be touched.
-# aka files matching KEEP will keep its our_files version,
-# and it will be kept even it doesn't exist in upstream.
-# KEEP-KEEP_EXCLUDE must NOT intersect with WANT-WANT_EXCLUDE
-KEEP = [
-    re.compile(
-        b'(BUILD.gn|crypto|libchrome_tools|MODULE_LICENSE_BSD|NOTICE|OWNERS|PRESUBMIT.cfg|soong|testrunner.cc|third_party)(/.*)?$'
-    ),
-    re.compile(rb'[^/]*$'),
-    re.compile(rb'.*buildflags.h'),
-    re.compile(rb'base/android/java/src/org/chromium/base/BuildConfig.java'),
-    re.compile(rb'testing/(gmock|gtest)/'),
-    re.compile(rb'base/third_party/(libevent|symbolize)'),
-]
-
-# KEEP_EXCLUDE wil be excluded from KEEP.
-KEEP_EXCLUDE = [
-    re.compile(rb'third_party/(jinja2|markupsafe|ply)'),
-]

@@ -43,8 +43,7 @@ def verify_tree(current):
     current_metadata = filtered_utils.get_metadata(current)
     original_commit = current_metadata.original_commit_cursor
     new_filter = filters.Filter(filter_config.WANT, filter_config.WANT_EXCLUDE,
-                                filter_config.ALWAYS_WANT, filter_config.KEEP,
-                                filter_config.KEEP_EXCLUDE)
+                                filter_config.ALWAYS_WANT)
     expected_tree = lazytree.LazyTree()
     for f in utils.get_file_list(original_commit):
         if new_filter.want_file(f.path):
@@ -79,8 +78,7 @@ def delete(current):
     current_metadata = filtered_utils.get_metadata(current)
     original_commit = current_metadata.original_commit_cursor
     new_filter = filters.Filter(filter_config.WANT, filter_config.WANT_EXCLUDE,
-                                filter_config.ALWAYS_WANT, filter_config.KEEP,
-                                filter_config.KEEP_EXCLUDE)
+                                filter_config.ALWAYS_WANT)
     tree = lazytree.LazyTree(current_metadata.tree)
     current_files = utils.get_file_list(current)
 
@@ -108,13 +106,12 @@ def add(current):
     current_metadata = filtered_utils.get_metadata(current)
     original_commit = current_metadata.original_commit_cursor
     new_filter = filters.Filter(filter_config.WANT, filter_config.WANT_EXCLUDE,
-                                filter_config.ALWAYS_WANT, filter_config.KEEP,
-                                filter_config.KEEP_EXCLUDE)
+                                filter_config.ALWAYS_WANT)
 
     tree = lazytree.LazyTree()
 
     original_files = utils.get_file_list(original_commit)
-    new_files = set(new_filter.filter_files([], original_files))
+    new_files = set(new_filter.filter_files(original_files))
     for f in new_files:
         if new_filter.want_file(f.path):
             tree[f.path] = f

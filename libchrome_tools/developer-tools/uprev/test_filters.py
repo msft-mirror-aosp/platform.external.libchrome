@@ -20,17 +20,10 @@ class TestFilters(unittest.TestCase):
     def test_filters(self):
         test_filter = filters.Filter([re.compile(rb'want.*')],
                                      [re.compile(rb'want_excluded.*')],
-                                     [re.compile(rb'want_excluded_always.*')],
-                                     [re.compile(rb'keep.*')],
-                                     [re.compile(rb'keep_excluded.*')])
+                                     [re.compile(rb'want_excluded_always.*')])
 
         self.assertEquals(
             test_filter.filter_files(
-                self._build_file_list([
-                    'unrelated_local_file',
-                    'keep/xxx',
-                    'keep_excluded/xxx',
-                ]),
                 self._build_file_list([
                     'want/xxx',
                     'want_excluded/xxx',
@@ -38,16 +31,15 @@ class TestFilters(unittest.TestCase):
                     'unrelated_upstream_file',
                 ])),
             self._build_file_list(
-                ['want/xxx', 'want_excluded_always/xxx', 'keep/xxx']),
+                ['want/xxx', 'want_excluded_always/xxx']),
         )
 
     def test_path_filter(self):
         test_filter = filters.Filter([filters.PathFilter([b'a/b/c', b'd'])], [],
-                                     [], [], [])
+                                     [])
 
         self.assertEquals(
             test_filter.filter_files(
-                self._build_file_list([]),
                 self._build_file_list(
                     ['a', 'b', 'c', 'a/b', 'b/c', 'a/b/c', 'd'])),
             self._build_file_list(['a/b/c', 'd']))

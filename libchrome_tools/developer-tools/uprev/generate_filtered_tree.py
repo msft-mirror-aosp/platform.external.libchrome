@@ -132,7 +132,7 @@ def verify_commit(libchrome_filter, original_commit, new_tree):
         new_tree: tree hash created for upstream branch commit.
     """
     expected_file_list = libchrome_filter.filter_files(
-        [], utils.get_file_list(original_commit))
+        utils.get_file_list(original_commit))
     assert utils.git_mktree(expected_file_list) == new_tree
 
 
@@ -347,15 +347,12 @@ def main():
     if arg.filter_files:
         with open(arg.filter_files) as f:
             lines = [line.strip().encode('utf-8') for line in f]
-        libchrome_filter = filters.Filter([filters.PathFilter(lines)], [], [],
-                                          [], [])
+        libchrome_filter = filters.Filter([filters.PathFilter(lines)], [], [])
         print('Filter loaded', file=INFO)
     else:
         libchrome_filter = filters.Filter(filter_config.WANT,
                                           filter_config.WANT_EXCLUDE,
-                                          filter_config.ALWAYS_WANT,
-                                          filter_config.KEEP,
-                                          filter_config.KEEP_EXCLUDE)
+                                          filter_config.ALWAYS_WANT)
 
     # Look for last known commit made by the script in filtered branch.
     print('Looking for last known commit from',

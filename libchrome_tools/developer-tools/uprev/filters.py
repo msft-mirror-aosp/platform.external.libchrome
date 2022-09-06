@@ -29,15 +29,13 @@ class Filter:
     Provide filter functions for libchrome uprev tools
     """
 
-    def __init__(self, want, want_excluded, always_want, keep, keep_excluded):
+    def __init__(self, want, want_excluded, always_want):
         """
         Initialize filters with given filter rules.
         """
         self.want = want
         self.want_excluded = want_excluded
         self.always_want = always_want
-        self.keep = keep
-        self.keep_excluded = keep_excluded
 
     def want_file(self, path):
         """Returns whether the path wants to be a new file."""
@@ -56,26 +54,12 @@ class Filter:
                 break
         return wanted
 
-    def _keep_file(self, path):
-        """Returns whether the path wants to be kept untouched in local files."""
-        keep = False
-        for keep_file_regex in self.keep:
-            if keep_file_regex.match(path):
-                keep = True
-                break
-        for exclude_file_regex in self.keep_excluded:
-            if exclude_file_regex.match(path):
-                keep = False
-                break
-        return keep
-
-    def filter_files(self, our_files, upstream_files):
+    def filter_files(self, upstream_files):
         """Generates a list of files we want based on hard-coded rules.
 
         File list must be a list of GitFile.
 
         Args:
-            our_files: files in Chromium OS libchrome repository.
             upstream_files: files in Chromium browser repository.
         """
 
@@ -83,9 +67,6 @@ class Filter:
         for upstream_file in upstream_files:
             if self.want_file(upstream_file.path):
                 files.append(upstream_file)
-        for our_file in our_files:
-            if self._keep_file(our_file.path):
-                files.append(our_file)
         return files
 
     def filter_diff(self, diff):
@@ -98,6 +79,5 @@ class Filter:
         for change in diff:
             path = change.file.path
             if self.want_file(path):
-                assert not self._keep_file(path), path
                 filtered.append(change)
         return filtered
