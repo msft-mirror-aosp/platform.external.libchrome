@@ -95,16 +95,6 @@ backward-compatibility-add-deprecated-base-Bind-APIs.patch
 # TODO(b/204383858): Remove the patch when usage in mri_package is removed
 backward-compatibility-add-base-AdaptCallbackForRepaeting.patch media_perception
 
-# TODO(b/245844506): Remove the patches when all affected packages have statfs in
-# seccomp filter
-# Following are revert of CLs that built on top of the reverted r1008071 change.
-# Remove together with the r1008071 revert when b/245844506 is resolved.
-backward-compatibility-Revert-posix-Terminate-processes-with-SIGKILL-when-b.patch
-backward-compatibility-Revert-Avoid-calling-OneGroupPerRendererEnabled.patch
-# Backward compatibility patch to revert r1008071 (crrev.com/c/3569842) which
-# introduced new uses of statfs (...One-cgroup-per-render-on-Chrome-OS.patch).
-backward-compatibility-Revert-One-cgroup-per-renderer-on-Chrome-OS.patch
-
 # Backward compatibility patch to add base::bits::Align{Down,Up} that take
 # size_t for both size and alignment. They are changed in r1023727
 # (crrev.com/c/3752744) to be templated and take the two arguments that are of
