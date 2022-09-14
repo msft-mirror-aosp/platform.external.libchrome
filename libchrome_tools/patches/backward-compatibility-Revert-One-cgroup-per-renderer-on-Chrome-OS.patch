@@ -1,0 +1,784 @@
+From c3cdc5ddd90ce3a72a8fa5b2b4c68f0f59280670 Mon Sep 17 00:00:00 2001
+From: Grace Cham <hscham@chromium.org>
+Date: Fri, 9 Sep 2022 10:05:03 +0900
+Subject: [PATCH] Revert "One cgroup per renderer on Chrome OS"
+
+This reverts commit bbf8d272c416f2a6b90d46ce4837ebc6df140868.
+---
+ base/process/process.h           |  65 +-------
+ base/process/process_linux.cc    | 247 +++----------------------------
+ base/process/process_posix.cc    |  31 +---
+ base/process/process_unittest.cc | 236 -----------------------------
+ 4 files changed, 29 insertions(+), 550 deletions(-)
+
+diff --git a/base/process/process.h b/base/process/process.h
+index 619374c011..19d2c2efb5 100644
+--- a/base/process/process.h
++++ b/base/process/process.h
+@@ -20,13 +20,10 @@
+ #include <lib/zx/process.h>
+ #endif
+ 
+-#if BUILDFLAG(IS_APPLE) || BUILDFLAG(IS_CHROMEOS)
+-#include "base/feature_list.h"
+-#endif  // BUILDFLAG(IS_APPLE) || BUILDFLAG(IS_CHROMEOS)
+-
+ #if BUILDFLAG(IS_APPLE)
++#include "base/feature_list.h"
+ #include "base/process/port_provider_mac.h"
+-#endif  // BUILDFLAG(IS_APPLE)
++#endif
+ 
+ namespace base {
+ 
+@@ -34,14 +31,6 @@ namespace base {
+ extern const Feature kMacAllowBackgroundingProcesses;
+ #endif
+ 
+-#if BUILDFLAG(IS_CHROMEOS)
+-// OneGroupPerRenderer feature places each foreground renderer process into
+-// its own cgroup. This will cause the scheduler to use the aggregate runtime
+-// of all threads in the process when deciding on the next thread to schedule.
+-// It will help guarantee fairness between renderers.
+-BASE_EXPORT extern const Feature kOneGroupPerRenderer;
+-#endif
+-
+ // Provides a move-only encapsulation of a process.
+ //
+ // This object is not tied to the lifetime of the underlying process: the
+@@ -124,12 +113,6 @@ class BASE_EXPORT Process {
+   // Returns true if this process is the current process.
+   bool is_current() const;
+ 
+-#if BUILDFLAG(IS_CHROMEOS)
+-  // A unique token generated for each process, this is used to create a unique
+-  // cgroup for each renderer.
+-  const std::string& unique_token() const { return unique_token_; }
+-#endif
+-
+   // Close the process handle. This will not terminate the process.
+   void Close();
+ 
+@@ -188,8 +171,8 @@ class BASE_EXPORT Process {
+ #if BUILDFLAG(IS_MAC)
+   // The Mac needs a Mach port in order to manipulate a process's priority,
+   // and there's no good way to get that from base given the pid. These Mac
+-  // variants of the IsProcessBackgrounded() and SetProcessBackgrounded() API
+-  // take a port provider for this reason. See crbug.com/460102
++  // variants of the IsProcessBackgrounded and SetProcessBackgrounded API take
++  // a port provider for this reason. See crbug.com/460102
+   //
+   // A process is backgrounded when its task priority is
+   // |TASK_BACKGROUND_APPLICATION|.
+@@ -228,39 +211,7 @@ class BASE_EXPORT Process {
+   ProcessId GetPidInNamespace() const;
+ #endif
+ 
+-#if BUILDFLAG(IS_CHROMEOS)
+-  // Returns true if the 'OneGroupPerRenderer' feature is enabled. The feature
+-  // is enabled if the kOneGroupPerRenderer feature flag is enabled and the
+-  // system supports the chrome cgroups.
+-  static bool OneGroupPerRendererEnabled();
+-
+-  // If OneGroupPerRenderer is enabled, runs at process startup to clean up
+-  // any stale cgroups that were left behind from any unclean exits of the
+-  // browser process.
+-  static void CleanUpStaleProcessStates();
+-
+-  // Initializes the process's priority. If OneGroupPerRenderer is enabled, it
+-  // creates a unique cgroup for the process. This should be called before
+-  // SetProcessBackgrounded(). This is a no-op if the Process is not valid
+-  // or if it has already been called.
+-  void InitializePriority();
+-#endif  // BUILDFLAG(IS_CHROMEOS)
+-
+  private:
+-#if BUILDFLAG(IS_CHROMEOS)
+-  // Cleans up process state. If OneGroupPerRenderer is enabled, it cleans up
+-  // the cgroup created by InitializePriority(). If the process has not
+-  // fully terminated yet, it will post a background task to try again.
+-  void CleanUpProcess(int remaining_retries) const;
+-
+-  // Calls CleanUpProcess() on a background thread.
+-  void CleanUpProcessAsync() const;
+-
+-  // Used to call CleanUpProcess() on a background thread because Process is not
+-  // refcounted.
+-  static void CleanUpProcessScheduled(Process process, int remaining_retries);
+-#endif  // BUILDFLAG(IS_CHROMEOS)
+-
+ #if BUILDFLAG(IS_WIN)
+   win::ScopedHandle process_;
+ #elif BUILDFLAG(IS_FUCHSIA)
+@@ -272,14 +223,6 @@ class BASE_EXPORT Process {
+ #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_FUCHSIA)
+   bool is_current_process_;
+ #endif
+-
+-#if BUILDFLAG(IS_CHROMEOS)
+-  // A unique token per process not per class instance (`base::Process`). This
+-  // is similar to the PID of a process but should not be reused after the
+-  // process's termination. The token will be copied during Duplicate()
+-  // and move semantics as is the PID/ProcessHandle.
+-  std::string unique_token_;
+-#endif
+ };
+ 
+ #if BUILDFLAG(IS_CHROMEOS)
+diff --git a/base/process/process_linux.cc b/base/process/process_linux.cc
+index 3d916bd3e5..a5cf7bae3d 100644
+--- a/base/process/process_linux.cc
++++ b/base/process/process_linux.cc
+@@ -7,49 +7,21 @@
+ #include <errno.h>
+ #include <sys/resource.h>
+ 
+-#include <cstring>
+-
+ #include "base/check.h"
+ #include "base/files/file_util.h"
+-#include "base/location.h"
+-#include "base/logging.h"
+ #include "base/notreached.h"
+ #include "base/posix/can_lower_nice_to.h"
+ #include "base/process/internal_linux.h"
+ #include "base/strings/string_number_conversions.h"
+ #include "base/strings/string_split.h"
+ #include "base/strings/stringprintf.h"
++#include "base/synchronization/lock.h"
+ #include "base/threading/thread_restrictions.h"
+ #include "build/build_config.h"
+ #include "build/chromeos_buildflags.h"
+ 
+-#if BUILDFLAG(IS_CHROMEOS)
+-#include "base/bind.h"
+-#include "base/feature_list.h"
+-#include "base/files/file_enumerator.h"
+-#include "base/files/file_path.h"
+-#include "base/process/process_handle.h"
+-#include "base/strings/strcat.h"
+-#include "base/strings/string_util.h"
+-#include "base/task/thread_pool.h"
+-#include "base/unguessable_token.h"
+-#endif  // BUILDFLAG(IS_CHROMEOS)
+-
+ namespace base {
+ 
+-#if BUILDFLAG(IS_CHROMEOS)
+-const Feature kOneGroupPerRenderer {
+-  "OneGroupPerRenderer",
+-
+-#if BUILDFLAG(IS_CHROMEOS_LACROS)
+-      FEATURE_ENABLED_BY_DEFAULT
+-};
+-#else
+-      FEATURE_DISABLED_BY_DEFAULT
+-};
+-#endif  // BUILDFLAG(IS_CHROMEOS_LACROS)
+-#endif  // BUILDFLAG(IS_CHROMEOS)
+-
+ namespace {
+ 
+ const int kForegroundPriority = 0;
+@@ -64,21 +36,9 @@ const int kForegroundPriority = 0;
+ // chrome / chromeos specific logic here.
+ const int kBackgroundPriority = 19;
+ const char kControlPath[] = "/sys/fs/cgroup/cpu%s/cgroup.procs";
+-const char kFullRendererCgroupRoot[] = "/sys/fs/cgroup/cpu/chrome_renderers";
+ const char kForeground[] = "/chrome_renderers/foreground";
+ const char kBackground[] = "/chrome_renderers/background";
+ const char kProcPath[] = "/proc/%d/cgroup";
+-const char kUclampMinFile[] = "cpu.uclamp.min";
+-const char kUclampMaxFile[] = "cpu.uclamp.max";
+-
+-constexpr int kCgroupDeleteRetries = 3;
+-constexpr TimeDelta kCgroupDeleteRetryTime(Seconds(1));
+-
+-#if BUILDFLAG(IS_CHROMEOS_LACROS)
+-const char kCgroupPrefix[] = "l-";
+-#elif BUILDFLAG(IS_CHROMEOS_ASH)
+-const char kCgroupPrefix[] = "a-";
+-#endif
+ 
+ struct CGroups {
+   // Check for cgroups files. ChromeOS supports these by default. It creates
+@@ -87,59 +47,21 @@ struct CGroups {
+   // all background renderers. This allows us to limit the impact of background
+   // renderers on foreground ones to a greater level than simple renicing.
+   bool enabled;
+-  FilePath foreground_file;
+-  FilePath background_file;
+-
+-  // A unique token for this instance of the browser.
+-  std::string group_prefix_token;
+-
+-  // UCLAMP settings for the foreground cgroups.
+-  std::string uclamp_min;
+-  std::string uclamp_max;
++  base::FilePath foreground_file;
++  base::FilePath background_file;
+ 
+   CGroups() {
+-    foreground_file = FilePath(StringPrintf(kControlPath, kForeground));
+-    background_file = FilePath(StringPrintf(kControlPath, kBackground));
+-    FileSystemType foreground_type;
+-    FileSystemType background_type;
+-    enabled = GetFileSystemType(foreground_file, &foreground_type) &&
+-              GetFileSystemType(background_file, &background_type) &&
+-              foreground_type == FILE_SYSTEM_CGROUP &&
+-              background_type == FILE_SYSTEM_CGROUP;
+-
+-    if (!enabled || !FeatureList::IsEnabled(kOneGroupPerRenderer)) {
+-      return;
+-    }
+-
+-    // Generate a unique token for the full browser process
+-    group_prefix_token =
+-        StrCat({kCgroupPrefix, UnguessableToken::Create().ToString(), "-"});
+-
+-    // Reads the ULCAMP settings from the foreground cgroup that will be used
+-    // for each renderer's cgroup.
+-    FilePath foreground_path = foreground_file.DirName();
+-    ReadFileToString(foreground_path.Append(kUclampMinFile), &uclamp_min);
+-    ReadFileToString(foreground_path.Append(kUclampMaxFile), &uclamp_max);
+-  }
+-
+-  // Returns the full path to a the cgroup dir of a process using
+-  // the supplied token.
+-  static FilePath GetForegroundCgroupDir(const std::string& token) {
+-    // Get individualized cgroup if the feature is enabled
+-    std::string cgroup_path_str;
+-    StrAppend(&cgroup_path_str, {kFullRendererCgroupRoot, "/", token});
+-    return FilePath(cgroup_path_str);
+-  }
+-
+-  // Returns the path to the cgroup.procs file of the foreground cgroup.
+-  static FilePath GetForegroundCgroupFile(const std::string& token) {
+-    // Processes with an empty token use the default foreground cgroup.
+-    if (token.empty()) {
+-      return CGroups::Get().foreground_file;
+-    }
+-
+-    FilePath cgroup_path = GetForegroundCgroupDir(token);
+-    return cgroup_path.Append("cgroup.procs");
++    foreground_file =
++        base::FilePath(base::StringPrintf(kControlPath, kForeground));
++    background_file =
++        base::FilePath(base::StringPrintf(kControlPath, kBackground));
++    base::FileSystemType foreground_type;
++    base::FileSystemType background_type;
++    enabled =
++        base::GetFileSystemType(foreground_file, &foreground_type) &&
++        base::GetFileSystemType(background_file, &background_type) &&
++        foreground_type == FILE_SYSTEM_CGROUP &&
++        background_type == FILE_SYSTEM_CGROUP;
+   }
+ 
+   static CGroups& Get() {
+@@ -147,7 +69,6 @@ struct CGroups {
+     return groups;
+   }
+ };
+-
+ #else
+ const int kBackgroundPriority = 5;
+ #endif  // BUILDFLAG(IS_CHROMEOS)
+@@ -189,9 +110,10 @@ bool Process::IsProcessBackgrounded() const {
+ #if BUILDFLAG(IS_CHROMEOS)
+   if (CGroups::Get().enabled) {
+     // Used to allow reading the process priority from proc on thread launch.
+-    ThreadRestrictions::ScopedAllowIO allow_io;
++    base::ThreadRestrictions::ScopedAllowIO allow_io;
+     std::string proc;
+-    if (ReadFileToString(FilePath(StringPrintf(kProcPath, process_)), &proc)) {
++    if (base::ReadFileToString(
++            base::FilePath(StringPrintf(kProcPath, process_)), &proc)) {
+       return IsProcessBackgroundedCGroup(proc);
+     }
+     return false;
+@@ -207,10 +129,9 @@ bool Process::SetProcessBackgrounded(bool background) {
+ #if BUILDFLAG(IS_CHROMEOS)
+   if (CGroups::Get().enabled) {
+     std::string pid = NumberToString(process_);
+-    const FilePath file =
+-        background ? CGroups::Get().background_file
+-                   : CGroups::Get().GetForegroundCgroupFile(unique_token_);
+-    return WriteFile(file, pid);
++    const base::FilePath file = background ? CGroups::Get().background_file
++                                           : CGroups::Get().foreground_file;
++    return base::WriteFile(file, pid.c_str(), pid.size()) > 0;
+   }
+ #endif  // BUILDFLAG(IS_CHROMEOS)
+ 
+@@ -286,132 +207,4 @@ ProcessId Process::GetPidInNamespace() const {
+ }
+ #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+ 
+-#if BUILDFLAG(IS_CHROMEOS)
+-// static
+-bool Process::OneGroupPerRendererEnabled() {
+-  return CGroups::Get().enabled && FeatureList::IsEnabled(kOneGroupPerRenderer);
+-}
+-
+-// On Chrome OS, each renderer runs in its own cgroup when running in the
+-// foreground. After process creation the cgroup is created using a
+-// unique token.
+-void Process::InitializePriority() {
+-  if (!OneGroupPerRendererEnabled() || !IsValid() || !unique_token_.empty()) {
+-    return;
+-  }
+-
+-  // The token has the following format:
+-  //   {cgroup_prefix}{UnguessableToken}
+-  // The cgroup prefix is to distinguish ash from lacros tokens for stale
+-  // cgroup cleanup.
+-  unique_token_ = StrCat({CGroups::Get().group_prefix_token,
+-                          UnguessableToken::Create().ToString()});
+-
+-  FilePath cgroup_path = CGroups::Get().GetForegroundCgroupDir(unique_token_);
+-  // Note that CreateDirectoryAndGetError() does not fail if the directory
+-  // already exits.
+-  if (!CreateDirectoryAndGetError(cgroup_path, nullptr)) {
+-    // If creating the directory fails, fall back to use the foreground group.
+-    int saved_errno = errno;
+-    LOG(ERROR) << "Failed to create cgroup, falling back to foreground"
+-               << ", cgroup=" << cgroup_path
+-               << ", errno=" << strerror(saved_errno);
+-
+-    unique_token_.clear();
+-    return;
+-  }
+-
+-  if (!CGroups::Get().uclamp_min.empty() &&
+-      !WriteFile(cgroup_path.Append(kUclampMinFile),
+-                 CGroups::Get().uclamp_min)) {
+-    LOG(ERROR) << "Failed to write uclamp min file, cgroup_path="
+-               << cgroup_path;
+-  }
+-  if (!CGroups::Get().uclamp_min.empty() &&
+-      !WriteFile(cgroup_path.Append(kUclampMaxFile),
+-                 CGroups::Get().uclamp_max)) {
+-    LOG(ERROR) << "Failed to write uclamp max file, cgroup_path="
+-               << cgroup_path;
+-  }
+-}
+-
+-// static
+-void Process::CleanUpProcessScheduled(Process process, int remaining_retries) {
+-  process.CleanUpProcess(remaining_retries);
+-}
+-
+-void Process::CleanUpProcessAsync() const {
+-  if (!OneGroupPerRendererEnabled() || unique_token_.empty()) {
+-    return;
+-  }
+-
+-  ThreadPool::PostTask(FROM_HERE, {MayBlock(), TaskPriority::BEST_EFFORT},
+-                       BindOnce(&Process::CleanUpProcessScheduled, Duplicate(),
+-                                kCgroupDeleteRetries));
+-}
+-
+-void Process::CleanUpProcess(int remaining_retries) const {
+-  if (!OneGroupPerRendererEnabled() || unique_token_.empty()) {
+-    return;
+-  }
+-
+-  // Try to delete the cgroup
+-  // TODO(1322562): We can use notify_on_release to automoatically delete the
+-  // cgroup when the process has left the cgroup.
+-  FilePath cgroup = CGroups::Get().GetForegroundCgroupDir(unique_token_);
+-  if (!DeleteFile(cgroup)) {
+-    auto saved_errno = errno;
+-    LOG(ERROR) << "Failed to delete cgroup " << cgroup
+-               << ", errno=" << strerror(saved_errno);
+-    // If the delete failed, then the process is still potentially in the
+-    // cgroup. Move the process to background and schedule a callback to try
+-    // again.
+-    if (remaining_retries > 0) {
+-      std::string pidstr = NumberToString(process_);
+-      if (!WriteFile(CGroups::Get().background_file, pidstr)) {
+-        // Failed to move the process, LOG a warning but try again.
+-        saved_errno = errno;
+-        LOG(WARNING) << "Failed to move the process to background"
+-                     << ", pid=" << pidstr
+-                     << ", errno=" << strerror(saved_errno);
+-      }
+-      ThreadPool::PostDelayedTask(FROM_HERE,
+-                                  {MayBlock(), TaskPriority::BEST_EFFORT},
+-                                  BindOnce(&Process::CleanUpProcessScheduled,
+-                                           Duplicate(), remaining_retries - 1),
+-                                  kCgroupDeleteRetryTime);
+-    }
+-  }
+-}
+-
+-// static
+-void Process::CleanUpStaleProcessStates() {
+-  if (!OneGroupPerRendererEnabled()) {
+-    return;
+-  }
+-
+-  FileEnumerator traversal(FilePath(kFullRendererCgroupRoot), false,
+-                           FileEnumerator::DIRECTORIES);
+-  for (FilePath path = traversal.Next(); !path.empty();
+-       path = traversal.Next()) {
+-    std::string dirname = path.BaseName().value();
+-    if (dirname == FilePath(kForeground).BaseName().value() ||
+-        dirname == FilePath(kBackground).BaseName().value()) {
+-      continue;
+-    }
+-
+-    if (!StartsWith(dirname, kCgroupPrefix) ||
+-        StartsWith(dirname, CGroups::Get().group_prefix_token)) {
+-      continue;
+-    }
+-
+-    if (!DeleteFile(path)) {
+-      auto saved_errno = errno;
+-      LOG(ERROR) << "Failed to delete " << path
+-                 << ", errno=" << strerror(saved_errno);
+-    }
+-  }
+-}
+-#endif  // BUILDFLAG(IS_CHROMEOS)
+-
+ }  // namespace base
+diff --git a/base/process/process_posix.cc b/base/process/process_posix.cc
+index f9f633a9fa..bc49d4d45f 100644
+--- a/base/process/process_posix.cc
++++ b/base/process/process_posix.cc
+@@ -231,27 +231,21 @@ bool WaitForExitWithTimeoutImpl(base::ProcessHandle handle,
+ 
+ namespace base {
+ 
+-Process::Process(ProcessHandle handle) : process_(handle) {}
++Process::Process(ProcessHandle handle) : process_(handle) {
++}
+ 
+-Process::Process(Process&& other) : process_(other.process_) {
+-#if BUILDFLAG(IS_CHROMEOS)
+-  unique_token_ = std::move(other.unique_token_);
+-#endif
++Process::~Process() = default;
+ 
++Process::Process(Process&& other) : process_(other.process_) {
+   other.Close();
+ }
+ 
+ Process& Process::operator=(Process&& other) {
+   process_ = other.process_;
+-#if BUILDFLAG(IS_CHROMEOS)
+-  unique_token_ = std::move(other.unique_token_);
+-#endif
+   other.Close();
+   return *this;
+ }
+ 
+-Process::~Process() = default;
+-
+ // static
+ Process Process::Current() {
+   return Process(GetCurrentProcessHandle());
+@@ -292,13 +286,7 @@ Process Process::Duplicate() const {
+   if (is_current())
+     return Current();
+ 
+-#if BUILDFLAG(IS_CHROMEOS)
+-  Process duplicate = Process(process_);
+-  duplicate.unique_token_ = unique_token_;
+-  return duplicate;
+-#else
+   return Process(process_);
+-#endif
+ }
+ 
+ ProcessHandle Process::Release() {
+@@ -330,11 +318,6 @@ bool Process::Terminate(int exit_code, bool wait) const {
+     DPLOG(ERROR) << "Unable to terminate process " << process_;
+     return false;
+   }
+-
+-#if BUILDFLAG(IS_CHROMEOS)
+-  CleanUpProcessAsync();
+-#endif
+-
+   if (!wait || WaitForExitWithTimeout(Seconds(60), nullptr)) {
+     return true;
+   }
+@@ -371,11 +354,7 @@ bool Process::WaitForExitWithTimeout(TimeDelta timeout, int* exit_code) const {
+   return exited;
+ }
+ 
+-void Process::Exited(int exit_code) const {
+-#if BUILDFLAG(IS_CHROMEOS)
+-  CleanUpProcessAsync();
+-#endif
+-}
++void Process::Exited(int exit_code) const {}
+ 
+ int Process::GetPriority() const {
+   DCHECK(IsValid());
+diff --git a/base/process/process_unittest.cc b/base/process/process_unittest.cc
+index 261cbee805..3e64014163 100644
+--- a/base/process/process_unittest.cc
++++ b/base/process/process_unittest.cc
+@@ -17,22 +17,6 @@
+ #include "testing/gtest/include/gtest/gtest.h"
+ #include "testing/multiprocess_func_list.h"
+ 
+-#if BUILDFLAG(IS_CHROMEOS)
+-#include <unistd.h>
+-
+-#include <vector>
+-
+-#include "base/files/file_path.h"
+-#include "base/files/file_util.h"
+-#include "base/strings/string_number_conversions.h"
+-#include "base/strings/string_split.h"
+-#include "base/strings/string_util.h"
+-#include "base/strings/stringprintf.h"
+-#include "base/test/scoped_feature_list.h"
+-#include "base/test/task_environment.h"
+-#include "base/time/time.h"
+-#endif  // BUILDFLAG(IS_CHROMEOS)
+-
+ #if BUILDFLAG(IS_WIN)
+ #include "base/win/base_win_buildflags.h"
+ #include "base/win/windows_version.h"
+@@ -60,44 +44,6 @@ class FakePortProvider : public base::PortProvider {
+ };
+ #endif
+ 
+-#if BUILDFLAG(IS_CHROMEOS)
+-const char kForeground[] = "/chrome_renderers/foreground";
+-const char kCgroupRoot[] = "/sys/fs/cgroup/cpu";
+-const char kFullRendererCgroupRoot[] = "/sys/fs/cgroup/cpu/chrome_renderers";
+-const char kProcPath[] = "/proc/%d/cgroup";
+-
+-std::string GetProcessCpuCgroup(const base::Process& process) {
+-  std::string proc;
+-  if (!base::ReadFileToString(
+-          base::FilePath(base::StringPrintf(kProcPath, process.Pid())),
+-          &proc)) {
+-    return std::string();
+-  }
+-
+-  std::vector<base::StringPiece> lines = SplitStringPiece(
+-      proc, "\n", base::TRIM_WHITESPACE, base::SPLIT_WANT_NONEMPTY);
+-  for (const auto& line : lines) {
+-    std::vector<base::StringPiece> fields = SplitStringPiece(
+-        line, ":", base::TRIM_WHITESPACE, base::SPLIT_WANT_ALL);
+-    if (fields.size() != 3U) {
+-      continue;
+-    }
+-
+-    if (fields[1] == "cpu") {
+-      return static_cast<std::string>(fields[2]);
+-    }
+-  }
+-
+-  return std::string();
+-}
+-
+-bool AddProcessToCpuCgroup(const base::Process& process, std::string& cgroup) {
+-  base::FilePath path(cgroup);
+-  path = path.Append("cgroup.procs");
+-  return base::WriteFile(path, base::NumberToString(process.Pid()));
+-}
+-#endif  // BUILDFLAG(IS_CHROMEOS)
+-
+ }  // namespace
+ 
+ namespace base {
+@@ -471,188 +417,6 @@ TEST_F(ProcessTest, TestIsProcessBackgroundedCGroup) {
+   EXPECT_TRUE(IsProcessBackgroundedCGroup(kBackgrounded));
+ }
+ 
+-TEST_F(ProcessTest, InitializePriorityEmptyProcess) {
+-  // TODO(b/172213843): base::Process is used by base::TestSuite::Initialize
+-  // before we can use ScopedFeatureList here. Update the test to allow the
+-  // use of ScopedFeatureList before base::TestSuite::Initialize runs.
+-  if (!Process::OneGroupPerRendererEnabled())
+-    return;
+-
+-  Process process;
+-  process.InitializePriority();
+-  const std::string unique_token = process.unique_token();
+-  ASSERT_TRUE(unique_token.empty());
+-}
+-
+-TEST_F(ProcessTest, SetProcessBackgroundedOneCgroupPerRender) {
+-  if (!Process::OneGroupPerRendererEnabled())
+-    return;
+-
+-  base::test::TaskEnvironment task_env;
+-
+-  Process process(SpawnChild("SimpleChildProcess"));
+-  process.InitializePriority();
+-  const std::string unique_token = process.unique_token();
+-  ASSERT_FALSE(unique_token.empty());
+-
+-  EXPECT_TRUE(process.SetProcessBackgrounded(false));
+-  EXPECT_FALSE(process.IsProcessBackgrounded());
+-  std::string cgroup = GetProcessCpuCgroup(process);
+-  EXPECT_FALSE(cgroup.empty());
+-  EXPECT_NE(cgroup.find(unique_token), std::string::npos);
+-
+-  EXPECT_TRUE(process.SetProcessBackgrounded(true));
+-  EXPECT_TRUE(process.IsProcessBackgrounded());
+-
+-  EXPECT_TRUE(process.Terminate(0, false));
+-  // Terminate should post a task, wait for it to run
+-  task_env.RunUntilIdle();
+-
+-  cgroup = std::string(kCgroupRoot) + cgroup;
+-  EXPECT_FALSE(base::DirectoryExists(FilePath(cgroup)));
+-}
+-
+-TEST_F(ProcessTest, CleanUpBusyProcess) {
+-  if (!Process::OneGroupPerRendererEnabled())
+-    return;
+-
+-  base::test::TaskEnvironment task_env;
+-
+-  Process process(SpawnChild("SimpleChildProcess"));
+-  process.InitializePriority();
+-  const std::string unique_token = process.unique_token();
+-  ASSERT_FALSE(unique_token.empty());
+-
+-  EXPECT_TRUE(process.SetProcessBackgrounded(false));
+-  EXPECT_FALSE(process.IsProcessBackgrounded());
+-  std::string cgroup = GetProcessCpuCgroup(process);
+-  EXPECT_FALSE(cgroup.empty());
+-  EXPECT_NE(cgroup.find(unique_token), std::string::npos);
+-
+-  // Add another process to the cgroup to ensure it stays busy.
+-  cgroup = std::string(kCgroupRoot) + cgroup;
+-  Process process2(SpawnChild("SimpleChildProcess"));
+-  EXPECT_TRUE(AddProcessToCpuCgroup(process2, cgroup));
+-
+-  // Terminate the first process that should tirgger a cleanup of the cgroup
+-  EXPECT_TRUE(process.Terminate(0, false));
+-  // Wait until the background task runs once. This should fail and requeue
+-  // another task to retry.
+-  task_env.RunUntilIdle();
+-  EXPECT_TRUE(base::DirectoryExists(FilePath(cgroup)));
+-
+-  // Move the second process to free the cgroup
+-  std::string foreground_path =
+-      std::string(kCgroupRoot) + std::string(kForeground);
+-  EXPECT_TRUE(AddProcessToCpuCgroup(process2, foreground_path));
+-
+-  // Wait for the retry.
+-  PlatformThread::Sleep(base::Milliseconds(1100));
+-  task_env.RunUntilIdle();
+-  // The cgroup should be deleted now.
+-  EXPECT_FALSE(base::DirectoryExists(FilePath(cgroup)));
+-
+-  process2.Terminate(0, false);
+-}
+-
+-TEST_F(ProcessTest, SetProcessBackgroundedEmptyToken) {
+-  if (!Process::OneGroupPerRendererEnabled())
+-    return;
+-
+-  Process process(SpawnChild("SimpleChildProcess"));
+-  const std::string unique_token = process.unique_token();
+-  ASSERT_TRUE(unique_token.empty());
+-
+-  // Moving to the foreground should use the default foregorund path
+-  EXPECT_TRUE(process.SetProcessBackgrounded(false));
+-  EXPECT_FALSE(process.IsProcessBackgrounded());
+-  std::string cgroup = GetProcessCpuCgroup(process);
+-  EXPECT_FALSE(cgroup.empty());
+-  EXPECT_EQ(cgroup, kForeground);
+-}
+-
+-TEST_F(ProcessTest, CleansUpStaleGroups) {
+-  if (!Process::OneGroupPerRendererEnabled())
+-    return;
+-
+-  base::test::TaskEnvironment task_env;
+-
+-  // Create a process that will not be cleaned up
+-  Process process(SpawnChild("SimpleChildProcess"));
+-  process.InitializePriority();
+-  const std::string unique_token = process.unique_token();
+-  ASSERT_FALSE(unique_token.empty());
+-
+-  EXPECT_TRUE(process.SetProcessBackgrounded(true));
+-  EXPECT_TRUE(process.IsProcessBackgrounded());
+-
+-  // Create a stale cgroup
+-  std::string root = kFullRendererCgroupRoot;
+-  std::string cgroup = root + "/" + unique_token;
+-  std::vector<std::string> tokens = base::SplitString(
+-      cgroup, "-", base::KEEP_WHITESPACE, base::SPLIT_WANT_ALL);
+-  tokens[1] = "fake";
+-  std::string fake_cgroup = base::JoinString(tokens, "-");
+-  EXPECT_TRUE(base::CreateDirectory(FilePath(fake_cgroup)));
+-
+-  // Clean up stale groups
+-  Process::CleanUpStaleProcessStates();
+-
+-  // validate the fake group is deleted
+-  EXPECT_FALSE(base::DirectoryExists(FilePath(fake_cgroup)));
+-
+-  // validate the active process cgroup is not deleted
+-  EXPECT_TRUE(base::DirectoryExists(FilePath(cgroup)));
+-
+-  // validate foreground and background are not deleted
+-  EXPECT_TRUE(base::DirectoryExists(FilePath(root + "/foreground")));
+-  EXPECT_TRUE(base::DirectoryExists(FilePath(root + "/background")));
+-
+-  // clean up the process
+-  EXPECT_TRUE(process.Terminate(0, false));
+-  // Terminate should post a task, wait for it to run
+-  task_env.RunUntilIdle();
+-  EXPECT_FALSE(base::DirectoryExists(FilePath(cgroup)));
+-}
+-
+-TEST_F(ProcessTest, OneCgroupDoesNotCleanUpGroupsWithWrongPrefix) {
+-  if (!Process::OneGroupPerRendererEnabled())
+-    return;
+-
+-  base::test::TaskEnvironment task_env;
+-
+-  // Create a process that will not be cleaned up
+-  Process process(SpawnChild("SimpleChildProcess"));
+-  process.InitializePriority();
+-  const std::string unique_token = process.unique_token();
+-  ASSERT_FALSE(unique_token.empty());
+-
+-  EXPECT_TRUE(process.SetProcessBackgrounded(false));
+-  EXPECT_FALSE(process.IsProcessBackgrounded());
+-  std::string cgroup = GetProcessCpuCgroup(process);
+-  EXPECT_FALSE(cgroup.empty());
+-  EXPECT_NE(cgroup.find(unique_token), std::string::npos);
+-
+-  // Create a stale cgroup
+-  FilePath cgroup_path = FilePath(std::string(kCgroupRoot) + cgroup);
+-  FilePath fake_cgroup = FilePath(kFullRendererCgroupRoot).AppendASCII("fake");
+-  EXPECT_TRUE(base::CreateDirectory(fake_cgroup));
+-
+-  // Clean up stale groups
+-  Process::CleanUpStaleProcessStates();
+-
+-  // validate the fake group is deleted
+-  EXPECT_TRUE(base::DirectoryExists(fake_cgroup));
+-  EXPECT_TRUE(base::DirectoryExists(cgroup_path));
+-
+-  // clean up the process
+-  EXPECT_TRUE(process.SetProcessBackgrounded(true));
+-  EXPECT_TRUE(process.IsProcessBackgrounded());
+-  EXPECT_TRUE(process.Terminate(0, false));
+-  task_env.RunUntilIdle();
+-  EXPECT_FALSE(base::DirectoryExists(cgroup_path));
+-  base::DeleteFile(fake_cgroup);
+-}
+ #endif  // BUILDFLAG(IS_CHROMEOS)
+ 
+ }  // namespace base
+-- 
+2.37.2.789.g6183377224-goog
+

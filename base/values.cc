@@ -1467,6 +1467,30 @@ bool operator>=(const Value& lhs, const Value& rhs) {
   return !(lhs < rhs);
 }
 
+bool operator==(const Value& lhs, bool rhs) {
+  return lhs.is_bool() && lhs.GetBool() == rhs;
+}
+
+bool operator==(const Value& lhs, int rhs) {
+  return lhs.is_int() && lhs.GetInt() == rhs;
+}
+
+bool operator==(const Value& lhs, double rhs) {
+  return lhs.is_double() && lhs.GetDouble() == rhs;
+}
+
+bool operator==(const Value& lhs, StringPiece rhs) {
+  return lhs.is_string() && lhs.GetString() == rhs;
+}
+
+bool operator==(const Value& lhs, const Value::Dict& rhs) {
+  return lhs.is_dict() && lhs.GetDict() == rhs;
+}
+
+bool operator==(const Value& lhs, const Value::List& rhs) {
+  return lhs.is_list() && lhs.GetList() == rhs;
+}
+
 bool Value::Equals(const Value* other) const {
   DCHECK(other);
   return *this == *other;
@@ -1816,10 +1840,6 @@ bool ListValue::GetDictionary(size_t index,
 bool ListValue::GetDictionary(size_t index, DictionaryValue** out_value) {
   return as_const(*this).GetDictionary(
       index, const_cast<const DictionaryValue**>(out_value));
-}
-
-void ListValue::Append(std::unique_ptr<Value> in_value) {
-  list().push_back(std::move(*in_value));
 }
 
 void ListValue::Append(base::Value::Dict in_dict) {
