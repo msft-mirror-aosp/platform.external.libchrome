@@ -98,12 +98,6 @@ backward-compatibility-Revert-Avoid-calling-OneGroupPerRendererEnabled.patch
 # introduced new uses of statfs (...One-cgroup-per-render-on-Chrome-OS.patch).
 backward-compatibility-Revert-One-cgroup-per-renderer-on-Chrome-OS.patch
 
-# Backward compatibility patch to add back base::{IsValidCodepoint,
-# IsValidCharacter,ReadUnicodeCharacter} that take uint32_t after they were
-# changed to take base_icu::UChar32 in 1009178 (crrev.com/c/3668788).
-# TODO(b/240121620): remove when all usages are migrated to take the new type.
-backward-compatibility-add-UTF-handling-functions-that-take_uint32_t.patch
-
 # Backward compatibility patch to add back ctor of base-DelegateSimpleThread
 # that takes int as input.
 # TODO(b/240121761): remove when all usages are migrated to take size_t.
