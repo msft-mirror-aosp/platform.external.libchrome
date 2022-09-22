@@ -8,7 +8,6 @@
 #include <cstdint>
 #include <tuple>
 
-#include "base/allocator/buildflags.h"
 #include "base/allocator/partition_allocator/address_pool_manager.h"
 #include "base/allocator/partition_allocator/oom.h"
 #include "base/allocator/partition_allocator/page_allocator.h"
@@ -17,9 +16,12 @@
 #include "base/allocator/partition_allocator/partition_alloc.h"
 #include "base/allocator/partition_allocator/partition_alloc_base/bits.h"
 #include "base/allocator/partition_allocator/partition_alloc_base/compiler_specific.h"
+#include "base/allocator/partition_allocator/partition_alloc_base/component_export.h"
 #include "base/allocator/partition_allocator/partition_alloc_base/debug/alias.h"
+#include "base/allocator/partition_allocator/partition_alloc_base/debug/debugging_buildflags.h"
 #include "base/allocator/partition_allocator/partition_alloc_base/immediate_crash.h"
 #include "base/allocator/partition_allocator/partition_alloc_base/thread_annotations.h"
+#include "base/allocator/partition_allocator/partition_alloc_buildflags.h"
 #include "base/allocator/partition_allocator/partition_alloc_check.h"
 #include "base/allocator/partition_allocator/partition_alloc_config.h"
 #include "base/allocator/partition_allocator/partition_alloc_constants.h"
@@ -801,7 +803,7 @@ PA_ALWAYS_INLINE uintptr_t PartitionBucket<thread_safe>::AllocNewSuperPage(
                           PageAccessibilityConfiguration::kReadWrite,
                           PageAccessibilityDisposition::kRequireUpdate);
     }
-    ::base::internal::PCScan::RegisterNewSuperPage(root, super_page);
+    PCScan::RegisterNewSuperPage(root, super_page);
   }
 
   return payload;
@@ -1108,8 +1110,9 @@ void PartitionBucket<thread_safe>::SortSlotSpanFreelists() {
   }
 }
 
-BASE_EXPORT bool CompareSlotSpans(SlotSpanMetadata<ThreadSafe>* a,
-                                  SlotSpanMetadata<ThreadSafe>* b) {
+PA_COMPONENT_EXPORT(PARTITION_ALLOC)
+bool CompareSlotSpans(SlotSpanMetadata<ThreadSafe>* a,
+                      SlotSpanMetadata<ThreadSafe>* b) {
   auto criteria_tuple = [](SlotSpanMetadata<ThreadSafe> const* a) {
     size_t freelist_length = a->GetFreelistLength();
     // The criteria are, in order (hence the lexicographic comparison below):

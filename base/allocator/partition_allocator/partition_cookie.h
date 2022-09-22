@@ -5,8 +5,8 @@
 #ifndef BASE_ALLOCATOR_PARTITION_ALLOCATOR_PARTITION_COOKIE_H_
 #define BASE_ALLOCATOR_PARTITION_ALLOCATOR_PARTITION_COOKIE_H_
 
-#include "base/allocator/buildflags.h"
 #include "base/allocator/partition_allocator/partition_alloc_base/compiler_specific.h"
+#include "base/allocator/partition_allocator/partition_alloc_base/debug/debugging_buildflags.h"
 #include "base/allocator/partition_allocator/partition_alloc_check.h"
 
 namespace partition_alloc::internal {
@@ -43,19 +43,5 @@ PA_ALWAYS_INLINE void PartitionCookieWriteValue(unsigned char* cookie_ptr) {}
 #endif  // BUILDFLAG(PA_DCHECK_IS_ON)
 
 }  // namespace partition_alloc::internal
-
-namespace base::internal {
-
-// TODO(https://crbug.com/1288247): Remove these 'using' declarations once
-// the migration to the new namespaces gets done.
-using ::partition_alloc::internal::kCookieSize;
-using ::partition_alloc::internal::kPartitionCookieSizeAdjustment;
-using ::partition_alloc::internal::PartitionCookieCheckValue;
-using ::partition_alloc::internal::PartitionCookieWriteValue;
-#if BUILDFLAG(PA_DCHECK_IS_ON)
-using ::partition_alloc::internal::kCookieValue;
-#endif  // BUILDFLAG(PA_DCHECK_IS_ON)
-
-}  // namespace base::internal
 
 #endif  // BASE_ALLOCATOR_PARTITION_ALLOCATOR_PARTITION_COOKIE_H_

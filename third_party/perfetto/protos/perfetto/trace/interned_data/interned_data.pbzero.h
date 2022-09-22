@@ -17,7 +17,11 @@ class InternedData : public ::protozero::Message {
 public:
   enum : int32_t {
     kSourceLocationsFieldNumber = 4,
+    kUnsymbolizedSourceLocationsFieldNumber = 28,
     kLogMessageBodyFieldNumber = 20,
+    kBuildIdsFieldNumber = 16,
+    kMappingPathsFieldNumber = 17,
+    kMappingsFieldNumber = 19,
   };
 
   template <typename T = SourceLocation> T *add_source_locations() {

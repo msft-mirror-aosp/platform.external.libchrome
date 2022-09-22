@@ -8,17 +8,17 @@
 #include <bitset>
 #include <limits>
 
-#include "base/allocator/buildflags.h"
 #include "base/allocator/partition_allocator/address_pool_manager_bitmap.h"
 #include "base/allocator/partition_allocator/address_pool_manager_types.h"
 #include "base/allocator/partition_allocator/partition_address_space.h"
 #include "base/allocator/partition_allocator/partition_alloc_base/compiler_specific.h"
+#include "base/allocator/partition_allocator/partition_alloc_base/component_export.h"
+#include "base/allocator/partition_allocator/partition_alloc_base/debug/debugging_buildflags.h"
 #include "base/allocator/partition_allocator/partition_alloc_base/thread_annotations.h"
 #include "base/allocator/partition_allocator/partition_alloc_check.h"
 #include "base/allocator/partition_allocator/partition_alloc_config.h"
 #include "base/allocator/partition_allocator/partition_alloc_constants.h"
 #include "base/allocator/partition_allocator/partition_lock.h"
-#include "base/base_export.h"
 #include "build/build_config.h"
 
 namespace base {
@@ -53,7 +53,7 @@ namespace partition_alloc::internal {
 // IsManagedByPartitionAllocRegularPool use the bitmaps to judge whether a given
 // address is in a pool that supports BackupRefPtr or in a pool that doesn't.
 // All PartitionAlloc allocations must be in either of the pools.
-class BASE_EXPORT AddressPoolManager {
+class PA_COMPONENT_EXPORT(PARTITION_ALLOC) AddressPoolManager {
  public:
   static AddressPoolManager& GetInstance();
 
@@ -184,14 +184,5 @@ PA_ALWAYS_INLINE pool_handle GetConfigurablePool() {
 }
 
 }  // namespace partition_alloc::internal
-
-namespace base::internal {
-
-using ::partition_alloc::internal::AddressPoolManager;
-using ::partition_alloc::internal::GetBRPPool;
-using ::partition_alloc::internal::GetConfigurablePool;
-using ::partition_alloc::internal::GetRegularPool;
-
-}  // namespace base::internal
 
 #endif  // BASE_ALLOCATOR_PARTITION_ALLOCATOR_ADDRESS_POOL_MANAGER_H_

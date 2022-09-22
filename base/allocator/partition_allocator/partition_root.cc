@@ -6,14 +6,16 @@
 
 #include <cstdint>
 
-#include "base/allocator/buildflags.h"
 #include "base/allocator/partition_allocator/address_pool_manager_bitmap.h"
 #include "base/allocator/partition_allocator/oom.h"
 #include "base/allocator/partition_allocator/page_allocator.h"
 #include "base/allocator/partition_allocator/partition_address_space.h"
 #include "base/allocator/partition_allocator/partition_alloc_base/bits.h"
 #include "base/allocator/partition_allocator/partition_alloc_base/compiler_specific.h"
+#include "base/allocator/partition_allocator/partition_alloc_base/component_export.h"
+#include "base/allocator/partition_allocator/partition_alloc_base/debug/debugging_buildflags.h"
 #include "base/allocator/partition_allocator/partition_alloc_base/thread_annotations.h"
+#include "base/allocator/partition_allocator/partition_alloc_buildflags.h"
 #include "base/allocator/partition_allocator/partition_alloc_check.h"
 #include "base/allocator/partition_allocator/partition_alloc_config.h"
 #include "base/allocator/partition_allocator/partition_alloc_constants.h"
@@ -477,12 +479,11 @@ static void PartitionDumpSlotSpanStats(
 
   if (slot_span->CanStoreRawSize()) {
     stats_out->active_bytes += static_cast<uint32_t>(slot_span->GetRawSize());
-    stats_out->active_count += 1;
   } else {
     stats_out->active_bytes +=
         (slot_span->num_allocated_slots * stats_out->bucket_slot_size);
-    stats_out->active_count += slot_span->num_allocated_slots;
   }
+  stats_out->active_count += slot_span->num_allocated_slots;
 
   size_t slot_span_bytes_resident = RoundUpToSystemPage(
       (bucket_num_slots - slot_span->num_unprovisioned_slots) *
@@ -682,6 +683,10 @@ void PartitionRoot<thread_safe>::Init(PartitionOptions opts) {
 #if BUILDFLAG(USE_BACKUP_REF_PTR)
     flags.brp_enabled_ =
         opts.backup_ref_ptr == PartitionOptions::BackupRefPtr::kEnabled;
+    flags.brp_zapping_enabled_ =
+        opts.backup_ref_ptr_zapping ==
+        PartitionOptions::BackupRefPtrZapping::kEnabled;
+    PA_CHECK(!flags.brp_zapping_enabled_ || flags.brp_enabled_);
 #else
     PA_CHECK(opts.backup_ref_ptr == PartitionOptions::BackupRefPtr::kDisabled);
 #endif
@@ -1174,6 +1179,12 @@ void PartitionRoot<thread_safe>::DumpStats(const char* partition_name,
         total_size_of_brp_quarantined_bytes.load(std::memory_order_relaxed);
     stats.total_brp_quarantined_count =
         total_count_of_brp_quarantined_slots.load(std::memory_order_relaxed);
+    stats.cumulative_brp_quarantined_bytes =
+        cumulative_size_of_brp_quarantined_bytes.load(
+            std::memory_order_relaxed);
+    stats.cumulative_brp_quarantined_count =
+        cumulative_count_of_brp_quarantined_slots.load(
+            std::memory_order_relaxed);
 #endif
 
     size_t direct_mapped_allocations_total_size = 0;
@@ -1316,7 +1327,8 @@ void PartitionRoot<internal::ThreadSafe>::EnableSortActiveSlotSpans() {
   sort_active_slot_spans_ = true;
 }
 
-template struct BASE_EXPORT PartitionRoot<internal::ThreadSafe>;
+template struct PA_COMPONENT_EXPORT(PARTITION_ALLOC)
+    PartitionRoot<internal::ThreadSafe>;
 
 static_assert(offsetof(PartitionRoot<internal::ThreadSafe>, sentinel_bucket) ==
                   offsetof(PartitionRoot<internal::ThreadSafe>, buckets) +

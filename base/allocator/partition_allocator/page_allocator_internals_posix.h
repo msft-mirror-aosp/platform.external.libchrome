@@ -12,17 +12,17 @@
 
 #include <sys/mman.h>
 
-#include "base/allocator/buildflags.h"
 #include "base/allocator/partition_allocator/oom.h"
 #include "base/allocator/partition_allocator/page_allocator.h"
+#include "base/allocator/partition_allocator/partition_alloc_base/debug/debugging_buildflags.h"
 #include "base/allocator/partition_allocator/partition_alloc_base/posix/eintr_wrapper.h"
 #include "base/allocator/partition_allocator/partition_alloc_check.h"
 #include "build/build_config.h"
 
 #if BUILDFLAG(IS_APPLE)
-#include "base/mac/foundation_util.h"
-#include "base/mac/mac_util.h"
-#include "base/mac/scoped_cftyperef.h"
+#include "base/allocator/partition_allocator/partition_alloc_base/mac/foundation_util.h"
+#include "base/allocator/partition_allocator/partition_alloc_base/mac/mac_util.h"
+#include "base/allocator/partition_allocator/partition_alloc_base/mac/scoped_cftyperef.h"
 
 #include <Availability.h>
 #include <Security/Security.h>

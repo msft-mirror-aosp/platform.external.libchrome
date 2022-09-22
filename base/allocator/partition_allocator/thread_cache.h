@@ -10,11 +10,13 @@
 #include <limits>
 #include <memory>
 
-#include "base/allocator/buildflags.h"
 #include "base/allocator/partition_allocator/partition_alloc_base/compiler_specific.h"
+#include "base/allocator/partition_allocator/partition_alloc_base/component_export.h"
+#include "base/allocator/partition_allocator/partition_alloc_base/debug/debugging_buildflags.h"
 #include "base/allocator/partition_allocator/partition_alloc_base/gtest_prod_util.h"
 #include "base/allocator/partition_allocator/partition_alloc_base/thread_annotations.h"
 #include "base/allocator/partition_allocator/partition_alloc_base/time/time.h"
+#include "base/allocator/partition_allocator/partition_alloc_buildflags.h"
 #include "base/allocator/partition_allocator/partition_alloc_config.h"
 #include "base/allocator/partition_allocator/partition_alloc_forward.h"
 #include "base/allocator/partition_allocator/partition_bucket_lookup.h"
@@ -22,7 +24,6 @@
 #include "base/allocator/partition_allocator/partition_lock.h"
 #include "base/allocator/partition_allocator/partition_stats.h"
 #include "base/allocator/partition_allocator/partition_tls.h"
-#include "base/base_export.h"
 #include "build/build_config.h"
 
 #if defined(ARCH_CPU_X86_64) && defined(PA_HAS_64_BITS_POINTERS)
@@ -67,7 +68,7 @@ class ThreadCacheInspector;
 
 namespace internal {
 
-extern BASE_EXPORT PartitionTlsKey g_thread_cache_key;
+extern PA_COMPONENT_EXPORT(PARTITION_ALLOC) PartitionTlsKey g_thread_cache_key;
 // On Android, we have to go through emutls, since this is always a shared
 // library, so don't bother.
 #if defined(PA_THREAD_LOCAL_TLS) && !BUILDFLAG(IS_ANDROID)
@@ -75,7 +76,8 @@ extern BASE_EXPORT PartitionTlsKey g_thread_cache_key;
 #endif
 
 #if defined(PA_THREAD_CACHE_FAST_TLS)
-extern BASE_EXPORT thread_local ThreadCache* g_thread_cache;
+extern PA_COMPONENT_EXPORT(
+    PARTITION_ALLOC) thread_local ThreadCache* g_thread_cache;
 #endif
 
 }  // namespace internal
@@ -96,7 +98,7 @@ struct ThreadCacheLimits {
 // This class cannot allocate in the (Un)registerThreadCache() functions, as
 // they are called from ThreadCache constructor, which is from within the
 // allocator. However the other members can allocate.
-class BASE_EXPORT ThreadCacheRegistry {
+class PA_COMPONENT_EXPORT(PARTITION_ALLOC) ThreadCacheRegistry {
  public:
   static ThreadCacheRegistry& Instance();
   // Do not instantiate.
@@ -220,7 +222,7 @@ class ReentrancyGuard {
 // manipulated, as it is a thread_local member. As such, any
 // |ThreadCache::instance->*()| call will necessarily be done from a single
 // thread.
-class BASE_EXPORT ThreadCache {
+class PA_COMPONENT_EXPORT(PARTITION_ALLOC) ThreadCache {
  public:
   // Initializes the thread cache for |root|. May allocate, so should be called
   // with the thread cache disabled on the partition side, and without the
@@ -589,8 +591,8 @@ PA_ALWAYS_INLINE void ThreadCache::PutInBucket(Bucket& bucket,
   slot_size_remaining_in_16_bytes = std::min(
       slot_size_remaining_in_16_bytes, distance_to_next_cacheline_in_16_bytes);
 
-  static const uint32_t poison_16_bytes[4] = {0xdeadbeef, 0xdeadbeef,
-                                              0xdeadbeef, 0xdeadbeef};
+  static const uint32_t poison_16_bytes[4] = {0xbadbad00, 0xbadbad00,
+                                              0xbadbad00, 0xbadbad00};
   uint32_t* address_aligned = reinterpret_cast<uint32_t*>(address);
 
   for (int i = 0; i < slot_size_remaining_in_16_bytes; i++) {
@@ -608,14 +610,5 @@ PA_ALWAYS_INLINE void ThreadCache::PutInBucket(Bucket& bucket,
 }
 
 }  // namespace partition_alloc
-
-namespace base::internal {
-
-// TODO(https://crbug.com/1288247): Remove these 'using' declarations once
-// the migration to the new namespaces gets done.
-using ::partition_alloc::ThreadCache;
-using ::partition_alloc::ThreadCacheRegistry;
-
-}  // namespace base::internal
 
 #endif  // BASE_ALLOCATOR_PARTITION_ALLOCATOR_THREAD_CACHE_H_
