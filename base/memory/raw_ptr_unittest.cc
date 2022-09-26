@@ -83,80 +83,8 @@ static_assert(
 // this namespace calls the correct functions from this namespace.
 namespace {
 
-#if BUILDFLAG(USE_BACKUP_REF_PTR)
-using CountingSuperClass =
-    base::internal::BackupRefPtrImpl</*AllowDangling=*/false>;
-#elif defined(PA_USE_MTE_CHECKED_PTR_WITH_64_BITS_POINTERS)
-using CountingSuperClass = base::internal::MTECheckedPtrImpl<
-    base::internal::MTECheckedPtrImplPartitionAllocSupport>;
-#else
-using CountingSuperClass = base::internal::RawPtrNoOpImpl;
-#endif
-struct RawPtrCountingImpl : public CountingSuperClass {
-  using Super = CountingSuperClass;
-
-  template <typename T>
-  static ALWAYS_INLINE T* WrapRawPtr(T* ptr) {
-    ++wrap_raw_ptr_cnt;
-    return Super::WrapRawPtr(ptr);
-  }
-
-  template <typename T>
-  static ALWAYS_INLINE void ReleaseWrappedPtr(T* ptr) {
-    ++release_wrapped_ptr_cnt;
-    Super::ReleaseWrappedPtr(ptr);
-  }
-
-  template <typename T>
-  static ALWAYS_INLINE T* SafelyUnwrapPtrForDereference(T* wrapped_ptr) {
-    ++get_for_dereference_cnt;
-    return Super::SafelyUnwrapPtrForDereference(wrapped_ptr);
-  }
-
-  template <typename T>
-  static ALWAYS_INLINE T* SafelyUnwrapPtrForExtraction(T* wrapped_ptr) {
-    ++get_for_extraction_cnt;
-    return Super::SafelyUnwrapPtrForExtraction(wrapped_ptr);
-  }
-
-  template <typename T>
-  static ALWAYS_INLINE T* UnsafelyUnwrapPtrForComparison(T* wrapped_ptr) {
-    ++get_for_comparison_cnt;
-    return Super::UnsafelyUnwrapPtrForComparison(wrapped_ptr);
-  }
-
-  static ALWAYS_INLINE void IncrementSwapCountForTest() {
-    ++wrapped_ptr_swap_cnt;
-  }
-
-  static ALWAYS_INLINE void IncrementLessCountForTest() {
-    ++wrapped_ptr_less_cnt;
-  }
-
-  static ALWAYS_INLINE void IncrementPointerToMemberOperatorCountForTest() {
-    ++pointer_to_member_operator_cnt;
-  }
-
-  static void ClearCounters() {
-    wrap_raw_ptr_cnt = 0;
-    release_wrapped_ptr_cnt = 0;
-    get_for_dereference_cnt = 0;
-    get_for_extraction_cnt = 0;
-    get_for_comparison_cnt = 0;
-    wrapped_ptr_swap_cnt = 0;
-    wrapped_ptr_less_cnt = 0;
-    pointer_to_member_operator_cnt = 0;
-  }
-
-  static inline int wrap_raw_ptr_cnt = INT_MIN;
-  static inline int release_wrapped_ptr_cnt = INT_MIN;
-  static inline int get_for_dereference_cnt = INT_MIN;
-  static inline int get_for_extraction_cnt = INT_MIN;
-  static inline int get_for_comparison_cnt = INT_MIN;
-  static inline int wrapped_ptr_swap_cnt = INT_MIN;
-  static inline int wrapped_ptr_less_cnt = INT_MIN;
-  static inline int pointer_to_member_operator_cnt = INT_MIN;
-};
+using RawPtrCountingImpl =
+    base::internal::RawPtrCountingImplWrapperForTest<base::DefaultRawPtrImpl>;
 
 template <typename T>
 using CountingRawPtr = raw_ptr<T, RawPtrCountingImpl>;
@@ -1147,15 +1075,15 @@ TEST(BackupRefPtrImpl, Basic) {
 
   // The allocator should not be able to reuse the slot at this point.
   void* raw_ptr2 = allocator.root()->Alloc(sizeof(int), "");
-  EXPECT_NE(::partition_alloc::internal::UnmaskPtr(raw_ptr1),
-            ::partition_alloc::internal::UnmaskPtr(raw_ptr2));
+  EXPECT_NE(partition_alloc::UntagPtr(raw_ptr1),
+            partition_alloc::UntagPtr(raw_ptr2));
   allocator.root()->Free(raw_ptr2);
 
   // When the last reference is released, the slot should become reusable.
   wrapped_ptr1 = nullptr;
   void* raw_ptr3 = allocator.root()->Alloc(sizeof(int), "");
-  EXPECT_EQ(::partition_alloc::internal::UnmaskPtr(raw_ptr1),
-            ::partition_alloc::internal::UnmaskPtr(raw_ptr3));
+  EXPECT_EQ(partition_alloc::UntagPtr(raw_ptr1),
+            partition_alloc::UntagPtr(raw_ptr3));
   allocator.root()->Free(raw_ptr3);
 #endif  // DCHECK_IS_ON() || BUILDFLAG(ENABLE_BACKUP_REF_PTR_SLOW_CHECKS)
 }
@@ -1731,6 +1659,10 @@ TEST(MTECheckedPtrImpl, CrashOnUseAfterFree_WithOffset) {
 TEST(MTECheckedPtrImpl, AdvancedPointerShiftedAppropriately) {
   uint64_t* unwrapped_ptr = new uint64_t[6];
   CountingRawPtr<uint64_t> ptr = unwrapped_ptr;
+
+  // This is a non-fixture test, so we need to unset all
+  // counters manually.
+  RawPtrCountingImpl::ClearCounters();
 
   // This is unwrapped, but still useful for ensuring that the
   // shift is sized in `uint64_t`s.

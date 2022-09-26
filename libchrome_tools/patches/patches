@@ -69,6 +69,12 @@ libchrome-Query-spaced-for-free-total-disk-space.patch
 # r1007458 (crrev.com/c/3635217)) to avoid building PA.
 Add-TerminateBecauseOutOfMemory-back-to-base.patch
 
+# Revert of r1024559 (crrev.com/c/3763511).
+# Fails to build on arm and amd. Check with upstream to see if they plan to
+# support them in near future. Alternatively libchrome might add new IUSE build
+# flags to select source files.
+Revert-Reland-Initial-implementation-of-ChromeOS-X86-stack-walker.patch
+
 # ==================== CHERRY PICKS ===========================
 
 # ==================== BACKWARD COMPATIBILITY PATCHES FOR UPREVS =========
@@ -103,4 +109,18 @@ backward-compatibility-add-UTF-handling-functions-that-take_uint32_t.patch
 # TODO(b/240121761): remove when all usages are migrated to take size_t.
 backward-compatibility-add-base-DelegateSimpleThread.patch
 
+# Backward compatibility patch to add base::bits::Align{Down,Up} that take
+# size_t for both size and alignment. They are changed in r1023727
+# (crrev.com/c/3752744) to be templated and take the two arguments that are of
+# the same type, which causes failure in type deduction on usages that provide
+# them in different type (and converted to size_t).
+# TODO(b/248960258): remove when all usages changed to have correct input
+# types.
+backward-compatibility-Add-base-bits-Align-Down-Up-that-takes-size_t.patch
+
+# Backward compatibility patch to add old enum base::ThreadPriority (and its
+# entries) as alias of the replacement base::ThreadType.
+# TODO(b/249406176): Remove when all base::ThreadPriority is replaced by
+# base::ThreadType with new names.
+backward-compatibility-alias-base-ThreadType-as-base-Priority.patch
 # ==================== FORWARD COMPATIBILITY PATCHES FOR UPREVS ==========

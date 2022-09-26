@@ -1,0 +1,525 @@
+From d3908cdecff0344370bb3cec44947a95f74b5b23 Mon Sep 17 00:00:00 2001
+From: Grace Cham <hscham@chromium.org>
+Date: Mon, 26 Sep 2022 16:05:08 +0900
+Subject: [PATCH] Revert "Reland "Initial implementation of ChromeOS X86_64
+ stack walker""
+
+This reverts commit c25cdd501bd8b3e8970848e56372924140215496.
+---
+ base/profiler/chrome_unwinder_android.cc      |  1 +
+ base/profiler/frame_pointer_unwinder.h        | 44 ----------------
+ base/profiler/native_unwinder.h               | 20 ++++++++
+ base/profiler/native_unwinder_android.cc      |  1 +
+ ...r_unwinder.cc => native_unwinder_apple.cc} | 25 ++++-----
+ base/profiler/native_unwinder_apple.h         | 34 +++++++++++++
+ ...t.cc => native_unwinder_apple_unittest.cc} | 35 +++++--------
+ base/profiler/stack_sampler_posix.cc          | 33 ------------
+ .../stack_sampling_profiler_unittest.cc       | 51 +++++--------------
+ 9 files changed, 95 insertions(+), 149 deletions(-)
+ delete mode 100644 base/profiler/frame_pointer_unwinder.h
+ create mode 100644 base/profiler/native_unwinder.h
+ rename base/profiler/{frame_pointer_unwinder.cc => native_unwinder_apple.cc} (86%)
+ create mode 100644 base/profiler/native_unwinder_apple.h
+ rename base/profiler/{frame_pointer_unwinder_unittest.cc => native_unwinder_apple_unittest.cc} (93%)
+
+diff --git a/base/profiler/chrome_unwinder_android.cc b/base/profiler/chrome_unwinder_android.cc
+index 1d8862471fcd..87064c65e87f 100644
+--- a/base/profiler/chrome_unwinder_android.cc
++++ b/base/profiler/chrome_unwinder_android.cc
+@@ -6,6 +6,7 @@
+ 
+ #include "base/numerics/checked_math.h"
+ #include "base/profiler/module_cache.h"
++#include "base/profiler/native_unwinder.h"
+ #include "build/build_config.h"
+ 
+ namespace base {
+diff --git a/base/profiler/frame_pointer_unwinder.h b/base/profiler/frame_pointer_unwinder.h
+deleted file mode 100644
+index 106b49b355dc..000000000000
+--- a/base/profiler/frame_pointer_unwinder.h
++++ /dev/null
+@@ -1,44 +0,0 @@
+-// Copyright 2021 The Chromium Authors. All rights reserved.
+-// Use of this source code is governed by a BSD-style license that can be
+-// found in the LICENSE file.
+-
+-#ifndef BASE_PROFILER_FRAME_POINTER_UNWINDER_H_
+-#define BASE_PROFILER_FRAME_POINTER_UNWINDER_H_
+-
+-#include <vector>
+-
+-#include "base/base_export.h"
+-#include "base/profiler/unwinder.h"
+-#include "build/build_config.h"
+-
+-#if BUILDFLAG(IS_APPLE)
+-#include <os/availability.h>
+-#endif
+-
+-namespace base {
+-
+-// Native unwinder implementation for platforms that have frame pointers:
+-//  * iOS, ARM64 and X86_64,
+-//  * macOS 10.14+.
+-//  * ChromeOS X86_64
+-class BASE_EXPORT
+-#if BUILDFLAG(IS_APPLE)
+-API_AVAILABLE(ios(12))
+-#endif
+-    FramePointerUnwinder : public Unwinder {
+- public:
+-  FramePointerUnwinder();
+-
+-  FramePointerUnwinder(const FramePointerUnwinder&) = delete;
+-  FramePointerUnwinder& operator=(const FramePointerUnwinder&) = delete;
+-
+-  // Unwinder:
+-  bool CanUnwindFrom(const Frame& current_frame) const override;
+-  UnwindResult TryUnwind(RegisterContext* thread_context,
+-                         uintptr_t stack_top,
+-                         std::vector<Frame>* stack) const override;
+-};
+-
+-}  // namespace base
+-
+-#endif  // BASE_PROFILER_FRAME_POINTER_UNWINDER_H_
+diff --git a/base/profiler/native_unwinder.h b/base/profiler/native_unwinder.h
+new file mode 100644
+index 000000000000..f26c5ad2b6ff
+--- /dev/null
++++ b/base/profiler/native_unwinder.h
+@@ -0,0 +1,20 @@
++// Copyright 2019 The Chromium Authors. All rights reserved.
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef BASE_PROFILER_NATIVE_UNWINDER_H_
++#define BASE_PROFILER_NATIVE_UNWINDER_H_
++
++#include <memory>
++
++namespace base {
++
++class ModuleCache;
++class Unwinder;
++
++// Creates the native unwinder for the platform.
++std::unique_ptr<Unwinder> CreateNativeUnwinder(ModuleCache* module_cache);
++
++}  // namespace base
++
++#endif  // BASE_PROFILER_NATIVE_UNWINDER_H_
+diff --git a/base/profiler/native_unwinder_android.cc b/base/profiler/native_unwinder_android.cc
+index a2e04a2163a2..67c28b9cc114 100644
+--- a/base/profiler/native_unwinder_android.cc
++++ b/base/profiler/native_unwinder_android.cc
+@@ -16,6 +16,7 @@
+ #include "base/memory/ptr_util.h"
+ #include "base/notreached.h"
+ #include "base/profiler/module_cache.h"
++#include "base/profiler/native_unwinder.h"
+ #include "base/profiler/profile_builder.h"
+ #include "build/build_config.h"
+ 
+diff --git a/base/profiler/frame_pointer_unwinder.cc b/base/profiler/native_unwinder_apple.cc
+similarity index 86%
+rename from base/profiler/frame_pointer_unwinder.cc
+rename to base/profiler/native_unwinder_apple.cc
+index 0068c92b6dc0..d698c66a1014 100644
+--- a/base/profiler/frame_pointer_unwinder.cc
++++ b/base/profiler/native_unwinder_apple.cc
+@@ -2,18 +2,17 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#include "base/profiler/frame_pointer_unwinder.h"
++#include "base/profiler/native_unwinder_apple.h"
++
++#include <pthread/stack_np.h>
+ 
+ #include "base/check_op.h"
+ #include "base/notreached.h"
+ #include "base/numerics/clamped_math.h"
+ #include "base/profiler/module_cache.h"
++#include "base/profiler/native_unwinder.h"
+ #include "build/build_config.h"
+ 
+-#if BUILDFLAG(IS_APPLE)
+-#include <pthread/stack_np.h>
+-#endif
+-
+ namespace {
+ 
+ // Given a frame pointer, returns the frame pointer of the calling stack
+@@ -23,10 +22,8 @@ namespace {
+ // NB: The caller *must* ensure that there are 2+ uintptr_t's worth of memory at
+ // `frame_pointer`.
+ uintptr_t DecodeFrame(uintptr_t frame_pointer, uintptr_t* return_address) {
+-#if BUILDFLAG(IS_APPLE)
+   if (__builtin_available(macOS 10.14, iOS 12, *))
+     return pthread_stack_frame_decode_np(frame_pointer, return_address);
+-#endif
+   const uintptr_t* fp = reinterpret_cast<uintptr_t*>(frame_pointer);
+   uintptr_t next_frame = *fp;
+   *return_address = *(fp + 1);
+@@ -37,15 +34,15 @@ uintptr_t DecodeFrame(uintptr_t frame_pointer, uintptr_t* return_address) {
+ 
+ namespace base {
+ 
+-FramePointerUnwinder::FramePointerUnwinder() = default;
++NativeUnwinderApple::NativeUnwinderApple() = default;
+ 
+-bool FramePointerUnwinder::CanUnwindFrom(const Frame& current_frame) const {
++bool NativeUnwinderApple::CanUnwindFrom(const Frame& current_frame) const {
+   return current_frame.module && current_frame.module->IsNative();
+ }
+ 
+-UnwindResult FramePointerUnwinder::TryUnwind(RegisterContext* thread_context,
+-                                             uintptr_t stack_top,
+-                                             std::vector<Frame>* stack) const {
++UnwindResult NativeUnwinderApple::TryUnwind(RegisterContext* thread_context,
++                                            uintptr_t stack_top,
++                                            std::vector<Frame>* stack) const {
+   // We expect the frame corresponding to the |thread_context| register state to
+   // exist within |stack|.
+   DCHECK_GT(stack->size(), 0u);
+@@ -104,4 +101,8 @@ UnwindResult FramePointerUnwinder::TryUnwind(RegisterContext* thread_context,
+   return UnwindResult::kCompleted;
+ }
+ 
++std::unique_ptr<Unwinder> CreateNativeUnwinder(ModuleCache* module_cache) {
++  return std::make_unique<NativeUnwinderApple>();
++}
++
+ }  // namespace base
+diff --git a/base/profiler/native_unwinder_apple.h b/base/profiler/native_unwinder_apple.h
+new file mode 100644
+index 000000000000..97a2ed44f3ac
+--- /dev/null
++++ b/base/profiler/native_unwinder_apple.h
+@@ -0,0 +1,34 @@
++// Copyright 2021 The Chromium Authors. All rights reserved.
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef BASE_PROFILER_NATIVE_UNWINDER_APPLE_H_
++#define BASE_PROFILER_NATIVE_UNWINDER_APPLE_H_
++
++#include <vector>
++
++#include <os/availability.h>
++
++#include "base/base_export.h"
++#include "base/profiler/unwinder.h"
++
++namespace base {
++
++// Native unwinder implementation for iOS, ARM64 and X86_64, and macOS 10.14+.
++class BASE_EXPORT API_AVAILABLE(ios(12)) NativeUnwinderApple : public Unwinder {
++ public:
++  NativeUnwinderApple();
++
++  NativeUnwinderApple(const NativeUnwinderApple&) = delete;
++  NativeUnwinderApple& operator=(const NativeUnwinderApple&) = delete;
++
++  // Unwinder:
++  bool CanUnwindFrom(const Frame& current_frame) const override;
++  UnwindResult TryUnwind(RegisterContext* thread_context,
++                         uintptr_t stack_top,
++                         std::vector<Frame>* stack) const override;
++};
++
++}  // namespace base
++
++#endif  // BASE_PROFILER_NATIVE_UNWINDER_APPLE_H_
+diff --git a/base/profiler/frame_pointer_unwinder_unittest.cc b/base/profiler/native_unwinder_apple_unittest.cc
+similarity index 93%
+rename from base/profiler/frame_pointer_unwinder_unittest.cc
+rename to base/profiler/native_unwinder_apple_unittest.cc
+index d806c1054c99..9ba585c78f64 100644
+--- a/base/profiler/frame_pointer_unwinder_unittest.cc
++++ b/base/profiler/native_unwinder_apple_unittest.cc
+@@ -2,19 +2,16 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#include "base/profiler/frame_pointer_unwinder.h"
+-
+-#include <memory>
++#include "base/profiler/native_unwinder_apple.h"
+ 
++#include "base/mac/mac_util.h"
+ #include "base/profiler/module_cache.h"
+ #include "base/profiler/stack_sampling_profiler_test_util.h"
+ #include "base/profiler/unwinder.h"
+ #include "build/buildflag.h"
+ #include "testing/gtest/include/gtest/gtest.h"
+ 
+-#if BUILDFLAG(IS_APPLE)
+-#include "base/mac/mac_util.h"
+-#endif
++#include <memory>
+ 
+ namespace base {
+ 
+@@ -60,15 +57,11 @@ struct InputStack {
+ 
+ }  // namespace
+ 
+-class FramePointerUnwinderTest : public testing::Test {
++class NativeUnwinderAppleTest : public testing::Test {
+  protected:
+-  FramePointerUnwinderTest() {
+-#if BUILDFLAG(IS_APPLE)
++  NativeUnwinderAppleTest() {
+     if (__builtin_available(iOS 12, *)) {
+-#else
+-    {
+-#endif
+-      unwinder_ = std::make_unique<FramePointerUnwinder>();
++      unwinder_ = std::make_unique<NativeUnwinderApple>();
+ 
+       auto test_module =
+           std::make_unique<TestModule>(kModuleStart, kModuleSize);
+@@ -97,7 +90,7 @@ class FramePointerUnwinderTest : public testing::Test {
+   raw_ptr<ModuleCache::Module> non_native_module_;
+ };
+ 
+-TEST_F(FramePointerUnwinderTest, FPPointsOutsideOfStack) {
++TEST_F(NativeUnwinderAppleTest, FPPointsOutsideOfStack) {
+   InputStack input({
+       {false, 0x1000},
+       {false, 0x1000},
+@@ -128,7 +121,7 @@ TEST_F(FramePointerUnwinderTest, FPPointsOutsideOfStack) {
+   EXPECT_EQ(std::vector<Frame>({{kModuleStart, module()}}), stack);
+ }
+ 
+-TEST_F(FramePointerUnwinderTest, FPPointsToSelf) {
++TEST_F(NativeUnwinderAppleTest, FPPointsToSelf) {
+   InputStack input({
+       {true, 0},
+       {false, kModuleStart + 0x10},
+@@ -155,7 +148,7 @@ TEST_F(FramePointerUnwinderTest, FPPointsToSelf) {
+ 
+ // Tests that two frame pointers that point to each other can't create an
+ // infinite loop
+-TEST_F(FramePointerUnwinderTest, FPCycle) {
++TEST_F(NativeUnwinderAppleTest, FPCycle) {
+   InputStack input({
+       {true, 2},
+       {false, kModuleStart + 0x10},
+@@ -183,7 +176,7 @@ TEST_F(FramePointerUnwinderTest, FPCycle) {
+             stack);
+ }
+ 
+-TEST_F(FramePointerUnwinderTest, NoModuleForIP) {
++TEST_F(NativeUnwinderAppleTest, NoModuleForIP) {
+   uintptr_t not_in_module = kModuleStart - 0x10;
+   InputStack input({
+       {true, 2},
+@@ -210,7 +203,7 @@ TEST_F(FramePointerUnwinderTest, NoModuleForIP) {
+ 
+ // Tests that testing that checking if there's space to read two values from the
+ // stack doesn't overflow.
+-TEST_F(FramePointerUnwinderTest, FPAdditionOverflows) {
++TEST_F(NativeUnwinderAppleTest, FPAdditionOverflows) {
+   uintptr_t will_overflow = std::numeric_limits<uintptr_t>::max() - 1;
+   InputStack input({
+       {true, 2},
+@@ -235,7 +228,7 @@ TEST_F(FramePointerUnwinderTest, FPAdditionOverflows) {
+ }
+ 
+ // Tests the happy path: a successful unwind with no non-native modules.
+-TEST_F(FramePointerUnwinderTest, RegularUnwind) {
++TEST_F(NativeUnwinderAppleTest, RegularUnwind) {
+   InputStack input({
+       {true, 4},                     // fp of frame 1
+       {false, kModuleStart + 0x20},  // ip of frame 1
+@@ -268,7 +261,7 @@ TEST_F(FramePointerUnwinderTest, RegularUnwind) {
+ 
+ // Tests that if a V8 frame is encountered, unwinding stops and
+ // kUnrecognizedFrame is returned to facilitate continuing with the V8 unwinder.
+-TEST_F(FramePointerUnwinderTest, NonNativeFrame) {
++TEST_F(NativeUnwinderAppleTest, NonNativeFrame) {
+   InputStack input({
+       {true, 4},                     // fp of frame 1
+       {false, kModuleStart + 0x20},  // ip of frame 1
+@@ -305,7 +298,7 @@ TEST_F(FramePointerUnwinderTest, NonNativeFrame) {
+ 
+ // Tests that a V8 frame with an unaligned frame pointer correctly returns
+ // kUnrecognizedFrame and not kAborted.
+-TEST_F(FramePointerUnwinderTest, NonNativeUnaligned) {
++TEST_F(NativeUnwinderAppleTest, NonNativeUnaligned) {
+   InputStack input({
+       {true, 4},                     // fp of frame 1
+       {false, kModuleStart + 0x20},  // ip of frame 1
+diff --git a/base/profiler/stack_sampler_posix.cc b/base/profiler/stack_sampler_posix.cc
+index c7b74a556fcb..be47a3b682b3 100644
+--- a/base/profiler/stack_sampler_posix.cc
++++ b/base/profiler/stack_sampler_posix.cc
+@@ -6,51 +6,18 @@
+ 
+ #include <pthread.h>
+ 
+-#include <memory>
+-
+ #include "base/threading/platform_thread.h"
+ #include "build/build_config.h"
+ 
+-#if BUILDFLAG(IS_CHROMEOS) && defined(ARCH_CPU_X86_64)
+-#include "base/bind.h"
+-#include "base/check.h"
+-#include "base/profiler/frame_pointer_unwinder.h"
+-#include "base/profiler/stack_copier_signal.h"
+-#include "base/profiler/stack_sampler_impl.h"
+-#include "base/profiler/thread_delegate_posix.h"
+-#include "base/profiler/unwinder.h"
+-#endif
+-
+ namespace base {
+ 
+-namespace {
+-
+-#if BUILDFLAG(IS_CHROMEOS) && defined(ARCH_CPU_X86_64)
+-std::vector<std::unique_ptr<Unwinder>> CreateUnwinders() {
+-  std::vector<std::unique_ptr<Unwinder>> unwinders;
+-  unwinders.push_back(std::make_unique<FramePointerUnwinder>());
+-  return unwinders;
+-}
+-#endif
+-
+-}  // namespace
+-
+ std::unique_ptr<StackSampler> StackSampler::Create(
+     SamplingProfilerThreadToken thread_token,
+     ModuleCache* module_cache,
+     UnwindersFactory core_unwinders_factory,
+     RepeatingClosure record_sample_callback,
+     StackSamplerTestDelegate* test_delegate) {
+-#if BUILDFLAG(IS_CHROMEOS) && defined(ARCH_CPU_X86_64)
+-  DCHECK(!core_unwinders_factory);
+-  return std::make_unique<StackSamplerImpl>(
+-      std::make_unique<StackCopierSignal>(
+-          ThreadDelegatePosix::Create(thread_token)),
+-      BindOnce(&CreateUnwinders), module_cache,
+-      std::move(record_sample_callback), test_delegate);
+-#else
+   return nullptr;
+-#endif
+ }
+ 
+ size_t StackSampler::GetStackBufferSize() {
+diff --git a/base/profiler/stack_sampling_profiler_unittest.cc b/base/profiler/stack_sampling_profiler_unittest.cc
+index c0db1d182739..6f7cad588c7f 100644
+--- a/base/profiler/stack_sampling_profiler_unittest.cc
++++ b/base/profiler/stack_sampling_profiler_unittest.cc
+@@ -46,16 +46,11 @@
+ #endif
+ 
+ // STACK_SAMPLING_PROFILER_SUPPORTED is used to conditionally enable the tests
+-// below for supported platforms (currently Win x64, Mac x64, iOS 64, some
+-// Android, and ChromeOS x64).
+-// ChromeOS: These don't run under MSan because parts of the stack aren't
+-// initialized.
+-#if (BUILDFLAG(IS_WIN) && defined(ARCH_CPU_X86_64)) ||            \
+-    (BUILDFLAG(IS_MAC) && defined(ARCH_CPU_X86_64)) ||            \
+-    (BUILDFLAG(IS_IOS) && defined(ARCH_CPU_64_BITS)) ||           \
+-    (BUILDFLAG(IS_ANDROID) && BUILDFLAG(ENABLE_ARM_CFI_TABLE)) || \
+-    (BUILDFLAG(IS_CHROMEOS) && defined(ARCH_CPU_X86_64) &&        \
+-     !defined(MEMORY_SANITIZER))
++// below for supported platforms (currently Win x64, Mac x64 and iOS 64).
++#if (BUILDFLAG(IS_WIN) && defined(ARCH_CPU_X86_64)) ||  \
++    (BUILDFLAG(IS_MAC) && defined(ARCH_CPU_X86_64)) ||  \
++    (BUILDFLAG(IS_IOS) && defined(ARCH_CPU_64_BITS)) || \
++    (BUILDFLAG(IS_ANDROID) && BUILDFLAG(ENABLE_ARM_CFI_TABLE))
+ #define STACK_SAMPLING_PROFILER_SUPPORTED 1
+ #endif
+ 
+@@ -195,7 +190,7 @@ void SynchronousUnloadNativeLibrary(NativeLibrary library) {
+          ::GetLastError() != ERROR_MOD_NOT_FOUND) {
+     PlatformThread::Sleep(Milliseconds(1));
+   }
+-#elif BUILDFLAG(IS_APPLE) || BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_CHROMEOS)
++#elif BUILDFLAG(IS_APPLE) || BUILDFLAG(IS_ANDROID)
+ // Unloading a library on Mac and Android is synchronous.
+ #else
+   NOTIMPLEMENTED();
+@@ -438,13 +433,8 @@ class StackSamplingProfilerTest : public testing::Test {
+ //
+ // TODO(https://crbug.com/1100175): Enable this test again for Android with
+ // ASAN. This is now disabled because the android-asan bot fails.
+-//
+-// If we're running the ChromeOS unit tests on Linux, this test will never pass
+-// because Ubuntu's libc isn't compiled with frame pointers. Skip if not a real
+-// ChromeOS device.
+-#if (defined(ADDRESS_SANITIZER) && BUILDFLAG(IS_APPLE)) ||   \
+-    (defined(ADDRESS_SANITIZER) && BUILDFLAG(IS_ANDROID)) || \
+-    (BUILDFLAG(IS_CHROMEOS) && !BUILDFLAG(IS_CHROMEOS_DEVICE))
++#if (defined(ADDRESS_SANITIZER) && BUILDFLAG(IS_APPLE)) || \
++    (defined(ADDRESS_SANITIZER) && BUILDFLAG(IS_ANDROID))
+ #define MAYBE_Basic DISABLED_Basic
+ #else
+ #define MAYBE_Basic Basic
+@@ -498,12 +488,7 @@ class TestAuxUnwinder : public Unwinder {
+ // macOS ASAN is not yet supported - crbug.com/718628.
+ // Android is not supported since Chrome unwind tables don't support dynamic
+ // frames.
+-// If we're running the ChromeOS unit tests on Linux, this test will never pass
+-// because Ubuntu's libc isn't compiled with frame pointers. Skip if not a real
+-// ChromeOS device.
+-#if (defined(ADDRESS_SANITIZER) && BUILDFLAG(IS_APPLE)) || \
+-    BUILDFLAG(IS_ANDROID) ||                               \
+-    (BUILDFLAG(IS_CHROMEOS) && !BUILDFLAG(IS_CHROMEOS_DEVICE))
++#if (defined(ADDRESS_SANITIZER) && BUILDFLAG(IS_APPLE)) || BUILDFLAG(IS_ANDROID)
+ #define MAYBE_Alloca DISABLED_Alloca
+ #else
+ #define MAYBE_Alloca Alloca
+@@ -526,14 +511,10 @@ PROFILER_TEST_F(StackSamplingProfilerTest, MAYBE_Alloca) {
+ // have unwind tables.
+ // TODO(https://crbug.com/1100175): Enable this test again for Android with
+ // ASAN. This is now disabled because the android-asan bot fails.
+-// If we're running the ChromeOS unit tests on Linux, this test will never pass
+-// because Ubuntu's libc isn't compiled with frame pointers. Skip if not a real
+-// ChromeOS device.
+ #if (defined(ADDRESS_SANITIZER) && BUILDFLAG(IS_APPLE)) ||         \
+     BUILDFLAG(IS_IOS) ||                                           \
+     (BUILDFLAG(IS_ANDROID) && BUILDFLAG(EXCLUDE_UNWIND_TABLES)) || \
+-    (BUILDFLAG(IS_ANDROID) && defined(ADDRESS_SANITIZER)) ||       \
+-    (BUILDFLAG(IS_CHROMEOS) && !BUILDFLAG(IS_CHROMEOS_DEVICE))
++    (BUILDFLAG(IS_ANDROID) && defined(ADDRESS_SANITIZER))
+ #define MAYBE_OtherLibrary DISABLED_OtherLibrary
+ #else
+ #define MAYBE_OtherLibrary OtherLibrary
+@@ -557,13 +538,9 @@ PROFILER_TEST_F(StackSamplingProfilerTest, MAYBE_OtherLibrary) {
+ // have unwind tables.
+ // TODO(https://crbug.com/1100175): Enable this test again for Android with
+ // ASAN. This is now disabled because the android-asan bot fails.
+-// If we're running the ChromeOS unit tests on Linux, this test will never pass
+-// because Ubuntu's libc isn't compiled with frame pointers. Skip if not a real
+-// ChromeOS device.
+ #if BUILDFLAG(IS_APPLE) ||                                         \
+     (BUILDFLAG(IS_ANDROID) && BUILDFLAG(EXCLUDE_UNWIND_TABLES)) || \
+-    (BUILDFLAG(IS_ANDROID) && defined(ADDRESS_SANITIZER)) ||       \
+-    (BUILDFLAG(IS_CHROMEOS) && !BUILDFLAG(IS_CHROMEOS_DEVICE))
++    (BUILDFLAG(IS_ANDROID) && defined(ADDRESS_SANITIZER))
+ #define MAYBE_UnloadingLibrary DISABLED_UnloadingLibrary
+ #else
+ #define MAYBE_UnloadingLibrary UnloadingLibrary
+@@ -576,12 +553,8 @@ PROFILER_TEST_F(StackSamplingProfilerTest, MAYBE_UnloadingLibrary) {
+ // produces a stack, and doesn't crash.
+ // macOS ASAN is not yet supported - crbug.com/718628.
+ // Android is not supported since modules are found before unwinding.
+-// If we're running the ChromeOS unit tests on Linux, this test will never pass
+-// because Ubuntu's libc isn't compiled with frame pointers. Skip if not a real
+-// ChromeOS device.
+ #if (defined(ADDRESS_SANITIZER) && BUILDFLAG(IS_APPLE)) || \
+-    BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_IOS) ||          \
+-    (BUILDFLAG(IS_CHROMEOS) && !BUILDFLAG(IS_CHROMEOS_DEVICE))
++    BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_IOS)
+ #define MAYBE_UnloadedLibrary DISABLED_UnloadedLibrary
+ #else
+ #define MAYBE_UnloadedLibrary UnloadedLibrary
+-- 
+2.37.3.998.g577e59143f-goog
+

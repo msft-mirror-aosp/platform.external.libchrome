@@ -130,6 +130,7 @@ namespace audio {
 class OutputDevice;
 }
 namespace blink {
+class CategorizedWorkerPool;
 class DiskDataAllocator;
 class RTCVideoDecoderAdapter;
 class RTCVideoEncoder;
@@ -166,7 +167,6 @@ class BrowserGpuChannelHostFactory;
 class BrowserMainLoop;
 class BrowserProcessIOThread;
 class BrowserTestBase;
-class CategorizedWorkerPool;
 class DesktopCaptureDevice;
 class DWriteFontCollectionProxy;
 class DWriteFontProxyImpl;
@@ -196,7 +196,7 @@ class CronetPrefsManager;
 class CronetContext;
 }  // namespace cronet
 namespace crosapi {
-class LacrosThreadPriorityDelegate;
+class LacrosThreadTypeDelegate;
 }  // namespace crosapi
 namespace dbus {
 class Bus;
@@ -464,7 +464,7 @@ class BASE_EXPORT ScopedAllowBlocking {
   friend class content::WebContentsViewMac;
   friend class cronet::CronetPrefsManager;
   friend class cronet::CronetContext;
-  friend class crosapi::LacrosThreadPriorityDelegate;
+  friend class crosapi::LacrosThreadTypeDelegate;
   friend class ios_web_view::WebViewBrowserState;
   friend class media::FileVideoCaptureDeviceFactory;
   friend class memory_instrumentation::OSMetrics;
@@ -638,12 +638,12 @@ class BASE_EXPORT ScopedAllowBaseSyncPrimitivesOutsideBlockingScope {
   friend class base::internal::JobTaskSource;
   friend class base::ScopedAllowThreadRecallForStackSamplingProfiler;
   friend class base::StackSamplingProfiler;
+  friend class blink::CategorizedWorkerPool;
   friend class blink::RTCVideoDecoderAdapter;
   friend class blink::RTCVideoEncoder;
   friend class blink::WebRtcVideoFrameAdapter;
   friend class blink::LegacyWebRtcVideoFrameAdapter;
   friend class cc::TileTaskManagerImpl;
-  friend class content::CategorizedWorkerPool;
   friend class content::DesktopCaptureDevice;
   friend class content::EmergencyTraceFinalisationCoordinator;
   friend class content::InProcessUtilityThread;

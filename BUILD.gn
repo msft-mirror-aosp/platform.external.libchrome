@@ -44,6 +44,7 @@ group("all_buildflags") {
     ":feature_list_buildflags",
     ":ios_cronet_buildflags",
     ":ipc_buildflags",
+    ":message_pump_buildflags",
     ":mojo_buildflags",
     ":parsing_buildflags",
     ":partition_allocator_buildflags",
@@ -258,6 +259,11 @@ buildflag_header("ipc_buildflags") {
   flags = [ "IPC_MESSAGE_LOG_ENABLED=false" ]
 }
 
+buildflag_header("message_pump_buildflags") {
+  header = "base/message_loop/message_pump_buildflags.h"
+  flags = [ "ENABLE_MESSAGE_PUMP_EPOLL=true" ]
+}
+
 buildflag_header("mojo_buildflags") {
   header = "mojo/public/cpp/bindings/mojo_buildflags.h"
   flags = [
@@ -328,6 +334,7 @@ libbase_sublibs = [
       "base/callback_internal.cc",
       "base/callback_list.cc",
       "base/check.cc",
+      "base/check_is_test.cc",
       "base/check_op.cc",
       "base/command_line.cc",
       "base/containers/intrusive_heap.cc",
@@ -340,6 +347,7 @@ libbase_sublibs = [
       "base/debug/debugger.cc",
       "base/debug/debugger_posix.cc",
       "base/debug/dump_without_crashing.cc",
+      "base/debug/elf_reader.cc",
       "base/debug/stack_trace.cc",
       "base/debug/stack_trace_posix.cc",
       "base/debug/task_trace.cc",
@@ -402,6 +410,7 @@ libbase_sublibs = [
       "base/memory/writable_shared_memory_region.cc",
       "base/message_loop/message_pump.cc",
       "base/message_loop/message_pump_default.cc",
+      "base/message_loop/message_pump_epoll.cc",
       "base/message_loop/message_pump_glib.cc",
       "base/message_loop/message_pump_libevent.cc",
       "base/message_loop/watchable_io_message_pump_posix.cc",
@@ -428,7 +437,6 @@ libbase_sublibs = [
       "base/metrics/statistics_recorder.cc",
       "base/native_library.cc",
       "base/native_library_posix.cc",
-      "base/notreached.cc",
       "base/observer_list_internal.cc",
       "base/observer_list_threadsafe.cc",
       "base/observer_list_types.cc",
@@ -973,7 +981,7 @@ if (use.mojo) {
       "mojo/public/mojom/base/read_only_buffer.mojom",
       "mojo/public/mojom/base/shared_memory.mojom",
       "mojo/public/mojom/base/text_direction.mojom",
-      "mojo/public/mojom/base/thread_priority.mojom",
+      "mojo/public/mojom/base/thread_type.mojom",
       "mojo/public/mojom/base/time.mojom",
       "mojo/public/mojom/base/unguessable_token.mojom",
       "mojo/public/mojom/base/values.mojom",
@@ -1068,7 +1076,6 @@ if (use.mojo) {
           "mojo/public/cpp/base/read_only_buffer_mojom_traits.cc",
           "mojo/public/cpp/base/shared_memory_mojom_traits.cc",
           "mojo/public/cpp/base/text_direction_mojom_traits.cc",
-          "mojo/public/cpp/base/thread_priority_mojom_traits.cc",
           "mojo/public/cpp/base/time_mojom_traits.cc",
           "mojo/public/cpp/base/unguessable_token_mojom_traits.cc",
           "mojo/public/cpp/base/values_mojom_traits.cc",

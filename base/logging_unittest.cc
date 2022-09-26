@@ -905,6 +905,16 @@ TEST_F(LoggingTest, ScopedVmoduleSwitches) {
   }
 }
 
+TEST_F(LoggingTest, BuildCrashString) {
+  EXPECT_EQ("file.cc:42: ",
+            LogMessage("file.cc", 42, LOGGING_ERROR).BuildCrashString());
+
+  // BuildCrashString() should strip path/to/file prefix.
+  LogMessage msg("../foo/bar/file.cc", 42, LOGGING_ERROR);
+  msg.stream() << "Hello";
+  EXPECT_EQ("file.cc:42: Hello", msg.BuildCrashString());
+}
+
 #if !BUILDFLAG(USE_RUNTIME_VLOG)
 TEST_F(LoggingTest, BuildTimeVLOG) {
   // Use a static because only captureless lambdas can be converted to a
