@@ -7,34 +7,28 @@
 #include "base/check_op.h"
 #include "base/notreached.h"
 #include "base/rand_util.h"
-// #include "base/third_party/cityhash/city.h"
+#include "base/third_party/cityhash/city.h"
 #include "build/build_config.h"
 
-#include <functional>
-
-uint32_t SuperFastHash(const char* data, size_t len) {
-  std::hash<std::string> hash_fn;
-  return hash_fn(std::string(data, len));
-}
+// Definition in base/third_party/superfasthash/superfasthash.c. (Third-party
+// code did not come with its own header file, so declaring the function here.)
+// Note: This algorithm is also in Blink under Source/wtf/StringHasher.h.
+extern "C" uint32_t SuperFastHash(const char* data, int len);
 
 namespace base {
 
 namespace {
 
 size_t FastHashImpl(base::span<const uint8_t> data) {
-#if 0
   // We use the updated CityHash within our namespace (not the deprecated
   // version from third_party/smhasher).
-#if defined(ARCH_CPU_64_BITS)
-  return base::internal::cityhash_v111::CityHash64(
-      reinterpret_cast<const char*>(data.data()), data.size());
-#else
-  return base::internal::cityhash_v111::CityHash32(
-      reinterpret_cast<const char*>(data.data()), data.size());
-#endif
-#endif
-  return SuperFastHash(reinterpret_cast<const char *>(data.data()),
-                       data.size());
+  if constexpr (sizeof(size_t) > 4) {
+    return base::internal::cityhash_v111::CityHash64(
+        reinterpret_cast<const char*>(data.data()), data.size());
+  } else {
+    return base::internal::cityhash_v111::CityHash32(
+        reinterpret_cast<const char*>(data.data()), data.size());
+  }
 }
 
 // Implement hashing for pairs of at-most 32 bit integer values.

@@ -125,6 +125,7 @@ class VizCompositorThreadRunnerWebView;
 namespace ash {
 class MojoUtils;
 class BrowserDataMigrator;
+bool CameraAppUIShouldEnableLocalOverride(const std::string&);
 }  // namespace ash
 namespace audio {
 class OutputDevice;
@@ -132,6 +133,7 @@ class OutputDevice;
 namespace blink {
 class CategorizedWorkerPool;
 class DiskDataAllocator;
+class IdentifiabilityActiveSampler;
 class RTCVideoDecoderAdapter;
 class RTCVideoEncoder;
 class SourceStream;
@@ -492,6 +494,7 @@ class BASE_EXPORT ScopedAllowBlocking {
   friend Profile* ::GetLastProfileMac();  // crbug.com/1176734
   friend bool ::HasWaylandDisplay(base::Environment* env);  // crbug.com/1246928
   friend bool PathProviderWin(int, FilePath*);
+  friend bool ash::CameraAppUIShouldEnableLocalOverride(const std::string&);
   friend bool chromeos::system::IsCoreSchedulingAvailable();
   friend int chromeos::system::NumberOfPhysicalCores();
   friend bool disk_cache::CleanupDirectorySync(const base::FilePath&);
@@ -562,6 +565,7 @@ class BASE_EXPORT ScopedAllowBaseSyncPrimitives {
   friend class ::ChromeNSSCryptoModuleDelegate;
   friend class base::internal::GetAppOutputScopedAllowBaseSyncPrimitives;
   friend class base::SimpleThread;
+  friend class blink::IdentifiabilityActiveSampler;
   friend class blink::SourceStream;
   friend class blink::WorkerThread;
   friend class blink::scheduler::WorkerThread;

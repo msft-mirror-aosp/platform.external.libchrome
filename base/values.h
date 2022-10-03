@@ -207,8 +207,6 @@ class BASE_EXPORT GSL_OWNER Value {
   using BlobStorage = std::vector<uint8_t>;
 
   using DeprecatedListStorage = std::vector<Value>;
-  // TODO(https://crbug.com/1291666): Make this private.
-  using ListStorage = DeprecatedListStorage;
 
   // Like `DictStorage`, but with std::unique_ptr in the mapped type. This is
   // due to legacy reasons, and should be replaced with
@@ -216,8 +214,9 @@ class BASE_EXPORT GSL_OWNER Value {
   // anymore.
   using LegacyDictStorage = flat_map<std::string, std::unique_ptr<Value>>;
 
-  using DeprecatedListView = CheckedContiguousRange<ListStorage>;
-  using DeprecatedConstListView = CheckedContiguousConstRange<ListStorage>;
+  using DeprecatedListView = CheckedContiguousRange<DeprecatedListStorage>;
+  using DeprecatedConstListView =
+      CheckedContiguousConstRange<DeprecatedListStorage>;
   // TODO(https://crbug.com/1291666): Make these private.
   using ListView = DeprecatedListView;
   using ConstListView = DeprecatedConstListView;
@@ -301,10 +300,6 @@ class BASE_EXPORT GSL_OWNER Value {
 
   // Constructor for `Value::Type::LIST`.
   explicit Value(List&& value) noexcept;
-
-  // DEPRECATED: prefer `Value(List&&)`.
-  explicit Value(span<const Value> value);
-  explicit Value(ListStorage&& value) noexcept;
 
   ~Value();
 
@@ -1163,6 +1158,10 @@ class BASE_EXPORT GSL_OWNER Value {
   }
 
  protected:
+  // TODO(https://crbug.com/1187091): Once deprecated list methods and ListView
+  // have been removed, make this a private member of List.
+  using ListStorage = DeprecatedListStorage;
+
   // Checked convenience accessors for dict and list.
   const LegacyDictStorage& dict() const { return GetDict().storage_; }
   LegacyDictStorage& dict() { return GetDict().storage_; }
@@ -1416,15 +1415,6 @@ class BASE_EXPORT ListValue : public Value {
 
   ListValue();
 
-  // Convenience forms of `Get()`.  Modifies `out_value` (and returns true)
-  // only if the index is valid and the Value at that index can be returned
-  // in the specified form.
-  // `out_value` is optional and will only be set if non-NULL.
-  //
-  // DEPRECATED: prefer `Value::List::operator[]` + `GetIfDict()`.
-  bool GetDictionary(size_t index, const DictionaryValue** out_value) const;
-  bool GetDictionary(size_t index, DictionaryValue** out_value);
-
   // Appends a Value to the end of the list.
   // DEPRECATED: prefer `Value::List::Append()`.
   using Value::Append;
@@ -1486,6 +1476,9 @@ class BASE_EXPORT GSL_POINTER ValueView {
   auto Visit(Visitor&& visitor) const {
     return absl::visit(std::forward<Visitor>(visitor), data_view_);
   }
+
+  // Returns a clone of the underlying Value.
+  Value ToValue() const;
 
  private:
   using ViewType =

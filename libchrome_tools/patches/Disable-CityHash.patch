@@ -1,0 +1,56 @@
+From 279fa60e97ea22eb64ff15d862e6e7a60c50531a Mon Sep 17 00:00:00 2001
+From: Grace Cham <hscham@chromium.org>
+Date: Mon, 3 Oct 2022 16:18:31 +0900
+Subject: [PATCH] Disable CityHash
+
+Change-Id: Iab0f9ee781c8f78f77db4b379dad1aa70f37a00c
+---
+ base/hash/hash.cc | 17 ++++++++++++-----
+ 1 file changed, 12 insertions(+), 5 deletions(-)
+
+diff --git a/base/hash/hash.cc b/base/hash/hash.cc
+index debc9f9765bc..dc25472a25b7 100644
+--- a/base/hash/hash.cc
++++ b/base/hash/hash.cc
+@@ -7,19 +7,22 @@
+ #include "base/check_op.h"
+ #include "base/notreached.h"
+ #include "base/rand_util.h"
+-#include "base/third_party/cityhash/city.h"
++// #include "base/third_party/cityhash/city.h"
+ #include "build/build_config.h"
+ 
+-// Definition in base/third_party/superfasthash/superfasthash.c. (Third-party
+-// code did not come with its own header file, so declaring the function here.)
+-// Note: This algorithm is also in Blink under Source/wtf/StringHasher.h.
+-extern "C" uint32_t SuperFastHash(const char* data, int len);
++#include <functional>
++
++uint32_t SuperFastHash(const char* data, size_t len) {
++  std::hash<std::string> hash_fn;
++  return hash_fn(std::string(data, len));
++}
+ 
+ namespace base {
+ 
+ namespace {
+ 
+ size_t FastHashImpl(base::span<const uint8_t> data) {
++#if 0
+   // We use the updated CityHash within our namespace (not the deprecated
+   // version from third_party/smhasher).
+   if constexpr (sizeof(size_t) > 4) {
+@@ -29,6 +32,10 @@ size_t FastHashImpl(base::span<const uint8_t> data) {
+     return base::internal::cityhash_v111::CityHash32(
+         reinterpret_cast<const char*>(data.data()), data.size());
+   }
++#else
++  return SuperFastHash(reinterpret_cast<const char *>(data.data()),
++                       data.size());
++#endif
+ }
+ 
+ // Implement hashing for pairs of at-most 32 bit integer values.
+-- 
+2.38.0.rc1.362.ged0d419d3c-goog
+
