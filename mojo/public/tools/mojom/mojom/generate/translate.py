@@ -940,16 +940,13 @@ def _Enum(module, parsed_enum, parent_kind):
         if enum.default_field is not None:
           raise Exception(f'Multiple [Default] enumerators in enum {enum.spec}')
         enum.default_field = field
-    # TODO(b/249002922): Uncomment to reenable the check for [Default] enum when
-    # all CrOS mojom enums have one, or the list of old enums are added to the
-    # list above.
-    # # While running the backwards compatibility check, ignore errors because the
-    # # old version of the enum might not specify [Default].
-    # if (enum.extensible and enum.default_field is None
-    #     and enum.spec not in _EXTENSIBLE_ENUMS_MISSING_DEFAULT
-    #     and not is_running_backwards_compatibility_check_hack):
-    #   raise Exception(
-    #       f'Extensible enum {enum.spec} must specify a [Default] enumerator')
+    # While running the backwards compatibility check, ignore errors because the
+    # old version of the enum might not specify [Default].
+    if (enum.extensible and enum.default_field is None
+        and enum.spec not in _EXTENSIBLE_ENUMS_MISSING_DEFAULT
+        and not is_running_backwards_compatibility_check_hack):
+      raise Exception(
+          f'Extensible enum {enum.spec} must specify a [Default] enumerator')
 
   module.kinds[enum.spec] = enum
 
