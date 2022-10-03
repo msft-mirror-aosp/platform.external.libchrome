@@ -110,12 +110,6 @@ backward-compatibility-Revert-One-cgroup-per-renderer-on-Chrome-OS.patch
 # types.
 backward-compatibility-Add-base-bits-Align-Down-Up-that-takes-size_t.patch
 
-# Backward compatibility patch to add old enum base::ThreadPriority (and its
-# entries) as alias of the replacement base::ThreadType.
-# TODO(b/249406176): Remove when all base::ThreadPriority is replaced by
-# base::ThreadType with new names.
-backward-compatibility-alias-base-ThreadType-as-base-Priority.patch
-
 # Backward compatbility patch to add base::Value ctor that takes
 # base::ListStorage.
 # TODO(b/250458438): Remove when all usage is migrated to use base::Value::List.
