@@ -23,12 +23,6 @@ BAD_KEYWORDS = {
     # unify *::optionals to std::optional
     r'(include.*absl/types/optional.h|absl::(optional|make_optional|nullopt))':
     'Use std::optional. absl::optional is an alias of std::optional. See go/use-std-optional-in-cros for discussion.',
-    # r1009170 (crrev.com/c/3668914) removed base::CountLeadingZeroBits{32,64}
-    r'base::CountLeadingZeroBits(32|64)':
-    'Deprecated in r1009170, use base::CountLeadingZeroBits.',
-    # r1011665 (crrev.com/c/3693745) removed base::LowerCaseEqualsASCII
-    r'base::LowerCaseEqualsASCII':
-    'Deprecated in r1011665, use base::EqualsCaseInsensitiveASCII.',
 }
 
 LINE_NUMBER_RE=re.compile(r'^@@ [0-9\,\+\-]+ \+([0-9]+)[ \,][0-9 ]*@@')
