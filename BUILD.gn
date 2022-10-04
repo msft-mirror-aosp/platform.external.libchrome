@@ -229,7 +229,7 @@ buildflag_header("compiler_buildflags") {
 buildflag_header("debugging_buildflags") {
   header = "base/debug/debugging_buildflags.h"
   flags = [
-    # "DCHECK_IS_CONFIGURABLE=",
+    "DCHECK_IS_CONFIGURABLE=false",
     "ENABLE_LOCATION_SOURCE=true",
     "FROM_HERE_USES_LOCATION_BUILTINS=true",
     "ENABLE_PROFILING=false",
