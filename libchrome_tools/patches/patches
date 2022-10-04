@@ -110,8 +110,4 @@ backward-compatibility-add-base-AdaptCallbackForRepaeting.patch media_perception
 # types.
 backward-compatibility-Add-base-bits-Align-Down-Up-that-takes-size_t.patch
 
-# Backward compatbility patch to add base::Value ctor that takes
-# base::ListStorage.
-# TODO(b/250458438): Remove when all usage is migrated to use base::Value::List.
-backward-compatibility-Add-base-Value-constructors-that-take-a-ListStorage.patch
 # ==================== FORWARD COMPATIBILITY PATCHES FOR UPREVS ==========
