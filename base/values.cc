@@ -8,7 +8,7 @@
 // build time. Try not to raise this limit unless absolutely necessary. See
 // https://chromium.googlesource.com/chromium/src/+/HEAD/docs/wmax_tokens.md
 #ifndef NACL_TC_REV
-#pragma clang max_tokens_here 470000
+#pragma clang max_tokens_here 600000
 #endif
 
 #include <algorithm>
@@ -138,6 +138,19 @@ std::string DebugStringImpl(ValueView value) {
   return json;
 }
 
+// This set of overloads are used to unwrap arguments from the reference
+// wrapper, and are used by ValueView when visiting its members and cloning
+// them.
+template <typename T>
+const T& UnwrapReference(std::reference_wrapper<const T> value) {
+  return value.get();
+}
+
+template <typename T>
+const T& UnwrapReference(const T& value) {
+  return value;
+}
+
 }  // namespace
 
 // static
@@ -235,17 +248,6 @@ Value::Value(Dict&& value) noexcept : data_(std::move(value)) {}
 
 Value::Value(List&& value) noexcept : data_(std::move(value)) {}
 
-Value::Value(span<const Value> value) : data_(absl::in_place_type_t<List>()) {
-  list().reserve(value.size());
-  for (const auto& val : value)
-    list().emplace_back(val.Clone());
-}
-
-Value::Value(ListStorage&& value) noexcept
-    : data_(absl::in_place_type_t<List>()) {
-  list() = std::move(value);
-}
-
 Value::Value(const LegacyDictStorage& storage)
     : data_(absl::in_place_type_t<Dict>()) {
   dict().reserve(storage.size());
@@ -273,16 +275,7 @@ Value::DoubleStorage::DoubleStorage(double v) : v_(bit_cast<decltype(v_)>(v)) {
 }
 
 Value Value::Clone() const {
-  return absl::visit(
-      [](const auto& member) {
-        using T = std::decay_t<decltype(member)>;
-        if constexpr (std::is_same_v<T, Dict> || std::is_same_v<T, List>) {
-          return Value(member.Clone());
-        } else {
-          return Value(member);
-        }
-      },
-      data_);
+  return ValueView(*this).ToValue();
 }
 
 Value::~Value() = default;
@@ -1776,26 +1769,6 @@ std::unique_ptr<ListValue> ListValue::From(std::unique_ptr<Value> value) {
 
 ListValue::ListValue() : Value(Type::LIST) {}
 
-bool ListValue::GetDictionary(size_t index,
-                              const DictionaryValue** out_value) const {
-  const auto& list = GetListDeprecated();
-  if (list.size() <= index)
-    return false;
-  const base::Value& value = list[index];
-  if (!value.is_dict())
-    return false;
-
-  if (out_value)
-    *out_value = static_cast<const DictionaryValue*>(&value);
-
-  return true;
-}
-
-bool ListValue::GetDictionary(size_t index, DictionaryValue** out_value) {
-  return as_const(*this).GetDictionary(
-      index, const_cast<const DictionaryValue**>(out_value));
-}
-
 void ListValue::Append(base::Value::Dict in_dict) {
   list().emplace_back(std::move(in_dict));
 }
@@ -1812,6 +1785,21 @@ void ListValue::Swap(ListValue* other) {
 ValueView::ValueView(const Value& value)
     : data_view_(
           value.Visit([](const auto& member) { return ViewType(member); })) {}
+
+base::Value ValueView::ToValue() const {
+  return absl::visit(
+      [](const auto& member) {
+        const auto& value = UnwrapReference(member);
+        using T = std::decay_t<decltype(value)>;
+        if constexpr (std::is_same_v<T, Value::Dict> ||
+                      std::is_same_v<T, Value::List>) {
+          return Value(value.Clone());
+        } else {
+          return Value(value);
+        }
+      },
+      data_view_);
+}
 
 ValueSerializer::~ValueSerializer() = default;
 

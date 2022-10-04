@@ -79,9 +79,6 @@ TEST(ValuesTest, TestNothrow) {
   static_assert(
       std::is_nothrow_constructible<Value, Value::BlobStorage&&>::value,
       "IsNothrowMoveConstructibleFromBlob");
-  static_assert(
-      std::is_nothrow_constructible<Value, Value::ListStorage&&>::value,
-      "IsNothrowMoveConstructibleFromList");
   static_assert(std::is_nothrow_move_assignable<Value>::value,
                 "IsNothrowMoveAssignable");
 }
@@ -352,9 +349,9 @@ TEST(ValuesTest, CopyDictionary) {
 }
 
 TEST(ValuesTest, CopyList) {
-  Value::ListStorage storage;
-  storage.emplace_back(123);
-  Value value(std::move(storage));
+  Value::List list;
+  list.Append(123);
+  Value value(std::move(list));
 
   Value copied_value(value.Clone());
   EXPECT_EQ(value, copied_value);
@@ -472,15 +469,15 @@ TEST(ValuesTest, ConstructDictWithIterators) {
 }
 
 TEST(ValuesTest, MoveList) {
-  Value::ListStorage storage;
-  storage.emplace_back(123);
-  Value value(storage);
+  Value::List list;
+  list.Append(123);
+  Value value(list.Clone());
   Value moved_value(std::move(value));
   EXPECT_EQ(Value::Type::LIST, moved_value.type());
   EXPECT_EQ(123, moved_value.GetListDeprecated().back().GetInt());
 
   Value blank;
-  blank = Value(std::move(storage));
+  blank = Value(std::move(list));
   EXPECT_EQ(Value::Type::LIST, blank.type());
   EXPECT_EQ(123, blank.GetListDeprecated().back().GetInt());
 }
@@ -1668,10 +1665,10 @@ TEST(ValuesTest, DeepCopy) {
   Value* binary_weak =
       original_dict.SetKey("binary", Value(Value::BlobStorage(42, '!')));
 
-  Value::ListStorage storage;
-  storage.emplace_back(0);
-  storage.emplace_back(1);
-  Value* list_weak = original_dict.SetKey("list", Value(std::move(storage)));
+  Value::List list;
+  list.Append(0);
+  list.Append(1);
+  Value* list_weak = original_dict.SetKey("list", Value(std::move(list)));
 
   Value* dict_weak = original_dict.SetKey(
       "dictionary", base::Value(base::Value::Type::DICTIONARY));
@@ -2007,10 +2004,10 @@ TEST(ValuesTest, DeepCopyCovariantReturnTypes) {
   Value* binary_weak =
       original_dict.SetKey("binary", Value(Value::BlobStorage(42, '!')));
 
-  Value::ListStorage storage;
-  storage.emplace_back(0);
-  storage.emplace_back(1);
-  Value* list_weak = original_dict.SetKey("list", Value(std::move(storage)));
+  Value::List list;
+  list.Append(0);
+  list.Append(1);
+  Value* list_weak = original_dict.SetKey("list", Value(std::move(list)));
 
   auto copy_dict = std::make_unique<Value>(original_dict.Clone());
   auto copy_null = std::make_unique<Value>(null_weak->Clone());
@@ -2394,15 +2391,6 @@ TEST(ValuesTest, GetWithNullOutValue) {
   EXPECT_FALSE(main_dict.GetListWithoutPathExpansion("dict", nullptr));
   EXPECT_TRUE(main_dict.GetListWithoutPathExpansion("list", nullptr));
   EXPECT_FALSE(main_dict.GetListWithoutPathExpansion("DNE", nullptr));
-
-  EXPECT_FALSE(main_list.GetDictionary(0, nullptr));
-  EXPECT_FALSE(main_list.GetDictionary(1, nullptr));
-  EXPECT_FALSE(main_list.GetDictionary(2, nullptr));
-  EXPECT_FALSE(main_list.GetDictionary(3, nullptr));
-  EXPECT_FALSE(main_list.GetDictionary(4, nullptr));
-  EXPECT_TRUE(main_list.GetDictionary(5, nullptr));
-  EXPECT_FALSE(main_list.GetDictionary(6, nullptr));
-  EXPECT_FALSE(main_list.GetDictionary(7, nullptr));
 }
 
 TEST(ValuesTest, SelfSwap) {
@@ -2551,6 +2539,44 @@ TEST(ValueViewTest, ValueConstruction) {
     ValueView v = val;
     EXPECT_EQ(list, absl::get<std::reference_wrapper<const Value::List>>(
                         v.data_view_for_test()));
+  }
+}
+
+TEST(ValueViewTest, ToValue) {
+  {
+    Value val(true);
+    Value to_val = ValueView(val).ToValue();
+    EXPECT_EQ(val, to_val);
+  }
+  {
+    Value val(25);
+    Value to_val = ValueView(val).ToValue();
+    EXPECT_EQ(val, to_val);
+  }
+  {
+    Value val(3.14);
+    Value to_val = ValueView(val).ToValue();
+    EXPECT_EQ(val, to_val);
+  }
+  {
+    Value val("hello world");
+    Value to_val = ValueView(val).ToValue();
+    EXPECT_EQ(val, to_val);
+  }
+  {
+    Value::Dict dict;
+    dict.Set("hello", "world");
+    Value val(dict.Clone());
+    Value to_val = ValueView(val).ToValue();
+    EXPECT_EQ(val, to_val);
+  }
+  {
+    Value::List list;
+    list.Append("hello");
+    list.Append("world");
+    Value val(list.Clone());
+    Value to_val = ValueView(val).ToValue();
+    EXPECT_EQ(val, to_val);
   }
 }
 

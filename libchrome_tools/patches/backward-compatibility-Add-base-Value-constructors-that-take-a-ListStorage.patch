@@ -1,0 +1,74 @@
+From 1f0c9b2e161c3f738c9f2af2480b01369a2bf7d4 Mon Sep 17 00:00:00 2001
+From: Grace Cham <hscham@chromium.org>
+Date: Mon, 3 Oct 2022 11:33:41 +0900
+Subject: [PATCH] backward compatibility: add base::Value ctor that takes a
+ ListStorage
+
+They were removed in r1027049 (crrev.com/c/3766886).
+
+Change-Id: I5c0ba253278c455cbb19c25bed36da750fdb191b
+---
+ base/values.cc | 11 +++++++++++
+ base/values.h  | 10 +++++-----
+ 2 files changed, 16 insertions(+), 5 deletions(-)
+
+diff --git a/base/values.cc b/base/values.cc
+index 642373cf2890..37630873be1b 100644
+--- a/base/values.cc
++++ b/base/values.cc
+@@ -248,6 +248,17 @@ Value::Value(Dict&& value) noexcept : data_(std::move(value)) {}
+ 
+ Value::Value(List&& value) noexcept : data_(std::move(value)) {}
+ 
++Value::Value(span<const Value> value) : data_(absl::in_place_type_t<List>()) {
++  list().reserve(value.size());
++  for (const auto& val : value)
++    list().emplace_back(val.Clone());
++}
++
++Value::Value(ListStorage&& value) noexcept
++: data_(absl::in_place_type_t<List>()) {
++  list() = std::move(value);
++}
++
+ Value::Value(const LegacyDictStorage& storage)
+     : data_(absl::in_place_type_t<Dict>()) {
+   dict().reserve(storage.size());
+diff --git a/base/values.h b/base/values.h
+index 04ca2247b221..42b2006fb2e6 100644
+--- a/base/values.h
++++ b/base/values.h
+@@ -206,7 +206,8 @@ class BASE_EXPORT GSL_OWNER Value {
+  public:
+   using BlobStorage = std::vector<uint8_t>;
+ 
+-  using DeprecatedListStorage = std::vector<Value>;
++  using DeprecatedListStorage [[deprecated("Use base::Value::List directly.")]] = std::vector<Value>;
++  using ListStorage [[deprecated("Use base::Value::List directly.")]] = DeprecatedListStorage;
+ 
+   // Like `DictStorage`, but with std::unique_ptr in the mapped type. This is
+   // due to legacy reasons, and should be replaced with
+@@ -301,6 +302,9 @@ class BASE_EXPORT GSL_OWNER Value {
+   // Constructor for `Value::Type::LIST`.
+   explicit Value(List&& value) noexcept;
+ 
++  [[deprecated("Use base::Value::List directly.")]] explicit Value(span<const Value> value);
++  [[deprecated("Use base::Value::List directly.")]] explicit Value(ListStorage&& value) noexcept;
++
+   ~Value();
+ 
+   // Returns the name for a given `type`.
+@@ -1158,10 +1162,6 @@ class BASE_EXPORT GSL_OWNER Value {
+   }
+ 
+  protected:
+-  // TODO(https://crbug.com/1187091): Once deprecated list methods and ListView
+-  // have been removed, make this a private member of List.
+-  using ListStorage = DeprecatedListStorage;
+-
+   // Checked convenience accessors for dict and list.
+   const LegacyDictStorage& dict() const { return GetDict().storage_; }
+   LegacyDictStorage& dict() { return GetDict().storage_; }
+-- 
+2.38.0.rc1.362.ged0d419d3c-goog
+

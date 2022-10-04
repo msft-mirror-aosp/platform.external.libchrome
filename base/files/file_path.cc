@@ -10,7 +10,7 @@
 // on build time. Try not to raise this limit unless necessary. See
 // https://chromium.googlesource.com/chromium/src/+/HEAD/docs/wmax_tokens.md
 #ifndef NACL_TC_REV
-#pragma clang max_tokens_here 340000
+#pragma clang max_tokens_here 400000
 #endif
 
 #include <string.h>
@@ -18,6 +18,7 @@
 
 #include "base/check_op.h"
 #include "base/files/safe_base_name.h"
+#include "base/numerics/safe_conversions.h"
 #include "base/pickle.h"
 #include "base/ranges/algorithm.h"
 #include "base/strings/strcat.h"

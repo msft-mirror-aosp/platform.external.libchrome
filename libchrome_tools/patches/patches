@@ -57,6 +57,9 @@ disable-base-Dictionary-List-Value.patch
 # program unable to discover compilation failure at CQ/postsubmit.
 always-include-platform-thread-h.patch
 
+# Not supported in libchrome
+Disable-CityHash.patch
+
 # Revert of r980844 (crrev.com/c/3508824) since base::VerifyPathControlledByUser
 # is used in CrOS.
 Revert-Make-base-VerifyPathControlledByUser-Mac-only.patch
@@ -117,4 +120,9 @@ backward-compatibility-Add-base-bits-Align-Down-Up-that-takes-size_t.patch
 # TODO(b/249406176): Remove when all base::ThreadPriority is replaced by
 # base::ThreadType with new names.
 backward-compatibility-alias-base-ThreadType-as-base-Priority.patch
+
+# Backward compatbility patch to add base::Value ctor that takes
+# base::ListStorage.
+# TODO(b/250458438): Remove when all usage is migrated to use base::Value::List.
+backward-compatibility-Add-base-Value-constructors-that-take-a-ListStorage.patch
 # ==================== FORWARD COMPATIBILITY PATCHES FOR UPREVS ==========

@@ -128,7 +128,7 @@ void MessagePumpEpoll::Run(Delegate* delegate) {
 
 void MessagePumpEpoll::Quit() {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
-  CHECK(run_state_) << "Quit() called outside of Run()";
+  DCHECK(run_state_) << "Quit() called outside of Run()";
   run_state_->should_quit = true;
 }
 
