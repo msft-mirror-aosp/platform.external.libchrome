@@ -4,13 +4,6 @@
 
 #include "base/values.h"
 
-// values.h is a widely included header and its size has significant impact on
-// build time. Try not to raise this limit unless absolutely necessary. See
-// https://chromium.googlesource.com/chromium/src/+/HEAD/docs/wmax_tokens.md
-#ifndef NACL_TC_REV
-#pragma clang max_tokens_here 600000
-#endif
-
 #include <algorithm>
 #include <cmath>
 #include <ostream>
@@ -1595,10 +1588,6 @@ Value* DictionaryValue::SetInteger(StringPiece path, int in_value) {
   return Set(path, std::make_unique<Value>(in_value));
 }
 
-Value* DictionaryValue::SetDouble(StringPiece path, double in_value) {
-  return Set(path, std::make_unique<Value>(in_value));
-}
-
 Value* DictionaryValue::SetString(StringPiece path, StringPiece in_value) {
   return Set(path, std::make_unique<Value>(in_value));
 }
@@ -1663,18 +1652,6 @@ bool DictionaryValue::GetString(StringPiece path,
   return is_string;
 }
 
-bool DictionaryValue::GetString(StringPiece path,
-                                std::u16string* out_value) const {
-  const Value* value;
-  if (!Get(path, &value))
-    return false;
-
-  const bool is_string = value->is_string();
-  if (is_string && out_value)
-    *out_value = UTF8ToUTF16(value->GetString());
-  return is_string;
-}
-
 bool DictionaryValue::GetDictionary(StringPiece path,
                                     const DictionaryValue** out_value) const {
   const Value* value;
@@ -1712,26 +1689,6 @@ bool DictionaryValue::GetList(StringPiece path, ListValue** out_value) {
                                  const_cast<const ListValue**>(out_value));
 }
 
-bool DictionaryValue::GetDictionaryWithoutPathExpansion(
-    StringPiece key,
-    const DictionaryValue** out_value) const {
-  const Value* value = FindKey(key);
-  if (!value || !value->is_dict())
-    return false;
-
-  if (out_value)
-    *out_value = static_cast<const DictionaryValue*>(value);
-
-  return true;
-}
-
-bool DictionaryValue::GetDictionaryWithoutPathExpansion(
-    StringPiece key,
-    DictionaryValue** out_value) {
-  return as_const(*this).GetDictionaryWithoutPathExpansion(
-      key, const_cast<const DictionaryValue**>(out_value));
-}
-
 std::unique_ptr<DictionaryValue> DictionaryValue::DeepCopyWithoutEmptyChildren()
     const {
   std::unique_ptr<DictionaryValue> copy =
@@ -1752,10 +1709,6 @@ DictionaryValue::Iterator::Iterator(const DictionaryValue& target)
 DictionaryValue::Iterator::Iterator(const Iterator& other) = default;
 
 DictionaryValue::Iterator::~Iterator() = default;
-
-DictionaryValue* DictionaryValue::DeepCopy() const {
-  return new DictionaryValue(dict());
-}
 
 std::unique_ptr<DictionaryValue> DictionaryValue::CreateDeepCopy() const {
   return std::make_unique<DictionaryValue>(dict());
