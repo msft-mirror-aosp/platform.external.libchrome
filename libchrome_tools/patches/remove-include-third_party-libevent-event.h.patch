@@ -1,0 +1,37 @@
+From 7ccf31d8951ce3e8c007e5467607340fb677e487 Mon Sep 17 00:00:00 2001
+From: Grace Cham <hscham@chromium.org>
+Date: Wed, 12 Oct 2022 12:19:34 +0900
+Subject: [PATCH] remove include (third_party/)libevent/event.h
+
+It indirectly includes <netdb.h> (via libevent2/util.h) which defines
+the macro NO_ADDRESS.
+This causes build error in floss (gen/hci/hci_packets.h) when it defines
+an enum entry with same name NO_ADDRESS.
+
+Change-Id: I9f60baab0135e61ede1a47c91e667e9ad246f39d
+---
+ base/message_loop/message_pump_libevent.h | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/base/message_loop/message_pump_libevent.h b/base/message_loop/message_pump_libevent.h
+index 75d764187237..449e51b6c7eb 100644
+--- a/base/message_loop/message_pump_libevent.h
++++ b/base/message_loop/message_pump_libevent.h
+@@ -16,11 +16,13 @@
+ #include "base/message_loop/message_pump_buildflags.h"
+ #include "base/message_loop/watchable_io_message_pump_posix.h"
+ #include "base/threading/thread_checker.h"
+-#include "third_party/libevent/event.h"
+ 
+ // Declare structs we need from libevent.h rather than including it
+ struct event_base;
+ struct event;
++extern "C" struct event_base *event_base_new(void);
++extern "C" void event_base_free(struct event_base *);
++
+ namespace base {
+ 
+ class MessagePumpEpoll;
+-- 
+2.38.0.rc1.362.ged0d419d3c-goog
+

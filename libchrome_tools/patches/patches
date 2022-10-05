@@ -41,8 +41,9 @@ revert-crbug-1001171.patch
 keep-hash-sha1-old-implementation.patch
 Do-not-use-boringssl-in-base-UnguessableToken.patch
 
-# Some bots might not support libc wrapped getrandom syscall
-Call-getrandom-via-Linux-Syscall-Support.patch
+# TODO(b/190018559): third_party/lss/linux_syscall_support.h is not provided at
+# current libchrome tree.
+Call-getrandom-from-sys-random.h.patch
 
 # To avoid redefinition error when client packages uses real perfetto
 add-libchrome-namespace-to-trace_event-stub-perfetto.sh
@@ -81,6 +82,11 @@ Add-TerminateBecauseOutOfMemory-back-to-base.patch
 # support them in near future. Alternatively libchrome might add new IUSE build
 # flags to select source files.
 Revert-Reland-Initial-implementation-of-ChromeOS-X86-stack-walker.patch
+
+# Causes build error in floss when it defines an enum entry with the same name
+# as a macro defined in netdb.h, which is indirectly included via libevent.h
+# TODO(b/253138188): upstream if possible.
+remove-include-third_party-libevent-event.h.patch
 
 # ==================== CHERRY PICKS ===========================
 
