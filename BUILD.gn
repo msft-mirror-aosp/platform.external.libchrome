@@ -1256,6 +1256,7 @@ install_config("install_header") {
     ]
   }
   sources += [
+    "base/test/allow_check_is_test_to_be_called.h",
     "base/test/bind.h",
     "base/test/mock_callback.h",
     "base/test/repeating_test_future.h",
