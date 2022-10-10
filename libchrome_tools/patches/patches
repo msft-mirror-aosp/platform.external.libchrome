@@ -101,15 +101,6 @@ backward-compatibility-add-deprecated-base-Bind-APIs.patch
 # TODO(b/204383858): Remove the patch when usage in mri_package is removed
 backward-compatibility-add-base-AdaptCallbackForRepaeting.patch media_perception
 
-# Backward compatibility patch to add base::bits::Align{Down,Up} that take
-# size_t for both size and alignment. They are changed in r1023727
-# (crrev.com/c/3752744) to be templated and take the two arguments that are of
-# the same type, which causes failure in type deduction on usages that provide
-# them in different type (and converted to size_t).
-# TODO(b/248960258): remove when all usages changed to have correct input
-# types.
-backward-compatibility-Add-base-bits-Align-Down-Up-that-takes-size_t.patch
-
 # Backward compatibility patch to add back the variant of
 # base::TaskAnnotator::WillQueueTask that takes task_queue_name, removed in
 # r1038769 (crrev.com/c/3856718).
