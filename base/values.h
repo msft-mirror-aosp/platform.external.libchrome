@@ -1292,10 +1292,6 @@ class BASE_EXPORT DictionaryValue : public Value {
   // DEPRECATED: prefer `Value::Dict::Set()` (if the path only has one
   // component, i.e. has no dots), or `Value::Dict::SetByDottedPath()`
   // otherwise.
-  Value* SetDouble(StringPiece path, double in_value);
-  // DEPRECATED: prefer `Value::Dict::Set()` (if the path only has one
-  // component, i.e. has no dots), or `Value::Dict::SetByDottedPath()`
-  // otherwise.
   Value* SetString(StringPiece path, StringPiece in_value);
   // DEPRECATED: prefer `Value::Dict::Set()` (if the path only has one
   // component, i.e. has no dots), or `Value::Dict::SetByDottedPath()`
@@ -1341,7 +1337,6 @@ class BASE_EXPORT DictionaryValue : public Value {
   // component, i.e. has no dots), or `Value::Dict::FindStringByDottedPath()`
   // otherwise.
   bool GetString(StringPiece path, std::string* out_value) const;
-  bool GetString(StringPiece path, std::u16string* out_value) const;
   // DEPRECATED: prefer `Value::Dict::FindDict()` (if the path only has one
   // component, i.e. has no dots), or `Value::Dict::FindDictByDottedPath()`
   // otherwise.
@@ -1352,16 +1347,6 @@ class BASE_EXPORT DictionaryValue : public Value {
   // otherwise.
   bool GetList(StringPiece path, const ListValue** out_value) const;
   bool GetList(StringPiece path, ListValue** out_value);
-
-  // Like `Get()`, but without special treatment of '.'.  This allows e.g. URLs
-  // to be used as paths.
-  // DEPRECATED, use `Value::FindDictKey(key)` instead.
-  bool GetDictionaryWithoutPathExpansion(
-      StringPiece key,
-      const DictionaryValue** out_value) const;
-  // DEPRECATED, use `Value::FindDictKey(key)` instead.
-  bool GetDictionaryWithoutPathExpansion(StringPiece key,
-                                         DictionaryValue** out_value);
 
   // Makes a copy of `this` but doesn't include empty dictionaries and lists in
   // the copy.  This never returns NULL, even if `this` itself is empty.
@@ -1392,9 +1377,6 @@ class BASE_EXPORT DictionaryValue : public Value {
     detail::const_dict_iterator it_;
   };
 
-  // DEPRECATED, use `Value::Dict::Clone()` instead.
-  // TODO(crbug.com/646113): Delete this and migrate callsites.
-  DictionaryValue* DeepCopy() const;
   // DEPRECATED, use `Value::Dict::Clone()` instead.
   // TODO(crbug.com/646113): Delete this and migrate callsites.
   std::unique_ptr<DictionaryValue> CreateDeepCopy() const;
