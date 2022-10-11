@@ -419,6 +419,16 @@ PA_ALWAYS_INLINE PartitionPage<thread_safe>* PartitionSuperPageToMetadataArea(
                                                        SystemPageSize());
 }
 
+PA_ALWAYS_INLINE const SubsequentPageMetadata* GetSubsequentPageMetadata(
+    const PartitionPage<ThreadSafe>* page) {
+  return &(page + 1)->subsequent_page_metadata;
+}
+
+PA_ALWAYS_INLINE SubsequentPageMetadata* GetSubsequentPageMetadata(
+    PartitionPage<ThreadSafe>* page) {
+  return &(page + 1)->subsequent_page_metadata;
+}
+
 template <bool thread_safe>
 PA_ALWAYS_INLINE PartitionSuperPageExtentEntry<thread_safe>*
 PartitionSuperPageToExtent(uintptr_t super_page) {
@@ -678,24 +688,26 @@ template <bool thread_safe>
 PA_ALWAYS_INLINE void SlotSpanMetadata<thread_safe>::SetRawSize(
     size_t raw_size) {
   PA_DCHECK(CanStoreRawSize());
-  auto* the_next_page = reinterpret_cast<PartitionPage<thread_safe>*>(this) + 1;
-  the_next_page->subsequent_page_metadata.raw_size = raw_size;
+  auto* subsequent_page_metadata = GetSubsequentPageMetadata(
+      reinterpret_cast<PartitionPage<thread_safe>*>(this));
+  subsequent_page_metadata->raw_size = raw_size;
 }
 
 template <bool thread_safe>
 PA_ALWAYS_INLINE size_t SlotSpanMetadata<thread_safe>::GetRawSize() const {
   PA_DCHECK(CanStoreRawSize());
-  auto* the_next_page =
-      reinterpret_cast<const PartitionPage<thread_safe>*>(this) + 1;
-  return the_next_page->subsequent_page_metadata.raw_size;
+  const auto* subsequent_page_metadata = GetSubsequentPageMetadata(
+      reinterpret_cast<const PartitionPage<thread_safe>*>(this));
+  return subsequent_page_metadata->raw_size;
 }
 
 template <bool thread_safe>
 PA_ALWAYS_INLINE PartitionTag*
 SlotSpanMetadata<thread_safe>::DirectMapMTETag() {
   PA_DCHECK(bucket->is_direct_mapped());
-  auto* the_next_page = reinterpret_cast<PartitionPage<thread_safe>*>(this) + 1;
-  return &the_next_page->subsequent_page_metadata.direct_map_tag;
+  auto* subsequent_page_metadata = GetSubsequentPageMetadata(
+      reinterpret_cast<PartitionPage<thread_safe>*>(this));
+  return &subsequent_page_metadata->direct_map_tag;
 }
 
 template <bool thread_safe>

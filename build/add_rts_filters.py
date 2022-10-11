@@ -26,7 +26,7 @@ def main():
   # '*' is a dummy that means run everything
   write_filter_file(filter_file, '*')
 
-  inverted_filter_file = sys.argv[1]
+  inverted_filter_file = sys.argv[2]
   # '-*' is a dummy that means run nothing
   write_filter_file(inverted_filter_file, '-*')
 
