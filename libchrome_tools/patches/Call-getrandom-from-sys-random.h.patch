@@ -1,0 +1,41 @@
+From beb8b45d940c34974525a3d16a6aecaa84674904 Mon Sep 17 00:00:00 2001
+From: Grace Cham <hscham@chromium.org>
+Date: Wed, 5 Oct 2022 15:43:01 +0900
+Subject: [PATCH] Call `getrandom` from sys/random.h
+
+TODO(b/190018559): third_party/lss/linux_syscall_support.h is not
+provided at current libchrome tree.
+
+Change-Id: Ifc96beb4987ff027ab32f885687e88dbd7c8dc34
+---
+ base/rand_util_posix.cc | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/base/rand_util_posix.cc b/base/rand_util_posix.cc
+index 5ea807e8423e..d30a7667c51d 100644
+--- a/base/rand_util_posix.cc
++++ b/base/rand_util_posix.cc
+@@ -23,7 +23,10 @@
+ #include "build/build_config.h"
+ 
+ #if (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)) && !BUILDFLAG(IS_NACL)
+-#include "third_party/lss/linux_syscall_support.h"
++// TODO(b/190018559): linux_syscall_support.h is not provided at current
++// libchrome tree.
++// #include "third_party/lss/linux_syscall_support.h"
++#include <sys/random.h>
+ #elif BUILDFLAG(IS_MAC)
+ // TODO(crbug.com/995996): Waiting for this header to appear in the iOS SDK.
+ // (See below.)
+@@ -99,7 +102,7 @@ bool GetRandomSyscall(void* output, size_t output_length) {
+   // the libc wrapper, because we might not have an up-to-date libc (e.g. on
+   // some bots).
+   const ssize_t r =
+-      HANDLE_EINTR(syscall(__NR_getrandom, output, output_length, 0));
++      HANDLE_EINTR(getrandom(output, output_length, 0));
+ 
+   // Return success only on total success. In case errno == ENOSYS (or any other
+   // error), we'll fall through to reading from urandom below.
+-- 
+2.38.0.rc1.362.ged0d419d3c-goog
+

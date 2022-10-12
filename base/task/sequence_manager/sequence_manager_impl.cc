@@ -150,7 +150,6 @@ char* PrependHexAddress(char* output, const void* address) {
 // Note: An atomic is used here because some tests can initialize two different
 //       sequence managers on different threads (e.g. by using base::Thread).
 std::atomic_bool g_no_wake_ups_for_canceled_tasks{false};
-std::atomic<TimeDelta> g_task_leeway{WakeUp::kDefaultLeeway};
 
 }  // namespace
 
@@ -194,10 +193,6 @@ class SequenceManagerImpl::NativeWorkHandleImpl final
 SequenceManagerImpl* SequenceManagerImpl::GetCurrent() {
   return GetTLSSequenceManagerImpl()->Get();
 }
-
-// static
-const Feature SequenceManagerImpl::kNoWakeUpsForCanceledTasks{
-    "NoWakeUpsForCanceledTasks", FEATURE_DISABLED_BY_DEFAULT};
 
 SequenceManagerImpl::SequenceManagerImpl(
     std::unique_ptr<internal::ThreadController> controller,
@@ -324,7 +319,7 @@ void SequenceManagerImpl::InitializeFeatures() {
   ApplyNoWakeUpsForCanceledTasks();
   TaskQueueImpl::InitializeFeatures();
   ThreadControllerWithMessagePumpImpl::InitializeFeatures();
-  g_task_leeway.store(kTaskLeewayParam.Get(), std::memory_order_relaxed);
+  base::InitializeTaskLeeway();
 }
 
 // static
@@ -818,8 +813,9 @@ absl::optional<WakeUp> SequenceManagerImpl::AdjustWakeUp(
 }
 
 void SequenceManagerImpl::MaybeAddLeewayToTask(Task& task) const {
-  if (!main_thread_only().time_domain)
-    task.leeway = g_task_leeway.load(std::memory_order_relaxed);
+  if (!main_thread_only().time_domain) {
+    task.leeway = base::GetTaskLeeway();
+  }
 }
 
 bool SequenceManagerImpl::HasPendingHighResolutionTasks() {
