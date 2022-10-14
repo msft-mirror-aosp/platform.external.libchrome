@@ -1,388 +1,77 @@
-From d2b8f116fd849db5e11bb7ec9becc4fdf537e0cf Mon Sep 17 00:00:00 2001
-From: hscham <hscham@chromium.org>
-Date: Tue, 13 Jul 2021 11:02:08 +0900
-Subject: [PATCH 11/13] Revert "[base::Bind conversion] Remove deprecated APIs"
+From 697a6da68adc8f89f53906dcc596559579dcc8f5 Mon Sep 17 00:00:00 2001
+From: Grace Cham <hscham@chromium.org>
+Date: Fri, 14 Oct 2022 15:46:20 +0900
+Subject: [PATCH] backward compatibility: add deprecated base::Bind APIs
 
-This reverts commit e17c4e22376f2cc2133250498ec134a611b92a5c.
-It adds base::Bind(), base::Callback, base::Closure,
-base::CancelableCallback, base::CancelableClosure.
-
-This reverts commit 15b5ace007a34ef1fa2c17be9266f043bac7a585.
-It adds base::CallbackList.
-
-Change-Id: Idf3c089ec409f3b8138c55afcb1e7f4c55ec46ee
+Change-Id: I3a02c2624ed603d2afecbdd04fb589293565ab7a
 ---
- base/bind.h                                   | 43 +++++++++++++++++++
- base/bind_unittest.cc                         | 41 ++++++++----------
- base/callback.h                               |  3 ++
- base/callback_forward.h                       |  4 ++
- base/callback_list.h                          |  3 ++
- base/callback_list_unittest.nc                |  2 +-
- base/cancelable_callback.h                    |  4 ++
- .../sequence_manager_impl_unittest.cc         |  4 +-
- .../sequence_manager/thread_controller_impl.h |  2 +-
- base/test/task_environment_unittest.cc        | 10 ++---
- 10 files changed, 85 insertions(+), 31 deletions(-)
+ base/bind.h                | 6 ++++++
+ base/callback_forward.h    | 4 ++++
+ base/callback_list.h       | 3 +++
+ base/cancelable_callback.h | 4 ++++
+ 4 files changed, 17 insertions(+)
 
 diff --git a/base/bind.h b/base/bind.h
-index 47a7e945db..163f84d6c7 100644
+index 2ea9115f75..960c9ababb 100644
 --- a/base/bind.h
 +++ b/base/bind.h
-@@ -45,6 +45,9 @@
- //   auto cb = base::BindOnce(&C::F, instance);
- //   std::move(cb).Run();  // Identical to instance->F()
- //
-+// base::Bind is currently a type alias for base::BindRepeating(). In the
-+// future, we expect to flip this to default to base::BindOnce().
-+//
- // See //docs/callback.md for the full documentation.
- //
- // -----------------------------------------------------------------------------
-@@ -116,6 +119,46 @@ struct BindFailedCheckPreviousErrors {};
+@@ -116,6 +116,12 @@ struct BindFailedCheckPreviousErrors {};
  BindFailedCheckPreviousErrors BindOnce(...);
  BindFailedCheckPreviousErrors BindRepeating(...);
  
-+// Unannotated Bind.
-+// TODO(tzik): Deprecate this and migrate to OnceCallback and
-+// RepeatingCallback, once they get ready.
 +template <typename Functor, typename... Args>
-+inline Callback<internal::MakeUnboundRunType<Functor, Args...>> Bind(
-+    Functor&& functor,
-+    Args&&... args) {
-+  return base::BindRepeating(std::forward<Functor>(functor),
-+                             std::forward<Args>(args)...);
-+}
-+
-+// Special cases for binding to a base::{Once, Repeating}Callback without extra
-+// bound arguments. We CHECK() the validity of callback to guard against null
-+// pointers accidentally ending up in posted tasks, causing hard-to-debug
-+// crashes.
-+template <typename Signature>
-+OnceCallback<Signature> BindOnce(OnceCallback<Signature> callback) {
-+  CHECK(callback);
-+  return callback;
-+}
-+
-+template <typename Signature>
-+OnceCallback<Signature> BindOnce(RepeatingCallback<Signature> callback) {
-+  CHECK(callback);
-+  return callback;
-+}
-+
-+template <typename Signature>
-+RepeatingCallback<Signature> BindRepeating(
-+    RepeatingCallback<Signature> callback) {
-+  CHECK(callback);
-+  return callback;
-+}
-+
-+template <typename Signature>
-+Callback<Signature> Bind(Callback<Signature> callback) {
-+  CHECK(callback);
-+  return callback;
++decltype(auto) Bind(Functor &&functor, Args &&...args) {
++  return BindRepeating(std::forward<Functor>(functor),
++                       std::forward<Args>(args)...);
 +}
 +
  // Unretained() allows binding a non-refcounted class, and to disable
  // refcounting on arguments that are refcounted objects.
  //
-diff --git a/base/bind_unittest.cc b/base/bind_unittest.cc
-index e79d3128ee..c74bcb58a1 100644
---- a/base/bind_unittest.cc
-+++ b/base/bind_unittest.cc
-@@ -1288,40 +1288,38 @@ TEST_F(BindTest, ArgumentCopies) {
-   int assigns = 0;
- 
-   CopyCounter counter(&copies, &assigns);
--  BindRepeating(&VoidPolymorphic<CopyCounter>::Run, counter);
-+  Bind(&VoidPolymorphic<CopyCounter>::Run, counter);
-   EXPECT_EQ(1, copies);
-   EXPECT_EQ(0, assigns);
- 
-   copies = 0;
-   assigns = 0;
--  BindRepeating(&VoidPolymorphic<CopyCounter>::Run,
--                CopyCounter(&copies, &assigns));
-+  Bind(&VoidPolymorphic<CopyCounter>::Run, CopyCounter(&copies, &assigns));
-   EXPECT_EQ(1, copies);
-   EXPECT_EQ(0, assigns);
- 
-   copies = 0;
-   assigns = 0;
--  BindRepeating(&VoidPolymorphic<CopyCounter>::Run).Run(counter);
-+  Bind(&VoidPolymorphic<CopyCounter>::Run).Run(counter);
-   EXPECT_EQ(2, copies);
-   EXPECT_EQ(0, assigns);
- 
-   copies = 0;
-   assigns = 0;
--  BindRepeating(&VoidPolymorphic<CopyCounter>::Run)
--      .Run(CopyCounter(&copies, &assigns));
-+  Bind(&VoidPolymorphic<CopyCounter>::Run).Run(CopyCounter(&copies, &assigns));
-   EXPECT_EQ(1, copies);
-   EXPECT_EQ(0, assigns);
- 
-   copies = 0;
-   assigns = 0;
-   DerivedCopyMoveCounter derived(&copies, &assigns, nullptr, nullptr);
--  BindRepeating(&VoidPolymorphic<CopyCounter>::Run).Run(CopyCounter(derived));
-+  Bind(&VoidPolymorphic<CopyCounter>::Run).Run(CopyCounter(derived));
-   EXPECT_EQ(2, copies);
-   EXPECT_EQ(0, assigns);
- 
-   copies = 0;
-   assigns = 0;
--  BindRepeating(&VoidPolymorphic<CopyCounter>::Run)
-+  Bind(&VoidPolymorphic<CopyCounter>::Run)
-       .Run(CopyCounter(
-           DerivedCopyMoveCounter(&copies, &assigns, nullptr, nullptr)));
-   EXPECT_EQ(2, copies);
-@@ -1334,8 +1332,8 @@ TEST_F(BindTest, ArgumentMoves) {
-   int move_constructs = 0;
-   int move_assigns = 0;
- 
--  BindRepeating(&VoidPolymorphic<const MoveCounter&>::Run,
--                MoveCounter(&move_constructs, &move_assigns));
-+  Bind(&VoidPolymorphic<const MoveCounter&>::Run,
-+       MoveCounter(&move_constructs, &move_assigns));
-   EXPECT_EQ(1, move_constructs);
-   EXPECT_EQ(0, move_assigns);
- 
-@@ -1344,14 +1342,14 @@ TEST_F(BindTest, ArgumentMoves) {
- 
-   move_constructs = 0;
-   move_assigns = 0;
--  BindRepeating(&VoidPolymorphic<MoveCounter>::Run)
-+  Bind(&VoidPolymorphic<MoveCounter>::Run)
-       .Run(MoveCounter(&move_constructs, &move_assigns));
-   EXPECT_EQ(1, move_constructs);
-   EXPECT_EQ(0, move_assigns);
- 
-   move_constructs = 0;
-   move_assigns = 0;
--  BindRepeating(&VoidPolymorphic<MoveCounter>::Run)
-+  Bind(&VoidPolymorphic<MoveCounter>::Run)
-       .Run(MoveCounter(DerivedCopyMoveCounter(
-           nullptr, nullptr, &move_constructs, &move_assigns)));
-   EXPECT_EQ(2, move_constructs);
-@@ -1370,7 +1368,7 @@ TEST_F(BindTest, ArgumentCopiesAndMoves) {
-   int move_assigns = 0;
- 
-   CopyMoveCounter counter(&copies, &assigns, &move_constructs, &move_assigns);
--  BindRepeating(&VoidPolymorphic<CopyMoveCounter>::Run, counter);
-+  Bind(&VoidPolymorphic<CopyMoveCounter>::Run, counter);
-   EXPECT_EQ(1, copies);
-   EXPECT_EQ(0, assigns);
-   EXPECT_EQ(0, move_constructs);
-@@ -1380,9 +1378,8 @@ TEST_F(BindTest, ArgumentCopiesAndMoves) {
-   assigns = 0;
-   move_constructs = 0;
-   move_assigns = 0;
--  BindRepeating(
--      &VoidPolymorphic<CopyMoveCounter>::Run,
--      CopyMoveCounter(&copies, &assigns, &move_constructs, &move_assigns));
-+  Bind(&VoidPolymorphic<CopyMoveCounter>::Run,
-+       CopyMoveCounter(&copies, &assigns, &move_constructs, &move_assigns));
-   EXPECT_EQ(0, copies);
-   EXPECT_EQ(0, assigns);
-   EXPECT_EQ(1, move_constructs);
-@@ -1392,7 +1389,7 @@ TEST_F(BindTest, ArgumentCopiesAndMoves) {
-   assigns = 0;
-   move_constructs = 0;
-   move_assigns = 0;
--  BindRepeating(&VoidPolymorphic<CopyMoveCounter>::Run).Run(counter);
-+  Bind(&VoidPolymorphic<CopyMoveCounter>::Run).Run(counter);
-   EXPECT_EQ(1, copies);
-   EXPECT_EQ(0, assigns);
-   EXPECT_EQ(1, move_constructs);
-@@ -1402,7 +1399,7 @@ TEST_F(BindTest, ArgumentCopiesAndMoves) {
-   assigns = 0;
-   move_constructs = 0;
-   move_assigns = 0;
--  BindRepeating(&VoidPolymorphic<CopyMoveCounter>::Run)
-+  Bind(&VoidPolymorphic<CopyMoveCounter>::Run)
-       .Run(CopyMoveCounter(&copies, &assigns, &move_constructs, &move_assigns));
-   EXPECT_EQ(0, copies);
-   EXPECT_EQ(0, assigns);
-@@ -1415,7 +1412,7 @@ TEST_F(BindTest, ArgumentCopiesAndMoves) {
-   assigns = 0;
-   move_constructs = 0;
-   move_assigns = 0;
--  BindRepeating(&VoidPolymorphic<CopyMoveCounter>::Run)
-+  Bind(&VoidPolymorphic<CopyMoveCounter>::Run)
-       .Run(CopyMoveCounter(derived_counter));
-   EXPECT_EQ(1, copies);
-   EXPECT_EQ(0, assigns);
-@@ -1426,7 +1423,7 @@ TEST_F(BindTest, ArgumentCopiesAndMoves) {
-   assigns = 0;
-   move_constructs = 0;
-   move_assigns = 0;
--  BindRepeating(&VoidPolymorphic<CopyMoveCounter>::Run)
-+  Bind(&VoidPolymorphic<CopyMoveCounter>::Run)
-       .Run(CopyMoveCounter(DerivedCopyMoveCounter(
-           &copies, &assigns, &move_constructs, &move_assigns)));
-   EXPECT_EQ(0, copies);
-@@ -1453,8 +1450,8 @@ TEST_F(BindTest, CapturelessLambda) {
-       char(int, double),
-       internal::ExtractCallableRunType<decltype(h)>>::value));
- 
--  EXPECT_EQ(42, BindRepeating([] { return 42; }).Run());
--  EXPECT_EQ(42, BindRepeating([](int i) { return i * 7; }, 6).Run());
-+  EXPECT_EQ(42, Bind([] { return 42; }).Run());
-+  EXPECT_EQ(42, Bind([](int i) { return i * 7; }, 6).Run());
- 
-   int x = 1;
-   base::RepeatingCallback<void(int)> cb =
-diff --git a/base/callback.h b/base/callback.h
-index a568ca1224..9643df5157 100644
---- a/base/callback.h
-+++ b/base/callback.h
-@@ -49,6 +49,9 @@
- // will be a no-op. Note that |IsCancelled()| and |is_null()| are distinct:
- // simply cancelling a callback will not also make it null.
- //
-+// base::Callback is currently a type alias for base::RepeatingCallback. In the
-+// future, we expect to flip this to default to base::OnceCallback.
-+//
- // See //docs/callback.md for the full documentation.
- 
- namespace base {
 diff --git a/base/callback_forward.h b/base/callback_forward.h
-index 8435348ad0..d0f230cedb 100644
+index 8435348ad0..d61f1e10bf 100644
 --- a/base/callback_forward.h
 +++ b/base/callback_forward.h
-@@ -13,11 +13,15 @@ class OnceCallback;
- template <typename Signature>
- class RepeatingCallback;
- 
-+template <typename Signature>
-+using Callback = RepeatingCallback<Signature>;
-+
- // Syntactic sugar to make OnceClosure<void()> and RepeatingClosure<void()>
- // easier to declare since they will be used in a lot of APIs with delayed
- // execution.
+@@ -19,6 +19,10 @@ class RepeatingCallback;
  using OnceClosure = OnceCallback<void()>;
  using RepeatingClosure = RepeatingCallback<void()>;
-+using Closure = Callback<void()>;
  
++template <typename Signature> using Callback = RepeatingCallback<Signature>;
++
++using Closure = RepeatingClosure;
++
  }  // namespace base
  
+ #endif  // BASE_CALLBACK_FORWARD_H_
 diff --git a/base/callback_list.h b/base/callback_list.h
-index 6ce67ae084..d115e8449c 100644
+index c227271d41..fc5e69f4aa 100644
 --- a/base/callback_list.h
 +++ b/base/callback_list.h
-@@ -340,6 +340,9 @@ class RepeatingCallbackList
-   }
- };
+@@ -344,6 +344,9 @@ class RepeatingCallbackList
+ using OnceClosureList = OnceCallbackList<void()>;
+ using RepeatingClosureList = RepeatingCallbackList<void()>;
  
 +template <typename Signature>
 +using CallbackList = RepeatingCallbackList<Signature>;
 +
- // Syntactic sugar to parallel that used for {Once,Repeating}Callbacks.
- using OnceClosureList = OnceCallbackList<void()>;
- using RepeatingClosureList = RepeatingCallbackList<void()>;
-diff --git a/base/callback_list_unittest.nc b/base/callback_list_unittest.nc
-index 819b842c0a..0d010c003e 100644
---- a/base/callback_list_unittest.nc
-+++ b/base/callback_list_unittest.nc
-@@ -43,7 +43,7 @@ class FooListener {
- // first callback has been run.
- void WontCompile() {
-   FooListener f;
--  RepeatingCallbackList<void(std::unique_ptr<Foo>)> c1;
-+  CallbackList<void(std::unique_ptr<Foo>)> c1;
-   CallbackListSubscription sub =
-       c1.Add(BindRepeating(&FooListener::GotAScopedFoo, Unretained(&f)));
-   c1.Notify(std::unique_ptr<Foo>(new Foo()));
+ }  // namespace base
+ 
+ #endif  // BASE_CALLBACK_LIST_H_
 diff --git a/base/cancelable_callback.h b/base/cancelable_callback.h
-index cf9ae1fd24..66954cd4d8 100644
+index 0d782dc308..df8b03e596 100644
 --- a/base/cancelable_callback.h
 +++ b/base/cancelable_callback.h
-@@ -147,6 +147,10 @@ using CancelableRepeatingCallback =
+@@ -146,6 +146,10 @@ using CancelableRepeatingCallback =
      internal::CancelableCallbackImpl<RepeatingCallback<Signature>>;
  using CancelableRepeatingClosure = CancelableRepeatingCallback<void()>;
  
 +template <typename Signature>
 +using CancelableCallback = CancelableRepeatingCallback<Signature>;
-+using CancelableClosure = CancelableCallback<void()>;
++using CancelableClosure = CancelableRepeatingClosure;
 +
  }  // namespace base
  
  #endif  // BASE_CANCELABLE_CALLBACK_H_
-diff --git a/base/task/sequence_manager/sequence_manager_impl_unittest.cc b/base/task/sequence_manager/sequence_manager_impl_unittest.cc
-index 22f56afd83..bdb2ce1cc8 100644
---- a/base/task/sequence_manager/sequence_manager_impl_unittest.cc
-+++ b/base/task/sequence_manager/sequence_manager_impl_unittest.cc
-@@ -4919,9 +4919,9 @@ TEST_P(SequenceManagerTest, ReclaimMemoryRemovesCorrectQueueFromSet) {
- 
-   std::vector<int> order;
- 
--  CancelableRepeatingClosure cancelable_closure1(
-+  CancelableClosure cancelable_closure1(
-       BindLambdaForTesting([&]() { order.push_back(10); }));
--  CancelableRepeatingClosure cancelable_closure2(
-+  CancelableClosure cancelable_closure2(
-       BindLambdaForTesting([&]() { order.push_back(11); }));
-   queue1->task_runner()->PostTask(FROM_HERE, BindLambdaForTesting([&]() {
-                                     order.push_back(1);
-diff --git a/base/task/sequence_manager/thread_controller_impl.h b/base/task/sequence_manager/thread_controller_impl.h
-index f6b133855c..357a90af3a 100644
---- a/base/task/sequence_manager/thread_controller_impl.h
-+++ b/base/task/sequence_manager/thread_controller_impl.h
-@@ -121,7 +121,7 @@ class BASE_EXPORT ThreadControllerImpl : public ThreadController,
-   raw_ptr<const TickClock> time_source_;
-   RepeatingClosure immediate_do_work_closure_;
-   RepeatingClosure delayed_do_work_closure_;
--  CancelableRepeatingClosure cancelable_delayed_do_work_closure_;
-+  CancelableClosure cancelable_delayed_do_work_closure_;
-   raw_ptr<SequencedTaskSource> sequence_ = nullptr;  // Not owned.
-   TaskAnnotator task_annotator_;
-   WorkDeduplicator work_deduplicator_;
-diff --git a/base/test/task_environment_unittest.cc b/base/test/task_environment_unittest.cc
-index 16f4efef53..3177379f66 100644
---- a/base/test/task_environment_unittest.cc
-+++ b/base/test/task_environment_unittest.cc
-@@ -1138,20 +1138,20 @@ TEST_F(TaskEnvironmentTest, CancelPendingTask) {
-   EXPECT_EQ(TimeDelta::Max(),
-             task_environment.NextMainThreadPendingTaskDelay());
- 
--  CancelableRepeatingClosure task2(BindRepeating([]() {}));
-+  CancelableClosure task2(BindRepeating([]() {}));
-   ThreadTaskRunnerHandle::Get()->PostDelayedTask(FROM_HERE, task2.callback(),
-                                                  Seconds(1));
-   task2.Cancel();
-   EXPECT_EQ(0u, task_environment.GetPendingMainThreadTaskCount());
- 
--  CancelableRepeatingClosure task3(BindRepeating([]() {}));
-+  CancelableClosure task3(BindRepeating([]() {}));
-   ThreadTaskRunnerHandle::Get()->PostDelayedTask(FROM_HERE, task3.callback(),
-                                                  Seconds(1));
-   task3.Cancel();
-   EXPECT_EQ(TimeDelta::Max(),
-             task_environment.NextMainThreadPendingTaskDelay());
- 
--  CancelableRepeatingClosure task4(BindRepeating([]() {}));
-+  CancelableClosure task4(BindRepeating([]() {}));
-   ThreadTaskRunnerHandle::Get()->PostDelayedTask(FROM_HERE, task4.callback(),
-                                                  Seconds(1));
-   task4.Cancel();
-@@ -1176,7 +1176,7 @@ TEST_F(TaskEnvironmentTest, NoFastForwardToCancelledTask) {
-       TaskEnvironment::ThreadPoolExecutionMode::QUEUED);
- 
-   TimeTicks start_time = task_environment.NowTicks();
--  CancelableRepeatingClosure task(BindRepeating([]() {}));
-+  CancelableClosure task(BindRepeating([]() {}));
-   ThreadTaskRunnerHandle::Get()->PostDelayedTask(FROM_HERE, task.callback(),
-                                                  Seconds(1));
-   EXPECT_EQ(Seconds(1), task_environment.NextMainThreadPendingTaskDelay());
-@@ -1189,7 +1189,7 @@ TEST_F(TaskEnvironmentTest, NextTaskIsDelayed) {
-   TaskEnvironment task_environment(TaskEnvironment::TimeSource::MOCK_TIME);
- 
-   EXPECT_FALSE(task_environment.NextTaskIsDelayed());
--  CancelableRepeatingClosure task(BindRepeating([]() {}));
-+  CancelableClosure task(BindRepeating([]() {}));
-   ThreadTaskRunnerHandle::Get()->PostDelayedTask(FROM_HERE, task.callback(),
-                                                  Seconds(1));
-   EXPECT_TRUE(task_environment.NextTaskIsDelayed());
 -- 
-2.33.1.1089.g2158813163f-goog
+2.38.0.413.g74048e4d9e-goog
 
