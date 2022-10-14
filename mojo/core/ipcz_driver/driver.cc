@@ -4,7 +4,14 @@
 
 #include "mojo/core/ipcz_driver/driver.h"
 
+#include <cstddef>
+#include <cstdint>
+#include <tuple>
+
+#include "base/containers/span.h"
+#include "base/containers/stack_container.h"
 #include "base/rand_util.h"
+#include "mojo/core/ipcz_driver/object.h"
 #include "third_party/ipcz/include/ipcz/ipcz.h"
 
 namespace mojo::core::ipcz_driver {
@@ -14,7 +21,12 @@ namespace {
 IpczResult IPCZ_API Close(IpczDriverHandle handle,
                           uint32_t flags,
                           const void* options) {
-  return IPCZ_RESULT_UNIMPLEMENTED;
+  scoped_refptr<ObjectBase> object = ObjectBase::TakeFromHandle(handle);
+  if (!object) {
+    return IPCZ_RESULT_INVALID_ARGUMENT;
+  }
+  object->Close();
+  return IPCZ_RESULT_OK;
 }
 
 IpczResult IPCZ_API Serialize(IpczDriverHandle handle,

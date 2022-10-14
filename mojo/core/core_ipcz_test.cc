@@ -9,8 +9,12 @@
 #include "base/check.h"
 #include "base/containers/span.h"
 #include "base/strings/string_piece.h"
+#include "base/synchronization/waitable_event.h"
 #include "mojo/core/ipcz_api.h"
+#include "mojo/core/ipcz_driver/transport.h"
 #include "mojo/public/c/system/thunks.h"
+#include "mojo/public/cpp/platform/platform_channel.h"
+#include "mojo/public/cpp/platform/platform_handle.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace mojo::core {
@@ -45,8 +49,61 @@ class CoreIpczTest : public testing::Test {
     return message;
   }
 
+  // Unwraps and re-wraps a Mojo shared buffer handle, extracting some of its
+  // serialized details in the process.
+  struct SharedBufferDetails {
+    uint64_t size;
+    MojoPlatformSharedMemoryRegionAccessMode mode;
+  };
+  SharedBufferDetails PeekSharedBuffer(MojoHandle& buffer) {
+    SharedBufferDetails details;
+    uint32_t num_platform_handles = 2;
+    MojoPlatformHandle platform_handles[2];
+    MojoSharedBufferGuid guid;
+    EXPECT_EQ(MOJO_RESULT_OK,
+              mojo().UnwrapPlatformSharedMemoryRegion(
+                  buffer, nullptr, platform_handles, &num_platform_handles,
+                  &details.size, &guid, &details.mode));
+    EXPECT_EQ(MOJO_RESULT_OK,
+              mojo().WrapPlatformSharedMemoryRegion(
+                  platform_handles, num_platform_handles, details.size, &guid,
+                  details.mode, nullptr, &buffer));
+    return details;
+  }
+
  private:
   const MojoSystemThunks2* const mojo_{GetMojoIpczImpl()};
+};
+
+// Watches a PlatformChannel endpoint handle for its peer's closure.
+class ChannelPeerClosureListener {
+ public:
+  explicit ChannelPeerClosureListener(PlatformHandle handle)
+      : transport_(base::MakeRefCounted<ipcz_driver::Transport>(
+            ipcz_driver::Transport::kToBroker,
+            PlatformChannelEndpoint(std::move(handle)))) {
+    transport_->Activate(
+        reinterpret_cast<uintptr_t>(this),
+        [](IpczHandle self, const void*, size_t, const IpczDriverHandle*,
+           size_t, IpczTransportActivityFlags flags, const void*) {
+          reinterpret_cast<ChannelPeerClosureListener*>(self)->OnEvent(flags);
+          return IPCZ_RESULT_OK;
+        });
+  }
+
+  void WaitForPeerClosure() { disconnected_.Wait(); }
+
+ private:
+  void OnEvent(IpczTransportActivityFlags flags) {
+    if (flags & IPCZ_TRANSPORT_ACTIVITY_ERROR) {
+      transport_->Deactivate();
+    } else if (flags & IPCZ_TRANSPORT_ACTIVITY_DEACTIVATED) {
+      disconnected_.Signal();
+    }
+  }
+
+  base::WaitableEvent disconnected_;
+  scoped_refptr<ipcz_driver::Transport> transport_;
 };
 
 TEST_F(CoreIpczTest, Close) {
@@ -178,6 +235,212 @@ TEST_F(CoreIpczTest, MessagePipes) {
   EXPECT_EQ(MOJO_RESULT_FAILED_PRECONDITION,
             mojo().ReadMessage(d, nullptr, &message));
   EXPECT_EQ(MOJO_RESULT_OK, mojo().Close(d));
+}
+
+TEST_F(CoreIpczTest, Traps) {
+  MojoHandle a, b;
+  EXPECT_EQ(MOJO_RESULT_OK, mojo().CreateMessagePipe(nullptr, &a, &b));
+
+  // A simple trap event handler which treats its event context as a
+  // MojoTrapEvent pointer, where the fired event will be copied.
+  auto handler = [](const MojoTrapEvent* event) {
+    *reinterpret_cast<MojoTrapEvent*>(event->trigger_context) = *event;
+  };
+  MojoHandle trap;
+  EXPECT_EQ(MOJO_RESULT_OK, mojo().CreateTrap(handler, nullptr, &trap));
+
+  // Initialize these events with an impossible result code.
+  MojoTrapEvent readable_event = {.result = MOJO_RESULT_UNKNOWN};
+  MojoTrapEvent writable_event = {.result = MOJO_RESULT_UNKNOWN};
+  uintptr_t kReadableContext = reinterpret_cast<uintptr_t>(&readable_event);
+  uintptr_t kWritableContext = reinterpret_cast<uintptr_t>(&writable_event);
+  EXPECT_EQ(MOJO_RESULT_OK,
+            mojo().AddTrigger(trap, b, MOJO_HANDLE_SIGNAL_READABLE,
+                              MOJO_TRIGGER_CONDITION_SIGNALS_SATISFIED,
+                              kReadableContext, nullptr));
+  EXPECT_EQ(MOJO_RESULT_OK,
+            mojo().AddTrigger(trap, b, MOJO_HANDLE_SIGNAL_WRITABLE,
+                              MOJO_TRIGGER_CONDITION_SIGNALS_SATISFIED,
+                              kWritableContext, nullptr));
+
+  // Arming should fail because the pipe is always writable.
+  uint32_t num_events = 1;
+  MojoTrapEvent event = {.struct_size = sizeof(event)};
+  EXPECT_EQ(MOJO_RESULT_FAILED_PRECONDITION,
+            mojo().ArmTrap(trap, nullptr, &num_events, &event));
+  EXPECT_EQ(kWritableContext, event.trigger_context);
+  EXPECT_EQ(MOJO_RESULT_OK, event.result);
+
+  // But we should be able to arm after removing that trigger. Trigger removal
+  // should also notify the writable trigger of cancellation.
+  EXPECT_EQ(MOJO_RESULT_OK,
+            mojo().RemoveTrigger(trap, kWritableContext, nullptr));
+  EXPECT_EQ(MOJO_RESULT_CANCELLED, writable_event.result);
+  EXPECT_EQ(MOJO_RESULT_OK, mojo().ArmTrap(trap, nullptr, nullptr, nullptr));
+
+  // Making `b` readable by writing to `a` should immediately activate the
+  // remaining trigger.
+  EXPECT_EQ(MOJO_RESULT_UNKNOWN, readable_event.result);
+  EXPECT_EQ(MOJO_RESULT_OK,
+            mojo().WriteMessage(a, CreateMessage("lol"), nullptr));
+  EXPECT_EQ(MOJO_RESULT_CANCELLED, writable_event.result);
+  EXPECT_EQ(MOJO_RESULT_OK, readable_event.result);
+
+  // Clear the pipe and re-arm the trap.
+  MojoMessageHandle message;
+  EXPECT_EQ(MOJO_RESULT_OK, mojo().ReadMessage(b, nullptr, &message));
+  EXPECT_EQ(MOJO_RESULT_OK, mojo().DestroyMessage(message));
+  EXPECT_EQ(MOJO_RESULT_OK, mojo().ArmTrap(trap, nullptr, nullptr, nullptr));
+
+  // Closing `a` should activate the readable trigger again, this time to signal
+  // its permanent unsatisfiability.
+  EXPECT_EQ(MOJO_RESULT_OK, readable_event.result);
+  EXPECT_EQ(MOJO_RESULT_OK, mojo().Close(a));
+  EXPECT_EQ(MOJO_RESULT_FAILED_PRECONDITION, readable_event.result);
+
+  // Closing `b` itself should elicit one final cancellation event.
+  EXPECT_EQ(MOJO_RESULT_OK, mojo().Close(b));
+  EXPECT_EQ(MOJO_RESULT_CANCELLED, readable_event.result);
+
+  // Finally, closing the trap with an active trigger should also elicit a
+  // cancellation event.
+  EXPECT_EQ(MOJO_RESULT_OK, mojo().CreateMessagePipe(nullptr, &a, &b));
+  readable_event.result = MOJO_RESULT_UNKNOWN;
+  EXPECT_EQ(MOJO_RESULT_OK,
+            mojo().AddTrigger(trap, b, MOJO_HANDLE_SIGNAL_READABLE,
+                              MOJO_TRIGGER_CONDITION_SIGNALS_SATISFIED,
+                              kReadableContext, nullptr));
+  EXPECT_EQ(MOJO_RESULT_OK, mojo().Close(trap));
+  EXPECT_EQ(MOJO_RESULT_CANCELLED, readable_event.result);
+
+  EXPECT_EQ(MOJO_RESULT_OK, mojo().Close(a));
+  EXPECT_EQ(MOJO_RESULT_OK, mojo().Close(b));
+}
+
+TEST_F(CoreIpczTest, WrapPlatformHandle) {
+  PlatformChannel channel;
+
+  // We can wrap and unwrap a handle intact.
+  MojoHandle wrapped_handle;
+  MojoPlatformHandle mojo_handle = {.struct_size = sizeof(mojo_handle)};
+  PlatformHandle::ToMojoPlatformHandle(
+      channel.TakeLocalEndpoint().TakePlatformHandle(), &mojo_handle);
+  EXPECT_EQ(MOJO_RESULT_OK,
+            mojo().WrapPlatformHandle(&mojo_handle, nullptr, &wrapped_handle));
+  EXPECT_EQ(MOJO_RESULT_OK,
+            mojo().UnwrapPlatformHandle(wrapped_handle, nullptr, &mojo_handle));
+
+  ChannelPeerClosureListener listener(
+      PlatformHandle::FromMojoPlatformHandle(&mojo_handle));
+
+  // Closing a handle wrapper closes the underlying handle.
+  PlatformHandle::ToMojoPlatformHandle(
+      channel.TakeRemoteEndpoint().TakePlatformHandle(), &mojo_handle);
+  EXPECT_EQ(MOJO_RESULT_OK,
+            mojo().WrapPlatformHandle(&mojo_handle, nullptr, &wrapped_handle));
+  EXPECT_EQ(MOJO_RESULT_OK, mojo().Close(wrapped_handle));
+
+  listener.WaitForPeerClosure();
+}
+
+TEST_F(CoreIpczTest, BasicSharedBuffer) {
+  const base::StringPiece kContents = "steamed hams";
+  MojoHandle buffer;
+  EXPECT_EQ(MOJO_RESULT_OK,
+            mojo().CreateSharedBuffer(kContents.size(), nullptr, &buffer));
+
+  // New Mojo shared buffers are always writable by default.
+  SharedBufferDetails details = PeekSharedBuffer(buffer);
+  EXPECT_EQ(MOJO_PLATFORM_SHARED_MEMORY_REGION_ACCESS_MODE_WRITABLE,
+            details.mode);
+  EXPECT_EQ(kContents.size(), details.size);
+
+  void* address;
+  EXPECT_EQ(MOJO_RESULT_OK,
+            mojo().MapBuffer(buffer, 0, kContents.size(), nullptr, &address));
+  memcpy(address, kContents.data(), kContents.size());
+  EXPECT_EQ(MOJO_RESULT_OK, mojo().UnmapBuffer(address));
+  address = nullptr;
+
+  // We can duplicate to handle which can only be mapped for reading.
+  MojoHandle readonly_buffer;
+  const MojoDuplicateBufferHandleOptions readonly_options = {
+      .struct_size = sizeof(readonly_options),
+      .flags = MOJO_DUPLICATE_BUFFER_HANDLE_FLAG_READ_ONLY,
+  };
+  EXPECT_EQ(MOJO_RESULT_OK, mojo().DuplicateBufferHandle(
+                                buffer, &readonly_options, &readonly_buffer));
+
+  // With a read-only duplicate, it should now be impossible to create a
+  // writable duplicate, and the original buffer handle should now be in
+  // read-only mode.
+  MojoHandle writable_buffer;
+  EXPECT_EQ(MOJO_RESULT_FAILED_PRECONDITION,
+            mojo().DuplicateBufferHandle(buffer, nullptr, &writable_buffer));
+
+  details = PeekSharedBuffer(buffer);
+  EXPECT_EQ(MOJO_PLATFORM_SHARED_MEMORY_REGION_ACCESS_MODE_READ_ONLY,
+            details.mode);
+  EXPECT_EQ(kContents.size(), details.size);
+
+  details = PeekSharedBuffer(readonly_buffer);
+  EXPECT_EQ(MOJO_PLATFORM_SHARED_MEMORY_REGION_ACCESS_MODE_READ_ONLY,
+            details.mode);
+  EXPECT_EQ(kContents.size(), details.size);
+
+  EXPECT_EQ(MOJO_RESULT_OK, mojo().Close(buffer));
+
+  // Additional read-only duplicates are OK though.
+  MojoHandle dupe;
+  EXPECT_EQ(MOJO_RESULT_OK, mojo().DuplicateBufferHandle(
+                                readonly_buffer, &readonly_options, &dupe));
+  EXPECT_EQ(MOJO_RESULT_OK, mojo().Close(dupe));
+
+  // And finally we can map the buffer again to find the same contents.
+  EXPECT_EQ(MOJO_RESULT_OK,
+            mojo().MapBuffer(readonly_buffer, 0, kContents.size(), nullptr,
+                             &address));
+  EXPECT_EQ(kContents, base::StringPiece(static_cast<const char*>(address),
+                                         kContents.size()));
+  EXPECT_EQ(MOJO_RESULT_OK, mojo().Close(readonly_buffer));
+}
+
+TEST_F(CoreIpczTest, SharedBufferDuplicateUnsafe) {
+  // A buffer which has been duplicated at least once without READ_ONLY can
+  // never be duplicated as read-only.
+  constexpr size_t kSize = 64;
+  MojoHandle buffer;
+  EXPECT_EQ(MOJO_RESULT_OK, mojo().CreateSharedBuffer(kSize, nullptr, &buffer));
+
+  MojoHandle dupe;
+  EXPECT_EQ(MOJO_RESULT_OK,
+            mojo().DuplicateBufferHandle(buffer, nullptr, &dupe));
+
+  SharedBufferDetails details = PeekSharedBuffer(buffer);
+  EXPECT_EQ(MOJO_PLATFORM_SHARED_MEMORY_REGION_ACCESS_MODE_UNSAFE,
+            details.mode);
+  EXPECT_EQ(kSize, details.size);
+
+  details = PeekSharedBuffer(dupe);
+  EXPECT_EQ(MOJO_PLATFORM_SHARED_MEMORY_REGION_ACCESS_MODE_UNSAFE,
+            details.mode);
+  EXPECT_EQ(kSize, details.size);
+
+  MojoHandle readonly_dupe;
+  MojoDuplicateBufferHandleOptions options = {
+      .struct_size = sizeof(options),
+      .flags = MOJO_DUPLICATE_BUFFER_HANDLE_FLAG_READ_ONLY,
+  };
+  EXPECT_EQ(MOJO_RESULT_FAILED_PRECONDITION,
+            mojo().DuplicateBufferHandle(buffer, &options, &readonly_dupe));
+
+  // Unsafe duplication is still possible though.
+  MojoHandle unsafe_dupe;
+  EXPECT_EQ(MOJO_RESULT_OK,
+            mojo().DuplicateBufferHandle(buffer, nullptr, &unsafe_dupe));
+  EXPECT_EQ(MOJO_RESULT_OK, mojo().Close(unsafe_dupe));
+  EXPECT_EQ(MOJO_RESULT_OK, mojo().Close(dupe));
+  EXPECT_EQ(MOJO_RESULT_OK, mojo().Close(buffer));
 }
 
 }  // namespace
