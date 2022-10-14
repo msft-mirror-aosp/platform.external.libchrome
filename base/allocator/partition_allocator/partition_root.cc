@@ -24,9 +24,12 @@
 #include "base/allocator/partition_allocator/partition_oom.h"
 #include "base/allocator/partition_allocator/partition_page.h"
 #include "base/allocator/partition_allocator/reservation_offset_table.h"
-#include "base/allocator/partition_allocator/starscan/pcscan.h"
 #include "base/allocator/partition_allocator/tagging.h"
 #include "build/build_config.h"
+
+#if BUILDFLAG(STARSCAN)
+#include "base/allocator/partition_allocator/starscan/pcscan.h"
+#endif  // BUILDFLAG(STARSCAN)
 
 #if BUILDFLAG(IS_WIN)
 #include <windows.h>
@@ -152,7 +155,7 @@ class PartitionRootEnumerator {
 
 #endif  // PA_USE_PARTITION_ROOT_ENUMERATOR
 
-#if BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
+#if BUILDFLAG(ENABLE_PARTITION_ALLOC_AS_MALLOC_SUPPORT)
 
 namespace {
 
@@ -274,11 +277,16 @@ void PartitionAllocMallocHookOnAfterForkInChild() {
 }
 #endif  // BUILDFLAG(IS_APPLE)
 
-#endif  // BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
+#endif  // BUILDFLAG(ENABLE_PARTITION_ALLOC_AS_MALLOC_SUPPORT)
 
 namespace internal {
 
 namespace {
+// 64 was chosen arbitrarily, as it seems like a reasonable trade-off between
+// performance and purging opportunity. Higher value (i.e. smaller slots)
+// wouldn't necessarily increase chances of purging, but would result in
+// more work and larger |slot_usage| array. Lower value would probably decrease
+// chances of purging. Not empirically tested.
 constexpr size_t kMaxPurgeableSlotsPerSystemPage = 64;
 PAGE_ALLOCATOR_CONSTANTS_DECLARE_CONSTEXPR PA_ALWAYS_INLINE size_t
 MinPurgeableSlotSize() {
@@ -294,9 +302,6 @@ static size_t PartitionPurgeSlotSpan(
   const internal::PartitionBucket<thread_safe>* bucket = slot_span->bucket;
   size_t slot_size = bucket->slot_size;
 
-  // We will do nothing if slot_size is smaller than SystemPageSize() / 2
-  // because |kMaxSlotCount| will be too large in that case, which leads to
-  // |slot_usage| using up too much memory.
   if (slot_size < MinPurgeableSlotSize() || !slot_span->num_allocated_slots)
     return 0;
 
@@ -737,7 +742,7 @@ void PartitionRoot<thread_safe>::Init(PartitionOptions opts) {
     flags.allow_aligned_alloc =
         opts.aligned_alloc == PartitionOptions::AlignedAlloc::kAllowed;
     flags.allow_cookie = opts.cookie == PartitionOptions::Cookie::kAllowed;
-#if BUILDFLAG(USE_BACKUP_REF_PTR)
+#if BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)
     flags.brp_enabled_ =
         opts.backup_ref_ptr == PartitionOptions::BackupRefPtr::kEnabled;
     flags.brp_zapping_enabled_ =
@@ -760,7 +765,8 @@ void PartitionRoot<thread_safe>::Init(PartitionOptions opts) {
     // Ref-count messes up alignment needed for AlignedAlloc, making this
     // option incompatible. However, except in the
     // PUT_REF_COUNT_IN_PREVIOUS_SLOT case.
-#if BUILDFLAG(USE_BACKUP_REF_PTR) && !BUILDFLAG(PUT_REF_COUNT_IN_PREVIOUS_SLOT)
+#if BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT) && \
+    !BUILDFLAG(PUT_REF_COUNT_IN_PREVIOUS_SLOT)
     PA_CHECK(!flags.allow_aligned_alloc || !flags.brp_enabled_);
 #endif
 
@@ -787,13 +793,13 @@ void PartitionRoot<thread_safe>::Init(PartitionOptions opts) {
     PA_CHECK(!flags.allow_aligned_alloc || !flags.extras_offset);
 
     flags.quarantine_mode =
-#if defined(PA_ALLOW_PCSCAN)
+#if BUILDFLAG(STARSCAN)
         (opts.quarantine == PartitionOptions::Quarantine::kDisallowed
              ? QuarantineMode::kAlwaysDisabled
              : QuarantineMode::kDisabledByDefault);
 #else
         QuarantineMode::kAlwaysDisabled;
-#endif  // defined(PA_ALLOW_PCSCAN)
+#endif  // BUILDFLAG(STARSCAN)
 
     // We mark the sentinel slot span as free to make sure it is skipped by our
     // logic to find a new active slot span.
@@ -842,17 +848,17 @@ void PartitionRoot<thread_safe>::Init(PartitionOptions opts) {
   }
 
   // Called without the lock, might allocate.
-#if BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
+#if BUILDFLAG(ENABLE_PARTITION_ALLOC_AS_MALLOC_SUPPORT)
   PartitionAllocMallocInitOnce();
 #endif
 }
 
 template <bool thread_safe>
 PartitionRoot<thread_safe>::~PartitionRoot() {
-#if BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
+#if BUILDFLAG(ENABLE_PARTITION_ALLOC_AS_MALLOC_SUPPORT)
   PA_CHECK(!flags.with_thread_cache)
       << "Must not destroy a partition with a thread cache";
-#endif  // BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
+#endif  // BUILDFLAG(ENABLE_PARTITION_ALLOC_AS_MALLOC_SUPPORT)
 
 #if defined(PA_USE_PARTITION_ROOT_ENUMERATOR)
   if (initialized)
@@ -1133,12 +1139,14 @@ template <bool thread_safe>
 void PartitionRoot<thread_safe>::PurgeMemory(int flags) {
   {
     ::partition_alloc::internal::ScopedGuard guard{lock_};
+#if BUILDFLAG(STARSCAN)
     // Avoid purging if there is PCScan task currently scheduled. Since pcscan
     // takes snapshot of all allocated pages, decommitting pages here (even
     // under the lock) is racy.
     // TODO(bikineev): Consider rescheduling the purging after PCScan.
     if (PCScan::IsInProgress())
       return;
+#endif  // BUILDFLAG(STARSCAN)
 
     if (flags & PurgeFlags::kDecommitEmptySlotSpans)
       DecommitEmptySlotSpans();
@@ -1229,7 +1237,7 @@ void PartitionRoot<thread_safe>::DumpStats(const char* partition_name,
         max_size_of_committed_pages.load(std::memory_order_relaxed);
     stats.total_allocated_bytes = total_size_of_allocated_bytes;
     stats.max_allocated_bytes = max_size_of_allocated_bytes;
-#if BUILDFLAG(USE_BACKUP_REF_PTR)
+#if BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)
     stats.total_brp_quarantined_bytes =
         total_size_of_brp_quarantined_bytes.load(std::memory_order_relaxed);
     stats.total_brp_quarantined_count =

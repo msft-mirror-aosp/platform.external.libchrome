@@ -4,6 +4,7 @@
 
 #include "base/test/scoped_feature_list.h"
 
+#include <atomic>
 #include <utility>
 #include <vector>
 
@@ -22,6 +23,14 @@
 
 namespace base {
 namespace test {
+namespace {
+
+// A monotonically increasing id, passed to `FeatureList`s as they are created
+// to invalidate the cache member of `base::Feature` objects that were queried
+// with a different `FeatureList` installed.
+uint16_t g_current_caching_context = 1;
+
+}  // namespace
 
 // A struct describes ParsedEnableFeatures()' result.
 struct ScopedFeatureList::FeatureWithStudyGroup {
@@ -326,6 +335,11 @@ void ScopedFeatureList::Reset() {
   // Restore params to how they were before.
   FieldTrialParamAssociator::GetInstance()->ClearAllParamsForTesting();
   if (!original_params_.empty()) {
+    // Before restoring params, we need to make all field trials in-active,
+    // because FieldTrialParamAssociator checks whether the given field trial
+    // is active or not, and associates no parameters if the trial is active.
+    // So temporarily restore field trial list to be nullptr.
+    FieldTrialList::RestoreInstanceForTesting(nullptr);
     AssociateFieldTrialParamsFromString(original_params_, &HexDecodeString);
   }
 
@@ -379,6 +393,7 @@ void ScopedFeatureList::InitWithFeatureList(
       "ScopedFeatureList must be Init from the test main thread");
 
   original_feature_list_ = FeatureList::ClearInstanceForTesting();
+  feature_list->SetCachingContextForTesting(++g_current_caching_context);
   FeatureList::SetInstance(std::move(feature_list));
   init_called_ = true;
 }

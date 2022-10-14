@@ -4,11 +4,11 @@
 
 #include "base/allocator/dispatcher/dispatcher.h"
 
-#include "base/allocator/allocator_shim.h"
 #include "base/allocator/buildflags.h"
 #include "base/allocator/dispatcher/internal/dispatch_data.h"
 #include "base/allocator/dispatcher/reentry_guard.h"
 #include "base/allocator/partition_allocator/partition_alloc.h"
+#include "base/allocator/partition_allocator/shim/allocator_shim.h"
 #include "base/check.h"
 #include "base/dcheck_is_on.h"
 #include "base/no_destructor.h"
@@ -262,7 +262,7 @@ struct Dispatcher::Impl {
   void Reset() {
 #if DCHECK_IS_ON()
     DCHECK([&]() {
-      auto const was_set = is_initialized_check_flag_.test();
+      auto const was_set = is_initialized_check_flag_.test_and_set();
       is_initialized_check_flag_.clear();
       return was_set;
     }());
