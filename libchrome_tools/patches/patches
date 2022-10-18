@@ -86,11 +86,6 @@ Revert-PA-Remove-dependency-to-base-check.patch
 # flags to select source files.
 Revert-Reland-Initial-implementation-of-ChromeOS-X86-stack-walker.patch
 
-# Causes build error in floss when it defines an enum entry with the same name
-# as a macro defined in netdb.h, which is indirectly included via libevent.h
-# TODO(b/253138188): upstream if possible.
-remove-include-third_party-libevent-event.h.patch
-
 # ==================== CHERRY PICKS ===========================
 
 # ==================== BACKWARD COMPATIBILITY PATCHES FOR UPREVS =========
