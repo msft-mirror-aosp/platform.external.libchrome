@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "base/allocator/allocator_shim_default_dispatch_to_partition_alloc.h"
+#include "base/allocator/partition_allocator/shim/allocator_shim_default_dispatch_to_partition_alloc.h"
 
 #include <atomic>
 #include <cstddef>
@@ -10,18 +10,19 @@
 #include <string>
 #include <tuple>
 
-#include "base/allocator/allocator_shim_internals.h"
 #include "base/allocator/buildflags.h"
 #include "base/allocator/partition_alloc_features.h"
 #include "base/allocator/partition_allocator/allocation_guard.h"
 #include "base/allocator/partition_allocator/memory_reclaimer.h"
 #include "base/allocator/partition_allocator/partition_alloc.h"
+#include "base/allocator/partition_allocator/partition_alloc_base/no_destructor.h"
 #include "base/allocator/partition_allocator/partition_alloc_base/threading/platform_thread.h"
 #include "base/allocator/partition_allocator/partition_alloc_check.h"
 #include "base/allocator/partition_allocator/partition_alloc_config.h"
 #include "base/allocator/partition_allocator/partition_alloc_constants.h"
 #include "base/allocator/partition_allocator/partition_root.h"
 #include "base/allocator/partition_allocator/partition_stats.h"
+#include "base/allocator/partition_allocator/shim/allocator_shim_internals.h"
 #include "base/bits.h"
 #include "base/compiler_specific.h"
 #include "base/feature_list.h"
@@ -557,14 +558,6 @@ void EnablePartitionAllocMemoryReclaimer() {
   }
 }
 
-alignas(partition_alloc::ThreadSafePartitionRoot) uint8_t
-    g_allocator_buffer_for_new_main_partition[sizeof(
-        partition_alloc::ThreadSafePartitionRoot)];
-
-alignas(partition_alloc::ThreadSafePartitionRoot) uint8_t
-    g_allocator_buffer_for_aligned_alloc_partition[sizeof(
-        partition_alloc::ThreadSafePartitionRoot)];
-
 void ConfigurePartitions(
     EnableBrp enable_brp,
     EnableBrpZapping enable_brp_zapping,
@@ -601,8 +594,16 @@ void ConfigurePartitions(
     PA_DCHECK(!current_root->flags.with_thread_cache);
     return;
   }
-  auto* new_root = new (g_allocator_buffer_for_new_main_partition)
-      partition_alloc::ThreadSafePartitionRoot({
+
+  // We've been bitten before by using a static local when initializing a
+  // partition. For synchronization, static local variables call into the
+  // runtime on Windows, which may not be ready to handle it, if the path is
+  // invoked on an allocation during the runtime initialization.
+  // ConfigurePartitions() is invoked explicitly from Chromium code, so this
+  // shouldn't bite us here. Mentioning just in case we move this code earlier.
+  static partition_alloc::internal::base::NoDestructor<
+      partition_alloc::ThreadSafePartitionRoot>
+      new_main_partition(partition_alloc::PartitionOptions{
           !use_dedicated_aligned_partition
               ? partition_alloc::PartitionOptions::AlignedAlloc::kAllowed
               : partition_alloc::PartitionOptions::AlignedAlloc::kDisallowed,
@@ -618,13 +619,15 @@ void ConfigurePartitions(
                     kDisabled,
           partition_alloc::PartitionOptions::UseConfigurablePool::kNo,
       });
+  partition_alloc::ThreadSafePartitionRoot* new_root = new_main_partition.get();
 
   partition_alloc::ThreadSafePartitionRoot* new_aligned_root;
   if (use_dedicated_aligned_partition) {
     // TODO(bartekn): Use the original root instead of creating a new one. It'd
     // result in one less partition, but come at a cost of commingling types.
-    new_aligned_root = new (g_allocator_buffer_for_aligned_alloc_partition)
-        partition_alloc::ThreadSafePartitionRoot({
+    static partition_alloc::internal::base::NoDestructor<
+        partition_alloc::ThreadSafePartitionRoot>
+        new_aligned_partition(partition_alloc::PartitionOptions{
             partition_alloc::PartitionOptions::AlignedAlloc::kAllowed,
             partition_alloc::PartitionOptions::ThreadCache::kDisabled,
             partition_alloc::PartitionOptions::Quarantine::kAllowed,
@@ -633,6 +636,7 @@ void ConfigurePartitions(
             partition_alloc::PartitionOptions::BackupRefPtrZapping::kDisabled,
             partition_alloc::PartitionOptions::UseConfigurablePool::kNo,
         });
+    new_aligned_root = new_aligned_partition.get();
   } else {
     // The new main root can also support AlignedAlloc.
     new_aligned_root = new_root;

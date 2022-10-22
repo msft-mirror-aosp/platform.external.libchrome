@@ -110,4 +110,10 @@ backward-compatibility-add-base-AdaptCallbackForRepaeting.patch media_perception
 # types.
 backward-compatibility-Add-base-bits-Align-Down-Up-that-takes-size_t.patch
 
+# Backward compatibility patch to add back the variant of
+# base::TaskAnnotator::WillQueueTask that takes task_queue_name, removed in
+# r1038769 (crrev.com/c/3856718).
+# TODO(b/253543700): remove when all callsites does not provide the parameter.
+backward-compatibility-add-param-task_queue_name-to-base-TaskAnnotator-WillQueueTask.patch
+
 # ==================== FORWARD COMPATIBILITY PATCHES FOR UPREVS ==========

@@ -146,9 +146,6 @@ buildflag_header("allocator_buildflags") {
     "USE_PARTITION_ALLOC_AS_MALLOC=false",
     "USE_BACKUP_REF_PTR=false",
     "USE_ASAN_BACKUP_REF_PTR=false",
-    "ENABLE_BACKUP_REF_PTR_SLOW_CHECKS=false",
-    "ENABLE_DANGLING_RAW_PTR_CHECKS=false",
-    "PUT_REF_COUNT_IN_PREVIOUS_SLOT=false",
     "USE_MTE_CHECKED_PTR=false",
     "PA_DCHECK_IS_ON=false",
     "PA_DCHECK_IS_CONFIGURABLE=false",
@@ -159,13 +156,14 @@ buildflag_header("allocator_buildflags") {
 buildflag_header("partition_allocator_buildflags") {
   header = "base/allocator/partition_allocator/partition_alloc_buildflags.h"
   flags = [
-    "USE_PARTITION_ALLOC_AS_MALLOC=false",
-    "USE_BACKUP_REF_PTR=false",
+    "ENABLE_PARTITION_ALLOC_AS_MALLOC_SUPPORT=false",
+    "ENABLE_BACKUP_REF_PTR_SUPPORT=false",
     "ENABLE_BACKUP_REF_PTR_SLOW_CHECKS=false",
     "ENABLE_DANGLING_RAW_PTR_CHECKS=false",
     "PUT_REF_COUNT_IN_PREVIOUS_SLOT=false",
-    "USE_MTE_CHECKED_PTR=false",
+    "ENABLE_MTE_CHECKED_PTR_SUPPORT=false",
     "RECORD_ALLOC_INFO=false",
+    "STARSCAN=false",
   ]
 }
 
@@ -645,8 +643,8 @@ libbase_sublibs = [
     if (!(use.asan || use.fuzzer || use.msan || use.ubsan)) {
       sources += [
         "base/allocator/allocator_extension.cc",
-        "base/allocator/allocator_shim.cc",
-        "base/allocator/allocator_shim_default_dispatch_to_glibc.cc",
+        "base/allocator/partition_allocator/shim/allocator_shim.cc",
+        "base/allocator/partition_allocator/shim/allocator_shim_default_dispatch_to_glibc.cc",
       ]
     }
   },

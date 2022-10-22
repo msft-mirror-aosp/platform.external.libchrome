@@ -1,0 +1,33 @@
+From a1a52a57f509d8ba878b3f6ebae06f8a8807624b Mon Sep 17 00:00:00 2001
+From: Grace Cham <hscham@chromium.org>
+Date: Fri, 14 Oct 2022 14:27:45 +0900
+Subject: [PATCH] backward compatibility: add param task_queue_name back to
+ base::TaskAnnotator::WillQueueTask
+
+The argument was removed in r1038769 (crrev.com/c/3856718).
+
+Change-Id: I35eb32227cbb5ac7f6621602c68ffd50bf873caa
+---
+ base/task/common/task_annotator.h | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/base/task/common/task_annotator.h b/base/task/common/task_annotator.h
+index 950a86d6c9cf..0e4bd9ce3702 100644
+--- a/base/task/common/task_annotator.h
++++ b/base/task/common/task_annotator.h
+@@ -46,6 +46,12 @@ class BASE_EXPORT TaskAnnotator {
+   // |pending_task| before it is moved into the queue.
+   void WillQueueTask(perfetto::StaticString trace_event_name,
+                      PendingTask* pending_task);
++  [[deprecated("unused argument task_queue_name will be "
++               "removed.")]] inline void
++  WillQueueTask(perfetto_libchrome::StaticString trace_event_name,
++                PendingTask *pending_task, const char *) {
++    WillQueueTask(trace_event_name, pending_task);
++  }
+ 
+   // Creates a process-wide unique ID to represent this task in trace events.
+   // This will be mangled with a Process ID hash to reduce the likelyhood of
+-- 
+2.38.0.413.g74048e4d9e-goog
+

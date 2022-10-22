@@ -9,17 +9,17 @@ This reverts commit 324e03c9fba0fd78a721524032eeac43c80dd1db.
  ...llocator_shim_default_dispatch_to_glibc.cc | 35 +------------------
  1 file changed, 1 insertion(+), 34 deletions(-)
 
-diff --git a/base/allocator/allocator_shim_default_dispatch_to_glibc.cc b/base/allocator/allocator_shim_default_dispatch_to_glibc.cc
+diff --git a/base/allocator/partition_allocator/shim/allocator_shim_default_dispatch_to_glibc.cc b/base/allocator/partition_allocator/shim/allocator_shim_default_dispatch_to_glibc.cc
 index a4c67e351d..014ee05115 100644
---- a/base/allocator/allocator_shim_default_dispatch_to_glibc.cc
-+++ b/base/allocator/allocator_shim_default_dispatch_to_glibc.cc
+--- a/base/allocator/partition_allocator/shim/allocator_shim_default_dispatch_to_glibc.cc
++++ b/base/allocator/partition_allocator/shim/allocator_shim_default_dispatch_to_glibc.cc
 @@ -2,12 +2,8 @@
  // Use of this source code is governed by a BSD-style license that can be
  // found in the LICENSE file.
  
 -#include <limits>
 -
- #include "base/allocator/allocator_shim.h"
+ #include "base/allocator/partition_allocator/shim/allocator_shim.h"
  #include "base/compiler_specific.h"
 -#include "base/numerics/checked_math.h"
 -#include "base/process/memory.h"
