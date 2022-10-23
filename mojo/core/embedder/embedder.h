@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -51,6 +51,13 @@ COMPONENT_EXPORT(MOJO_CORE_EMBEDDER) void InitFeatures();
 // Indicates whether the ipcz-based Mojo implementation is enabled. This can be
 // done by enabling the MojoIpcz feature.
 COMPONENT_EXPORT(MOJO_CORE_EMBEDDER) bool IsMojoIpczEnabled();
+
+// Installs base shared shared memory allocation hooks appropriate for use in
+// a sandboxed environment when MojoIpcz is enabled on platforms where such
+// processes cannot allocate shared memory directly through the OS. Must be
+// called before any shared memory allocation is attempted in the process.
+COMPONENT_EXPORT(MOJO_CORE_EMBEDDER)
+void InstallMojoIpczBaseSharedMemoryHooks();
 
 }  // namespace core
 }  // namespace mojo

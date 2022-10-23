@@ -1,4 +1,4 @@
-From 1e9de341adea97aea7fe5400415269cbf43cd70b Mon Sep 17 00:00:00 2001
+From eff90c90da60078721f2ad5a7033abbd981bfbfd Mon Sep 17 00:00:00 2001
 From: Grace Cham <hscham@chromium.org>
 Date: Mon, 26 Sep 2022 16:05:08 +0900
 Subject: [PATCH] Revert "Reland "Initial implementation of ChromeOS X86_64
@@ -521,5 +521,5 @@ index 24e4916a2630..dc37ab5e3fa0 100644
  #else
  #define MAYBE_UnloadedLibrary UnloadedLibrary
 -- 
-2.38.0.135.g90850a2211-goog
+2.38.0.413.g74048e4d9e-goog
 

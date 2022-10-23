@@ -147,6 +147,7 @@ buildflag_header("allocator_buildflags") {
     "USE_BACKUP_REF_PTR=false",
     "USE_ASAN_BACKUP_REF_PTR=false",
     "USE_MTE_CHECKED_PTR=false",
+    "FORCE_ENABLE_RAW_PTR_EXCLUSION=false"
     # "USE_FAKE_BINARY_EXPERIMENT=",
   ]
 }
@@ -162,6 +163,7 @@ buildflag_header("partition_allocator_buildflags") {
     "ENABLE_MTE_CHECKED_PTR_SUPPORT=false",
     "RECORD_ALLOC_INFO=false",
     "STARSCAN=false",
+    "ENABLE_SHADOW_METADATA_FOR_64_BITS_POINTERS=false"
   ]
 }
 
@@ -328,8 +330,6 @@ libbase_sublibs = [
       "base/base_switches.cc",
       "base/big_endian.cc",
       "base/build_time.cc",
-      "base/callback_helpers.cc",
-      "base/callback_internal.cc",
       "base/callback_list.cc",
       "base/check.cc",
       "base/check_is_test.cc",
@@ -372,6 +372,8 @@ libbase_sublibs = [
       "base/files/scoped_file.cc",
       "base/files/scoped_file_linux.cc",
       "base/files/scoped_temp_dir.cc",
+      "base/functional/callback_helpers.cc",
+      "base/functional/callback_internal.cc",
       "base/guid.cc",
       "base/hash/hash.cc",
       "base/hash/md5.cc",
@@ -1044,9 +1046,12 @@ if (use.mojo) {
           "mojo/core/entrypoints.cc",
           "mojo/core/handle_table.cc",
           "mojo/core/ipcz_api.cc",
+          "mojo/core/ipcz_driver/base_shared_memory_service.cc",
           "mojo/core/ipcz_driver/data_pipe.cc",
           "mojo/core/ipcz_driver/driver.cc",
           "mojo/core/ipcz_driver/invitation.cc",
+          "mojo/core/ipcz_driver/message_wrapper.cc",
+          "mojo/core/ipcz_driver/mojo_message.cc",
           "mojo/core/ipcz_driver/mojo_trap.cc",
           "mojo/core/ipcz_driver/object.cc",
           "mojo/core/ipcz_driver/shared_buffer.cc",
@@ -1072,6 +1077,7 @@ if (use.mojo) {
           "mojo/core/ports/port_ref.cc",
           "mojo/core/ports/user_message.cc",
           "mojo/core/request_context.cc",
+          "mojo/core/scoped_ipcz_handle.cc",
           "mojo/core/shared_buffer_dispatcher.cc",
           "mojo/core/user_message_impl.cc",
           "mojo/core/watch.cc",
@@ -1180,7 +1186,7 @@ if (use.mojo) {
 if (use.test) {
   executable("optional_unittests") {
     sources = [
-      "base/optional_unittest.cc",
+      "base/types/optional_unittest.cc",
       "base/test/gtest_util.cc",
     ]
     configs += [

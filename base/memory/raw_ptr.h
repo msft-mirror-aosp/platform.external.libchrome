@@ -284,7 +284,11 @@ struct MTECheckedPtrImpl {
   static ALWAYS_INLINE ptrdiff_t GetDeltaElems(T* wrapped_ptr1,
                                                T* wrapped_ptr2) {
     // Ensure that both pointers come from the same allocation.
-    CHECK(ExtractTag(wrapped_ptr1) == ExtractTag(wrapped_ptr2));
+    //
+    // Disambiguation: UntagPtr removes the hardware MTE tag, whereas this
+    // class is responsible for handling the software MTE tag.
+    CHECK(ExtractTag(partition_alloc::UntagPtr(wrapped_ptr1)) ==
+          ExtractTag(partition_alloc::UntagPtr(wrapped_ptr2)));
     return wrapped_ptr1 - wrapped_ptr2;
   }
 
@@ -1294,6 +1298,15 @@ ALWAYS_INLINE bool operator>=(const raw_ptr<U, I>& lhs,
                               const raw_ptr<V, I>& rhs) {
   return lhs.GetForComparison() >= rhs.GetForComparison();
 }
+
+template <typename T>
+struct IsRawPtr : std::false_type {};
+
+template <typename T, typename I>
+struct IsRawPtr<raw_ptr<T, I>> : std::true_type {};
+
+template <typename T>
+inline constexpr bool IsRawPtrV = IsRawPtr<T>::value;
 
 // Template helpers for working with T* or raw_ptr<T>.
 template <typename T>

@@ -1,50 +1,18 @@
-From 697a6da68adc8f89f53906dcc596559579dcc8f5 Mon Sep 17 00:00:00 2001
+From c966e39f63115c985ef6e9dc7156eecbf119f559 Mon Sep 17 00:00:00 2001
 From: Grace Cham <hscham@chromium.org>
 Date: Fri, 14 Oct 2022 15:46:20 +0900
 Subject: [PATCH] backward compatibility: add deprecated base::Bind APIs
 
 Change-Id: I3a02c2624ed603d2afecbdd04fb589293565ab7a
 ---
- base/bind.h                | 6 ++++++
- base/callback_forward.h    | 4 ++++
- base/callback_list.h       | 3 +++
- base/cancelable_callback.h | 4 ++++
+ base/callback_list.h               | 3 +++
+ base/cancelable_callback.h         | 4 ++++
+ base/functional/bind.h             | 6 ++++++
+ base/functional/callback_forward.h | 4 ++++
  4 files changed, 17 insertions(+)
 
-diff --git a/base/bind.h b/base/bind.h
-index 2ea9115f75..960c9ababb 100644
---- a/base/bind.h
-+++ b/base/bind.h
-@@ -116,6 +116,12 @@ struct BindFailedCheckPreviousErrors {};
- BindFailedCheckPreviousErrors BindOnce(...);
- BindFailedCheckPreviousErrors BindRepeating(...);
- 
-+template <typename Functor, typename... Args>
-+decltype(auto) Bind(Functor &&functor, Args &&...args) {
-+  return BindRepeating(std::forward<Functor>(functor),
-+                       std::forward<Args>(args)...);
-+}
-+
- // Unretained() allows binding a non-refcounted class, and to disable
- // refcounting on arguments that are refcounted objects.
- //
-diff --git a/base/callback_forward.h b/base/callback_forward.h
-index 8435348ad0..d61f1e10bf 100644
---- a/base/callback_forward.h
-+++ b/base/callback_forward.h
-@@ -19,6 +19,10 @@ class RepeatingCallback;
- using OnceClosure = OnceCallback<void()>;
- using RepeatingClosure = RepeatingCallback<void()>;
- 
-+template <typename Signature> using Callback = RepeatingCallback<Signature>;
-+
-+using Closure = RepeatingClosure;
-+
- }  // namespace base
- 
- #endif  // BASE_CALLBACK_FORWARD_H_
 diff --git a/base/callback_list.h b/base/callback_list.h
-index c227271d41..fc5e69f4aa 100644
+index 72b7d03dc470..ec2ee022aef4 100644
 --- a/base/callback_list.h
 +++ b/base/callback_list.h
 @@ -344,6 +344,9 @@ class RepeatingCallbackList
@@ -58,7 +26,7 @@ index c227271d41..fc5e69f4aa 100644
  
  #endif  // BASE_CALLBACK_LIST_H_
 diff --git a/base/cancelable_callback.h b/base/cancelable_callback.h
-index 0d782dc308..df8b03e596 100644
+index 51747bf4f326..d346dbca7065 100644
 --- a/base/cancelable_callback.h
 +++ b/base/cancelable_callback.h
 @@ -146,6 +146,10 @@ using CancelableRepeatingCallback =
@@ -72,6 +40,38 @@ index 0d782dc308..df8b03e596 100644
  }  // namespace base
  
  #endif  // BASE_CANCELABLE_CALLBACK_H_
+diff --git a/base/functional/bind.h b/base/functional/bind.h
+index 53be94a9d1e5..9324e235759f 100644
+--- a/base/functional/bind.h
++++ b/base/functional/bind.h
+@@ -116,6 +116,12 @@ struct BindFailedCheckPreviousErrors {};
+ BindFailedCheckPreviousErrors BindOnce(...);
+ BindFailedCheckPreviousErrors BindRepeating(...);
+ 
++template <typename Functor, typename... Args>
++decltype(auto) Bind(Functor &&functor, Args &&...args) {
++  return BindRepeating(std::forward<Functor>(functor),
++                       std::forward<Args>(args)...);
++}
++
+ // Unretained() allows binding a non-refcounted class, and to disable
+ // refcounting on arguments that are refcounted objects.
+ //
+diff --git a/base/functional/callback_forward.h b/base/functional/callback_forward.h
+index 923fbef6e31c..9ed3bb644079 100644
+--- a/base/functional/callback_forward.h
++++ b/base/functional/callback_forward.h
+@@ -19,6 +19,10 @@ class RepeatingCallback;
+ using OnceClosure = OnceCallback<void()>;
+ using RepeatingClosure = RepeatingCallback<void()>;
+ 
++template <typename Signature> using Callback = RepeatingCallback<Signature>;
++
++using Closure = RepeatingClosure;
++
+ }  // namespace base
+ 
+ #endif  // BASE_FUNCTIONAL_CALLBACK_FORWARD_H_
 -- 
-2.38.0.413.g74048e4d9e-goog
+2.38.0.135.g90850a2211-goog
 

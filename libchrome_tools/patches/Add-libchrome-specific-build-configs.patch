@@ -1,19 +1,20 @@
-From 5d36ac6bfe8c2dafb94f3220dede2ddb00fbc41e Mon Sep 17 00:00:00 2001
+From 1b5d107ee959f026ddea3541c11d313f96bfe9af Mon Sep 17 00:00:00 2001
 From: Grace Cham <hscham@chromium.org>
 Date: Tue, 14 Jun 2022 22:11:19 +0900
 Subject: [PATCH] Add libchrome-specific build configs
 
+Change-Id: Ic6580e412c3f1a4f2fe7b425bf7ead6c2fb18dbb
 ---
- build/build_config.h | 28 ++++++++++++++++++++++++++--
+ build/build_config.h | 28 ++++++++++++++++++++++++++++--
  1 file changed, 26 insertions(+), 2 deletions(-)
 
 diff --git a/build/build_config.h b/build/build_config.h
-index 5d684d154f..bdb449a57e 100644
+index 54578aabb6..eb21cbddb3 100644
 --- a/build/build_config.h
 +++ b/build/build_config.h
-@@ -48,12 +48,36 @@
+@@ -51,12 +51,36 @@
  
- #include "build/buildflag.h"
+ #include "build/buildflag.h"  // IWYU pragma: export
  
 +// A brief primer on #defines:
 +//
@@ -51,5 +52,5 @@ index 5d684d154f..bdb449a57e 100644
  // Only include TargetConditionals after testing ANDROID as some Android builds
  // on the Mac have this header available and it's not needed unless the target
 -- 
-2.36.1.476.g0c4daa206d-goog
+2.38.0.413.g74048e4d9e-goog
 

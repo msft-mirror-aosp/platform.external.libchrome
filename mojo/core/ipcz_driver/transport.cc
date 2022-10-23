@@ -1,4 +1,4 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,10 +11,13 @@
 #include "base/containers/stack_container.h"
 #include "base/functional/overloaded.h"
 #include "base/memory/scoped_refptr.h"
+#include "base/numerics/safe_conversions.h"
 #include "base/process/process.h"
 #include "build/build_config.h"
 #include "mojo/core/core.h"
 #include "mojo/core/ipcz_driver/data_pipe.h"
+#include "mojo/core/ipcz_driver/invitation.h"
+#include "mojo/core/ipcz_driver/message_wrapper.h"
 #include "mojo/core/ipcz_driver/object.h"
 #include "mojo/core/ipcz_driver/shared_buffer.h"
 #include "mojo/core/ipcz_driver/transmissible_platform_handle.h"
@@ -126,7 +129,17 @@ Transport::CreatePair(Destination first_destination,
   return {one, two};
 }
 
-Transport::~Transport() = default;
+Transport::~Transport() {
+  if (error_handler_) {
+    const MojoProcessErrorDetails details{
+        .struct_size = sizeof(details),
+        .error_message_length = 0,
+        .error_message = nullptr,
+        .flags = MOJO_PROCESS_ERROR_FLAG_DISCONNECTED,
+    };
+    error_handler_(error_handler_context_, &details);
+  }
+}
 
 // static
 void Transport::SetIOTaskRunner(
@@ -138,6 +151,22 @@ void Transport::SetIOTaskRunner(
 const scoped_refptr<base::SingleThreadTaskRunner>&
 Transport::GetIOTaskRunner() {
   return GetIOTaskRunnerStorage();
+}
+
+void Transport::ReportBadActivity(const std::string& error_message) {
+  if (!error_handler_) {
+    Invitation::InvokeDefaultProcessErrorHandler(error_message);
+    return;
+  }
+
+  const MojoProcessErrorDetails details{
+      .struct_size = sizeof(details),
+      .error_message_length =
+          base::checked_cast<uint32_t>(error_message.size()),
+      .error_message = error_message.c_str(),
+      .flags = MOJO_PROCESS_ERROR_FLAG_NONE,
+  };
+  error_handler_(error_handler_context_, &details);
 }
 
 bool Transport::Activate(IpczHandle transport,
@@ -156,6 +185,13 @@ bool Transport::Activate(IpczHandle transport,
     channel_ = Channel::CreateForIpczDriver(this, std::move(inactive_endpoint_),
                                             GetIOTaskRunner());
     channel_->Start();
+    if (leak_channel_on_shutdown_) {
+      GetIOTaskRunner()->PostTask(
+          FROM_HERE,
+          base::BindOnce(
+              [](scoped_refptr<Channel> channel) { channel->LeakHandle(); },
+              channel_));
+    }
 
     if (!pending_transmissions_.empty()) {
       pending_transmissions_.swap(pending_transmissions);
@@ -378,6 +414,12 @@ IpczResult Transport::DeserializeObject(
 
     case ObjectBase::kDataPipe:
       object = DataPipe::Deserialize(object_data, object_handles);
+      break;
+
+    case ObjectBase::kMessageWrapper:
+      // Deserialize as a dummy object. This will be ignored. See comments
+      // within MessageWrapper and MojoRead/WriteMessageIpcz.
+      object = base::MakeRefCounted<MessageWrapper>();
       break;
 
     default:

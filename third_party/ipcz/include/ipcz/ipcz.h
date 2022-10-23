@@ -216,6 +216,11 @@ struct IPCZ_ALIGN(8) IpczDriver {
                                  uint32_t flags,                          // in
                                  const void* options);                    // in
 
+  IpczResult(IPCZ_API* ReportBadTransportActivity)(IpczDriverHandle transport,
+                                                   uintptr_t context,
+                                                   uint32_t flags,
+                                                   const void* options);
+
   IpczResult(IPCZ_API* AllocateSharedMemory)(
       size_t num_bytes,                  // in
       uint32_t flags,                    // in
@@ -306,7 +311,8 @@ struct IPCZ_ALIGN(8) IpczAPI {
                             void* data,              // out
                             size_t* num_bytes,       // in/out
                             IpczHandle* handles ,    // out
-                            size_t* num_handles);    // in/out
+                            size_t* num_handles,     // in/out
+                            IpczHandle* validator);  // out
 
   IpczResult(IPCZ_API* BeginGet)(IpczHandle portal,     // in
                                  uint32_t flags,        // in
@@ -320,7 +326,8 @@ struct IPCZ_ALIGN(8) IpczAPI {
                                size_t num_handles,         // in
                                IpczEndGetFlags flags,      // in
                                const void* options,        // in
-                               IpczHandle* handles);       // out
+                               IpczHandle* handles,        // out
+                               IpczHandle* validator);     // out
 
   IpczResult(IPCZ_API* MergePortals)(IpczHandle first,      // in
                                      IpczHandle second,     // in

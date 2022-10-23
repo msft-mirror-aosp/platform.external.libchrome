@@ -20,10 +20,10 @@ import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.annotations.CalledByNative;
 import org.chromium.base.annotations.JNINamespace;
-import org.chromium.base.annotations.MainDex;
 import org.chromium.base.annotations.NativeMethods;
 import org.chromium.base.task.PostTask;
 import org.chromium.base.task.TaskTraits;
+import org.chromium.build.annotations.MainDex;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -741,6 +741,18 @@ public class TraceEvent implements AutoCloseable {
     }
 
     /**
+     * Triggers a 'instant' native "AndroidToolbar" event.
+     * @param blockReason the enum TopToolbarBlockCapture (-1 if not blocked).
+     * @param allowReason the enum TopToolbarAllowCapture (-1 if not allowed).
+     * @param snapshotDiff the enum ToolbarSnapshotDifference (-1 if no diff).
+     */
+    public static void instantAndroidToolbar(int blockReason, int allowReason, int snapshotDiff) {
+        if (sEnabled) {
+            TraceEventJni.get().instantAndroidToolbar(blockReason, allowReason, snapshotDiff);
+        }
+    }
+
+    /**
      * Snapshots the view hierarchy state on the main thread and then finishes emitting a trace
      * event on the threadpool.
      */
@@ -886,6 +898,7 @@ public class TraceEvent implements AutoCloseable {
         void addViewDump(int id, int parentId, boolean isShown, boolean isDirty, String className,
                 String resourceName, long activityProtoPtr);
         void instantAndroidIPC(String name, long durMs);
+        void instantAndroidToolbar(int blockReason, int allowReason, int snapshotDiff);
     }
 
     /**

@@ -40,6 +40,7 @@ revert-crbug-1001171.patch
 # libchrome does not support boringssl.
 keep-hash-sha1-old-implementation.patch
 Do-not-use-boringssl-in-base-UnguessableToken.patch
+disable-boringssl-in-base-RandBytes.patch
 
 # TODO(b/190018559): third_party/lss/linux_syscall_support.h is not provided at
 # current libchrome tree.
@@ -97,6 +98,12 @@ backward-compatibility-add-deprecated-base-Bind-APIs.patch
 
 # Backward compatibility patch to temporarily add base::AdaptCallbackForRepeating
 # TODO(b/204383858): Remove the patch when usage in mri_package is removed
-backward-compatibility-add-base-AdaptCallbackForRepaeting.patch media_perception
+backward-compatibility-add-base-AdaptCallbackForRepeating.patch media_perception
+
+# Revert of r1047662 (crrev.com/c/3891047) which started using the syscall
+# rt_sigprocmask.
+# TODO(b/255677571): remove when rt_sigprocmask is added to necessary seccomp
+# files.
+backward-compatibility-Revert-Reland-Use-absl-Mutex-in-StatisticsRecorder.patch
 
 # ==================== FORWARD COMPATIBILITY PATCHES FOR UPREVS ==========

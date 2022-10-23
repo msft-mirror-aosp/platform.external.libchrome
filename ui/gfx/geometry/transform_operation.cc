@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -109,7 +109,7 @@ void TransformOperation::Bake() {
       break;
     case TransformOperation::TRANSFORM_OPERATION_PERSPECTIVE: {
       Transform m;
-      m.matrix().setRC(3, 2, perspective_m43);
+      m.set_rc(3, 2, perspective_m43);
       matrix.PreconcatTransform(m);
       break;
     }
@@ -379,7 +379,7 @@ static void BoundingBoxForArc(const gfx::Point3F& point,
                           &num_candidates);
   } else {
     gfx::Vector3dF normal = axis;
-    normal.Scale(1.f / normal.Length());
+    normal.InvScale(normal.Length());
 
     // First, find center of rotation.
     gfx::Point3F origin;
@@ -394,7 +394,7 @@ static void BoundingBoxForArc(const gfx::Point3F& point,
     if (v1_length == 0.f)
       return;
 
-    v1.Scale(1.f / v1_length);
+    v1.InvScale(v1_length);
     gfx::Vector3dF v2 = gfx::CrossProduct(normal, v1);
     // v1 is the basis vector in the direction of the point.
     // i.e. with a rotation of 0, v1 is our +x vector.

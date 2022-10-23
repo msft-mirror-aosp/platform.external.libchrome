@@ -1,4 +1,4 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -470,6 +470,11 @@ IpczResult MojoTrap::ArmTrigger(Trigger& trigger,
   lock_.AssertAcquired();
   if (trigger.armed) {
     return IPCZ_RESULT_OK;
+  }
+
+  if (trigger.signals == 0) {
+    // Triggers which watch for no signals can never be armed by Mojo.
+    return IPCZ_RESULT_FAILED_PRECONDITION;
   }
 
   const bool watching_writable =

@@ -245,32 +245,44 @@ class SequenceBound {
   // classes that build the callback chain and post it on destruction. Capturing
   // the return value and passing it elsewhere or triggering lifetime extension
   // (e.g. by binding the return value to a reference) are both unsupported.
-  template <typename R, typename... Args>
-  auto AsyncCall(R (T::*method)(Args...),
+  template <typename R,
+            typename C,
+            typename... Args,
+            typename = std::enable_if_t<std::is_base_of_v<C, T>>>
+  auto AsyncCall(R (C::*method)(Args...),
                  const Location& location = Location::Current()) const {
-    return AsyncCallBuilder<R (T::*)(Args...), R, std::tuple<Args...>>(
+    return AsyncCallBuilder<R (C::*)(Args...), R, std::tuple<Args...>>(
         this, &location, method);
   }
 
-  template <typename R, typename... Args>
-  auto AsyncCall(R (T::*method)(Args...) const,
+  template <typename R,
+            typename C,
+            typename... Args,
+            typename = std::enable_if_t<std::is_base_of_v<C, T>>>
+  auto AsyncCall(R (C::*method)(Args...) const,
                  const Location& location = Location::Current()) const {
-    return AsyncCallBuilder<R (T::*)(Args...) const, R, std::tuple<Args...>>(
+    return AsyncCallBuilder<R (C::*)(Args...) const, R, std::tuple<Args...>>(
         this, &location, method);
   }
 
-  template <typename R, typename... Args>
-  auto AsyncCall(internal::IgnoreResultHelper<R (T::*)(Args...) const> method,
+  template <typename R,
+            typename C,
+            typename... Args,
+            typename = std::enable_if_t<std::is_base_of_v<C, T>>>
+  auto AsyncCall(internal::IgnoreResultHelper<R (C::*)(Args...) const> method,
                  const Location& location = Location::Current()) const {
     return AsyncCallBuilder<
-        internal::IgnoreResultHelper<R (T::*)(Args...) const>, void,
+        internal::IgnoreResultHelper<R (C::*)(Args...) const>, void,
         std::tuple<Args...>>(this, &location, method);
   }
 
-  template <typename R, typename... Args>
-  auto AsyncCall(internal::IgnoreResultHelper<R (T::*)(Args...)> method,
+  template <typename R,
+            typename C,
+            typename... Args,
+            typename = std::enable_if_t<std::is_base_of_v<C, T>>>
+  auto AsyncCall(internal::IgnoreResultHelper<R (C::*)(Args...)> method,
                  const Location& location = Location::Current()) const {
-    return AsyncCallBuilder<internal::IgnoreResultHelper<R (T::*)(Args...)>,
+    return AsyncCallBuilder<internal::IgnoreResultHelper<R (C::*)(Args...)>,
                             void, std::tuple<Args...>>(this, &location, method);
   }
 
@@ -306,6 +318,14 @@ class SequenceBound {
         *impl_task_runner_, location,
         CrossThreadBindTraits::BindOnce(std::move(callback),
                                         CrossThreadBindTraits::Unretained(t_)));
+  }
+
+  void FlushPostedTasksForTesting() const {
+    DCHECK(!is_null());
+    RunLoop run_loop;
+    CrossThreadBindTraits::PostTask(*impl_task_runner_, FROM_HERE,
+                                    OnceClosure(run_loop.QuitClosure()));
+    run_loop.Run();
   }
 
   // TODO(liberato): Add PostOrCall(), to support cases where synchronous calls

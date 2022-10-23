@@ -6,6 +6,7 @@
 
 #if BUILDFLAG(ENABLE_GWP_ASAN_SUPPORT)
 
+#include "base/allocator/partition_allocator/freeslot_bitmap_constants.h"
 #include "base/allocator/partition_allocator/page_allocator_constants.h"
 #include "base/allocator/partition_allocator/partition_alloc_base/no_destructor.h"
 #include "base/allocator/partition_allocator/partition_alloc_check.h"
@@ -37,7 +38,7 @@ void* GwpAsanSupport::MapRegion(size_t slot_count,
   const size_t kSlotSize = 2 * internal::SystemPageSize();
   uint16_t bucket_index =
       PartitionRoot<internal::ThreadSafe>::SizeToBucketIndex(
-          kSlotSize, root->flags.with_denser_bucket_distribution);
+          kSlotSize, root->GetBucketDistribution());
   auto* bucket = root->buckets + bucket_index;
 
   const size_t kSuperPagePayloadStartOffset =
@@ -87,7 +88,8 @@ void* GwpAsanSupport::MapRegion(size_t slot_count,
               super_page);
 
       // Index 0 is invalid because it is the super page extent metadata.
-      for (size_t partition_page_idx = 1;
+      for (size_t partition_page_idx =
+               1 + internal::NumPartitionPagesPerFreeSlotBitmap();
            partition_page_idx + bucket->get_pages_per_slot_span() <
            internal::NumPartitionPagesPerSuperPage();
            partition_page_idx += bucket->get_pages_per_slot_span()) {

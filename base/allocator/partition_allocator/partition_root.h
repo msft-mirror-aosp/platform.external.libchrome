@@ -247,6 +247,8 @@ struct PA_ALIGNAS(64) PA_COMPONENT_EXPORT(PARTITION_ALLOC) PartitionRoot {
     kEnabled,
   };
 
+  enum class BucketDistribution : uint8_t { kDefault, kCoarser, kDenser };
+
   // Flags accessed on fast paths.
   //
   // Careful! PartitionAlloc's performance is sensitive to its layout.  Please
@@ -259,8 +261,13 @@ struct PA_ALIGNAS(64) PA_COMPONENT_EXPORT(PARTITION_ALLOC) PartitionRoot {
     // Defines whether the root should be scanned.
     ScanMode scan_mode;
 
+    // It's important to default to the coarser distribution, otherwise a switch
+    // from dense -> coarse would leave some buckets with dirty memory forever,
+    // since no memory would be allocated from these, their freelist would
+    // typically not be empty, making these unreclaimable.
+    BucketDistribution bucket_distribution = BucketDistribution::kCoarser;
+
     bool with_thread_cache = false;
-    bool with_denser_bucket_distribution = false;
 
     bool allow_aligned_alloc;
     bool allow_cookie;
@@ -514,11 +521,14 @@ struct PA_ALIGNAS(64) PA_COMPONENT_EXPORT(PARTITION_ALLOC) PartitionRoot {
                                              uintptr_t slot_start);
 
   PA_ALWAYS_INLINE static size_t GetUsableSize(void* ptr);
+  PA_ALWAYS_INLINE PageAccessibilityConfiguration GetPageAccessibility() const;
 
   PA_ALWAYS_INLINE size_t
   AllocationCapacityFromSlotStart(uintptr_t slot_start) const;
   PA_ALWAYS_INLINE size_t
   AllocationCapacityFromRequestedSize(size_t size) const;
+
+  PA_ALWAYS_INLINE bool IsMemoryTaggingEnabled() const;
 
   // Frees memory from this partition, if possible, by decommitting pages or
   // even entire slot spans. |flags| is an OR of base::PartitionPurgeFlags.
@@ -543,8 +553,12 @@ struct PA_ALIGNAS(64) PA_COMPONENT_EXPORT(PARTITION_ALLOC) PartitionRoot {
   static void DeleteForTesting(PartitionRoot* partition_root);
   void ResetBookkeepingForTesting();
 
+  PA_ALWAYS_INLINE BucketDistribution GetBucketDistribution() const {
+    return flags.bucket_distribution;
+  }
+
   static uint16_t SizeToBucketIndex(size_t size,
-                                    bool with_denser_bucket_distribution);
+                                    BucketDistribution bucket_distribution);
 
   PA_ALWAYS_INLINE void FreeInSlotSpan(uintptr_t slot_start,
                                        SlotSpan* slot_span)
@@ -568,15 +582,18 @@ struct PA_ALIGNAS(64) PA_COMPONENT_EXPORT(PARTITION_ALLOC) PartitionRoot {
   // more buckets, meaning any allocations we have done before the switch are
   // guaranteed to have a bucket under the new distribution when they are
   // eventually deallocated. We do not need synchronization here or below.
+  void SwitchToDefaultBucketDistribution() {
+    flags.bucket_distribution = BucketDistribution::kDefault;
+  }
   void SwitchToDenserBucketDistribution() {
-    flags.with_denser_bucket_distribution = true;
+    flags.bucket_distribution = BucketDistribution::kDenser;
   }
   // Switching back to the less dense bucket distribution is ok during tests.
   // At worst, we end up with deallocations that are sent to a bucket that we
   // cannot allocate from, which will not cause problems besides wasting
   // memory.
   void ResetBucketDistributionForTesting() {
-    flags.with_denser_bucket_distribution = false;
+    flags.bucket_distribution = BucketDistribution::kCoarser;
   }
 
   ThreadCache* thread_cache_for_testing() const {
@@ -629,7 +646,10 @@ struct PA_ALIGNAS(64) PA_COMPONENT_EXPORT(PARTITION_ALLOC) PartitionRoot {
     // If quarantine is enabled and the tag overflows, move the containing slot
     // to quarantine, to prevent the attacker from exploiting a pointer that has
     // an old tag.
-    return internal::HasOverflowTag(object);
+    if (PA_LIKELY(IsMemoryTaggingEnabled()))
+      return internal::HasOverflowTag(object);
+    // Default behaviour if MTE is not enabled for this PartitionRoot.
+    return true;
 #else
     return true;
 #endif
@@ -1136,6 +1156,21 @@ PA_ALWAYS_INLINE void PartitionRoot<thread_safe>::FreeWithFlags(
   FreeNoHooks(object);
 }
 
+// Returns whether MTE is supported for this partition root. Because MTE stores
+// tagging information in the high bits of the pointer, it causes issues with
+// components like V8's ArrayBuffers which use custom pointer representations.
+// All custom representations encountered so far rely on a caged memory address
+// area / configurable pool, so we use that as a proxy.
+template <bool thread_safe>
+PA_ALWAYS_INLINE bool PartitionRoot<thread_safe>::IsMemoryTaggingEnabled()
+    const {
+#if defined(PA_HAS_MEMORY_TAGGING)
+  return !flags.use_configurable_pool;
+#else
+  return false;
+#endif
+}
+
 // static
 template <bool thread_safe>
 PA_ALWAYS_INLINE void PartitionRoot<thread_safe>::FreeNoHooks(void* object) {
@@ -1179,12 +1214,14 @@ PA_ALWAYS_INLINE void PartitionRoot<thread_safe>::FreeNoHooks(void* object) {
   PA_DCHECK(slot_span == SlotSpan::FromSlotStart(slot_start));
 
 #if defined(PA_HAS_MEMORY_TAGGING)
-  const size_t slot_size = slot_span->bucket->slot_size;
-  if (PA_LIKELY(slot_size <= internal::kMaxMemoryTaggingSize)) {
-    internal::TagMemoryRangeIncrement(slot_start, slot_size);
-    // Incrementing the MTE-tag in the memory range invalidates the |object|'s
-    // tag, so it must be retagged.
-    object = internal::TagPtr(object);
+  if (PA_LIKELY(root->IsMemoryTaggingEnabled())) {
+    const size_t slot_size = slot_span->bucket->slot_size;
+    if (PA_LIKELY(slot_size <= internal::kMaxMemoryTaggingSize)) {
+      internal::TagMemoryRangeIncrement(slot_start, slot_size);
+      // Incrementing the MTE-tag in the memory range invalidates the |object|'s
+      // tag, so it must be retagged.
+      object = internal::TagPtr(object);
+    }
   }
 #else
   // We are going to read from |*slot_span| in all branches, but haven't done it
@@ -1583,14 +1620,12 @@ PA_ALWAYS_INLINE void PartitionRoot<thread_safe>::RecommitSystemPagesForData(
     PageAccessibilityDisposition accessibility_disposition) {
   internal::ScopedSyscallTimer timer{this};
 
-  bool ok = TryRecommitSystemPages(
-      address, length, PageAccessibilityConfiguration::kReadWriteTagged,
-      accessibility_disposition);
+  bool ok = TryRecommitSystemPages(address, length, GetPageAccessibility(),
+                                   accessibility_disposition);
   if (PA_UNLIKELY(!ok)) {
     // Decommit some memory and retry. The alternative is crashing.
     DecommitEmptySlotSpans();
-    RecommitSystemPages(address, length,
-                        PageAccessibilityConfiguration::kReadWriteTagged,
+    RecommitSystemPages(address, length, GetPageAccessibility(),
                         accessibility_disposition);
   }
 
@@ -1603,18 +1638,16 @@ PA_ALWAYS_INLINE bool PartitionRoot<thread_safe>::TryRecommitSystemPagesForData(
     size_t length,
     PageAccessibilityDisposition accessibility_disposition) {
   internal::ScopedSyscallTimer timer{this};
-  bool ok = TryRecommitSystemPages(
-      address, length, PageAccessibilityConfiguration::kReadWriteTagged,
-      accessibility_disposition);
+  bool ok = TryRecommitSystemPages(address, length, GetPageAccessibility(),
+                                   accessibility_disposition);
 #if defined(PA_COMMIT_CHARGE_IS_LIMITED)
   if (PA_UNLIKELY(!ok)) {
     {
       ::partition_alloc::internal::ScopedGuard guard(lock_);
       DecommitEmptySlotSpans();
     }
-    ok = TryRecommitSystemPages(
-        address, length, PageAccessibilityConfiguration::kReadWriteTagged,
-        accessibility_disposition);
+    ok = TryRecommitSystemPages(address, length, GetPageAccessibility(),
+                                accessibility_disposition);
   }
 #endif  // defined(PA_COMMIT_CHARGE_IS_LIMITED)
 
@@ -1645,6 +1678,19 @@ PA_ALWAYS_INLINE size_t PartitionRoot<thread_safe>::GetUsableSize(void* ptr) {
   return slot_span->GetUsableSize(root);
 }
 
+// Returns the page configuration to use when mapping slot spans for a given
+// partition root. ReadWriteTagged is used on MTE-enabled systems for
+// PartitionRoots supporting it.
+template <bool thread_safe>
+PA_ALWAYS_INLINE PageAccessibilityConfiguration
+PartitionRoot<thread_safe>::GetPageAccessibility() const {
+#if defined(PA_HAS_MEMORY_TAGGING)
+  if (IsMemoryTaggingEnabled())
+    return PageAccessibilityConfiguration::kReadWriteTagged;
+#endif
+  return PageAccessibilityConfiguration::kReadWrite;
+}
+
 // Return the capacity of the underlying slot (adjusted for extras). This
 // doesn't mean this capacity is readily available. It merely means that if
 // a new allocation (or realloc) happened with that returned value, it'd use
@@ -1661,10 +1707,15 @@ PartitionRoot<thread_safe>::AllocationCapacityFromSlotStart(
 template <bool thread_safe>
 PA_ALWAYS_INLINE uint16_t PartitionRoot<thread_safe>::SizeToBucketIndex(
     size_t size,
-    bool with_denser_bucket_distribution) {
-  if (with_denser_bucket_distribution)
-    return internal::BucketIndexLookup::GetIndexForDenserBuckets(size);
-  return internal::BucketIndexLookup::GetIndex(size);
+    BucketDistribution bucket_distribution) {
+  switch (bucket_distribution) {
+    case BucketDistribution::kDefault:
+      return internal::BucketIndexLookup::GetIndexForDenserBuckets(size);
+    case BucketDistribution::kCoarser:
+      return internal::BucketIndexLookup::GetIndex(size);
+    case BucketDistribution::kDenser:
+      return internal::BucketIndexLookup::GetIndexFor8Buckets(size);
+  }
 }
 
 template <bool thread_safe>
@@ -1745,11 +1796,11 @@ PA_ALWAYS_INLINE void* PartitionRoot<thread_safe>::AllocWithFlagsNoHooks(
   PA_CHECK(raw_size >= requested_size);  // check for overflows
 
   // We should only call |SizeToBucketIndex| at most once when allocating.
-  // Otherwise, we risk having |with_denser_bucket_distribution| changed
+  // Otherwise, we risk having |bucket_distribution| changed
   // underneath us (between calls to |SizeToBucketIndex| during the same call),
   // which would result in an inconsistent state.
   uint16_t bucket_index =
-      SizeToBucketIndex(raw_size, this->flags.with_denser_bucket_distribution);
+      SizeToBucketIndex(raw_size, this->GetBucketDistribution());
   size_t usable_size;
   bool is_already_zeroed = false;
   uintptr_t slot_start = 0;
@@ -2047,8 +2098,7 @@ PartitionRoot<thread_safe>::AllocationCapacityFromRequestedSize(
 #else
   PA_DCHECK(PartitionRoot<thread_safe>::initialized);
   size = AdjustSizeForExtrasAdd(size);
-  auto& bucket =
-      bucket_at(SizeToBucketIndex(size, flags.with_denser_bucket_distribution));
+  auto& bucket = bucket_at(SizeToBucketIndex(size, GetBucketDistribution()));
   PA_DCHECK(!bucket.slot_size || bucket.slot_size >= size);
   PA_DCHECK(!(bucket.slot_size % internal::kSmallestBucket));
 

@@ -15,11 +15,13 @@ public:
   EventContext(EventContext &&) = default;
   explicit EventContext(
       protos::pbzero::TrackEvent *event,
-      internal::TrackEventIncrementalState *incremental_state = nullptr)
-      : event_(event) {}
+      internal::TrackEventIncrementalState *incremental_state = nullptr,
+      bool filter_debug_annotations = false)
+      : event_(event),
+        filter_debug_annotations_(filter_debug_annotations) {}
 
   bool ShouldFilterDebugAnnotations() const {
-    return false;
+    return filter_debug_annotations_;
   }
 
   template <typename EventType = protos::pbzero::TrackEvent>
@@ -32,6 +34,7 @@ public:
 
 private:
   protos::pbzero::TrackEvent *event_;
+  const bool filter_debug_annotations_;
 };
 
 } // namespace perfetto
