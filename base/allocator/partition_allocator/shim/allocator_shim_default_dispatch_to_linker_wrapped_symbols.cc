@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,7 +27,7 @@ size_t __real_malloc_usable_size(void*);
 
 namespace {
 
-using base::allocator::AllocatorDispatch;
+using allocator_shim::AllocatorDispatch;
 
 void* RealMalloc(const AllocatorDispatch*, size_t size, void* context) {
   return __real_malloc(size);

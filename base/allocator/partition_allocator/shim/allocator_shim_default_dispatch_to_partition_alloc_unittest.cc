@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,8 +19,7 @@
 #endif
 
 #if !defined(MEMORY_TOOL_REPLACES_ALLOCATOR) && BUILDFLAG(USE_PARTITION_ALLOC)
-namespace base {
-namespace internal {
+namespace allocator_shim::internal {
 
 #if BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
 
@@ -199,7 +198,6 @@ TEST(PartitionAllocAsMalloc, DisableCrashOnOom) {
 }
 #endif  // BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC) && BUILDFLAG(IS_APPLE)
 
-}  // namespace internal
-}  // namespace base
+}  // namespace allocator_shim::internal
 #endif  // !defined(MEMORY_TOOL_REPLACES_ALLOCATOR) &&
         // BUILDFLAG(USE_PARTITION_ALLOC)

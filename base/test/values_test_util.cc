@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -269,7 +269,7 @@ Value::Dict ParseJsonDict(StringPiece json) {
 Value::List ParseJsonList(StringPiece json) {
   absl::optional<Value> result =
       ParseJsonHelper(json, /*expected_type=*/Value::Type::LIST);
-  return result.has_value() ? std::move(result->GetList()) : Value::List();
+  return result.has_value() ? std::move(*result).TakeList() : Value::List();
 }
 
 std::unique_ptr<Value> ParseJsonDeprecated(StringPiece json) {

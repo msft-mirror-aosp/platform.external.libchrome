@@ -15,6 +15,7 @@ class ChromeTaskPostedToDisabledQueue;
 class ChromeThreadPoolTask;
 class ChromeTaskAnnotator;
 class ChromeMemoryPressureNotification;
+class SequenceManagerTask;
 
 enum MemoryPressureLevel {
   MEMORY_PRESSURE_LEVEL_NONE = 0,
@@ -36,6 +37,10 @@ public:
   }
   template <typename T = ChromeMemoryPressureNotification>
   T *set_chrome_memory_pressure_notification() {
+    return BeginNestedMessage<T>(0);
+  }
+  template <typename T = SequenceManagerTask>
+  T *set_sequence_manager_task() {
     return BeginNestedMessage<T>(0);
   }
 };
@@ -83,6 +88,22 @@ class ChromeMemoryPressureNotification : public ::protozero::Message {
 public:
   void set_level(::perfetto::protos::pbzero::MemoryPressureLevel) {}
   void set_creation_location_iid(uint64_t) {}
+};
+
+class SequenceManagerTask : public ::protozero::Message {
+public:
+  enum Priority {
+    UNKNOWN = 0,
+    CONTROL_PRIORITY = 1,
+    HIGHEST_PRIORITY = 2,
+    VERY_HIGH_PRIORITY = 3,
+    HIGH_PRIORITY = 4,
+    NORMAL_PRIORITY = 5,
+    LOW_PRIORITY = 6,
+    BEST_EFFORT_PRIORITY = 7,
+  };
+
+  void set_priority(Priority) {}
 };
 
 } // namespace pbzero

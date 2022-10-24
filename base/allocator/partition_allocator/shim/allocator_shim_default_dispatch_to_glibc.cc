@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,7 +26,7 @@ void __libc_free(void* ptr);
 
 namespace {
 
-using base::allocator::AllocatorDispatch;
+using allocator_shim::AllocatorDispatch;
 
 // Strictly speaking, it would make more sense to not subtract amything, but
 // other shims limit to something lower than INT_MAX (which is 0x7FFFFFFF on

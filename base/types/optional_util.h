@@ -1,4 +1,4 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -42,19 +42,6 @@ const T* OptionalToPtr(const absl::optional<T>& optional) {
 
 template <class T>
 T* OptionalToPtr(absl::optional<T>& optional) {
-  return optional.has_value() ? &optional.value() : nullptr;
-}
-
-// Deprecated synonyms for `OptionalToPtr()`. These were the original names,
-// but the naming does not match `OptionalFromPtr`.
-// TODO(https://crbug.com/1356184): Remove the deprecated synonyms.
-template <class T>
-T* OptionalOrNullptr(absl::optional<T>& optional) {
-  return optional.has_value() ? &optional.value() : nullptr;
-}
-
-template <class T>
-const T* OptionalOrNullptr(const absl::optional<T>& optional) {
   return optional.has_value() ? &optional.value() : nullptr;
 }
 
