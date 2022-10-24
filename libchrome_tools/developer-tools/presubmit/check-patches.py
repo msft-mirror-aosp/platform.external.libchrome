@@ -19,6 +19,25 @@ MODE_CHERRY_PICK = 1
 MODE_BACKWARD_COMPATIBILITY = 2
 
 
+ORIGINAL_COMMIT_RE = re.compile(r'"CrOS-Libchrome-Original-Commit: (\w+)\n"')
+
+def isUpstreamCommit(commit):
+    '''Check if this is a commit from cros/upstream.
+    '''
+    output = subprocess.check_output(
+        ['git', 'log', commit, '-n1',
+         '--pretty="%(trailers:key=CrOS-Libchrome-Original-Commit)"'],
+        universal_newlines=True,
+    ).strip()
+
+    # libchrome non-upstream commit will return non-empty string '""' as output.
+    m = ORIGINAL_COMMIT_RE.match(output)
+
+    if m:
+      return True
+    return False
+
+
 def checkPatchesFileNameConvention(commit):
     '''Check if libchrome_tools/patches/patches file follow the convention.
 
@@ -86,6 +105,9 @@ def main():
     parser.add_argument('files', nargs='*')
 
     args = parser.parse_args(sys.argv)
+
+    if isUpstreamCommit:
+      sys.exit(0)
 
     errors = []
     errors += checkPatchesFileNameConvention(args.commit)
