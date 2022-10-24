@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -946,13 +946,7 @@ class AfterStateChangeEnabledStateObserver
   }
 
   void OnTraceLogDisabled() override {
-    // Perfetto intentionally notifies observers before tracing is disabled so
-    // that final trace events may still be written.
-#if BUILDFLAG(USE_PERFETTO_CLIENT_LIBRARY)
-    EXPECT_TRUE(TraceLog::GetInstance()->IsEnabled());
-#else
     EXPECT_FALSE(TraceLog::GetInstance()->IsEnabled());
-#endif
   }
 };
 

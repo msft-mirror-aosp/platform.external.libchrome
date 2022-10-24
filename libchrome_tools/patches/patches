@@ -76,6 +76,9 @@ libchrome-Query-spaced-for-free-total-disk-space.patch
 # Add base::TerminateBecauseOutOfMemory (moved to base::partition_alloc:: in
 # r1007458 (crrev.com/c/3635217)) to avoid building PA.
 Add-TerminateBecauseOutOfMemory-back-to-base.patch
+# Use CHECK{,_OP} from base to avoid building PA (revert of r1043832,
+# crrev.com/c/3874026).
+Revert-PA-Remove-dependency-to-base-check.patch
 
 # Revert of r1024559 (crrev.com/c/3763511).
 # Fails to build on arm and amd. Check with upstream to see if they plan to
@@ -106,5 +109,11 @@ backward-compatibility-add-base-AdaptCallbackForRepaeting.patch media_perception
 # r1038769 (crrev.com/c/3856718).
 # TODO(b/253543700): remove when all callsites does not provide the parameter.
 backward-compatibility-add-param-task_queue_name-to-base-TaskAnnotator-WillQueueTask.patch
+
+# Backward compatibility patch to include mojo/public/cpp/bindings/receiver.h in
+# .../remote.h, removed from libchrome r1043822 (crrev.com/c/3863198).
+# TODO(b/254572089): remove when callsites no longer relies on this indirect
+# include.
+backward-compatibility-include-mojo-receiver-header-in-remote.patch
 
 # ==================== FORWARD COMPATIBILITY PATCHES FOR UPREVS ==========

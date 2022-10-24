@@ -1,0 +1,65 @@
+From 1b70536c3ddc5b474887674bb7212402a966a897 Mon Sep 17 00:00:00 2001
+From: Grace Cham <hscham@chromium.org>
+Date: Wed, 19 Oct 2022 11:32:16 +0900
+Subject: [PATCH] Revert "PA: Remove dependency to base/check{,_op}.h from
+ allocator_shim"
+
+This reverts commit 047a3433bea894e406a74df766dbe267a2a79704.
+---
+ base/allocator/partition_allocator/shim/allocator_shim.cc   | 6 +++---
+ .../shim/allocator_shim_default_dispatch_to_winheap.cc      | 4 ++--
+ 2 files changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/base/allocator/partition_allocator/shim/allocator_shim.cc b/base/allocator/partition_allocator/shim/allocator_shim.cc
+index 462a3c9a17a3..24e7187675b5 100644
+--- a/base/allocator/partition_allocator/shim/allocator_shim.cc
++++ b/base/allocator/partition_allocator/shim/allocator_shim.cc
+@@ -11,7 +11,7 @@
+ 
+ #include "base/allocator/buildflags.h"
+ #include "base/allocator/partition_allocator/partition_alloc_base/bits.h"
+-#include "base/allocator/partition_allocator/partition_alloc_check.h"
++#include "base/check_op.h"
+ #include "base/memory/page_size.h"
+ #include "base/threading/platform_thread.h"
+ #include "build/build_config.h"
+@@ -119,11 +119,11 @@ void InsertAllocatorDispatch(AllocatorDispatch* dispatch) {
+     }
+   }
+ 
+-  PA_CHECK(false);  // Too many retries, this shouldn't happen.
++  CHECK(false);  // Too many retries, this shouldn't happen.
+ }
+ 
+ void RemoveAllocatorDispatchForTesting(AllocatorDispatch* dispatch) {
+-  PA_DCHECK(GetChainHead() == dispatch);
++  DCHECK_EQ(GetChainHead(), dispatch);
+   g_chain_head.store(dispatch->next, std::memory_order_relaxed);
+ }
+ 
+diff --git a/base/allocator/partition_allocator/shim/allocator_shim_default_dispatch_to_winheap.cc b/base/allocator/partition_allocator/shim/allocator_shim_default_dispatch_to_winheap.cc
+index 165708b19c75..d6fba9d403a4 100644
+--- a/base/allocator/partition_allocator/shim/allocator_shim_default_dispatch_to_winheap.cc
++++ b/base/allocator/partition_allocator/shim/allocator_shim_default_dispatch_to_winheap.cc
+@@ -6,8 +6,8 @@
+ 
+ #include <ostream>
+ 
+-#include "base/allocator/partition_allocator/partition_alloc_check.h"
+ #include "base/allocator/partition_allocator/shim/winheap_stubs_win.h"
++#include "base/check.h"
+ 
+ namespace {
+ 
+@@ -39,7 +39,7 @@ void* DefaultWinHeapMemalignImpl(const AllocatorDispatch* self,
+                                  size_t alignment,
+                                  size_t size,
+                                  void* context) {
+-  PA_CHECK(false) << "The windows heap does not support memalign.";
++  CHECK(false) << "The windows heap does not support memalign.";
+   return nullptr;
+ }
+ 
+-- 
+2.38.0.135.g90850a2211-goog
+

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,8 +18,7 @@
 #include "base/allocator/partition_allocator/starscan/pcscan.h"
 #endif
 
-namespace base {
-namespace allocator {
+namespace allocator_shim {
 
 // Allocator Shim API. Allows to:
 //  - Configure the behavior of the allocator (what to do on OOM failures).
@@ -196,7 +195,6 @@ BASE_EXPORT void EnablePCScan(partition_alloc::internal::PCScan::InitConfig);
 #endif
 #endif  // BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
 
-}  // namespace allocator
-}  // namespace base
+}  // namespace allocator_shim
 
 #endif  // BASE_ALLOCATOR_PARTITION_ALLOCATOR_SHIM_ALLOCATOR_SHIM_H_

@@ -1,0 +1,24 @@
+#ifndef IPCZ_SRC_API_H_
+#define IPCZ_SRC_API_H_
+
+#include "third_party/ipcz/include/ipcz/ipcz.h"
+
+#if defined(IPCZ_SHARED_LIBRARY)
+#if defined(WIN32)
+#define IPCZ_EXPORT __declspec(dllexport)
+#else
+#define IPCZ_EXPORT __attribute__((visibility("default")))
+#endif
+#else
+#define IPCZ_EXPORT
+#endif
+
+extern "C" {
+
+IPCZ_EXPORT IpczResult IPCZ_API IpczGetAPI(IpczAPI* api) {
+  return IPCZ_RESULT_UNKNOWN;
+};
+
+}  // namespace "C"
+
+#endif  // IPCZ_SRC_API_H_

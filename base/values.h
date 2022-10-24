@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -349,7 +349,6 @@ class BASE_EXPORT GSL_OWNER Value {
   // with one of the mutable variants below, e.g.:
   //   std::string taken_string = std::move(value.GetString());
   //   base::Value::Dict taken_dict = std::move(value.GetDict());
-  //   base::Value::List taken_list = std::move(value.GetList());
   const std::string& GetString() const;
   std::string& GetString();
   const BlobStorage& GetBlob() const;
@@ -357,6 +356,13 @@ class BASE_EXPORT GSL_OWNER Value {
   Dict& GetDict();
   const List& GetList() const;
   List& GetList();
+
+  // Transfers ownership of the underlying value. Similarly to `Get...()`
+  // variants above, fails with a `CHECK()` on a type mismatch. After
+  // transferring the ownership `*this` is in a valid, but unspecified, state.
+  // Prefer over `std::move(value.GetList())` so clang-tidy can warn about
+  // potential use-after-move mistakes.
+  List TakeList() &&;
 
   // Represents a dictionary of string keys to Values.
   class BASE_EXPORT GSL_OWNER Dict {

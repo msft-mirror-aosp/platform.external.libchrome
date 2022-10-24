@@ -1,4 +1,4 @@
-From d3908cdecff0344370bb3cec44947a95f74b5b23 Mon Sep 17 00:00:00 2001
+From 1e9de341adea97aea7fe5400415269cbf43cd70b Mon Sep 17 00:00:00 2001
 From: Grace Cham <hscham@chromium.org>
 Date: Mon, 26 Sep 2022 16:05:08 +0900
 Subject: [PATCH] Revert "Reland "Initial implementation of ChromeOS X86_64
@@ -23,7 +23,7 @@ This reverts commit c25cdd501bd8b3e8970848e56372924140215496.
  rename base/profiler/{frame_pointer_unwinder_unittest.cc => native_unwinder_apple_unittest.cc} (93%)
 
 diff --git a/base/profiler/chrome_unwinder_android.cc b/base/profiler/chrome_unwinder_android.cc
-index 1d8862471fcd..87064c65e87f 100644
+index 6b4d5119754e..1649e6e5be2d 100644
 --- a/base/profiler/chrome_unwinder_android.cc
 +++ b/base/profiler/chrome_unwinder_android.cc
 @@ -6,6 +6,7 @@
@@ -36,11 +36,11 @@ index 1d8862471fcd..87064c65e87f 100644
  namespace base {
 diff --git a/base/profiler/frame_pointer_unwinder.h b/base/profiler/frame_pointer_unwinder.h
 deleted file mode 100644
-index 106b49b355dc..000000000000
+index 66b2705331d2..000000000000
 --- a/base/profiler/frame_pointer_unwinder.h
 +++ /dev/null
 @@ -1,44 +0,0 @@
--// Copyright 2021 The Chromium Authors. All rights reserved.
+-// Copyright 2021 The Chromium Authors
 -// Use of this source code is governed by a BSD-style license that can be
 -// found in the LICENSE file.
 -
@@ -111,7 +111,7 @@ index 000000000000..f26c5ad2b6ff
 +
 +#endif  // BASE_PROFILER_NATIVE_UNWINDER_H_
 diff --git a/base/profiler/native_unwinder_android.cc b/base/profiler/native_unwinder_android.cc
-index a2e04a2163a2..67c28b9cc114 100644
+index fc14d5b3c6dd..63558fc2b499 100644
 --- a/base/profiler/native_unwinder_android.cc
 +++ b/base/profiler/native_unwinder_android.cc
 @@ -16,6 +16,7 @@
@@ -126,7 +126,7 @@ diff --git a/base/profiler/frame_pointer_unwinder.cc b/base/profiler/native_unwi
 similarity index 86%
 rename from base/profiler/frame_pointer_unwinder.cc
 rename to base/profiler/native_unwinder_apple.cc
-index 0068c92b6dc0..d698c66a1014 100644
+index 7b41c9d68b41..c05967f2fcc0 100644
 --- a/base/profiler/frame_pointer_unwinder.cc
 +++ b/base/profiler/native_unwinder_apple.cc
 @@ -2,18 +2,17 @@
@@ -237,7 +237,7 @@ diff --git a/base/profiler/frame_pointer_unwinder_unittest.cc b/base/profiler/na
 similarity index 93%
 rename from base/profiler/frame_pointer_unwinder_unittest.cc
 rename to base/profiler/native_unwinder_apple_unittest.cc
-index d806c1054c99..9ba585c78f64 100644
+index 3fd8834b4d2d..44e94f2a5939 100644
 --- a/base/profiler/frame_pointer_unwinder_unittest.cc
 +++ b/base/profiler/native_unwinder_apple_unittest.cc
 @@ -2,19 +2,16 @@
@@ -355,7 +355,7 @@ index d806c1054c99..9ba585c78f64 100644
        {true, 4},                     // fp of frame 1
        {false, kModuleStart + 0x20},  // ip of frame 1
 diff --git a/base/profiler/stack_sampler_posix.cc b/base/profiler/stack_sampler_posix.cc
-index c7b74a556fcb..be47a3b682b3 100644
+index 36723bc03ffc..fa33411a8fb9 100644
 --- a/base/profiler/stack_sampler_posix.cc
 +++ b/base/profiler/stack_sampler_posix.cc
 @@ -6,51 +6,18 @@
@@ -411,7 +411,7 @@ index c7b74a556fcb..be47a3b682b3 100644
  
  size_t StackSampler::GetStackBufferSize() {
 diff --git a/base/profiler/stack_sampling_profiler_unittest.cc b/base/profiler/stack_sampling_profiler_unittest.cc
-index c0db1d182739..6f7cad588c7f 100644
+index 24e4916a2630..dc37ab5e3fa0 100644
 --- a/base/profiler/stack_sampling_profiler_unittest.cc
 +++ b/base/profiler/stack_sampling_profiler_unittest.cc
 @@ -46,16 +46,11 @@
@@ -521,5 +521,5 @@ index c0db1d182739..6f7cad588c7f 100644
  #else
  #define MAYBE_UnloadedLibrary UnloadedLibrary
 -- 
-2.37.3.998.g577e59143f-goog
+2.38.0.135.g90850a2211-goog
 

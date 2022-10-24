@@ -1,4 +1,4 @@
-// Copyright (c) 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -38,6 +38,7 @@
 #include "base/allocator/partition_allocator/address_pool_manager_types.h"
 #include "base/allocator/partition_allocator/allocation_guard.h"
 #include "base/allocator/partition_allocator/chromecast_buildflags.h"
+#include "base/allocator/partition_allocator/freeslot_bitmap.h"
 #include "base/allocator/partition_allocator/page_allocator.h"
 #include "base/allocator/partition_allocator/page_allocator_constants.h"
 #include "base/allocator/partition_allocator/partition_address_space.h"
@@ -1094,6 +1095,13 @@ PartitionRoot<thread_safe>::AllocFromBucket(Bucket* bucket,
   }
   PA_DCHECK(slot_span->GetUtilizedSlotSize() <= slot_span->bucket->slot_size);
   IncreaseTotalSizeOfAllocatedBytes(slot_span, raw_size);
+
+#if BUILDFLAG(USE_FREESLOT_BITMAP)
+  if (!slot_span->bucket->is_direct_mapped()) {
+    internal::FreeSlotBitmapMarkSlotAsUsed(slot_start);
+  }
+#endif
+
   return slot_start;
 }
 
@@ -1334,6 +1342,11 @@ PA_ALWAYS_INLINE void PartitionRoot<thread_safe>::FreeInSlotSpan(
     uintptr_t slot_start,
     SlotSpan* slot_span) {
   DecreaseTotalSizeOfAllocatedBytes(slot_span);
+#if BUILDFLAG(USE_FREESLOT_BITMAP)
+  if (!slot_span->bucket->is_direct_mapped()) {
+    internal::FreeSlotBitmapMarkSlotAsFree(slot_start);
+  }
+#endif
   return slot_span->Free(slot_start);
 }
 
@@ -1344,6 +1357,14 @@ PA_ALWAYS_INLINE void PartitionRoot<thread_safe>::RawFree(
   RawFree(slot_start, slot_span);
 }
 
+#if defined(COMPILER_MSVC) && !defined(__clang__)
+// MSVC only supports inline assembly on x86. This preprocessor directive
+// is intended to be a replacement for the same.
+//
+// TODO(crbug.com/1351310): Make sure inlining doesn't degrade this into
+// a no-op or similar. The documentation doesn't say.
+#pragma optimize("", off)
+#endif
 template <bool thread_safe>
 PA_ALWAYS_INLINE void PartitionRoot<thread_safe>::RawFree(uintptr_t slot_start,
                                                           SlotSpan* slot_span) {
@@ -1378,11 +1399,16 @@ PA_ALWAYS_INLINE void PartitionRoot<thread_safe>::RawFree(uintptr_t slot_start,
   // OS page. No need to write to the second one as well.
   //
   // Do not move the store above inside the locked section.
+#if !(defined(COMPILER_MSVC) && !defined(__clang__))
   __asm__ __volatile__("" : : "r"(slot_start) : "memory");
+#endif
 
   ::partition_alloc::internal::ScopedGuard guard{lock_};
   FreeInSlotSpan(slot_start, slot_span);
 }
+#if defined(COMPILER_MSVC) && !defined(__clang__)
+#pragma optimize("", on)
+#endif
 
 template <bool thread_safe>
 PA_ALWAYS_INLINE void PartitionRoot<thread_safe>::RawFreeBatch(

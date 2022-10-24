@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -52,7 +52,7 @@ class BASE_EXPORT UncheckedObserverAdapter {
 #endif  // EXPENSIVE_DCHECKS_ARE_ON()
 
  private:
-  raw_ptr<void> ptr_;
+  raw_ptr<void, DanglingUntriaged> ptr_;
 #if EXPENSIVE_DCHECKS_ARE_ON()
   base::debug::StackTrace stack_;
 #endif  // EXPENSIVE_DCHECKS_ARE_ON()

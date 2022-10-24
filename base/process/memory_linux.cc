@@ -1,4 +1,4 @@
-// Copyright (c) 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -46,7 +46,7 @@ void EnableTerminationOnOutOfMemory() {
   // malloc and friends and make them die on out of memory.
 
 #if BUILDFLAG(USE_ALLOCATOR_SHIM)
-  allocator::SetCallNewHandlerOnMallocFailure(true);
+  allocator_shim::SetCallNewHandlerOnMallocFailure(true);
 #endif
 }
 
@@ -112,7 +112,7 @@ bool AdjustOOMScore(ProcessId process, int score) {
 
 bool UncheckedMalloc(size_t size, void** result) {
 #if BUILDFLAG(USE_ALLOCATOR_SHIM)
-  *result = allocator::UncheckedAlloc(size);
+  *result = allocator_shim::UncheckedAlloc(size);
 #elif defined(MEMORY_TOOL_REPLACES_ALLOCATOR) || !defined(LIBC_GLIBC)
   *result = malloc(size);
 #elif defined(LIBC_GLIBC)
@@ -123,7 +123,7 @@ bool UncheckedMalloc(size_t size, void** result) {
 
 void UncheckedFree(void* ptr) {
 #if BUILDFLAG(USE_ALLOCATOR_SHIM)
-  allocator::UncheckedFree(ptr);
+  allocator_shim::UncheckedFree(ptr);
 #elif defined(MEMORY_TOOL_REPLACES_ALLOCATOR) || !defined(LIBC_GLIBC)
   free(ptr);
 #elif defined(LIBC_GLIBC)

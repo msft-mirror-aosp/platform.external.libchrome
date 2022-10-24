@@ -147,8 +147,6 @@ buildflag_header("allocator_buildflags") {
     "USE_BACKUP_REF_PTR=false",
     "USE_ASAN_BACKUP_REF_PTR=false",
     "USE_MTE_CHECKED_PTR=false",
-    "PA_DCHECK_IS_ON=false",
-    "PA_DCHECK_IS_CONFIGURABLE=false",
     # "USE_FAKE_BINARY_EXPERIMENT=",
   ]
 }
@@ -172,6 +170,7 @@ buildflag_header("allocator_debugging_buildflags") {
   flags = [
     "PA_DCHECK_IS_ON=false",
     "PA_EXPENSIVE_DCHECKS_ARE_ON=false",
+    "PA_DCHECK_IS_CONFIGURABLE=false",
   ]
 }
 
@@ -1034,6 +1033,7 @@ if (use.mojo) {
           "mojo/core/configuration.cc",
           "mojo/core/connection_params.cc",
           "mojo/core/core.cc",
+          "mojo/core/core_ipcz.cc",
           "mojo/core/data_pipe_consumer_dispatcher.cc",
           "mojo/core/data_pipe_control_message.cc",
           "mojo/core/data_pipe_producer_dispatcher.cc",
@@ -1043,6 +1043,17 @@ if (use.mojo) {
           "mojo/core/embedder/scoped_ipc_support.cc",
           "mojo/core/entrypoints.cc",
           "mojo/core/handle_table.cc",
+          "mojo/core/ipcz_api.cc",
+          "mojo/core/ipcz_driver/data_pipe.cc",
+          "mojo/core/ipcz_driver/driver.cc",
+          "mojo/core/ipcz_driver/invitation.cc",
+          "mojo/core/ipcz_driver/mojo_trap.cc",
+          "mojo/core/ipcz_driver/object.cc",
+          "mojo/core/ipcz_driver/shared_buffer.cc",
+          "mojo/core/ipcz_driver/shared_buffer_mapping.cc",
+          "mojo/core/ipcz_driver/transmissible_platform_handle.cc",
+          "mojo/core/ipcz_driver/transport.cc",
+          "mojo/core/ipcz_driver/wrapped_platform_handle.cc",
           "mojo/core/invitation_dispatcher.cc",
           "mojo/core/message_pipe_dispatcher.cc",
           "mojo/core/mojo_core.cc",
@@ -1277,6 +1288,7 @@ install_config("install_header") {
   sources += [
     "third_party/abseil-cpp/**/*.h",
     "third_party/perfetto/**/*.h",
+    "third_party/ipcz/**/*.h",
   ]
   if (use.crypto) {
     sources += [

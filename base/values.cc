@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -352,6 +352,10 @@ const Value::List& Value::GetList() const {
 Value::List& Value::GetList() {
   DCHECK(is_list());
   return absl::get<List>(data_);
+}
+
+Value::List Value::TakeList() && {
+  return std::move(GetList());
 }
 
 Value::Dict::Dict() = default;

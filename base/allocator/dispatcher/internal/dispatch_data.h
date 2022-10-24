@@ -1,4 +1,4 @@
-// Copyright (c) 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,6 +18,10 @@
 #endif
 
 namespace base::allocator::dispatcher::internal {
+
+#if BUILDFLAG(USE_ALLOCATOR_SHIM)
+using allocator_shim::AllocatorDispatch;
+#endif
 
 // A simple utility class to pass all the information required to properly hook
 // into the memory allocation subsystems from DispatcherImpl to the Dispatcher.

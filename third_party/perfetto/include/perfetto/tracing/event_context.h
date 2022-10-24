@@ -18,6 +18,10 @@ public:
       internal::TrackEventIncrementalState *incremental_state = nullptr)
       : event_(event) {}
 
+  bool ShouldFilterDebugAnnotations() const {
+    return false;
+  }
+
   template <typename EventType = protos::pbzero::TrackEvent>
   EventType *event() const {
     static_assert(
