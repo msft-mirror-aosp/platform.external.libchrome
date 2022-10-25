@@ -545,6 +545,7 @@ libbase_sublibs = [
       "base/task/sequenced_task_runner.cc",
       "base/task/simple_task_executor.cc",
       "base/task/single_thread_task_executor.cc",
+      "base/task/single_thread_task_runner.cc",
       "base/task/task_executor.cc",
       "base/task/task_features.cc",
       "base/task/task_runner.cc",

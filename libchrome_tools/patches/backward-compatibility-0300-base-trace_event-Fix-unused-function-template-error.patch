@@ -1,0 +1,30 @@
+From 20977f6ac961ce254ad2cbf50f98413cf853128f Mon Sep 17 00:00:00 2001
+From: Ren-Pei Zeng <kamesan@chromium.org>
+Date: Tue, 1 Nov 2022 11:39:44 +0800
+Subject: [PATCH] base/trace_event: Fix unused function template error
+
+Declaring static template function in the header can cause
+-Wunused-template errors when including it. Change the function to
+inline following the style around.
+
+Change-Id: I3bc372d07d0f851fddaa9ab533699e5f42e349cc
+---
+ base/trace_event/trace_event.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/base/trace_event/trace_event.h b/base/trace_event/trace_event.h
+index 02f96b1ec7..7d56cb2dc8 100644
+--- a/base/trace_event/trace_event.h
++++ b/base/trace_event/trace_event.h
+@@ -697,7 +697,7 @@ inline base::trace_event::TraceEventHandle AddTraceEvent(
+ }
+ 
+ template <class ARG1_TYPE>
+-static void AddMetadataEvent(const unsigned char* category_group_enabled,
++inline void AddMetadataEvent(const unsigned char* category_group_enabled,
+                              const char* event_name,
+                              const char* arg_name,
+                              ARG1_TYPE&& arg_val) {
+-- 
+2.38.1.273.g43a17bfeac-goog
+

@@ -11,7 +11,7 @@ class TracedProto {
 };
 
 template <typename MessageType, typename ValueType>
-static void WriteIntoTracedProto(TracedProto<MessageType>, ValueType&& value) {
+void WriteIntoTracedProto(TracedProto<MessageType>, ValueType&& value) {
 }
 
 }

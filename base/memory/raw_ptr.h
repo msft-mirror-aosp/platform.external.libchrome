@@ -24,7 +24,7 @@
 #include "build/buildflag.h"
 
 #if BUILDFLAG(USE_BACKUP_REF_PTR) || \
-    defined(PA_USE_MTE_CHECKED_PTR_WITH_64_BITS_POINTERS)
+    defined(PA_ENABLE_MTE_CHECKED_PTR_SUPPORT_WITH_64_BITS_POINTERS)
 // USE_BACKUP_REF_PTR implies USE_PARTITION_ALLOC, needed for code under
 // allocator/partition_allocator/ to be built.
 #include "base/allocator/partition_allocator/address_pool_manager_bitmap.h"
@@ -32,14 +32,14 @@
 #include "base/allocator/partition_allocator/partition_alloc_constants.h"
 #include "base/base_export.h"
 #endif  // BUILDFLAG(USE_BACKUP_REF_PTR) ||
-        // defined(PA_USE_MTE_CHECKED_PTR_WITH_64_BITS_POINTERS)
+        // defined(PA_ENABLE_MTE_CHECKED_PTR_SUPPORT_WITH_64_BITS_POINTERS)
 
-#if defined(PA_USE_MTE_CHECKED_PTR_WITH_64_BITS_POINTERS)
+#if defined(PA_ENABLE_MTE_CHECKED_PTR_SUPPORT_WITH_64_BITS_POINTERS)
 #include "base/allocator/partition_allocator/partition_tag.h"
 #include "base/allocator/partition_allocator/partition_tag_types.h"
 #include "base/allocator/partition_allocator/tagging.h"
 #include "base/check_op.h"
-#endif  // defined(PA_USE_MTE_CHECKED_PTR_WITH_64_BITS_POINTERS)
+#endif  // defined(PA_ENABLE_MTE_CHECKED_PTR_SUPPORT_WITH_64_BITS_POINTERS)
 
 #if BUILDFLAG(IS_WIN)
 #include "base/win/win_handle_types.h"
@@ -141,7 +141,7 @@ struct RawPtrNoOpImpl {
   static ALWAYS_INLINE void IncrementPointerToMemberOperatorCountForTest() {}
 };
 
-#if defined(PA_USE_MTE_CHECKED_PTR_WITH_64_BITS_POINTERS)
+#if defined(PA_ENABLE_MTE_CHECKED_PTR_SUPPORT_WITH_64_BITS_POINTERS)
 
 constexpr int kValidAddressBits = 48;
 constexpr uintptr_t kAddressMask = (1ull << kValidAddressBits) - 1;
@@ -287,9 +287,25 @@ struct MTECheckedPtrImpl {
     //
     // Disambiguation: UntagPtr removes the hardware MTE tag, whereas this
     // class is responsible for handling the software MTE tag.
-    CHECK(ExtractTag(partition_alloc::UntagPtr(wrapped_ptr1)) ==
-          ExtractTag(partition_alloc::UntagPtr(wrapped_ptr2)));
-    return wrapped_ptr1 - wrapped_ptr2;
+    //
+    // MTECheckedPtr doesn't use 0 as a valid tag; depending on which
+    // subtraction operator is called, we may be getting the actual
+    // untagged T* or the wrapped pointer (passed as a T*) in one or
+    // both args. We can only check slot cohabitation when both args
+    // come with tags.
+    const uintptr_t tag1 = ExtractTag(partition_alloc::UntagPtr(wrapped_ptr1));
+    const uintptr_t tag2 = ExtractTag(partition_alloc::UntagPtr(wrapped_ptr2));
+    if (tag1 && tag2) {
+      CHECK(tag1 == tag2);
+      return wrapped_ptr1 - wrapped_ptr2;
+    }
+
+    // If one or the other arg come untagged, we have to perform the
+    // subtraction entirely without tags.
+    return reinterpret_cast<T*>(
+               ExtractAddress(partition_alloc::UntagPtr(wrapped_ptr1))) -
+           reinterpret_cast<T*>(
+               ExtractAddress(partition_alloc::UntagPtr(wrapped_ptr2)));
   }
 
   // Returns a copy of a wrapped pointer, without making an assertion
@@ -324,7 +340,7 @@ struct MTECheckedPtrImpl {
   }
 };
 
-#endif  // defined(PA_USE_MTE_CHECKED_PTR_WITH_64_BITS_POINTERS)
+#endif  // defined(PA_ENABLE_MTE_CHECKED_PTR_SUPPORT_WITH_64_BITS_POINTERS)
 
 #if BUILDFLAG(USE_BACKUP_REF_PTR)
 
@@ -835,7 +851,7 @@ using RawPtrBanDanglingIfSupported =
 #elif BUILDFLAG(USE_ASAN_BACKUP_REF_PTR)
 using RawPtrMayDangle = internal::AsanBackupRefPtrImpl;
 using RawPtrBanDanglingIfSupported = internal::AsanBackupRefPtrImpl;
-#elif defined(PA_USE_MTE_CHECKED_PTR_WITH_64_BITS_POINTERS)
+#elif defined(PA_ENABLE_MTE_CHECKED_PTR_SUPPORT_WITH_64_BITS_POINTERS)
 using RawPtrMayDangle = internal::MTECheckedPtrImpl<
     internal::MTECheckedPtrImplPartitionAllocSupport>;
 using RawPtrBanDanglingIfSupported = internal::MTECheckedPtrImpl<
@@ -1368,7 +1384,7 @@ using DanglingUntriaged = DisableDanglingPtrDetection;
 // When `MTECheckedPtr` is in play, we need to augment this
 // implementation setting with another layer that allows the `raw_ptr`
 // to degrade into the no-op version.
-#if defined(PA_USE_MTE_CHECKED_PTR_WITH_64_BITS_POINTERS)
+#if defined(PA_ENABLE_MTE_CHECKED_PTR_SUPPORT_WITH_64_BITS_POINTERS)
 
 // Direct pass-through to no-op implementation.
 using DegradeToNoOpWhenMTE = base::internal::RawPtrNoOpImpl;
@@ -1393,7 +1409,7 @@ using DanglingUntriagedDegradeToNoOpWhenMTE = DanglingUntriaged;
 using DisableDanglingPtrDetectionDegradeToNoOpWhenMTE =
     DisableDanglingPtrDetection;
 
-#endif  // defined(PA_USE_MTE_CHECKED_PTR_WITH_64_BITS_POINTERS)
+#endif  // defined(PA_ENABLE_MTE_CHECKED_PTR_SUPPORT_WITH_64_BITS_POINTERS)
 
 namespace std {
 
