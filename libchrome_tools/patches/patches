@@ -99,10 +99,4 @@ backward-compatibility-add-deprecated-base-Bind-APIs.patch
 # TODO(b/204383858): Remove the patch when usage in mri_package is removed
 backward-compatibility-add-base-AdaptCallbackForRepaeting.patch media_perception
 
-# Backward compatibility patch to include mojo/public/cpp/bindings/receiver.h in
-# .../remote.h, removed from libchrome r1043822 (crrev.com/c/3863198).
-# TODO(b/254572089): remove when callsites no longer relies on this indirect
-# include.
-backward-compatibility-include-mojo-receiver-header-in-remote.patch
-
 # ==================== FORWARD COMPATIBILITY PATCHES FOR UPREVS ==========
