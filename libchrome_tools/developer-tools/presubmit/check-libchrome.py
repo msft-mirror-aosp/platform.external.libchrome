@@ -18,7 +18,7 @@ import sys
 # error_msg_if_match_found.
 BAD_KEYWORDS = {
     # removal of deprecated base::Bind APIs
-    r'base::(Bind\(|Closure|Callback|CancelableCallback|CancelableClosure)':
+    r'base::(Bind|Closure|Callback|CancelableCallback|CancelableClosure)(\(|<)':
     'Deprecated base::Bind APIs. Please use the Once or Repeating variants. See crbug/714018.',
     # unify *::optionals to std::optional
     r'(include.*absl/types/optional.h|absl::(optional|make_optional|nullopt))':
