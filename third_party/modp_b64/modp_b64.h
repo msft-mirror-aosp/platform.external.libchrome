@@ -14,3 +14,9 @@
 
 // Redirect to system header.
 #include <modp_b64/modp_b64.h>
+
+#include <limits.h>
+
+#ifndef MODP_B64_MAX_INPUT_LEN
+#define MODP_B64_MAX_INPUT_LEN ((SIZE_MAX - 1) / 4 * 3)
+#endif

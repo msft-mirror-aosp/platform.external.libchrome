@@ -16,7 +16,9 @@
 
 namespace gfx {
 
+class AxisTransform2d;
 class BoxF;
+class Rect;
 class RectF;
 class RRectF;
 class Point;
@@ -39,44 +41,87 @@ class GEOMETRY_SKIA_EXPORT Transform {
       : matrix_(Matrix44::kUninitialized_Constructor) {}
   Transform(const Transform& rhs) = default;
   Transform& operator=(const Transform& rhs) = default;
-  // Initialize with the concatenation of lhs * rhs.
-  Transform(const Transform& lhs, const Transform& rhs)
-      : matrix_(lhs.matrix_, rhs.matrix_) {}
-  // Constructs a transform from explicit 16 matrix elements. Elements
-  // should be given in row-major order.
-  Transform(SkScalar col1row1,
-            SkScalar col2row1,
-            SkScalar col3row1,
-            SkScalar col4row1,
-            SkScalar col1row2,
-            SkScalar col2row2,
-            SkScalar col3row2,
-            SkScalar col4row2,
-            SkScalar col1row3,
-            SkScalar col2row3,
-            SkScalar col3row3,
-            SkScalar col4row3,
-            SkScalar col1row4,
-            SkScalar col2row4,
-            SkScalar col3row4,
-            SkScalar col4row4);
-  // Constructs a transform from explicit 2d elements. All other matrix
-  // elements remain the same as the corresponding elements of an identity
-  // matrix.
-  Transform(SkScalar col1row1,
-            SkScalar col2row1,
-            SkScalar col1row2,
-            SkScalar col2row2,
-            SkScalar x_translation,
-            SkScalar y_translation);
+
+  // Creates a transform from explicit 16 matrix elements in row-major order.
+  static Transform RowMajor(SkScalar r0c0,
+                            SkScalar r0c1,
+                            SkScalar r0c2,
+                            SkScalar r0c3,
+                            SkScalar r1c0,
+                            SkScalar r1c1,
+                            SkScalar r1c2,
+                            SkScalar r1c3,
+                            SkScalar r2c0,
+                            SkScalar r2c1,
+                            SkScalar r2c2,
+                            SkScalar r2c3,
+                            SkScalar r3c0,
+                            SkScalar r3c1,
+                            SkScalar r3c2,
+                            SkScalar r3c3) {
+    return Transform(r0c0, r1c0, r2c0, r3c0,   // col 0
+                     r0c1, r1c1, r2c1, r3c1,   // col 1
+                     r0c2, r1c2, r2c2, r3c2,   // col 2
+                     r0c3, r1c3, r2c3, r3c3);  // col 3
+  }
+
+  // Creates a transform from explicit 16 matrix elements in col-major order.
+  static Transform ColMajor(SkScalar r0c0,
+                            SkScalar r1c0,
+                            SkScalar r2c0,
+                            SkScalar r3c0,
+                            SkScalar r0c1,
+                            SkScalar r1c1,
+                            SkScalar r2c1,
+                            SkScalar r3c1,
+                            SkScalar r0c2,
+                            SkScalar r1c2,
+                            SkScalar r2c2,
+                            SkScalar r3c2,
+                            SkScalar r0c3,
+                            SkScalar r1c3,
+                            SkScalar r2c3,
+                            SkScalar r3c3) {
+    return Transform(r0c0, r1c0, r2c0, r3c0,   // col 0
+                     r0c1, r1c1, r2c1, r3c1,   // col 1
+                     r0c2, r1c2, r2c2, r3c2,   // col 2
+                     r0c3, r1c3, r2c3, r3c3);  // col 3
+  }
+
+  // TODO(crbug.com/1359528): This is temporary for unit tests to create an
+  // arbitrary affine transform with values without specific meanings, before
+  // the order of parameters of Affine() is fixed.
+  static Transform AffineForTesting(SkScalar v0,
+                                    SkScalar v1,
+                                    SkScalar v2,
+                                    SkScalar v3,
+                                    SkScalar v4,
+                                    SkScalar v5) {
+    return Affine(v0, v1, v2, v3, v4, v5);
+  }
 
   // Constructs a transform corresponding to the given quaternion.
   explicit Transform(const Quaternion& q);
+
+  // Creates a transform as a 2d translation.
+  static Transform MakeTranslation(SkScalar tx, SkScalar ty) {
+    return Affine(1, 0, 0, 1, tx, ty);
+  }
+  // Creates a transform as a 2d scale.
+  static Transform MakeScale(SkScalar scale) { return MakeScale(scale, scale); }
+  static Transform MakeScale(SkScalar sx, SkScalar sy) {
+    return Affine(sx, 0, 0, sy, 0, 0);
+  }
+  // Accurately rotate by 90, 180 or 270 degrees about the z axis.
+  static Transform Make90degRotation() { return Affine(0, -1, 1, 0, 0, 0); }
+  static Transform Make180degRotation() { return Affine(-1, 0, 0, -1, 0, 0); }
+  static Transform Make270degRotation() { return Affine(0, 1, -1, 0, 0, 0); }
 
   bool operator==(const Transform& rhs) const { return matrix_ == rhs.matrix_; }
   bool operator!=(const Transform& rhs) const { return matrix_ != rhs.matrix_; }
 
   // Resets this transform to the identity transform.
+  // TODO(crbug.com/1359528): Rename this to SetIdentity or remove it.
   void MakeIdentity() { matrix_.setIdentity(); }
 
   // Gets a value at |row|, |col| from the matrix.
@@ -90,8 +135,58 @@ class GEOMETRY_SKIA_EXPORT Transform {
   static Transform ColMajorF(const float a[16]);
   void GetColMajorF(float a[16]) const;
 
+  // Applies a transformation on the current transformation,
+  // i.e. this = this * transform.
+  // "Pre" here means |this| is before the operator in the expression.
+  // Corresponds to DOMMatrix.multiplySelf().
+  void PreConcat(const Transform& transform);
+
+  // Applies a transformation on the current transformation,
+  // i.e. this = transform * this.
+  // Corresponds to DOMMatrix.preMultiplySelf() (note the difference about
+  // "Pre" and "Post"). "Post" here means |this| is after the operator in the
+  // expression.
+  void PostConcat(const Transform& transform);
+
+  // Applies a 2d-axis transform on the current transformation,
+  // i.e. this = this * transform.
+  void PreConcat(const AxisTransform2d& transform);
+
+  // Applies a transformation on the current transformation,
+  // i.e. this = transform * this.
+  void PostConcat(const AxisTransform2d& transform);
+
+  // Applies the current transformation on a scaling and assigns the result
+  // to |this|, i.e. this = this * scaling.
+  void Scale(SkScalar scale) { Scale(scale, scale); }
+  void Scale(SkScalar x, SkScalar y);
+  void Scale3d(SkScalar x, SkScalar y, SkScalar z);
+
+  // Applies a scale to the current transformation and assigns the result to
+  // |this|, i.e. this = scaling * this.
+  void PostScale(SkScalar scale) { PostScale(scale, scale); }
+  void PostScale(SkScalar x, SkScalar y);
+  void PostScale3d(SkScalar x, SkScalar y, SkScalar z);
+
+  // Applies the current transformation on a translation and assigns the result
+  // to |this|, i.e. this = this * translation.
+  void Translate(const Vector2dF& offset);
+  void Translate(SkScalar x, SkScalar y);
+  void Translate3d(const Vector3dF& offset);
+  void Translate3d(SkScalar x, SkScalar y, SkScalar z);
+
+  // Applies a translation to the current transformation and assigns the result
+  // to |this|, i.e. this = translation * this.
+  void PostTranslate(const Vector2dF& offset);
+  void PostTranslate(SkScalar x, SkScalar y);
+  void PostTranslate3d(const Vector3dF& offset);
+  void PostTranslate3d(SkScalar x, SkScalar y, SkScalar z);
+
+  // The following methods have the "Pre" semantics,
+  // i.e. this = this * operation.
+
   // Applies the current transformation on a 2d rotation and assigns the result
-  // to |this|.
+  // to |this|, i.e. this = this * rotation.
   void Rotate(double degrees) { RotateAboutZAxis(degrees); }
 
   // Applies the current transformation on an axis-angle rotation and assigns
@@ -101,45 +196,15 @@ class GEOMETRY_SKIA_EXPORT Transform {
   void RotateAboutZAxis(double degrees);
   void RotateAbout(const Vector3dF& axis, double degrees);
 
-  // Applies the current transformation on a scaling and assigns the result
-  // to |this|.
-  void Scale(SkScalar x, SkScalar y);
-  void Scale3d(SkScalar x, SkScalar y, SkScalar z);
-
-  // Applies a scale to the current transformation and assigns the result to
-  // |this|.
-  void PostScale(SkScalar x, SkScalar y);
-  void PostScale3d(SkScalar x, SkScalar y, SkScalar z);
-
-  // Applies the current transformation on a translation and assigns the result
-  // to |this|.
-  void Translate(const Vector2dF& offset);
-  void Translate(SkScalar x, SkScalar y);
-  void Translate3d(const Vector3dF& offset);
-  void Translate3d(SkScalar x, SkScalar y, SkScalar z);
-
-  // Applies a translation to the current transformation and assigns the result
-  // to |this|.
-  void PostTranslate(const Vector2dF& offset);
-  void PostTranslate(SkScalar x, SkScalar y);
-  void PostTranslate3d(const Vector3dF& offset);
-  void PostTranslate3d(SkScalar x, SkScalar y, SkScalar z);
-
   // Applies the current transformation on a skew and assigns the result
-  // to |this|.
-  void Skew(double angle_x, double angle_y);
+  // to |this|, i.e. this = this * skew.
+  void Skew(double degrees_x, double degrees_y);
+  void SkewX(double degrees) { Skew(degrees, 0); }
+  void SkewY(double degrees) { Skew(0, degrees); }
 
   // Applies the current transformation on a perspective transform and assigns
   // the result to |this|.
   void ApplyPerspectiveDepth(SkScalar depth);
-
-  // Applies a transformation on the current transformation
-  // (i.e. 'this = this * transform;').
-  void PreconcatTransform(const Transform& transform);
-
-  // Applies a transformation on the current transformation
-  // (i.e. 'this = transform * this;').
-  void ConcatTransform(const Transform& transform);
 
   // Returns true if this is the identity matrix.
   // This function modifies a mutable variable in |matrix_|.
@@ -234,13 +299,15 @@ class GEOMETRY_SKIA_EXPORT Transform {
   // Returns the x and y scale components of the matrix.
   Vector2dF To2dScale() const { return gfx::Vector2dF(rc(0, 0), rc(1, 1)); }
 
+  // Returns the point with the transformation applied to |point|.
+  [[nodiscard]] Point3F MapPoint(const Point3F& point) const;
+  [[nodiscard]] PointF MapPoint(const PointF& point) const;
+  [[nodiscard]] Point MapPoint(const Point& point) const;
+
   // Applies the transformation to the point.
+  // TODO(crbug.com/1359528): Remove these in favor of MapPoint().
   void TransformPoint(Point3F* point) const;
-
-  // Applies the transformation to the point.
   void TransformPoint(PointF* point) const;
-
-  // Applies the transformation to the point.
   void TransformPoint(Point* point) const;
 
   // Applies the transformation to the vector.
@@ -251,27 +318,32 @@ class GEOMETRY_SKIA_EXPORT Transform {
 
   // Applies the reverse transformation on `point`. Returns `absl::nullopt` if
   // the transformation cannot be inverted.
-  absl::optional<PointF> TransformPointReverse(const PointF& point) const;
+  [[nodiscard]] absl::optional<PointF> InverseMapPoint(
+      const PointF& point) const;
 
   // Applies the reverse transformation on `point`. Returns `absl::nullopt` if
   // the transformation cannot be inverted. Rounds the result to the nearest
   // point.
-  absl::optional<Point> TransformPointReverse(const Point& point) const;
+  [[nodiscard]] absl::optional<Point> InverseMapPoint(const Point& point) const;
 
   // Applies the reverse transformation on `point`. Returns `absl::nullopt` if
   // the transformation cannot be inverted.
-  absl::optional<Point3F> TransformPointReverse(const Point3F& point) const;
+  [[nodiscard]] absl::optional<Point3F> InverseMapPoint(
+      const Point3F& point) const;
 
-  // Applies transformation on the given rect. After the function completes,
-  // |rect| will be the smallest axis aligned bounding rect containing the
-  // transformed rect.
+  // Returns the rect that is the smallest axis aligned bounding rect
+  // containing the transformed rect.
+  [[nodiscard]] RectF MapRect(const RectF& rect) const;
+  [[nodiscard]] Rect MapRect(const Rect& rect) const;
+
+  // Applies the reverse transformation on the given rect. Returns
+  // `absl::nullopt` if the transformation cannot be inverted, or the rect that
+  // is the smallest axis aligned bounding rect containing the transformed rect.
+  [[nodiscard]] absl::optional<RectF> InverseMapRect(const RectF& rect) const;
+  [[nodiscard]] absl::optional<Rect> InverseMapRect(const Rect& rect) const;
+
+  // TODO(crbug.com/1359528): Remove these in favor of MapRect().
   void TransformRect(RectF* rect) const;
-
-  // Applies the reverse transformation on the given rect. After the function
-  // completes, |rect| will be the smallest axis aligned bounding rect
-  // containing the transformed rect. Returns false if the matrix cannot be
-  // inverted.
-  bool TransformRectReverse(RectF* rect) const;
 
   // Applies transformation on the given |rrect|. Returns false if the transform
   // matrix cannot be applied to rrect.
@@ -299,21 +371,6 @@ class GEOMETRY_SKIA_EXPORT Transform {
   // DecomposedTransform.
   bool Blend(const Transform& from, double progress);
 
-  // Returns a transform that rotates about the specified unit-length axis
-  // vector, by an angle specified by its sin() and cos(). This does not attempt
-  // to verify that axis(x, y, z).length() == 1 or that the sin, cos values are
-  // correct.
-  static Transform RotationUnitSinCos(double x,
-                                      double y,
-                                      double z,
-                                      double sin_angle,
-                                      double cos_angle);
-
-  // Special case for x, y or z axis of the above function.
-  static Transform RotationAboutXAxisSinCos(double sin_angle, double cos_angle);
-  static Transform RotationAboutYAxisSinCos(double sin_angle, double cos_angle);
-  static Transform RotationAboutZAxisSinCos(double sin_angle, double cos_angle);
-
   double Determinant() const;
 
   void RoundTranslationComponents();
@@ -325,7 +382,7 @@ class GEOMETRY_SKIA_EXPORT Transform {
 
   // Sets |this| = |this| * |other|
   Transform& operator*=(const Transform& other) {
-    PreconcatTransform(other);
+    PreConcat(other);
     return *this;
   }
 
@@ -334,13 +391,51 @@ class GEOMETRY_SKIA_EXPORT Transform {
   std::string ToString() const;
 
  private:
-  Point TransformPointInternal(const Matrix44& xform, const Point& point) const;
+  // Used internally to construct Transform with parameters in col-major order.
+  Transform(SkScalar r0c0,
+            SkScalar r1c0,
+            SkScalar r2c0,
+            SkScalar r3c0,
+            SkScalar r0c1,
+            SkScalar r1c1,
+            SkScalar r2c1,
+            SkScalar r3c1,
+            SkScalar r0c2,
+            SkScalar r1c2,
+            SkScalar r2c2,
+            SkScalar r3c2,
+            SkScalar r0c3,
+            SkScalar r1c3,
+            SkScalar r2c3,
+            SkScalar r3c3);
 
-  PointF TransformPointInternal(const Matrix44& xform,
-                                const PointF& point) const;
+  // TODO(crbug.com/1359528): This is temporarily private before the order of
+  // the parameters is fixed. The current order is weird, not conforming to the
+  // normal order of (a, b, c, d, e, f) which is
+  // (r0c0, r1c0, r0c1, r1c1, r0c3, r1c3).
+  // Creates a transform from explicit 2d elements. All other matrix elements
+  // remain the same as the corresponding elements of an identity matrix.
+  static Transform Affine(SkScalar r0c0,
+                          SkScalar r0c1,
+                          SkScalar r1c0,
+                          SkScalar r1c1,
+                          SkScalar x_translation,
+                          SkScalar y_translation) {
+    return ColMajor(r0c0, r1c0, 0, 0,                     // col 0
+                    r0c1, r1c1, 0, 0,                     // col 1
+                    0, 0, 1, 0,                           // col 2
+                    x_translation, y_translation, 0, 1);  // col 3
+  }
 
-  Point3F TransformPointInternal(const Matrix44& xform,
-                                 const Point3F& point) const;
+  // Initialize with the concatenation of lhs * rhs.
+  Transform(const Transform& lhs, const Transform& rhs)
+      : matrix_(lhs.matrix_, rhs.matrix_) {}
+
+  Point MapPointInternal(const Matrix44& xform, const Point& point) const;
+
+  PointF MapPointInternal(const Matrix44& xform, const PointF& point) const;
+
+  Point3F MapPointInternal(const Matrix44& xform, const Point3F& point) const;
 
   void TransformVectorInternal(const Matrix44& xform, Vector3dF* vector) const;
 

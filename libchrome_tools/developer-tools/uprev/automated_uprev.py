@@ -431,7 +431,7 @@ def EmergeLibchrome(recipe: bool) -> bool:
         check=True,
     )
     emerge_result = subprocess.run(
-        ["sudo", "emerge", "libchrome"],
+        ["FEATURES=test", "sudo", "emerge", "libchrome"],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
@@ -501,7 +501,7 @@ def CreateUprevCommit(
         message.extend(["  * " + f for f in removed_patches])
 
     message.append(f"\nBUG=None")
-    message.append(f"TEST=sudo emerge libchrome")
+    message.append(f"TEST=FEATURES=test sudo emerge libchrome")
 
     subprocess.run(
         [

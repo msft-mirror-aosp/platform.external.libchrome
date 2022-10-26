@@ -27,6 +27,21 @@ message ChromeMemoryPressureNotification {
   optional uint64 creation_location_iid = 2;
 }
 
+message BlinkTaskScope {
+  enum TaskScopeType {
+    TASK_SCOPE_UNKNOWN = 0;
+    TASK_SCOPE_CALLBACK = 1;
+    TASK_SCOPE_SCHEDULED_ACTION = 2;
+    TASK_SCOPE_SCRIPT_EXECUTION = 3;
+    TASK_SCOPE_POST_MESSAGE = 4;
+  }
+  optional TaskScopeType type = 1;
+  optional int64 scope_task_id = 2;
+  optional int64 running_task_id_to_be_restored = 3;
+  optional int64 continuation_task_id_to_be_restored = 4;
+  optional int64 parent_task_id = 5;
+}
+
 message ChromeTaskAnnotator {
   optional uint32 ipc_hash = 1;
   // The delay in microseconds that was specified, if any, when this task was
@@ -155,6 +170,18 @@ message FrameTreeNodeInfo {
 
   optional RenderFrameHost current_frame_host = 4;
   optional RenderFrameHost speculative_frame_host = 5;
+
+  // NOTE: this proto must be kept consistent with
+  // content::FrameType.
+  enum FrameType {
+    UNSPECIFIED_FRAME_TYPE = 0;
+    SUBFRAME = 1;
+    PRIMARY_MAIN_FRAME = 2;
+    PRERENDER_MAIN_FRAME = 3;
+    FENCED_FRAME_ROOT = 4;
+  }
+
+  optional FrameType frame_type = 6;
 
   // Additional untyped debug information associated with this
   // FrameTreeNode, populated via TracedProto::AddDebugAnnotations API.
@@ -510,6 +537,7 @@ message RenderFrameHost {
   optional RenderFrameHost outer_document = 9;
   optional RenderFrameHost embedder = 10;
   optional BrowsingContextState browsing_context_state = 11;
+  optional FrameTreeNodeInfo.FrameType frame_type = 12;
 
   // Additional untyped debug information associated with this
   // RenderViewHost, populated via TracedProto::AddDebugAnnotations API.
@@ -923,6 +951,8 @@ message AndroidToolbar {
     DIFF_LOCATION_BAR_WIDTH = 10;
     DIFF_URL_TEXT = 11;
     DIFF_HOME_BUTTON_COLOR = 12;
+    TITLE_TEXT = 13;
+    CCT_ANIMATION = 14;
   }
 
   optional BlockCaptureReason block_capture_reason = 1;
@@ -936,7 +966,7 @@ message ActiveProcesses {
 
 message ChromeTrackEvent {
   // Extension range for Chrome: 1000-1999
-  // Next ID: 1043
+  // Next ID: 1044
   extend TrackEvent {
     optional ChromeAppState chrome_app_state = 1000;
 
@@ -1028,5 +1058,7 @@ message ChromeTrackEvent {
     optional AndroidToolbar android_toolbar = 1041;
 
     optional ActiveProcesses active_processes = 1042;
+
+    optional BlinkTaskScope blink_task_scope = 1043;
   }
 }

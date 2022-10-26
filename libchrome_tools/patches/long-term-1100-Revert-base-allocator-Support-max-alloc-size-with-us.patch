@@ -1,6 +1,6 @@
-From 0f327afee28352f533075b6d7065673f1e297557 Mon Sep 17 00:00:00 2001
-From: hscham <hscham@google.com>
-Date: Thu, 13 Jan 2022 09:41:03 +0900
+From 79b64ea72d1a1d220d6c7b3f81e0d8e164e73982 Mon Sep 17 00:00:00 2001
+From: Grace Cham <hscham@chromium.org>
+Date: Wed, 26 Oct 2022 13:45:16 +0900
 Subject: [PATCH] Revert "[base/allocator] Support max alloc size with
  use_allocator = "none"."
 
@@ -15,7 +15,7 @@ This reverts commit 324e03c9fba0fd78a721524032eeac43c80dd1db.
  1 file changed, 1 insertion(+), 34 deletions(-)
 
 diff --git a/base/allocator/partition_allocator/shim/allocator_shim_default_dispatch_to_glibc.cc b/base/allocator/partition_allocator/shim/allocator_shim_default_dispatch_to_glibc.cc
-index a4c67e351d..014ee05115 100644
+index 81db8b557cf7..dd923f5ead45 100644
 --- a/base/allocator/partition_allocator/shim/allocator_shim_default_dispatch_to_glibc.cc
 +++ b/base/allocator/partition_allocator/shim/allocator_shim_default_dispatch_to_glibc.cc
 @@ -2,12 +2,8 @@
@@ -24,8 +24,8 @@ index a4c67e351d..014ee05115 100644
  
 -#include <limits>
 -
+ #include "base/allocator/partition_allocator/partition_alloc_base/compiler_specific.h"
  #include "base/allocator/partition_allocator/shim/allocator_shim.h"
- #include "base/compiler_specific.h"
 -#include "base/numerics/checked_math.h"
 -#include "base/process/memory.h"
  
@@ -33,7 +33,7 @@ index a4c67e351d..014ee05115 100644
  #include <malloc.h>
 @@ -28,26 +24,7 @@ namespace {
  
- using base::allocator::AllocatorDispatch;
+ using allocator_shim::AllocatorDispatch;
  
 -// Strictly speaking, it would make more sense to not subtract amything, but
 -// other shims limit to something lower than INT_MAX (which is 0x7FFFFFFF on
@@ -43,7 +43,7 @@ index a4c67e351d..014ee05115 100644
  void* GlibcMalloc(const AllocatorDispatch*, size_t size, void* context) {
 -  // Cannot force glibc's malloc() to crash when a large size is requested, do
 -  // it in the shim instead.
--  if (UNLIKELY(size >= kMaxAllowedSize))
+-  if (PA_UNLIKELY(size >= kMaxAllowedSize))
 -    base::TerminateBecauseOutOfMemory(size);
 -
 -  return __libc_malloc(size);
@@ -52,7 +52,7 @@ index a4c67e351d..014ee05115 100644
 -void* GlibcUncheckedMalloc(const AllocatorDispatch*,
 -                           size_t size,
 -                           void* context) {
--  if (UNLIKELY(size >= kMaxAllowedSize))
+-  if (PA_UNLIKELY(size >= kMaxAllowedSize))
 -    return nullptr;
 -
    return __libc_malloc(size);
@@ -63,7 +63,7 @@ index a4c67e351d..014ee05115 100644
                    size_t size,
                    void* context) {
 -  const auto total = base::CheckMul(n, size);
--  if (UNLIKELY(!total.IsValid() || total.ValueOrDie() >= kMaxAllowedSize))
+-  if (PA_UNLIKELY(!total.IsValid() || total.ValueOrDie() >= kMaxAllowedSize))
 -    base::TerminateBecauseOutOfMemory(size * n);
 -
    return __libc_calloc(n, size);
@@ -73,7 +73,7 @@ index a4c67e351d..014ee05115 100644
                     void* address,
                     size_t size,
                     void* context) {
--  if (UNLIKELY(size >= kMaxAllowedSize))
+-  if (PA_UNLIKELY(size >= kMaxAllowedSize))
 -    base::TerminateBecauseOutOfMemory(size);
 -
    return __libc_realloc(address, size);
@@ -83,7 +83,7 @@ index a4c67e351d..014ee05115 100644
                      size_t alignment,
                      size_t size,
                      void* context) {
--  if (UNLIKELY(size >= kMaxAllowedSize))
+-  if (PA_UNLIKELY(size >= kMaxAllowedSize))
 -    base::TerminateBecauseOutOfMemory(size);
 -
    return __libc_memalign(alignment, size);
@@ -99,5 +99,5 @@ index a4c67e351d..014ee05115 100644
      &GlibcMemalign,        /* alloc_aligned_function */
      &GlibcRealloc,         /* realloc_function */
 -- 
-2.34.1.575.g55b058a8bb-goog
+2.38.0.135.g90850a2211-goog
 
