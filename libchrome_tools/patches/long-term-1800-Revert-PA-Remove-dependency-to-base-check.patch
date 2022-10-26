@@ -4,6 +4,9 @@ Date: Wed, 19 Oct 2022 11:32:16 +0900
 Subject: [PATCH] Revert "PA: Remove dependency to base/check{,_op}.h from
  allocator_shim"
 
+Use CHECK{,_OP} from base to avoid building PA (revert of r1043832,
+crrev.com/c/3874026).
+
 This reverts commit 047a3433bea894e406a74df766dbe267a2a79704.
 ---
  base/allocator/partition_allocator/shim/allocator_shim.cc   | 6 +++---

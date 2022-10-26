@@ -3,6 +3,9 @@ From: Grace Cham <hscham@chromium.org>
 Date: Wed, 11 May 2022 13:44:41 +0900
 Subject: [PATCH] Revert "Make base::VerifyPathControlledByUser() Mac-only."
 
+Revert of r980844 (crrev.com/c/3508824) since
+base::VerifyPathControlledByUser is used in CrOS.
+
 This reverts commit 9b16796d1ebbb68f7dc1f8adf2128fc4b00f4a61.
 ---
  base/files/file_util.h           |  4 ++--

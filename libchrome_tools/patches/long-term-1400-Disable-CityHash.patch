@@ -3,6 +3,8 @@ From: Grace Cham <hscham@chromium.org>
 Date: Mon, 3 Oct 2022 16:18:31 +0900
 Subject: [PATCH] Disable CityHash
 
+Not supported in libchrome.
+
 Change-Id: Iab0f9ee781c8f78f77db4b379dad1aa70f37a00c
 ---
  base/hash/hash.cc | 17 ++++++++++++-----

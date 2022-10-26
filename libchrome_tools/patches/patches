@@ -15,77 +15,77 @@
 # empty line, if any) will be removed together with  the patch.
 
 # ========= LONG TERM PATCHES =========================
-Add-libchrome-specific-build-configs.patch
+long-term-0000-Add-libchrome-specific-build-configs.patch
 
 # ICU dependency was introduced for Explode implementation to tackle Y2038
 # problem but it signigicantly increases binary size. Removed as Y2038 boards
 # will be EOL by then.
-Remove-ICU-dependency-for-base-Time-Explode.patch
+long-term-0100-Remove-ICU-dependency-for-base-Time-Explode.patch
 
 # Disable custom memory allocator when asan is used.
-disable-allocator-sanitizer.patch
+long-term-0200-disable-allocator-sanitizer.patch
 
 # Refer to crbug/1093642 on upstream or abandon these two patches.
 # Add MockObjectManager, which is removed upstream.
-add-mock-object-manager.patch
+long-term-0300-add-mock-object-manager.patch
 
 # Solve name conflict with abseil in absl package, when a program in Chromium
 # OS depends on both abseil and libchrome.
-absl-thread-annotation-conflict.patch
+long-term-0400-absl-thread-annotation-conflict.patch
 
 # Diagnostic code for upsteram to investigate crbug/1001171.
 # We don't need.
-revert-crbug-1001171.patch
+long-term-0500-revert-crbug-1001171.patch
 
 # libchrome does not support boringssl.
-keep-hash-sha1-old-implementation.patch
-Do-not-use-boringssl-in-base-UnguessableToken.patch
-disable-boringssl-in-base-RandBytes.patch
+long-term-0600-keep-hash-sha1-old-implementation.patch
+long-term-0700-Do-not-use-boringssl-in-base-UnguessableToken.patch
+long-term-0800-disable-boringssl-in-base-RandBytes.patch
 
 # TODO(b/190018559): third_party/lss/linux_syscall_support.h is not provided at
 # current libchrome tree.
-Call-getrandom-from-sys-random.h.patch
+long-term-0900-Call-getrandom-from-sys-random.h.patch
 
 # To avoid redefinition error when client packages uses real perfetto
-add-libchrome-namespace-to-trace_event-stub-perfetto.sh
+long-term-1000-add-libchrome-namespace-to-trace_event-stub-perfetto.sh
 
 # Revert of r921558
 # When malloc of more than (or close to) max size is called, it should return
 # nullptr (and handled by caller) instead of crashing as the original patch
 # will do.
-Revert-base-allocator-Support-max-alloc-size-with-us.patch
+long-term-1100-Revert-base-allocator-Support-max-alloc-size-with-us.patch
 
 # Avoid reintroduction of the deprecated base::Value APIs
-disable-base-Dictionary-List-Value.patch
+long-term-1200-disable-base-Dictionary-List-Value.patch
 
 # Libchrome prefer to have consistent include headers across debug or
 # non-debug, since release builders have a lot delay. That may cuase our client
 # program unable to discover compilation failure at CQ/postsubmit.
-always-include-platform-thread-h.patch
+long-term-1300-Always-include-base-thread-platform_thread_ref.h.patch
 
 # Not supported in libchrome
-Disable-CityHash.patch
+long-term-1400-Disable-CityHash.patch
 
 # Revert of r980844 (crrev.com/c/3508824) since base::VerifyPathControlledByUser
 # is used in CrOS.
-Revert-Make-base-VerifyPathControlledByUser-Mac-only.patch
+long-term-1500-Revert-Make-base-VerifyPathControlledByUser-Mac-only.patch
 
 # TODO(b/229799189): Remove once performance problems with spaced in chrome
 # are fixed.
-libchrome-Query-spaced-for-free-total-disk-space.patch
+long-term-1600-libchrome-Query-spaced-for-free-total-disk-space.patch
 
 # Add base::TerminateBecauseOutOfMemory (moved to base::partition_alloc:: in
 # r1007458 (crrev.com/c/3635217)) to avoid building PA.
-Add-TerminateBecauseOutOfMemory-back-to-base.patch
+long-term-1700-Add-TerminateBecauseOutOfMemory-back-to-base.patch
 # Use CHECK{,_OP} from base to avoid building PA (revert of r1043832,
 # crrev.com/c/3874026).
-Revert-PA-Remove-dependency-to-base-check.patch
+long-term-1800-Revert-PA-Remove-dependency-to-base-check.patch
 
 # Revert of r1024559 (crrev.com/c/3763511).
 # Fails to build on arm and amd. Check with upstream to see if they plan to
 # support them in near future. Alternatively libchrome might add new IUSE build
 # flags to select source files.
-Revert-Reland-Initial-implementation-of-ChromeOS-X86-stack-walker.patch
+long-term-1900-Revert-Reland-Initial-implementation-of-ChromeOS-X86-stack-walker.patch
 
 # ==================== CHERRY PICKS ===========================
 
@@ -94,16 +94,16 @@ Revert-Reland-Initial-implementation-of-ChromeOS-X86-stack-walker.patch
 # Adds base::Callback, base::Bind, etc as there are still many usages in CrOS
 # TODO(crbug.com/1205291): remove when they are all migrated to Once/Repeating
 # variants
-backward-compatibility-add-deprecated-base-Bind-APIs.patch
+backward-compatibility-0000-add-deprecated-base-Bind-APIs.patch
 
 # Backward compatibility patch to temporarily add base::AdaptCallbackForRepeating
 # TODO(b/204383858): Remove the patch when usage in mri_package is removed
-backward-compatibility-add-base-AdaptCallbackForRepeating.patch media_perception
+backward-compatibility-0100-add-base-AdaptCallbackForRepeating.patch media_perception
 
 # Revert of r1047662 (crrev.com/c/3891047) which started using the syscall
 # rt_sigprocmask.
 # TODO(b/255677571): remove when rt_sigprocmask is added to necessary seccomp
 # files.
-backward-compatibility-Revert-Reland-Use-absl-Mutex-in-StatisticsRecorder.patch
+backward-compatibility-0200-Revert-Reland-Use-absl-Mutex-in-StatisticsRecorder.patch
 
 # ==================== FORWARD COMPATIBILITY PATCHES FOR UPREVS ==========

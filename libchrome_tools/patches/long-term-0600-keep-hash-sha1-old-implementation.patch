@@ -3,6 +3,7 @@ From: hscham <hscham@chromium.org>
 Date: Thu, 30 Sep 2021 10:10:25 +0900
 Subject: [PATCH] Do not use boringssl and keep base::SHA1* implementation
 
+libchrome does not support boringssl.
 Note upstream renamed base/hash/sha1.cc as base/hash/sha1_nacl.cc since
 it is now only used for NaCl.
 

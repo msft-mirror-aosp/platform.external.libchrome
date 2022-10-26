@@ -4,6 +4,11 @@ Date: Thu, 13 Jan 2022 09:41:03 +0900
 Subject: [PATCH] Revert "[base/allocator] Support max alloc size with
  use_allocator = "none"."
 
+Revert of r921558
+When malloc of more than (or close to) max size is called, it should
+return nullptr (and handled by caller) instead of crashing as the
+original patch will do.
+
 This reverts commit 324e03c9fba0fd78a721524032eeac43c80dd1db.
 ---
  ...llocator_shim_default_dispatch_to_glibc.cc | 35 +------------------

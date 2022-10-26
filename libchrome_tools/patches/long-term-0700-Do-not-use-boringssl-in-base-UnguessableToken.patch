@@ -3,7 +3,7 @@ From: hscham <hscham@google.com>
 Date: Wed, 15 Dec 2021 12:35:45 +0900
 Subject: [PATCH] Do not use boringssl in base::UnguessableToken
 
-Not supported in libchrome.
+boringssl is not supported in libchrome.
 
 Change-Id: I89657abfebc86671af5e55ec6f89047fcd576652
 ---

@@ -3,6 +3,10 @@ From: Grace Cham <hscham@chromium.org>
 Date: Wed, 15 Jun 2022 23:23:05 +0900
 Subject: [PATCH] Remove ICU dependency for base::Time::Explode
 
+ICU dependency was introduced for Explode implementation to tackle Y2038
+problem but it signigicantly increases binary size. Removed as Y2038
+boards will be EOL by then.
+
 ---
  base/time/time_exploded_posix.cc | 2 ++
  1 file changed, 2 insertions(+)

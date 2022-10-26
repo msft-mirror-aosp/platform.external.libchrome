@@ -1,0 +1,30 @@
+From 62f32ba1ec8ff725327d3f60117cb34e7afa8463 Mon Sep 17 00:00:00 2001
+From: Grace Cham <hscham@chromium.org>
+Date: Thu, 27 Oct 2022 11:04:47 +0900
+Subject: [PATCH] Always include base/thread/platform_thread_ref.h
+
+Libchrome prefer to have consistent include headers across debug or
+non-debug, since release builders have a lot delay. That may cuase our
+client program unable to discover compilation failure at CQ/postsubmit.
+
+Change-Id: Iaca5e691c1fae13cac3b08b361820a3348a646f9
+---
+ base/synchronization/lock.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/base/synchronization/lock.h b/base/synchronization/lock.h
+index 54d3339bfa..ce8cda676e 100644
+--- a/base/synchronization/lock.h
++++ b/base/synchronization/lock.h
+@@ -11,7 +11,7 @@
+ #include "base/thread_annotations.h"
+ #include "build/build_config.h"
+ 
+-#if DCHECK_IS_ON()
++#if DCHECK_IS_ON() | 1
+ #include "base/threading/platform_thread_ref.h"
+ #endif
+ 
+-- 
+2.38.1.273.g43a17bfeac-goog
+

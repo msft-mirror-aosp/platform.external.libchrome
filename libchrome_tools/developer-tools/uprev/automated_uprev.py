@@ -53,7 +53,7 @@ COMMIT_REVISION_RE = re.compile(
 )
 PATCH_RE = re.compile(r"^.+\.patch$")
 SECTION_HEADER_RE = re.compile(r"^# ={5}=* .* ={5}=*$")
-CHERRY_PICK_PATCH_RE = re.compile(r"^cherry-pick-r([0-9]+)-.+\.patch$")
+CHERRY_PICK_PATCH_RE = re.compile(r"^cherry-pick-[0-9]{4}-r([0-9]+)-.+\.patch$")
 BUILD_GN_SOURCE_FILE_LINE_RE = re.compile(r"\s*([\"\'])(.*)\1,")
 
 Commit = typing.NamedTuple("Commit", [("hash", str), ("revision", int)])

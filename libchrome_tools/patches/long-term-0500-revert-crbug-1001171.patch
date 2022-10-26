@@ -3,6 +3,9 @@ From: Grace Cham <hscham@chromium.org>
 Date: Fri, 22 Jul 2022 17:51:23 +0900
 Subject: [PATCH] revert crbug/1001171
 
+Diagnostic code for upsteram to investigate crbug/1001171.
+We don't need.
+
 Change-Id: If2e5a17b2f883c82883e24249924dcd945ec36c3
 ---
  mojo/public/tools/bindings/mojom_bindings_generator.py | 9 +--------

@@ -3,6 +3,8 @@ From: Grace Cham <hscham@chromium.org>
 Date: Fri, 14 Oct 2022 14:41:31 +0900
 Subject: [PATCH] disable allocator sanitizer
 
+Disable custom memory allocator when asan is used.
+
 Change-Id: I593b2acc1b51b8fbd310acdff264f58cd4947773
 ---
  .../shim/allocator_shim_override_cpp_symbols.h                | 4 ++++

@@ -4,6 +4,11 @@ Date: Mon, 26 Sep 2022 16:05:08 +0900
 Subject: [PATCH] Revert "Reland "Initial implementation of ChromeOS X86_64
  stack walker""
 
+Revert of r1024559 (crrev.com/c/3763511).
+Fails to build on arm and amd. Check with upstream to see if they plan
+to support them in near future. Alternatively libchrome might add new
+IUSE build flags to select source files.
+
 This reverts commit c25cdd501bd8b3e8970848e56372924140215496.
 ---
  base/profiler/chrome_unwinder_android.cc      |  1 +

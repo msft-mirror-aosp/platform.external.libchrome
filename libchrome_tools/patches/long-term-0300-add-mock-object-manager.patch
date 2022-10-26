@@ -3,6 +3,9 @@ From: hscham <hscham@chromium.org>
 Date: Tue, 2 Nov 2021 14:04:39 +0900
 Subject: [PATCH] Add mock object manager
 
+Refer to crbug/1093642 on upstream or abandon these two patches.
+Add MockObjectManager, which is removed upstream.
+
 Change-Id: I9d40b2af0c2e03d9acbc4544fb4585aa3fee0777
 ---
  dbus/mock_object_manager.cc | 17 +++++++++++++++

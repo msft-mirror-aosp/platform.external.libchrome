@@ -14,12 +14,9 @@ import re
 import subprocess
 import sys
 
-MODE_NONE = 0
-MODE_CHERRY_PICK = 1
-MODE_BACKWARD_COMPATIBILITY = 2
-
-
 ORIGINAL_COMMIT_RE = re.compile(r'"CrOS-Libchrome-Original-Commit: (\w+)\n"')
+
+PATCH_NAME_RE = re.compile(r'(long-term|cherry-pick|backward-compatibility|forward-compatibility)-[0-9]{4}-(.+)\.\w+')
 
 def isUpstreamCommit(commit):
     '''Check if this is a commit from cros/upstream.
@@ -38,59 +35,62 @@ def isUpstreamCommit(commit):
     return False
 
 
-def checkPatchesFileNameConvention(commit):
-    '''Check if libchrome_tools/patches/patches file follow the convention.
+def getPatchesForChecking(commit = None):
+    '''Return list of patches for checking.
 
     Args:
-      commit: hash of a commit. If given, only lines added to this commit will be
+      commit: hash of a commit. If given, only patches added to this commit will
+      be checked
+
+    Returns:
+      A list of patches in their basename.
+    '''
+    patches = []
+    if commit:
+      output = subprocess.check_output(
+          ['git', 'diff', '%s^' % (commit), commit, '--name-status'],
+      ).decode('utf-8').splitlines()
+      for line in output:
+        # The file is "A"dded or "R"enamed.
+        if line[0] == 'A' or line[0] == 'R':
+          filename = line.split()[-1]
+          if os.path.dirname(filename) == 'libchrome_tools/patches':
+            patches.append(os.path.basename(filename))
+    else:
+      patches = [f for f in os.listdir('libchrome_tools/patches')]
+
+    return [f for f in patches if (f != 'patches' and f!= 'patches.config')]
+
+
+def checkPatchesFileNameConvention(patches):
+    '''Check if patches follow the naming conventions.
+
+    Args:
+      patches: list of basename of patches to be checked.
 
     Returns:
       A list of error messages reporting bad patches settings.
     '''
     errors = []
-    patches_list_file = subprocess.check_output(
-        ['git', 'show',
-         '%s:%s' % (commit, 'libchrome_tools/patches/patches')])
-
-    mode = MODE_NONE
-    cherry_pick_seen = False
-    backward_seen = False
-    for line in patches_list_file.splitlines():
-        line = line.decode('utf-8')
-        if not line:
-            continue
-        if line.startswith('#'):
-            if '===== CHERRY PICKS =====' in line:
-                cherry_pick_seen = True
-                mode = MODE_CHERRY_PICK
-            elif '===== BACKWARD COMPATIBILITY PATCHES FOR UPREVS =====' in line:
-                backward_seen = True
-                mode = MODE_BACKWARD_COMPATIBILITY
-            elif '===== ' in line and ' =====' in line:
-                mode = MODE_NONE
-        else:
-            if mode == MODE_CHERRY_PICK:
-                if re.match('^cherry-pick-r[0-9]*-', line):
-                    continue
-                errors.append(
-                    'Cherry pick patch name must starts with cherry-pick-rXXXX, but found %s'
-                    % (line))
-            if mode == MODE_BACKWARD_COMPATIBILITY:
-                if line.startswith('backward-compatibility-'):
-                    continue
-                errors.append(
-                    'Backward compatibility patch must starts with backward-compatibility-, but found %s'
-                    % (line))
-
-    if not cherry_pick_seen:
+    for patch in patches:
+      print('checking "%s"'% patch)
+      m = PATCH_NAME_RE.match(patch)
+      if not m:
         errors.append(
-            'cherry pick section missing, please add line `# ===== CHERRY PICKS =====` with at least 5 =s on each side'
-        )
+            'Patch must in format type-dddd-name.ext, where '
+            'type is type of patch (one of long-term, cherry-pick, '
+            'backward compatibility, or forward compatibility), '
+            'and dddd is a four-digit patch number. Found %s.' % (patch))
+        continue
 
-    if not backward_seen:
-        errors.append(
-            'backward compatibility section missing, please add line `# ===== BACKWARD COMPATIBILITY PATCHES FOR UPREVS =====` with at least 5 =s on each side'
-        )
+      patch_type = m.group(1)
+      name = m.group(2)
+      if patch_type == 'cherry-pick':
+        if not re.match('^r[0-9]+-', name):
+          errors.append(
+              'Cherry pick patch name must include revision number of the '
+              'cherry-picked change, i.e. start with cherry-pick-dddd-rXXXX, '
+              'Found %s.' % (patch))
 
     return errors
 
@@ -106,11 +106,12 @@ def main():
 
     args = parser.parse_args(sys.argv)
 
-    if isUpstreamCommit:
+    if args.commit and isUpstreamCommit(args.commit):
       sys.exit(0)
 
-    errors = []
-    errors += checkPatchesFileNameConvention(args.commit)
+    patches = getPatchesForChecking(args.commit)
+
+    errors = checkPatchesFileNameConvention(patches)
 
     if errors:
         print('\n'.join(errors), file=sys.stderr)

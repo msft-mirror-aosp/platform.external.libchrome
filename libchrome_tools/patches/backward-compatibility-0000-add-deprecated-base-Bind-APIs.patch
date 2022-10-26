@@ -3,6 +3,11 @@ From: Grace Cham <hscham@chromium.org>
 Date: Fri, 14 Oct 2022 15:46:20 +0900
 Subject: [PATCH] backward compatibility: add deprecated base::Bind APIs
 
+Adds base::Callback, base::Bind, etc as there are still many usages in
+CrOS.
+TODO(crbug.com/1205291): remove when they are all migrated to
+Once/Repeating variants.
+
 Change-Id: I3a02c2624ed603d2afecbdd04fb589293565ab7a
 ---
  base/callback_list.h               | 3 +++
