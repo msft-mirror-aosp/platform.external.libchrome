@@ -6,6 +6,9 @@
 import subprocess
 import tempfile
 import unittest
+from pathlib import Path
+from shutil import copy
+
 from automated_uprev import *
 
 
@@ -119,38 +122,39 @@ class TestGetLibchromeRevision(unittest.TestCase):
 
 class TestOutdatedPatches(unittest.TestCase):
     def setUp(self):
-        with open("../../testdata/automated_uprev_test_patches", "r+") as f:
-            self.source = f.read().splitlines()
+        self.repo_dir = tempfile.TemporaryDirectory()
+        self.orig_dir = os.getcwd()
+        os.chdir(self.repo_dir.name)
+        Path(os.path.join(self.repo_dir.name, "cherry-pick-0000-r201-bar.patch")).touch()
+        Path(os.path.join(self.repo_dir.name, "cherry-pick-0100-r101-foo.patch")).touch()
+        Path(os.path.join(self.repo_dir.name, "cherry-pick-0200-r876-baz.patch")).touch()
+
+    def tearDown(self):
+        os.chdir(self.orig_dir)
+        self.repo_dir.cleanup()
 
     def test_no_update(self):
-        self.assertEqual(OutdatedPatches(100, self.source), ([], []))
+        self.assertEqual(OutdatedPatches(100, self.repo_dir.name), [])
 
     def test_remove_after_another_patch(self):
         self.assertEqual(
-            OutdatedPatches(105, self.source),
-            ([(5, 7)], ["cherry-pick-r101-foo.patch"]),
+            OutdatedPatches(105, self.repo_dir.name),
+            ["cherry-pick-0100-r101-foo.patch"]
         )
 
     def test_remove_after_section_header(self):
         self.assertEqual(
-            OutdatedPatches(250, self.source),
-            (
-                [(3, 5), (5, 7)],
-                ["cherry-pick-r201-bar.patch", "cherry-pick-r101-foo.patch"],
-            ),
+            set(OutdatedPatches(250, self.repo_dir.name)),
+            set(["cherry-pick-0000-r201-bar.patch",
+                 "cherry-pick-0100-r101-foo.patch",])
         )
 
     def test_remove_after_empty_line(self):
         self.assertEqual(
-            OutdatedPatches(900, self.source),
-            (
-                [(3, 5), (5, 7), (7, 10)],
-                [
-                    "cherry-pick-r201-bar.patch",
-                    "cherry-pick-r101-foo.patch",
-                    "cherry-pick-r876-baz.patch",
-                ],
-            ),
+            set(OutdatedPatches(900, self.repo_dir.name)),
+            set(["cherry-pick-0000-r201-bar.patch",
+                 "cherry-pick-0100-r101-foo.patch",
+                 "cherry-pick-0200-r876-baz.patch",],)
         )
 
 

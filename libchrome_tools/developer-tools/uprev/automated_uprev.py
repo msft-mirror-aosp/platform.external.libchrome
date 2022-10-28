@@ -46,7 +46,8 @@ import typing
 
 BASE_VER_FILE = "BASE_VER"
 BUILD_GN_FILE = "BUILD.gn"
-PATCHES_LIST_FILE = "libchrome_tools/patches/patches"
+PATCHES_DIRECTORY = "libchrome_tools/patches"
+PATCHES_CONFIG_FILE = "libchrome_tools/patches/patches.config"
 
 COMMIT_REVISION_RE = re.compile(
     r"\s*Cr-Commit-Position: refs\/heads\/\w+@\{#([0-9]+)\}$"
@@ -319,66 +320,51 @@ def UpdateBaseVer(revision: int) -> None:
         f.write(f"{revision}\n")
 
 
-def OutdatedPatches(
-    revision: int, patches_sources: typing.List[str]
-) -> (
-    # list of pairs of starting and ending lines for each removed patch
-    typing.List[typing.Tuple[int, int]],
-    # list of removed patches
-    typing.List[str],
-):
-    """Parses libchrome_tools/patches/patches and returns outdated patches."""
-    removed_lines = []
-    removed_patches = []
-
-    # Starting idx of a (suspected) patch block; would be updated as the lines are
-    # read top-down.
-    remove_start_idx = None
-
-    for idx, line in enumerate(patches_sources):
-        # Found a cherry-pick patch.
-        m = CHERRY_PICK_PATCH_RE.match(line)
-        if m:
-            remove_revision = m.group(1)
-            # The patch is outdated, i.e. we have uprev-ed to at least its revision.
-            if int(remove_revision) <= revision:
-                removed_patches.append(line)
-                removed_lines.append((remove_start_idx, idx + 1))
-
-        # Update remove_start_idx. This could be the index after .patch line or
-        # section header, or the index of an empty line.
-        m_patch = PATCH_RE.match(line)
-        m_section = SECTION_HEADER_RE.match(line)
-        if m_patch or m_section:
-            remove_start_idx = idx + 1
-            continue
-        if line == "":
-            remove_start_idx = idx
-            continue
-
-    return removed_lines, removed_patches
+def OutdatedPatches(revision: int, directory: str = PATCHES_DIRECTORY):
+    """Return list of otudated patches in libchrome_tools/patches/.
+    """
+    obsolete_patches = []
+    for patch in os.listdir(directory):
+      m = CHERRY_PICK_PATCH_RE.match(patch)
+      # Remove cherry-pick patch if uprev passed its revision.
+      if m and revision >= int(m.group(1)):
+        obsolete_patches.append(patch)
+    return obsolete_patches
 
 
-def UpdatePatchesList(revision: int) -> (typing.List[str]):
-    """Updates libchrome_tools/patches/patches by removing outdated patches.
+def UpdatePatches(revision: int) -> (typing.List[str]):
+    """Removes outdated patches and updates the list in
+    libchrome_tools/patches/patches.config.
 
     Returns list of removed patches.
     """
-    with open(PATCHES_LIST_FILE, "r+") as f:
-        sources = f.read().splitlines()
+    obsolete_patches = OutdatedPatches(revision)
 
-    removed_lines, removed_patches = OutdatedPatches(revision, sources)
-    for start, end in reversed(removed_lines):
-        del sources[start:end]
+    if not obsolete_patches: # Return early if no patch should be removed.
+      return []
 
-    # Write new patches list file if any patch should be removed.
-    if removed_patches:
+    for patch in obsolete_patches:
+        os.remove(patch)
+
+    with open(PATCHES_CONFIG_FILE, "r+") as f:
+      sources = f.read().splitlines()
+
+    # Check if config file contains any of the removed patches.
+    deleted_lines = []
+    for idx, line in enumerate(sources):
+      if line.split()[0] in obsolete_patches:
+        deleted_lines.append(idx)
+        if sources[idx-1] == "": # Remove leading empty line as well.
+          deleted_lines.append(idx-1)
+
+    # Write new patches config file if any lines should be removed.
+    if delieted_lines:
         # To avoid eating the newline at the end of the file.
         sources.append("")
-        with open(PATCHES_LIST_FILE, "w") as f:
+        with open(PATCHES_CONFIG_FILE, "w") as f:
             f.write("\n".join(sources))
 
-    return removed_patches
+    return obsolete_patches
 
 
 def ParseGitMergeSummary(merge_summary: typing.List[str]) -> GitMergeSummary:
@@ -509,7 +495,7 @@ def CreateUprevCommit(
         message.append(f"Removed following files from {BUILD_GN_FILE} sources:")
         message.extend(["  * " + f for f in removed_from_gn_files])
 
-    removed_patches = UpdatePatchesList(revision)
+    removed_patches = UpdatePatches(revision)
     if removed_patches:
         message.append(f"Removed following patches from {PATCHES_LIST_FILE}:")
         message.extend(["  * " + f for f in removed_patches])
