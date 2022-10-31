@@ -486,7 +486,7 @@ def CreateUprevCommit(
         ).splitlines()
     except subprocess.CalledProcessError as e:
         # Provide target hash in an empty commit for further local debugging.
-        subprocess.run(["git", "merge", "--abort", "--quiet"])
+        subprocess.run(["git", "merge", "--abort"])
         message.insert(2, "GIT MERGE FAILED")
         subprocess.run(
             [
@@ -528,7 +528,8 @@ def CreateUprevCommit(
         check=True,
     )
     subprocess.run(
-        ["git", "commit", "--amend", "--quiet", "-m", "\n".join(message)],
+        ["git", "commit", "--amend", "--quiet", "--allow-empty",
+         "-m", "\n".join(message)],
         check=True,
     )
 
@@ -677,7 +678,8 @@ def main():
         logging.warning("Not inside chroot, emerge libchrome is not run.")
         commit_message.insert(2, "DID NOT EMERGE LIBCHROME\n")
     subprocess.run(
-        ["git", "commit", "--amend", "--quiet", "-m", "\n".join(commit_message)],
+        ["git", "commit", "--amend", "--quiet", "--allow-empty",
+         "-m", "\n".join(commit_message)],
         check=True,
     )
 
