@@ -1,4 +1,4 @@
-From 79b64ea72d1a1d220d6c7b3f81e0d8e164e73982 Mon Sep 17 00:00:00 2001
+From f7515b638a8b0de2ac4a36ad742b8771cd07a45a Mon Sep 17 00:00:00 2001
 From: Grace Cham <hscham@chromium.org>
 Date: Wed, 26 Oct 2022 13:45:16 +0900
 Subject: [PATCH] Revert "[base/allocator] Support max alloc size with
@@ -11,27 +11,27 @@ original patch will do.
 
 This reverts commit 324e03c9fba0fd78a721524032eeac43c80dd1db.
 ---
- ...llocator_shim_default_dispatch_to_glibc.cc | 35 +------------------
- 1 file changed, 1 insertion(+), 34 deletions(-)
+ ...llocator_shim_default_dispatch_to_glibc.cc | 34 +------------------
+ 1 file changed, 1 insertion(+), 33 deletions(-)
 
 diff --git a/base/allocator/partition_allocator/shim/allocator_shim_default_dispatch_to_glibc.cc b/base/allocator/partition_allocator/shim/allocator_shim_default_dispatch_to_glibc.cc
-index 81db8b557cf7..dd923f5ead45 100644
+index 297a6cd472f0..f9a6d563babf 100644
 --- a/base/allocator/partition_allocator/shim/allocator_shim_default_dispatch_to_glibc.cc
 +++ b/base/allocator/partition_allocator/shim/allocator_shim_default_dispatch_to_glibc.cc
-@@ -2,12 +2,8 @@
+@@ -2,12 +2,9 @@
  // Use of this source code is governed by a BSD-style license that can be
  // found in the LICENSE file.
  
 -#include <limits>
 -
  #include "base/allocator/partition_allocator/partition_alloc_base/compiler_specific.h"
+ #include "base/allocator/partition_allocator/partition_alloc_base/numerics/checked_math.h"
  #include "base/allocator/partition_allocator/shim/allocator_shim.h"
--#include "base/numerics/checked_math.h"
 -#include "base/process/memory.h"
  
  #include <dlfcn.h>
  #include <malloc.h>
-@@ -28,26 +24,7 @@ namespace {
+@@ -28,26 +25,7 @@ namespace {
  
  using allocator_shim::AllocatorDispatch;
  
@@ -58,18 +58,18 @@ index 81db8b557cf7..dd923f5ead45 100644
    return __libc_malloc(size);
  }
  
-@@ -55,10 +32,6 @@ void* GlibcCalloc(const AllocatorDispatch*,
+@@ -55,10 +33,6 @@ void* GlibcCalloc(const AllocatorDispatch*,
                    size_t n,
                    size_t size,
                    void* context) {
--  const auto total = base::CheckMul(n, size);
+-  const auto total = partition_alloc::internal::base::CheckMul(n, size);
 -  if (PA_UNLIKELY(!total.IsValid() || total.ValueOrDie() >= kMaxAllowedSize))
 -    base::TerminateBecauseOutOfMemory(size * n);
 -
    return __libc_calloc(n, size);
  }
  
-@@ -66,9 +39,6 @@ void* GlibcRealloc(const AllocatorDispatch*,
+@@ -66,9 +40,6 @@ void* GlibcRealloc(const AllocatorDispatch*,
                     void* address,
                     size_t size,
                     void* context) {
@@ -79,7 +79,7 @@ index 81db8b557cf7..dd923f5ead45 100644
    return __libc_realloc(address, size);
  }
  
-@@ -76,9 +46,6 @@ void* GlibcMemalign(const AllocatorDispatch*,
+@@ -76,9 +47,6 @@ void* GlibcMemalign(const AllocatorDispatch*,
                      size_t alignment,
                      size_t size,
                      void* context) {
@@ -89,7 +89,7 @@ index 81db8b557cf7..dd923f5ead45 100644
    return __libc_memalign(alignment, size);
  }
  
-@@ -106,7 +73,7 @@ size_t GlibcGetSizeEstimate(const AllocatorDispatch*,
+@@ -106,7 +74,7 @@ size_t GlibcGetSizeEstimate(const AllocatorDispatch*,
  
  const AllocatorDispatch AllocatorDispatch::default_dispatch = {
      &GlibcMalloc,          /* alloc_function */
@@ -99,5 +99,5 @@ index 81db8b557cf7..dd923f5ead45 100644
      &GlibcMemalign,        /* alloc_aligned_function */
      &GlibcRealloc,         /* realloc_function */
 -- 
-2.38.0.135.g90850a2211-goog
+2.38.1.273.g43a17bfeac-goog
 
