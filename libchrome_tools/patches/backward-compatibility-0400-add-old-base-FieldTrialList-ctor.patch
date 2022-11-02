@@ -1,0 +1,32 @@
+From 1b7bc53dfaf65b684be88dd91afdd4a330ce04e0 Mon Sep 17 00:00:00 2001
+From: Grace Cham <hscham@chromium.org>
+Date: Wed, 26 Oct 2022 17:01:59 +0900
+Subject: [PATCH] backward compatibility: add old base::FieldTrialList ctor
+
+TODO(b/256944570): Removed in r1052859 (crrev.com/c/3901211).
+
+Change-Id: I2977ff6b950ad52ffe2b8f6e00d3501bce7e39c1
+---
+ base/metrics/field_trial.h | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/base/metrics/field_trial.h b/base/metrics/field_trial.h
+index df2319199415..fe6c272eb3a4 100644
+--- a/base/metrics/field_trial.h
++++ b/base/metrics/field_trial.h
+@@ -396,6 +396,12 @@ class BASE_EXPORT FieldTrialList {
+ 
+   // This singleton holds the global list of registered FieldTrials.
+   FieldTrialList();
++  explicit FieldTrialList(
++      std::unique_ptr<const FieldTrial::EntropyProvider>) {
++    DCHECK(!global_);
++    DCHECK(!used_without_global_);
++    global_ = this;
++  }
+   FieldTrialList(const FieldTrialList&) = delete;
+   FieldTrialList& operator=(const FieldTrialList&) = delete;
+ 
+-- 
+2.38.0.135.g90850a2211-goog
+

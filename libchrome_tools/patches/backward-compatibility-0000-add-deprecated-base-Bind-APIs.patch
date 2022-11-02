@@ -1,4 +1,4 @@
-From c966e39f63115c985ef6e9dc7156eecbf119f559 Mon Sep 17 00:00:00 2001
+From 72f8d265cf05d1bfc4c89bbad69539dbc7c821ab Mon Sep 17 00:00:00 2001
 From: Grace Cham <hscham@chromium.org>
 Date: Fri, 14 Oct 2022 15:46:20 +0900
 Subject: [PATCH] backward compatibility: add deprecated base::Bind APIs
@@ -46,7 +46,7 @@ index 51747bf4f326..d346dbca7065 100644
  
  #endif  // BASE_CANCELABLE_CALLBACK_H_
 diff --git a/base/functional/bind.h b/base/functional/bind.h
-index 53be94a9d1e5..9324e235759f 100644
+index 8f14346b3050..d40f1ed53eb1 100644
 --- a/base/functional/bind.h
 +++ b/base/functional/bind.h
 @@ -116,6 +116,12 @@ struct BindFailedCheckPreviousErrors {};
@@ -59,9 +59,9 @@ index 53be94a9d1e5..9324e235759f 100644
 +                       std::forward<Args>(args)...);
 +}
 +
- // Unretained() allows binding a non-refcounted class, and to disable
- // refcounting on arguments that are refcounted objects.
- //
+ // Unretained(), UnsafeDangling() and UnsafeDanglingUntriaged() allow binding a
+ // non-refcounted class, and to disable refcounting on arguments that are
+ // refcounted. The main difference is whether or not the raw pointers will be
 diff --git a/base/functional/callback_forward.h b/base/functional/callback_forward.h
 index 923fbef6e31c..9ed3bb644079 100644
 --- a/base/functional/callback_forward.h

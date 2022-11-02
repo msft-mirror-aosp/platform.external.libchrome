@@ -7,11 +7,13 @@
 #include "base/check_op.h"
 #include "base/strings/stringprintf.h"
 #include "ui/gfx/geometry/angle_conversions.h"
+#include "ui/gfx/geometry/axis_transform2d.h"
 #include "ui/gfx/geometry/box_f.h"
 #include "ui/gfx/geometry/point3_f.h"
 #include "ui/gfx/geometry/point_conversions.h"
 #include "ui/gfx/geometry/quaternion.h"
 #include "ui/gfx/geometry/rect.h"
+#include "ui/gfx/geometry/rect_conversions.h"
 #include "ui/gfx/geometry/rrect_f.h"
 #include "ui/gfx/geometry/skia_conversions.h"
 #include "ui/gfx/geometry/transform_util.h"
@@ -38,37 +40,15 @@ inline bool ApproximatelyOne(SkScalar x, SkScalar tolerance) {
 }  // namespace
 
 // clang-format off
-Transform::Transform(SkScalar col1row1,
-                     SkScalar col2row1,
-                     SkScalar col3row1,
-                     SkScalar col4row1,
-                     SkScalar col1row2,
-                     SkScalar col2row2,
-                     SkScalar col3row2,
-                     SkScalar col4row2,
-                     SkScalar col1row3,
-                     SkScalar col2row3,
-                     SkScalar col3row3,
-                     SkScalar col4row3,
-                     SkScalar col1row4,
-                     SkScalar col2row4,
-                     SkScalar col3row4,
-                     SkScalar col4row4)
-    : matrix_(col1row1, col2row1, col3row1, col4row1,
-              col1row2, col2row2, col3row2, col4row2,
-              col1row3, col2row3, col3row3, col4row3,
-              col1row4, col2row4, col3row4, col4row4) {}
-
-Transform::Transform(SkScalar col1row1,
-                     SkScalar col2row1,
-                     SkScalar col1row2,
-                     SkScalar col2row2,
-                     SkScalar x_translation,
-                     SkScalar y_translation)
-    : matrix_(col1row1, col2row1, 0, x_translation,
-              col1row2, col2row2, 0, y_translation,
-              0, 0, 1, 0,
-              0, 0, 0, 1) {}
+Transform::Transform(SkScalar r0c0, SkScalar r1c0, SkScalar r2c0, SkScalar r3c0,
+                     SkScalar r0c1, SkScalar r1c1, SkScalar r2c1, SkScalar r3c1,
+                     SkScalar r0c2, SkScalar r1c2, SkScalar r2c2, SkScalar r3c2,
+                     SkScalar r0c3, SkScalar r1c3, SkScalar r2c3, SkScalar r3c3)
+    // The parameters of SkMatrix's constructor is in row-major order.
+    : matrix_(r0c0, r0c1, r0c2, r0c3,     // row 0
+              r1c0, r1c1, r1c2, r1c3,     // row 1
+              r2c0, r2c1, r2c2, r2c3,     // row 2
+              r3c0, r3c1, r3c2, r3c3) {}  // row 3
 
 Transform::Transform(const Quaternion& q)
     : matrix_(
@@ -104,20 +84,32 @@ void Transform::GetColMajorF(float a[16]) const {
 
 void Transform::RotateAboutXAxis(double degrees) {
   double radians = gfx::DegToRad(degrees);
-  PreconcatTransform(
-      RotationAboutXAxisSinCos(std::sin(radians), std::cos(radians)));
+  double sin_angle = std::sin(radians);
+  double cos_angle = std::cos(radians);
+  Transform t(kSkipInitialization);
+  t.matrix_.setRotateAboutXAxisSinCos(SkDoubleToScalar(sin_angle),
+                                      SkDoubleToScalar(cos_angle));
+  PreConcat(t);
 }
 
 void Transform::RotateAboutYAxis(double degrees) {
   double radians = gfx::DegToRad(degrees);
-  PreconcatTransform(
-      RotationAboutYAxisSinCos(std::sin(radians), std::cos(radians)));
+  double sin_angle = std::sin(radians);
+  double cos_angle = std::cos(radians);
+  Transform t(kSkipInitialization);
+  t.matrix_.setRotateAboutYAxisSinCos(SkDoubleToScalar(sin_angle),
+                                      SkDoubleToScalar(cos_angle));
+  PreConcat(t);
 }
 
 void Transform::RotateAboutZAxis(double degrees) {
   double radians = gfx::DegToRad(degrees);
-  PreconcatTransform(
-      RotationAboutZAxisSinCos(std::sin(radians), std::cos(radians)));
+  double sin_angle = std::sin(radians);
+  double cos_angle = std::cos(radians);
+  Transform t(kSkipInitialization);
+  t.matrix_.setRotateAboutZAxisSinCos(SkDoubleToScalar(sin_angle),
+                                      SkDoubleToScalar(cos_angle));
+  PreConcat(t);
 }
 
 void Transform::RotateAbout(const Vector3dF& axis, double degrees) {
@@ -134,48 +126,13 @@ void Transform::RotateAbout(const Vector3dF& axis, double degrees) {
     z *= scale;
   }
   double radians = gfx::DegToRad(degrees);
-  PreconcatTransform(
-      RotationUnitSinCos(x, y, z, std::sin(radians), std::cos(radians)));
-}
-
-// static
-Transform Transform::RotationUnitSinCos(double x,
-                                        double y,
-                                        double z,
-                                        double sin_angle,
-                                        double cos_angle) {
+  double sin_angle = std::sin(radians);
+  double cos_angle = std::cos(radians);
   Transform t(kSkipInitialization);
   t.matrix_.setRotateUnitSinCos(
       SkDoubleToScalar(x), SkDoubleToScalar(y), SkDoubleToScalar(z),
       SkDoubleToScalar(sin_angle), SkDoubleToScalar(cos_angle));
-  return t;
-}
-
-// static
-Transform Transform::RotationAboutXAxisSinCos(double sin_angle,
-                                              double cos_angle) {
-  Transform t(kSkipInitialization);
-  t.matrix_.setRotateAboutXAxisSinCos(SkDoubleToScalar(sin_angle),
-                                      SkDoubleToScalar(cos_angle));
-  return t;
-}
-
-// static
-Transform Transform::RotationAboutYAxisSinCos(double sin_angle,
-                                              double cos_angle) {
-  Transform t(kSkipInitialization);
-  t.matrix_.setRotateAboutYAxisSinCos(SkDoubleToScalar(sin_angle),
-                                      SkDoubleToScalar(cos_angle));
-  return t;
-}
-
-// static
-Transform Transform::RotationAboutZAxisSinCos(double sin_angle,
-                                              double cos_angle) {
-  Transform t(kSkipInitialization);
-  t.matrix_.setRotateAboutZAxisSinCos(SkDoubleToScalar(sin_angle),
-                                      SkDoubleToScalar(cos_angle));
-  return t;
+  PreConcat(t);
 }
 
 double Transform::Determinant() const {
@@ -254,12 +211,22 @@ void Transform::ApplyPerspectiveDepth(SkScalar depth) {
   }
 }
 
-void Transform::PreconcatTransform(const Transform& transform) {
+void Transform::PreConcat(const Transform& transform) {
   matrix_.preConcat(transform.matrix_);
 }
 
-void Transform::ConcatTransform(const Transform& transform) {
+void Transform::PostConcat(const Transform& transform) {
   matrix_.postConcat(transform.matrix_);
+}
+
+void Transform::PreConcat(const AxisTransform2d& transform) {
+  Translate(transform.translation());
+  Scale(transform.scale().x(), transform.scale().y());
+}
+
+void Transform::PostConcat(const AxisTransform2d& transform) {
+  PostScale(transform.scale().x(), transform.scale().y());
+  PostTranslate(transform.translation());
 }
 
 bool Transform::IsApproximatelyIdentityOrTranslation(SkScalar tolerance) const {
@@ -459,19 +426,32 @@ Vector2dF Transform::To2dTranslation() const {
                         SkScalarToFloat(matrix_.rc(1, 3)));
 }
 
+Point Transform::MapPoint(const Point& point) const {
+  return MapPointInternal(matrix_, point);
+}
+
+PointF Transform::MapPoint(const PointF& point) const {
+  return MapPointInternal(matrix_, point);
+}
+
+Point3F Transform::MapPoint(const Point3F& point) const {
+  return MapPointInternal(matrix_, point);
+}
+
+// TODO(crbug.com/1359528): Remove these methods in favor of MapPoint().
 void Transform::TransformPoint(Point* point) const {
   DCHECK(point);
-  *point = TransformPointInternal(matrix_, *point);
+  *point = MapPointInternal(matrix_, *point);
 }
 
 void Transform::TransformPoint(PointF* point) const {
   DCHECK(point);
-  *point = TransformPointInternal(matrix_, *point);
+  *point = MapPointInternal(matrix_, *point);
 }
 
 void Transform::TransformPoint(Point3F* point) const {
   DCHECK(point);
-  *point = TransformPointInternal(matrix_, *point);
+  *point = MapPointInternal(matrix_, *point);
 }
 
 void Transform::TransformVector(Vector3dF* vector) const {
@@ -484,54 +464,73 @@ void Transform::TransformVector4(float vector[4]) const {
   matrix_.mapScalars(vector);
 }
 
-absl::optional<PointF> Transform::TransformPointReverse(
-    const PointF& point) const {
+absl::optional<PointF> Transform::InverseMapPoint(const PointF& point) const {
   // TODO(sad): Try to avoid trying to invert the matrix.
   Matrix44 inverse(Matrix44::kUninitialized_Constructor);
   if (!matrix_.invert(&inverse))
     return absl::nullopt;
-  return absl::make_optional(TransformPointInternal(inverse, point));
+  return absl::make_optional(MapPointInternal(inverse, point));
 }
 
-absl::optional<Point> Transform::TransformPointReverse(
-    const Point& point) const {
+absl::optional<Point> Transform::InverseMapPoint(const Point& point) const {
   // TODO(sad): Try to avoid trying to invert the matrix.
   Matrix44 inverse(Matrix44::kUninitialized_Constructor);
   if (!matrix_.invert(&inverse))
     return absl::nullopt;
-  return absl::make_optional(TransformPointInternal(inverse, point));
+  return absl::make_optional(MapPointInternal(inverse, point));
 }
 
-absl::optional<Point3F> Transform::TransformPointReverse(
-    const Point3F& point) const {
+absl::optional<Point3F> Transform::InverseMapPoint(const Point3F& point) const {
   // TODO(sad): Try to avoid trying to invert the matrix.
   Matrix44 inverse(Matrix44::kUninitialized_Constructor);
   if (!matrix_.invert(&inverse))
     return absl::nullopt;
-  return absl::make_optional(TransformPointInternal(inverse, point));
+  return absl::make_optional(MapPointInternal(inverse, point));
 }
 
-void Transform::TransformRect(RectF* rect) const {
+RectF Transform::MapRect(const RectF& rect) const {
   if (IsIdentity())
-    return;
+    return rect;
 
-  SkRect src = RectFToSkRect(*rect);
+  // TODO(crbug.com/1359528): Use local implementation.
+  SkRect src = RectFToSkRect(rect);
   TransformToFlattenedSkMatrix(*this).mapRect(&src);
-  *rect = SkRectToRectF(src);
+  return SkRectToRectF(src);
 }
 
-bool Transform::TransformRectReverse(RectF* rect) const {
+Rect Transform::MapRect(const Rect& rect) const {
   if (IsIdentity())
-    return true;
+    return rect;
+
+  return ToEnclosingRect(MapRect(RectF(rect)));
+}
+
+// TODO(crbug.com/1359528): Remove this.
+void Transform::TransformRect(RectF* rect) const {
+  *rect = MapRect(*rect);
+}
+
+absl::optional<RectF> Transform::InverseMapRect(const RectF& rect) const {
+  if (IsIdentity())
+    return rect;
 
   Transform inverse(kSkipInitialization);
   if (!GetInverse(&inverse))
-    return false;
+    return absl::nullopt;
 
-  SkRect src = RectFToSkRect(*rect);
+  // TODO(crbug.com/1359528): Use local implementation.
+  SkRect src = RectFToSkRect(rect);
   TransformToFlattenedSkMatrix(inverse).mapRect(&src);
-  *rect = SkRectToRectF(src);
-  return true;
+  return SkRectToRectF(src);
+}
+
+absl::optional<Rect> Transform::InverseMapRect(const Rect& rect) const {
+  if (IsIdentity())
+    return rect;
+
+  if (absl::optional<RectF> mapped = InverseMapRect(RectF(rect)))
+    return ToEnclosingRect(mapped.value());
+  return absl::nullopt;
 }
 
 bool Transform::TransformRRectF(RRectF* rrect) const {
@@ -565,7 +564,7 @@ void Transform::TransformBox(BoxF* box) const {
     point += gfx::Vector3dF(corner & 1 ? box->width() : 0.f,
                             corner & 2 ? box->height() : 0.f,
                             corner & 4 ? box->depth() : 0.f);
-    TransformPoint(&point);
+    point = MapPoint(point);
     if (first_point) {
       bounds.set_origin(point);
       first_point = false;
@@ -602,8 +601,8 @@ void Transform::RoundTranslationComponents() {
   matrix_.setRC(1, 3, std::round(matrix_.rc(1, 3)));
 }
 
-Point3F Transform::TransformPointInternal(const Matrix44& xform,
-                                          const Point3F& point) const {
+Point3F Transform::MapPointInternal(const Matrix44& xform,
+                                    const Point3F& point) const {
   if (xform.isIdentity())
     return point;
 
@@ -611,12 +610,11 @@ Point3F Transform::TransformPointInternal(const Matrix44& xform,
 
   xform.mapScalars(p);
 
-  if (p[3] != SK_Scalar1 && p[3] != 0.f) {
+  if (p[3] != SK_Scalar1 && std::isnormal(p[3])) {
     float w_inverse = SK_Scalar1 / p[3];
     return gfx::Point3F(p[0] * w_inverse, p[1] * w_inverse, p[2] * w_inverse);
-  } else {
-    return gfx::Point3F(p[0], p[1], p[2]);
   }
+  return gfx::Point3F(p[0], p[1], p[2]);
 }
 
 void Transform::TransformVectorInternal(const Matrix44& xform,
@@ -633,19 +631,24 @@ void Transform::TransformVectorInternal(const Matrix44& xform,
   vector->set_z(p[2]);
 }
 
-PointF Transform::TransformPointInternal(const Matrix44& xform,
-                                         const PointF& point) const {
+PointF Transform::MapPointInternal(const Matrix44& xform,
+                                   const PointF& point) const {
   if (xform.isIdentity())
     return point;
 
   SkScalar p[4] = {SkIntToScalar(point.x()), SkIntToScalar(point.y()), 0, 1};
   xform.mapScalars(p);
+
+  if (p[3] != SK_Scalar1 && std::isnormal(p[3])) {
+    float w_inverse = SK_Scalar1 / p[3];
+    return gfx::PointF(p[0] * w_inverse, p[1] * w_inverse);
+  }
   return gfx::PointF(p[0], p[1]);
 }
 
-Point Transform::TransformPointInternal(const Matrix44& xform,
-                                        const Point& point) const {
-  return ToRoundedPoint(TransformPointInternal(xform, PointF(point)));
+Point Transform::MapPointInternal(const Matrix44& xform,
+                                  const Point& point) const {
+  return ToRoundedPoint(MapPointInternal(xform, PointF(point)));
 }
 
 bool Transform::ApproximatelyEqual(const gfx::Transform& transform) const {

@@ -1,4 +1,4 @@
-From eff90c90da60078721f2ad5a7033abbd981bfbfd Mon Sep 17 00:00:00 2001
+From e1761ddac6fa2a654bf567bb4cf33c349e0d3768 Mon Sep 17 00:00:00 2001
 From: Grace Cham <hscham@chromium.org>
 Date: Mon, 26 Sep 2022 16:05:08 +0900
 Subject: [PATCH] Revert "Reland "Initial implementation of ChromeOS X86_64
@@ -12,7 +12,6 @@ IUSE build flags to select source files.
 This reverts commit c25cdd501bd8b3e8970848e56372924140215496.
 ---
  base/profiler/chrome_unwinder_android.cc      |  1 +
- base/profiler/frame_pointer_unwinder.h        | 44 ----------------
  base/profiler/native_unwinder.h               | 20 ++++++++
  base/profiler/native_unwinder_android.cc      |  1 +
  ...r_unwinder.cc => native_unwinder_apple.cc} | 25 ++++-----
@@ -20,15 +19,14 @@ This reverts commit c25cdd501bd8b3e8970848e56372924140215496.
  ...t.cc => native_unwinder_apple_unittest.cc} | 35 +++++--------
  base/profiler/stack_sampler_posix.cc          | 33 ------------
  .../stack_sampling_profiler_unittest.cc       | 51 +++++--------------
- 9 files changed, 95 insertions(+), 149 deletions(-)
- delete mode 100644 base/profiler/frame_pointer_unwinder.h
+ 8 files changed, 95 insertions(+), 105 deletions(-)
  create mode 100644 base/profiler/native_unwinder.h
  rename base/profiler/{frame_pointer_unwinder.cc => native_unwinder_apple.cc} (86%)
  create mode 100644 base/profiler/native_unwinder_apple.h
  rename base/profiler/{frame_pointer_unwinder_unittest.cc => native_unwinder_apple_unittest.cc} (93%)
 
 diff --git a/base/profiler/chrome_unwinder_android.cc b/base/profiler/chrome_unwinder_android.cc
-index 6b4d5119754e..1649e6e5be2d 100644
+index 3322b9255c3e..c471fa2c6b0b 100644
 --- a/base/profiler/chrome_unwinder_android.cc
 +++ b/base/profiler/chrome_unwinder_android.cc
 @@ -6,6 +6,7 @@
@@ -39,56 +37,6 @@ index 6b4d5119754e..1649e6e5be2d 100644
  #include "build/build_config.h"
  
  namespace base {
-diff --git a/base/profiler/frame_pointer_unwinder.h b/base/profiler/frame_pointer_unwinder.h
-deleted file mode 100644
-index 66b2705331d2..000000000000
---- a/base/profiler/frame_pointer_unwinder.h
-+++ /dev/null
-@@ -1,44 +0,0 @@
--// Copyright 2021 The Chromium Authors
--// Use of this source code is governed by a BSD-style license that can be
--// found in the LICENSE file.
--
--#ifndef BASE_PROFILER_FRAME_POINTER_UNWINDER_H_
--#define BASE_PROFILER_FRAME_POINTER_UNWINDER_H_
--
--#include <vector>
--
--#include "base/base_export.h"
--#include "base/profiler/unwinder.h"
--#include "build/build_config.h"
--
--#if BUILDFLAG(IS_APPLE)
--#include <os/availability.h>
--#endif
--
--namespace base {
--
--// Native unwinder implementation for platforms that have frame pointers:
--//  * iOS, ARM64 and X86_64,
--//  * macOS 10.14+.
--//  * ChromeOS X86_64
--class BASE_EXPORT
--#if BUILDFLAG(IS_APPLE)
--API_AVAILABLE(ios(12))
--#endif
--    FramePointerUnwinder : public Unwinder {
-- public:
--  FramePointerUnwinder();
--
--  FramePointerUnwinder(const FramePointerUnwinder&) = delete;
--  FramePointerUnwinder& operator=(const FramePointerUnwinder&) = delete;
--
--  // Unwinder:
--  bool CanUnwindFrom(const Frame& current_frame) const override;
--  UnwindResult TryUnwind(RegisterContext* thread_context,
--                         uintptr_t stack_top,
--                         std::vector<Frame>* stack) const override;
--};
--
--}  // namespace base
--
--#endif  // BASE_PROFILER_FRAME_POINTER_UNWINDER_H_
 diff --git a/base/profiler/native_unwinder.h b/base/profiler/native_unwinder.h
 new file mode 100644
 index 000000000000..f26c5ad2b6ff
@@ -116,7 +64,7 @@ index 000000000000..f26c5ad2b6ff
 +
 +#endif  // BASE_PROFILER_NATIVE_UNWINDER_H_
 diff --git a/base/profiler/native_unwinder_android.cc b/base/profiler/native_unwinder_android.cc
-index fc14d5b3c6dd..63558fc2b499 100644
+index a3bc9a69c8c5..3db842b6eab7 100644
 --- a/base/profiler/native_unwinder_android.cc
 +++ b/base/profiler/native_unwinder_android.cc
 @@ -16,6 +16,7 @@
@@ -131,7 +79,7 @@ diff --git a/base/profiler/frame_pointer_unwinder.cc b/base/profiler/native_unwi
 similarity index 86%
 rename from base/profiler/frame_pointer_unwinder.cc
 rename to base/profiler/native_unwinder_apple.cc
-index 7b41c9d68b41..c05967f2fcc0 100644
+index 767ebd2abdce..be9f91252ea4 100644
 --- a/base/profiler/frame_pointer_unwinder.cc
 +++ b/base/profiler/native_unwinder_apple.cc
 @@ -2,18 +2,17 @@
@@ -182,10 +130,10 @@ index 7b41c9d68b41..c05967f2fcc0 100644
  
 -UnwindResult FramePointerUnwinder::TryUnwind(RegisterContext* thread_context,
 -                                             uintptr_t stack_top,
--                                             std::vector<Frame>* stack) const {
+-                                             std::vector<Frame>* stack) {
 +UnwindResult NativeUnwinderApple::TryUnwind(RegisterContext* thread_context,
 +                                            uintptr_t stack_top,
-+                                            std::vector<Frame>* stack) const {
++                                            std::vector<Frame>* stack) {
    // We expect the frame corresponding to the |thread_context| register state to
    // exist within |stack|.
    DCHECK_GT(stack->size(), 0u);
@@ -416,7 +364,7 @@ index 36723bc03ffc..fa33411a8fb9 100644
  
  size_t StackSampler::GetStackBufferSize() {
 diff --git a/base/profiler/stack_sampling_profiler_unittest.cc b/base/profiler/stack_sampling_profiler_unittest.cc
-index 24e4916a2630..dc37ab5e3fa0 100644
+index 2663815fa0fc..948be1281996 100644
 --- a/base/profiler/stack_sampling_profiler_unittest.cc
 +++ b/base/profiler/stack_sampling_profiler_unittest.cc
 @@ -46,16 +46,11 @@
