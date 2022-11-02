@@ -23,6 +23,7 @@ group("all") {
   if (use.mojo) {
     deps += [
       ":libmojo",
+      ":install_mojom_generated",
     ]
   }
   if (use.test) {
@@ -1324,6 +1325,16 @@ install_config("install_header") {
   install_path = "/usr/include/libchrome"
   glob = true
   tree_relative_to = "."
+}
+
+install_config("install_mojom_generated") {
+  sources = [
+    "${root_gen_dir}/include/mojo/public/interfaces/bindings/*.h",
+    "${root_gen_dir}/include/mojo/public/mojom/base/*.h",
+  ]
+  glob = true
+  tree_relative_to = "${root_gen_dir}/include"
+  install_path = "/usr/include/libchrome"
 }
 
 install_config("install_buildflag_header") {
