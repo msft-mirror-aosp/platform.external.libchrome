@@ -323,6 +323,13 @@ libbase_sublibs = [
       ":base_export_config",
     ]
     sources = [
+      "base/allocator/partition_allocator/oom.cc",
+      "base/allocator/partition_allocator/oom_callback.cc",
+      "base/allocator/partition_allocator/partition_alloc_base/check.cc",
+      "base/allocator/partition_allocator/partition_alloc_base/debug/alias.cc",
+      "base/allocator/partition_allocator/partition_alloc_base/logging.cc",
+      "base/allocator/partition_allocator/partition_alloc_base/posix/safe_strerror.cc",
+      "base/allocator/partition_allocator/partition_alloc_base/strings/stringprintf.cc",
       "base/at_exit.cc",
       "base/barrier_closure.cc",
       "base/base64.cc",
