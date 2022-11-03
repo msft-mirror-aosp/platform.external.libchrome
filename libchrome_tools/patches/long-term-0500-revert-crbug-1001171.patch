@@ -1,4 +1,4 @@
-From 187a876808a01ee1cbd36adda5695005f086db9a Mon Sep 17 00:00:00 2001
+From 48e6c74701777136f774a9f4a5f86f4910763886 Mon Sep 17 00:00:00 2001
 From: Grace Cham <hscham@chromium.org>
 Date: Fri, 22 Jul 2022 17:51:23 +0900
 Subject: [PATCH] revert crbug/1001171
@@ -8,11 +8,11 @@ We don't need.
 
 Change-Id: If2e5a17b2f883c82883e24249924dcd945ec36c3
 ---
- mojo/public/tools/bindings/mojom_bindings_generator.py | 9 +--------
- 1 file changed, 1 insertion(+), 8 deletions(-)
+ .../tools/bindings/mojom_bindings_generator.py      | 13 +------------
+ 1 file changed, 1 insertion(+), 12 deletions(-)
 
 diff --git a/mojo/public/tools/bindings/mojom_bindings_generator.py b/mojo/public/tools/bindings/mojom_bindings_generator.py
-index d4e4b8066f7d..ad458c91ae2b 100755
+index 5a5caceaa527..dbd038f5e089 100755
 --- a/mojo/public/tools/bindings/mojom_bindings_generator.py
 +++ b/mojo/public/tools/bindings/mojom_bindings_generator.py
 @@ -44,10 +44,6 @@ from mojom.generate import template_expander
@@ -26,15 +26,19 @@ index d4e4b8066f7d..ad458c91ae2b 100755
  
  _BUILTIN_GENERATORS = {
      "c++": "mojom_cpp_generator",
-@@ -419,7 +415,4 @@ def main():
+@@ -413,11 +409,4 @@ def main():
  
  
  if __name__ == "__main__":
 -  with crbug_1001171.DumpStateOnLookupError():
+-    ret = main()
 -    # Exit without running GC, which can save multiple seconds due to the large
--    # number of object created.
--    os._exit(main())
+-    # number of object created. But flush is necessary as os._exit doesn't do
+-    # that.
+-    sys.stdout.flush()
+-    sys.stderr.flush()
+-    os._exit(ret)
 +  os._exit(main())
 -- 
-2.37.1.359.gd136c6c3e2-goog
+2.38.1.273.g43a17bfeac-goog
 
