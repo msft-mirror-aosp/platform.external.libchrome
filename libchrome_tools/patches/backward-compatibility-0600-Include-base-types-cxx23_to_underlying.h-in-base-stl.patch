@@ -1,0 +1,30 @@
+From 4b6df1677a576b2aad861e8854d4546a33696170 Mon Sep 17 00:00:00 2001
+From: Grace Cham <hscham@chromium.org>
+Date: Tue, 1 Nov 2022 17:17:38 +0900
+Subject: [PATCH] Include base/types/cxx23_to_underlying.h in base/stl_util.h
+
+base::to_underlying is moved from base/stl_util.h to
+base/types/cxx23_to_underlying.h in crrev.com/1059666.
+TODO(b/257140767): Allow callsites to include it via the old header
+until they include the new header directly.
+
+Change-Id: I13c7ca7ee001da88c84538fadb33a12edbbb506d
+---
+ base/stl_util.h | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/base/stl_util.h b/base/stl_util.h
+index 867326bfcd4e..0c798ebfb4ff 100644
+--- a/base/stl_util.h
++++ b/base/stl_util.h
+@@ -14,6 +14,7 @@
+ 
+ #include "base/check.h"
+ #include "base/ranges/algorithm.h"
++#include "base/types/cxx23_to_underlying.h"
+ 
+ namespace base {
+ 
+-- 
+2.38.1.273.g43a17bfeac-goog
+

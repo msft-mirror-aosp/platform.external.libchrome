@@ -164,7 +164,8 @@ buildflag_header("partition_allocator_buildflags") {
     "ENABLE_MTE_CHECKED_PTR_SUPPORT=false",
     "RECORD_ALLOC_INFO=false",
     "STARSCAN=false",
-    "ENABLE_SHADOW_METADATA_FOR_64_BITS_POINTERS=false"
+    "ENABLE_SHADOW_METADATA_FOR_64_BITS_POINTERS=false",
+    "PA_USE_BASE_TRACING=false",
   ]
 }
 
@@ -1215,6 +1216,7 @@ install_config("install_header") {
     "base/*.h",
     "base/allocator/*.h",
     "base/allocator/partition_allocator/*.h",
+    "base/allocator/partition_allocator/partition_alloc_base/*.h",
     "base/allocator/partition_allocator/starscan/*.h",
     "base/containers/*.h",
     "base/debug/*.h",

@@ -1,0 +1,38 @@
+From 6582eff1c87957a854a55afda2c35dc33b90a90f Mon Sep 17 00:00:00 2001
+From: Grace Cham <hscham@chromium.org>
+Date: Tue, 1 Nov 2022 16:25:27 +0900
+Subject: [PATCH] disable boringssl used in
+ base::NonAllocatingRandomBitGenerator
+
+Introduced in crrev.com/1057955: libchrome does not support boringssl.
+
+Change-Id: I71b29173282129b5b61a93971ef5dd24ee6b60a9
+---
+ base/rand_util.h | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/base/rand_util.h b/base/rand_util.h
+index 04024537ee69..3391fa232850 100644
+--- a/base/rand_util.h
++++ b/base/rand_util.h
+@@ -16,7 +16,7 @@
+ #include "base/gtest_prod_util.h"
+ #include "build/build_config.h"
+ 
+-#if !BUILDFLAG(IS_NACL)
++#if !BUILDFLAG(IS_NACL) && 0
+ #include "third_party/boringssl/src/include/openssl/rand.h"
+ #endif
+ 
+@@ -93,7 +93,7 @@ class RandomBitGenerator {
+   ~RandomBitGenerator() = default;
+ };
+ 
+-#if !BUILDFLAG(IS_NACL)
++#if !BUILDFLAG(IS_NACL) && 0
+ class NonAllocatingRandomBitGenerator {
+  public:
+   using result_type = uint64_t;
+-- 
+2.38.1.273.g43a17bfeac-goog
+

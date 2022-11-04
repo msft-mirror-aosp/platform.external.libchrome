@@ -101,8 +101,10 @@ struct IPCZ_ALIGN(8) TransportHeader {
 #if BUILDFLAG(IS_WIN)
 // Encodes a Windows HANDLE value for transmission within a serialized driver
 // object payload. See documentation on HandleOwner above for general notes
-// about how handles are communicated over IPC on Windows.
-void EncodeHandle(PlatformHandle& handle,
+// about how handles are communicated over IPC on Windows. Returns true on
+// success, with the encoded handle value in `out_handle`. Returns false if
+// handle duplication failed.
+bool EncodeHandle(PlatformHandle& handle,
                   const base::Process& remote_process,
                   HandleOwner handle_owner,
                   HANDLE& out_handle) {
@@ -112,7 +114,7 @@ void EncodeHandle(PlatformHandle& handle,
     // be sufficiently privileged and equipped to duplicate such handles to
     // itself.
     out_handle = handle.ReleaseHandle();
-    return;
+    return true;
   }
 
   // To encode a handle that already belongs to the recipient, we must first
@@ -121,10 +123,9 @@ void EncodeHandle(PlatformHandle& handle,
   // handle to the remote process.
   DCHECK_EQ(handle_owner, HandleOwner::kRecipient);
   DCHECK(remote_process.IsValid());
-  BOOL result = ::DuplicateHandle(
-      ::GetCurrentProcess(), handle.ReleaseHandle(), remote_process.Handle(),
-      &out_handle, 0, FALSE, DUPLICATE_SAME_ACCESS | DUPLICATE_CLOSE_SOURCE);
-  DCHECK(result);
+  return ::DuplicateHandle(::GetCurrentProcess(), handle.ReleaseHandle(),
+                           remote_process.Handle(), &out_handle, 0, FALSE,
+                           DUPLICATE_SAME_ACCESS | DUPLICATE_CLOSE_SOURCE);
 }
 
 // Decodes a Windows HANDLE value from a transmission containing a serialized
@@ -373,9 +374,10 @@ IpczResult Transport::SerializeObject(ObjectBase& object,
   header.reserved[1] = 0;
   header.reserved[2] = 0;
 
-  const HandleOwner handle_owner = remote_process_.IsValid()
-                                       ? HandleOwner::kRecipient
-                                       : HandleOwner::kSender;
+  const HandleOwner handle_owner =
+      remote_process_.IsValid() && source_type() == kBroker
+          ? HandleOwner::kRecipient
+          : HandleOwner::kSender;
   header.handle_owner = handle_owner;
 
   auto handle_data = base::make_span(reinterpret_cast<HANDLE*>(&header + 1),
@@ -397,17 +399,18 @@ IpczResult Transport::SerializeObject(ObjectBase& object,
     return IPCZ_RESULT_INVALID_ARGUMENT;
   }
 
+  bool ok = true;
   for (size_t i = 0; i < object_num_handles; ++i) {
 #if BUILDFLAG(IS_WIN)
-    EncodeHandle(platform_handles[i], remote_process_, handle_owner,
-                 handle_data[i]);
+    ok &= EncodeHandle(platform_handles[i], remote_process_, handle_owner,
+                       handle_data[i]);
 #else
     handles[i] = TransmissiblePlatformHandle::ReleaseAsHandle(
         base::MakeRefCounted<TransmissiblePlatformHandle>(
             std::move(platform_handles[i])));
 #endif
   }
-  return IPCZ_RESULT_OK;
+  return ok ? IPCZ_RESULT_OK : IPCZ_RESULT_INVALID_ARGUMENT;
 }
 
 IpczResult Transport::DeserializeObject(
@@ -630,8 +633,8 @@ bool Transport::CanTransmitHandles() const {
 #if BUILDFLAG(IS_WIN)
   // On Windows, we can transmit handles only if at least one endpoint is a
   // broker, or if we have a handle to the remote process.
-  return remote_process_.IsValid() || destination_type() == kBroker ||
-         source_type() == kBroker;
+  return destination_type() == kBroker ||
+         (remote_process_.IsValid() && source_type() == kBroker);
 #else
   return true;
 #endif

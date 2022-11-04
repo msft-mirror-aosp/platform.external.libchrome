@@ -19,7 +19,6 @@
 #include "ui/gfx/geometry/point.h"
 #include "ui/gfx/geometry/point3_f.h"
 #include "ui/gfx/geometry/quad_f.h"
-#include "ui/gfx/geometry/rrect_f.h"
 #include "ui/gfx/geometry/test/geometry_util.h"
 #include "ui/gfx/geometry/transform_util.h"
 #include "ui/gfx/geometry/vector3d_f.h"
@@ -205,7 +204,7 @@ TEST(XFormTest, Equality) {
 
 // This test is to make it easier to understand the order of operations.
 TEST(XFormTest, PrePostOperations) {
-  auto m1 = Transform::AffineForTesting(1, 2, 3, 4, 5, 6);
+  auto m1 = Transform::Affine(1, 2, 3, 4, 5, 6);
   auto m2 = m1;
   m1.Translate(10, 20);
   m2.PreConcat(Transform::MakeTranslation(10, 20));
@@ -299,7 +298,7 @@ TEST(XFormTest, ConcatRotate) {
     Point3F p1 = xform.MapPoint(Point3F(value.x1, value.y1, 0));
     Point3F p2(value.x2, value.y2, 0);
     if (value.degrees == value.degrees) {
-      EXPECT_TRUE(PointsAreNearlyEqual(p1, p2));
+      EXPECT_POINT3F_NEAR(p1, p2, 0.0001f);
     }
   }
 }
@@ -1273,6 +1272,10 @@ TEST(XFormTest, verifyMatrixInversion) {
     EXPECT_ROW2_EQ(0.0f, 1.0f, 0.0f, -3.0f, inverse_translation);
     EXPECT_ROW3_EQ(0.0f, 0.0f, 1.0f, -4.0f, inverse_translation);
     EXPECT_ROW4_EQ(0.0f, 0.0f, 0.0f, 1.0f, inverse_translation);
+
+    // GetInverse with the parameter pointing to itself.
+    EXPECT_TRUE(translation.GetInverse(&translation));
+    EXPECT_EQ(translation, inverse_translation);
   }
 
   {
@@ -1334,6 +1337,18 @@ TEST(XFormTest, verifyBackfaceVisibilityBasicCases) {
   transform.MakeIdentity();
   transform.RotateAboutYAxis(90.0);
   EXPECT_FALSE(transform.IsBackFaceVisible());
+
+  // 2d scale doesn't affect backface visibility.
+  auto check_scale = [&](float scale_x, float scale_y) {
+    transform = Transform::MakeScale(scale_x, scale_y);
+    EXPECT_FALSE(transform.IsBackFaceVisible());
+    transform.EnsureFullMatrixForTesting();
+    EXPECT_FALSE(transform.IsBackFaceVisible());
+  };
+  check_scale(1, 2);
+  check_scale(-1, 2);
+  check_scale(1, -2);
+  check_scale(-1, -2);
 }
 
 TEST(XFormTest, verifyBackfaceVisibilityForPerspective) {
@@ -1400,35 +1415,45 @@ TEST(XFormTest, verifyCopyConstructor) {
   EXPECT_ROW4_EQ(13.0f, 17.0f, 21.0f, 25.0f, B);
 }
 
-TEST(XFormTest, verifyConstructorFor16Elements) {
+TEST(XFormTest, RowMajor) {
   auto transform =
-      Transform::RowMajor(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0,
-                          11.0, 12.0, 13.0, 14.0, 15.0, 16.0);
+      Transform::RowMajor(2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0,
+                          12.0, 13.0, 14.0, 15.0, 16.0, 17.0);
 
-  EXPECT_ROW1_EQ(1.0f, 2.0f, 3.0f, 4.0f, transform);
-  EXPECT_ROW2_EQ(5.0f, 6.0f, 7.0f, 8.0f, transform);
-  EXPECT_ROW3_EQ(9.0f, 10.0f, 11.0f, 12.0f, transform);
-  EXPECT_ROW4_EQ(13.0f, 14.0f, 15.0f, 16.0f, transform);
+  EXPECT_ROW1_EQ(2.0f, 3.0f, 4.0f, 5.0f, transform);
+  EXPECT_ROW2_EQ(6.0f, 7.0f, 8.0f, 9.0f, transform);
+  EXPECT_ROW3_EQ(10.0f, 11.0f, 12.0f, 13.0f, transform);
+  EXPECT_ROW4_EQ(14.0f, 15.0f, 16.0f, 17.0f, transform);
 }
 
-TEST(XFormTest, verifyConstructorFor2dElements) {
-  Transform transform =
-      Transform::AffineForTesting(1.0, 2.0, 3.0, 4.0, 5.0, 6.0);
+TEST(XFormTest, ColMajor) {
+  auto transform =
+      Transform::ColMajor(2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0,
+                          12.0, 13.0, 14.0, 15.0, 16.0, 17.0);
 
-  EXPECT_ROW1_EQ(1.0f, 2.0f, 0.0f, 5.0f, transform);
-  EXPECT_ROW2_EQ(3.0f, 4.0f, 0.0f, 6.0f, transform);
-  EXPECT_ROW3_EQ(0.0f, 0.0f, 1.0f, 0.0f, transform);
-  EXPECT_ROW4_EQ(0.0f, 0.0f, 0.0f, 1.0f, transform);
+  EXPECT_ROW1_EQ(2.0, 6.0, 10.0, 14.0, transform);
+  EXPECT_ROW2_EQ(3.0, 7.0, 11.0, 15.0, transform);
+  EXPECT_ROW3_EQ(4.0, 8.0, 12.0, 16.0, transform);
+  EXPECT_ROW4_EQ(5.0, 9.0, 13.0, 17.0, transform);
+}
+
+TEST(XFormTest, Affine) {
+  auto transform = Transform::Affine(2.0, 3.0, 4.0, 5.0, 6.0, 7.0);
+
+  EXPECT_ROW1_EQ(2.0, 4.0, 0.0, 6.0, transform);
+  EXPECT_ROW2_EQ(3.0, 5.0, 0.0, 7.0, transform);
+  EXPECT_ROW3_EQ(0.0, 0.0, 1.0, 0.0, transform);
+  EXPECT_ROW4_EQ(0.0, 0.0, 0.0, 1.0, transform);
 }
 
 TEST(XFormTest, ColMajorF) {
-  float data[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
+  float data[] = {2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17};
   auto transform = Transform::ColMajorF(data);
 
-  EXPECT_ROW1_EQ(1.0f, 5.0f, 9.0f, 13.0f, transform);
-  EXPECT_ROW2_EQ(2.0f, 6.0f, 10.0f, 14.0f, transform);
-  EXPECT_ROW3_EQ(3.0f, 7.0f, 11.0f, 15.0f, transform);
-  EXPECT_ROW4_EQ(4.0f, 8.0f, 12.0f, 16.0f, transform);
+  EXPECT_ROW1_EQ(2.0, 6.0, 10.0, 14.0, transform);
+  EXPECT_ROW2_EQ(3.0, 7.0, 11.0, 15.0, transform);
+  EXPECT_ROW3_EQ(4.0, 8.0, 12.0, 16.0, transform);
+  EXPECT_ROW4_EQ(5.0, 9.0, 13.0, 17.0, transform);
 
   float data1[16];
   transform.GetColMajorF(data1);
@@ -2795,41 +2820,6 @@ TEST(XFormTest, InverseMapIntRect) {
   EXPECT_FALSE(singular.InverseMapRect(Rect(1, 2, 3, 4)));
 }
 
-TEST(XFormTest, TransformRRectF) {
-  Transform translation;
-  translation.Translate(-3.f, -7.f);
-  RRectF rrect(1.f, 2.f, 20.f, 25.f, 5.f);
-  RRectF expected(-2.f, -5.f, 20.f, 25.f, 5.f);
-  EXPECT_TRUE(translation.TransformRRectF(&rrect));
-  EXPECT_EQ(expected.ToString(), rrect.ToString());
-
-  auto rotation_90_clock = Transform::Make90degRotation();
-
-  rrect = RRectF(gfx::RectF(0, 0, 20.f, 25.f),
-                 gfx::RoundedCornersF(1.f, 2.f, 3.f, 4.f));
-  expected = RRectF(gfx::RectF(-25.f, 0, 25.f, 20.f),
-                    gfx::RoundedCornersF(4.f, 1.f, 2.f, 3.f));
-  EXPECT_TRUE(rotation_90_clock.TransformRRectF(&rrect));
-  EXPECT_EQ(expected.ToString(), rrect.ToString());
-
-  Transform rotation_90_unrounded;
-  rotation_90_unrounded.Rotate(90.0);
-  rrect = RRectF(gfx::RectF(0, 0, 20.f, 25.f),
-                 gfx::RoundedCornersF(1.f, 2.f, 3.f, 4.f));
-  EXPECT_TRUE(rotation_90_unrounded.Preserves2dAxisAlignment());
-  EXPECT_TRUE(rotation_90_unrounded.TransformRRectF(&rrect));
-  EXPECT_EQ(expected.ToString(), rrect.ToString());
-
-  Transform scale;
-  scale.Scale(2.f, 2.f);
-  rrect = RRectF(gfx::RectF(0, 0, 20.f, 25.f),
-                 gfx::RoundedCornersF(1.f, 2.f, 3.f, 4.f));
-  expected = RRectF(gfx::RectF(0, 0, 40.f, 50.f),
-                    gfx::RoundedCornersF(2.f, 4.f, 6.f, 8.f));
-  EXPECT_TRUE(scale.TransformRRectF(&rrect));
-  EXPECT_EQ(expected.ToString(), rrect.ToString());
-}
-
 TEST(XFormTest, MapBox) {
   Transform translation;
   translation.Translate3d(3.f, 7.f, 6.f);
@@ -2892,12 +2882,36 @@ TEST(XFormTest, TransformVector4) {
   transform.set_rc(1, 1, 3.5f);
   transform.set_rc(2, 2, 4.5f);
   transform.set_rc(3, 3, 5.5f);
-  float v[] = {11.5f, 22.5f, 33.5f, 44.5f};
-  transform.TransformVector4(v);
-  EXPECT_EQ(28.75f, v[0]);
-  EXPECT_EQ(78.75f, v[1]);
-  EXPECT_EQ(150.75f, v[2]);
-  EXPECT_EQ(244.75f, v[3]);
+  std::array<float, 4> input = {11.5f, 22.5f, 33.5f, 44.5f};
+  auto vector = input;
+  std::array<float, 4> expected = {28.75f, 78.75f, 150.75f, 244.75f};
+  transform.TransformVector4(vector.data());
+  EXPECT_EQ(expected, vector);
+
+  // With translations and perspectives.
+  transform.set_rc(0, 3, 10);
+  transform.set_rc(1, 3, 20);
+  transform.set_rc(2, 3, 30);
+  transform.set_rc(3, 0, 40);
+  transform.set_rc(3, 1, 50);
+  transform.set_rc(3, 2, 60);
+  vector = input;
+  expected = {473.75f, 968.75f, 1485.75f, 3839.75f};
+  transform.TransformVector4(vector.data());
+  EXPECT_EQ(expected, vector);
+
+  // TransformVector4 with simple 2d transform.
+  transform =
+      Transform::MakeTranslation(10, 20) * Transform::MakeScale(2.5f, 3.5f);
+  vector = input;
+  expected = {473.75f, 968.75f, 33.5f, 44.5f};
+  transform.TransformVector4(vector.data());
+  EXPECT_EQ(expected, vector);
+
+  vector = input;
+  transform.EnsureFullMatrixForTesting();
+  transform.TransformVector4(vector.data());
+  EXPECT_EQ(expected, vector);
 }
 
 TEST(XFormTest, Make90NRotation) {
@@ -2926,7 +2940,7 @@ TEST(XFormTest, MapPoint) {
   transform.Translate3d(1.25f, 2.75f, 3.875f);
   transform.Scale3d(3, 4, 5);
   EXPECT_EQ(PointF(38.75f, 140.75f), transform.MapPoint(PointF(12.5f, 34.5f)));
-  EXPECT_EQ(Point3F(38.75f, 140.75f, 286.375),
+  EXPECT_EQ(Point3F(38.75f, 140.75f, 286.375f),
             transform.MapPoint(Point3F(12.5f, 34.5f, 56.5f)));
 
   transform.MakeIdentity();
@@ -2948,6 +2962,17 @@ TEST(XFormTest, MapPoint) {
   transform.set_rc(3, 3, std::numeric_limits<float>::quiet_NaN());
   EXPECT_EQ(PointF(12, 24), transform.MapPoint(PointF(2, 4)));
   EXPECT_EQ(Point3F(12, 23, 34), transform.MapPoint(Point3F(2, 3, 4)));
+
+  // MapPoint with simple 2d transform.
+  transform = Transform::MakeTranslation(10, 20) * Transform::MakeScale(3, 4);
+  EXPECT_EQ(PointF(47.5f, 158.0f), transform.MapPoint(PointF(12.5f, 34.5f)));
+  EXPECT_EQ(Point3F(47.5f, 158.0f, 56.5f),
+            transform.MapPoint(Point3F(12.5f, 34.5f, 56.5f)));
+
+  transform.EnsureFullMatrixForTesting();
+  EXPECT_EQ(PointF(47.5f, 158.0f), transform.MapPoint(PointF(12.5f, 34.5f)));
+  EXPECT_EQ(Point3F(47.5f, 158.0f, 56.5f),
+            transform.MapPoint(Point3F(12.5f, 34.5f, 56.5f)));
 }
 
 TEST(XFormTest, InverseMapPoint) {
@@ -2980,6 +3005,44 @@ TEST(XFormTest, InverseMapPoint) {
       transform3d.InverseMapPoint(transformed_point_3f);
   ASSERT_TRUE(reverted_point_3f.has_value());
   EXPECT_TRUE(PointsAreNearlyEqual(reverted_point_3f.value(), point_3f));
+
+  // MapPoint with simple 2d transform.
+  transform = Transform::MakeTranslation(10, 20) * Transform::MakeScale(3, 4);
+  EXPECT_EQ(PointF(47.5f, 158.0f), transform.MapPoint(PointF(12.5f, 34.5f)));
+  EXPECT_EQ(Point3F(47.5f, 158.0f, 56.5f),
+            transform.MapPoint(Point3F(12.5f, 34.5f, 56.5f)));
+
+  transform.EnsureFullMatrixForTesting();
+  EXPECT_EQ(PointF(47.5f, 158.0f), transform.MapPoint(PointF(12.5f, 34.5f)));
+  EXPECT_EQ(Point3F(47.5f, 158.0f, 56.5f),
+            transform.MapPoint(Point3F(12.5f, 34.5f, 56.5f)));
+}
+
+TEST(XFormTest, MapVector) {
+  Transform transform;
+  transform.Scale3d(3, 4, 5);
+  Vector3dF vector(12.5f, 34.5f, 56.5f);
+  Vector3dF expected(37.5f, 138.0f, 282.5f);
+  EXPECT_EQ(expected, transform.MapVector(vector));
+
+  // The translation components should be ignored.
+  transform.Translate3d(1.25f, 2.75f, 3.875f);
+  EXPECT_EQ(expected, transform.MapVector(vector));
+
+  // The perspective components should be ignored.
+  transform.set_rc(3, 0, 0.5f);
+  transform.set_rc(3, 1, 2.5f);
+  transform.set_rc(3, 2, 4.5f);
+  transform.set_rc(3, 3, 8.5f);
+  EXPECT_EQ(expected, transform.MapVector(vector));
+
+  // MapVector with a simple 2d transform.
+  transform = Transform::MakeTranslation(10, 20) * Transform::MakeScale(3, 4);
+  expected.set_z(vector.z());
+  EXPECT_EQ(expected, transform.MapVector(vector));
+
+  transform.EnsureFullMatrixForTesting();
+  EXPECT_EQ(expected, transform.MapVector(vector));
 }
 
 TEST(XFormTest, PreConcatAxisTransform2d) {
@@ -3006,6 +3069,86 @@ TEST(XFormTest, PostConcatAxisTransform2d) {
   t.PostConcat(axis);
   t1.PostConcat(axis_full);
   EXPECT_EQ(t, t1);
+}
+
+TEST(XFormTest, ClampOutput) {
+  double entries[][2] = {
+      // The first entry is used to initialize the transform.
+      // The second entry is used to initialize the object to be mapped.
+      {std::numeric_limits<float>::max(),
+       std::numeric_limits<float>::infinity()},
+      {1, std::numeric_limits<float>::infinity()},
+      {-1, std::numeric_limits<float>::infinity()},
+      {1, -std::numeric_limits<float>::infinity()},
+      {
+          std::numeric_limits<float>::max(),
+          std::numeric_limits<float>::max(),
+      },
+      {
+          std::numeric_limits<float>::lowest(),
+          -std::numeric_limits<float>::infinity(),
+      },
+  };
+
+  for (double* entry : entries) {
+    const float mv = entry[0];
+    const float factor = entry[1];
+
+    auto is_valid_point = [&](const PointF& p) -> bool {
+      return std::isfinite(p.x()) && std::isfinite(p.y());
+    };
+    auto is_valid_point3 = [&](const Point3F& p) -> bool {
+      return std::isfinite(p.x()) && std::isfinite(p.y()) &&
+             std::isfinite(p.z());
+    };
+    auto is_valid_vector2 = [&](const Vector2dF& v) -> bool {
+      return std::isfinite(v.x()) && std::isfinite(v.y());
+    };
+    auto is_valid_vector3 = [&](const Vector3dF& v) -> bool {
+      return std::isfinite(v.x()) && std::isfinite(v.y()) &&
+             std::isfinite(v.z());
+    };
+    auto is_valid_rect = [&](const RectF& r) -> bool {
+      return is_valid_point(r.origin()) && std::isfinite(r.width()) &&
+             std::isfinite(r.height());
+    };
+    auto is_valid_array = [&](const float* a, size_t size) -> bool {
+      for (size_t i = 0; i < size; i++) {
+        if (!std::isfinite(a[i]))
+          return false;
+      }
+      return true;
+    };
+
+    auto test = [&](const Transform& m) {
+      SCOPED_TRACE(base::StringPrintf("m: %s factor: %lg", m.ToString().c_str(),
+                                      factor));
+      auto p = m.MapPoint(PointF(factor, factor));
+      EXPECT_TRUE(is_valid_point(p)) << p.ToString();
+
+      auto p3 = m.MapPoint(Point3F(factor, factor, factor));
+      EXPECT_TRUE(is_valid_point3(p3)) << p3.ToString();
+
+      auto r = m.MapRect(RectF(factor, factor, factor, factor));
+      EXPECT_TRUE(is_valid_rect(r)) << r.ToString();
+
+      auto v3 = m.MapVector(Vector3dF(factor, factor, factor));
+      EXPECT_TRUE(is_valid_vector3(v3)) << v3.ToString();
+
+      float v4[4] = {factor, factor, factor, factor};
+      m.TransformVector4(v4);
+      EXPECT_TRUE(is_valid_array(v4, 4));
+
+      auto v2 = m.To2dTranslation();
+      EXPECT_TRUE(is_valid_vector2(v2)) << v2.ToString();
+      v2 = m.To2dScale();
+      EXPECT_TRUE(is_valid_vector2(v2)) << v2.ToString();
+    };
+
+    test(Transform::ColMajor(mv, mv, mv, mv, mv, mv, mv, mv, mv, mv, mv, mv, mv,
+                             mv, mv, mv));
+    test(Transform::MakeTranslation(mv, mv));
+  }
 }
 
 }  // namespace
