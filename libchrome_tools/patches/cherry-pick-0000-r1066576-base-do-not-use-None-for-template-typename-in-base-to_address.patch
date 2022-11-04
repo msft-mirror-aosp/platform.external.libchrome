@@ -1,0 +1,83 @@
+From dfd2884344164d78fe76f6bb3f283cc1a789e5ba Mon Sep 17 00:00:00 2001
+From: Ren-Pei Zeng <kamesan@chromium.org>
+Date: Wed, 2 Nov 2022 11:08:38 -0700
+Subject: [PATCH] base: do not use None for template typename in
+ base::to_address
+
+None conflicts with some common headers like X11/X.h [1] and gtest [2].
+Rename it to avoid workarounds at including sides (like #pragma
+push_macro/pop_macro).
+
+[1] https://gitlab.freedesktop.org/xorg/proto/xorgproto/-/blob/9740bd9bfa75a858853f07b8c06dd813ef692778/include/X11/X.h#L115
+[2] https://github.com/google/googletest/blob/3026483ae575e2de942db5e760cf95e973308dd5/googletest/include/gtest/internal/gtest-type-util.h#L104
+
+Bug: b:256947621
+Test: base_unittests --gtest_filter=*SpanTest*
+Test: Build ChromeOS targets with libchrome.
+Change-Id: I52893f0ad451dc37030ff3f7f4869b8444b3f85b
+Reviewed-on: https://chromium-review.googlesource.com/c/chromium/src/+/3998292
+Commit-Queue: Ren-Pei Zeng <kamesan@chromium.org>
+Auto-Submit: Ren-Pei Zeng <kamesan@chromium.org>
+Reviewed-by: Daniel Cheng <dcheng@chromium.org>
+Commit-Queue: Daniel Cheng <dcheng@chromium.org>
+Cr-Commit-Position: refs/heads/main@{#1066576}
+
+CrOS-Libchrome-Original-Commit: 6eb1e686e0b37af75c91f30d2c0515ed9548182b
+(cherry picked from commit 50dc0c836a3db3c66321e46affabdd52c7f9796a)
+---
+ base/cxx20_to_address.h | 28 ++++++++++++++++++++--------
+ 1 file changed, 20 insertions(+), 8 deletions(-)
+
+diff --git a/base/cxx20_to_address.h b/base/cxx20_to_address.h
+index 0010aecd40..b9158d2696 100644
+--- a/base/cxx20_to_address.h
++++ b/base/cxx20_to_address.h
+@@ -5,10 +5,24 @@
+ #ifndef BASE_CXX20_TO_ADDRESS_H_
+ #define BASE_CXX20_TO_ADDRESS_H_
+ 
++#include <memory>
+ #include <type_traits>
+ 
+ namespace base {
+ 
++namespace {
++
++template <typename Ptr, typename = void>
++struct has_std_to_address : std::false_type {};
++
++template <typename Ptr>
++struct has_std_to_address<
++    Ptr,
++    std::void_t<decltype(std::pointer_traits<Ptr>::to_address(
++        std::declval<Ptr>()))>> : std::true_type {};
++
++}  // namespace
++
+ // Implementation of C++20's std::to_address.
+ // Note: This does consider specializations of pointer_traits<>::to_address,
+ // even though it's a C++20 member function, because CheckedContiguousIterator
+@@ -23,14 +37,12 @@ constexpr T* to_address(T* p) noexcept {
+ }
+ 
+ template <typename Ptr>
+-constexpr auto to_address(const Ptr& p) noexcept
+-    -> decltype(std::pointer_traits<Ptr>::to_address(p)) {
+-  return std::pointer_traits<Ptr>::to_address(p);
+-}
+-
+-template <typename Ptr, typename... None>
+-constexpr auto to_address(const Ptr& p, None...) noexcept {
+-  return base::to_address(p.operator->());
++constexpr auto to_address(const Ptr& p) noexcept {
++  if constexpr (has_std_to_address<Ptr>::value) {
++    return std::pointer_traits<Ptr>::to_address(p);
++  } else {
++    return base::to_address(p.operator->());
++  }
+ }
+ 
+ }  // namespace base
+-- 
+2.38.1.431.g37b22c650d-goog
+
