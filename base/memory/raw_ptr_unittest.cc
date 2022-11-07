@@ -38,9 +38,9 @@
 #include "third_party/perfetto/include/perfetto/test/traced_value_test_support.h"  // no-presubmit-check nogncheck
 #endif  // BUILDFLAG(ENABLE_BASE_TRACING) && BUILDFLAG(PA_USE_BASE_TRACING)
 
-#if defined(PA_ENABLE_MTE_CHECKED_PTR_SUPPORT_WITH_64_BITS_POINTERS)
+#if defined(RAW_PTR_USE_MTE_CHECKED_PTR)
 #include "base/allocator/partition_allocator/partition_tag_types.h"
-#endif  // defined(PA_ENABLE_MTE_CHECKED_PTR_SUPPORT_WITH_64_BITS_POINTERS)
+#endif
 
 #if BUILDFLAG(USE_ASAN_BACKUP_REF_PTR)
 #include <sanitizer/asan_interface.h>
@@ -2207,7 +2207,7 @@ TEST_F(AsanBackupRefPtrTest, BoundReferences) {
 
 #endif  // BUILDFLAG(USE_ASAN_BACKUP_REF_PTR)
 
-#if defined(PA_ENABLE_MTE_CHECKED_PTR_SUPPORT_WITH_64_BITS_POINTERS)
+#if defined(RAW_PTR_USE_MTE_CHECKED_PTR)
 
 static constexpr size_t kTagOffsetForTest = 2;
 
@@ -2382,10 +2382,58 @@ TEST(MTECheckedPtrImpl, AdvancedPointerShiftedAppropriately) {
               CountingRawPtrHasCounts());
 }
 
+// Verifies that MTECheckedPtr allows the extraction of the raw pointee
+// pointing just one byte beyond the end. (Dereference is still
+// undefined behavior.)
+TEST(MTECheckedPtrImpl, PointerBeyondAllocationCanBeExtracted) {
+  // This test was most meaningful when MTECheckedPtr had the error
+  // in its implementation (crbug.com/1364476), i.e. in cases where
+  // the allocation end was flush with the slot end: the next byte
+  // would lie outside said slot. When fixed with the extra byte
+  // padding, this is never true.
+  //
+  // Without asserting any particular knowledge of PartitionAlloc's
+  // internals (i.e. what allocation size will produce exactly
+  // this situation), we perform the same test for a range of
+  // allocation sizes. Note that this test doesn't do anything when
+  // the PA cookie is present at slot's end.
+  for (size_t size = 16; size <= 64; ++size) {
+    char* unwrapped_ptr = new char[size];
+    raw_ptr<char> wrapped_ptr = unwrapped_ptr;
+    char unused = 0;
+
+    // There are no real expectations here - we just don't expect the
+    // test to crash when we get() the raw pointers.
+    //
+    // Getting the last allocated char definitely cannot crash.
+    char* unwrapped_last_char = (wrapped_ptr + size - 1).get();
+
+    // Trivial expectation to prevent "unused variable" warning.
+    EXPECT_THAT(unwrapped_last_char, testing::NotNull());
+
+    // Getting the char just beyond the allocation area must not crash.
+    // Today, MTECheckedPtr is patched with a one-byte "extra" that
+    // makes this not crash.
+    char* unwrapped_char_beyond = (wrapped_ptr + size).get();
+
+    // This is bad behavior (clients must not dereference beyond-the-end
+    // pointers), but it is in the same slot, so MTECheckedPtr sees no
+    // issue with the tag. Therefore, this must not crash.
+    unused = *(wrapped_ptr + size);
+
+    // Trivial statements to prevent "unused variable" warnings.
+    unused = 0;
+    EXPECT_EQ(unused, 0);
+    EXPECT_THAT(unwrapped_char_beyond, testing::NotNull());
+
+    delete[] unwrapped_ptr;
+  }
+}
+
 #endif  // !defined(MEMORY_TOOL_REPLACES_ALLOCATOR) &&
         // BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
 
-#endif  // defined(PA_ENABLE_MTE_CHECKED_PTR_SUPPORT_WITH_64_BITS_POINTERS)
+#endif  // defined(RAW_PTR_USE_MTE_CHECKED_PTR)
 
 }  // namespace internal
 }  // namespace base

@@ -210,12 +210,23 @@ using BucketDistribution = ThreadSafePartitionRoot::BucketDistribution;
 using SlotSpan = SlotSpanMetadata<ThreadSafe>;
 
 const size_t kTestAllocSize = 16;
+
+// Add one extra byte to each slot's end to allow beyond-the-end
+// pointers (crbug.com/1364476).
+#if defined(PA_ENABLE_MTE_CHECKED_PTR_SUPPORT_WITH_64_BITS_POINTERS)
+const size_t kMTECheckedPtrExtrasAdjustment = 1;
+#else
+const size_t kMTECheckedPtrExtrasAdjustment = 0;
+#endif  // defined(PA_ENABLE_MTE_CHECKED_PTR_SUPPORT_WITH_64_BITS_POINTERS)
+
 #if !BUILDFLAG(PA_DCHECK_IS_ON)
 const size_t kPointerOffset = kPartitionRefCountOffsetAdjustment;
-const size_t kExtraAllocSize = kInSlotRefCountBufferSize;
+const size_t kExtraAllocSize =
+    kInSlotRefCountBufferSize + kMTECheckedPtrExtrasAdjustment;
 #else
 const size_t kPointerOffset = kPartitionRefCountOffsetAdjustment;
-const size_t kExtraAllocSize = kCookieSize + kInSlotRefCountBufferSize;
+const size_t kExtraAllocSize =
+    kCookieSize + kInSlotRefCountBufferSize + kMTECheckedPtrExtrasAdjustment;
 #endif
 const size_t kRealAllocSize = partition_alloc::internal::base::bits::AlignUp(
     kTestAllocSize + kExtraAllocSize,
@@ -1200,7 +1211,7 @@ TEST_P(PartitionAllocTest, AllocGetSizeAndStart) {
 
   // Allocate something very large, and uneven.
   if (IsLargeMemoryDevice()) {
-    requested_size = 128 * 1024 * 1024 - 1;
+    requested_size = 128 * 1024 * 1024 - 33;
     predicted_capacity =
         allocator.root()->AllocationCapacityFromRequestedSize(requested_size);
     ptr = allocator.root()->Alloc(requested_size, type_name);
@@ -1209,7 +1220,9 @@ TEST_P(PartitionAllocTest, AllocGetSizeAndStart) {
     actual_capacity =
         allocator.root()->AllocationCapacityFromSlotStart(slot_start);
     EXPECT_EQ(predicted_capacity, actual_capacity);
+
     EXPECT_LT(requested_size, actual_capacity);
+
 #if BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)
     address = UntagPtr(ptr);
     for (size_t offset = 0; offset < requested_size; offset += 16111) {
@@ -2094,14 +2107,26 @@ TEST_P(PartitionAllocTest, LostFreeSlotSpansBug) {
 //
 // Disable these tests on Android because, due to the allocation-heavy behavior,
 // they tend to get OOM-killed rather than pass.
-// TODO(https://crbug.com/779645): Fuchsia currently sets OS_POSIX, but does
-// not provide a working setrlimit().
 //
 // Disable these test on Windows, since they run slower, so tend to timout and
 // cause flake.
+//
+// For Fuchsia, see https://crbug.com/779645.
 #if !BUILDFLAG(IS_WIN) &&          \
     (!defined(ARCH_CPU_64_BITS) || \
      (BUILDFLAG(IS_POSIX) && !(BUILDFLAG(IS_APPLE) || BUILDFLAG(IS_ANDROID))))
+#define MAYBE_RepeatedAllocReturnNullDirect RepeatedAllocReturnNullDirect
+#define MAYBE_RepeatedReallocReturnNullDirect RepeatedReallocReturnNullDirect
+#define MAYBE_RepeatedTryReallocReturnNullDirect \
+  RepeatedTryReallocReturnNullDirect
+#else
+#define MAYBE_RepeatedAllocReturnNullDirect \
+  DISABLED_RepeatedAllocReturnNullDirect
+#define MAYBE_RepeatedReallocReturnNullDirect \
+  DISABLED_RepeatedReallocReturnNullDirect
+#define MAYBE_RepeatedTryReallocReturnNullDirect \
+  DISABLED_RepeatedTryReallocReturnNullDirect
+#endif
 
 // The following four tests wrap a called function in an expect death statement
 // to perform their test, because they are non-hermetic. Specifically they are
@@ -2113,7 +2138,7 @@ TEST_P(PartitionAllocTest, LostFreeSlotSpansBug) {
 // These tests are *very* slow when BUILDFLAG(PA_DCHECK_IS_ON), because they
 // memset() many GiB of data (see crbug.com/1168168).
 // TODO(lizeb): make these tests faster.
-TEST_P(PartitionAllocDeathTest, RepeatedAllocReturnNullDirect) {
+TEST_P(PartitionAllocDeathTest, MAYBE_RepeatedAllocReturnNullDirect) {
   // A direct-mapped allocation size.
   size_t direct_map_size = 32 * 1024 * 1024;
   ASSERT_GT(direct_map_size, kMaxBucketed);
@@ -2122,7 +2147,7 @@ TEST_P(PartitionAllocDeathTest, RepeatedAllocReturnNullDirect) {
 }
 
 // Repeating above test with Realloc
-TEST_P(PartitionAllocDeathTest, RepeatedReallocReturnNullDirect) {
+TEST_P(PartitionAllocDeathTest, MAYBE_RepeatedReallocReturnNullDirect) {
   size_t direct_map_size = 32 * 1024 * 1024;
   ASSERT_GT(direct_map_size, kMaxBucketed);
   EXPECT_DEATH(DoReturnNullTest(direct_map_size, kPartitionReallocWithFlags),
@@ -2130,7 +2155,7 @@ TEST_P(PartitionAllocDeathTest, RepeatedReallocReturnNullDirect) {
 }
 
 // Repeating above test with TryRealloc
-TEST_P(PartitionAllocDeathTest, RepeatedTryReallocReturnNullDirect) {
+TEST_P(PartitionAllocDeathTest, MAYBE_RepeatedTryReallocReturnNullDirect) {
   size_t direct_map_size = 32 * 1024 * 1024;
   ASSERT_GT(direct_map_size, kMaxBucketed);
   EXPECT_DEATH(DoReturnNullTest(direct_map_size, kPartitionRootTryRealloc),
@@ -2139,6 +2164,7 @@ TEST_P(PartitionAllocDeathTest, RepeatedTryReallocReturnNullDirect) {
 
 // TODO(crbug.com/1348221) re-enable the tests below, once the allocator
 // actually returns nullptr for non direct-mapped allocations.
+// When doing so, they will need to be made MAYBE_ like those above.
 //
 // Tests "return null" with a 512 kB block size.
 TEST_P(PartitionAllocDeathTest, DISABLED_RepeatedAllocReturnNull) {
@@ -2167,9 +2193,6 @@ TEST_P(PartitionAllocDeathTest, DISABLED_RepeatedTryReallocReturnNull) {
   EXPECT_DEATH(DoReturnNullTest(single_slot_size, kPartitionRootTryRealloc),
                "Passed DoReturnNullTest");
 }
-
-#endif  // !defined(ARCH_CPU_64_BITS) || (BUILDFLAG(IS_POSIX) &&
-        // !(BUILDFLAG(IS_APPLE) || BUILDFLAG(IS_ANDROID)))
 
 // Make sure that malloc(-1) dies.
 // In the past, we had an integer overflow that would alias malloc(-1) to
@@ -2334,7 +2357,10 @@ TEST_P(PartitionAllocDeathTest, FreelistCorruption) {
 }
 
 // With BUILDFLAG(PA_DCHECK_IS_ON), cookie already handles off-by-one detection.
-#if !BUILDFLAG(PA_DCHECK_IS_ON)
+// With MTECheckedPtr enabled, an extra byte is present to allow an off-by-one
+// (crbug.com/1364476).
+#if !BUILDFLAG(PA_DCHECK_IS_ON) && \
+    !defined(PA_ENABLE_MTE_CHECKED_PTR_SUPPORT_WITH_64_BITS_POINTERS)
 TEST_P(PartitionAllocDeathTest, OffByOneDetection) {
   base::CPU cpu;
   const size_t alloc_size = 2 * sizeof(void*);
@@ -2376,7 +2402,8 @@ TEST_P(PartitionAllocDeathTest, OffByOneDetectionWithRealisticData) {
     array[2] = previous_value;
   }
 }
-#endif  // !BUILDFLAG(PA_DCHECK_IS_ON)
+#endif  // !BUILDFLAG(PA_DCHECK_IS_ON) &&
+        // !defined(PA_ENABLE_MTE_CHECKED_PTR_SUPPORT_WITH_64_BITS_POINTERS)
 
 #endif  // !BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT) &&
         // defined(PA_HAS_FREELIST_SHADOW_ENTRY)
@@ -3381,7 +3408,7 @@ TEST_P(PartitionAllocTest, FundamentalAlignment) {
 #else
     EXPECT_EQ(allocator.root()->AllocationCapacityFromSlotStart(slot_start) %
                   fundamental_alignment,
-              0u);
+              -kExtraAllocSize % fundamental_alignment);
 #endif
 
     allocator.root()->Free(ptr);
@@ -3878,7 +3905,9 @@ class UnretainedDanglingRawPtrTest : public PartitionAllocTest {
 
 INSTANTIATE_TEST_SUITE_P(AlternateBucketDistribution,
                          UnretainedDanglingRawPtrTest,
-                         testing::Values(false, true));
+                         testing::Values(BucketDistribution::kDefault,
+                                         BucketDistribution::kCoarser,
+                                         BucketDistribution::kDenser));
 
 TEST_P(UnretainedDanglingRawPtrTest, UnretainedDanglingPtrNoReport) {
   void* ptr = allocator.root()->Alloc(kTestAllocSize, type_name);

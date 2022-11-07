@@ -107,6 +107,7 @@ config("base_export_config") {
   defines = [
     "COMPONENT_BUILD",
     "BASE_IMPLEMENTATION",
+    "IS_PARTITION_ALLOC_IMPL",
   ]
 }
 
@@ -163,8 +164,9 @@ buildflag_header("partition_allocator_buildflags") {
     "PUT_REF_COUNT_IN_PREVIOUS_SLOT=false",
     "ENABLE_MTE_CHECKED_PTR_SUPPORT=false",
     "RECORD_ALLOC_INFO=false",
-    "STARSCAN=false",
+    "GLUE_CORE_POOLS=false",
     "ENABLE_SHADOW_METADATA_FOR_64_BITS_POINTERS=false",
+    "STARSCAN=false",
     "PA_USE_BASE_TRACING=false",
   ]
 }
@@ -190,6 +192,7 @@ buildflag_header("branding_buildflags") {
 buildflag_header("cfi_buildflags") {
   header = "base/cfi_buildflags.h"
   flags = [
+    "CFI_DIAG=false",
     "CFI_ICALL_CHECK=false",
     "CFI_ENFORCEMENT_TRAP=false",
   ]
@@ -1224,6 +1227,7 @@ install_config("install_header") {
     "base/allocator/*.h",
     "base/allocator/partition_allocator/*.h",
     "base/allocator/partition_allocator/partition_alloc_base/*.h",
+    "base/allocator/partition_allocator/partition_alloc_base/augmentations/*.h",
     "base/allocator/partition_allocator/starscan/*.h",
     "base/containers/*.h",
     "base/debug/*.h",
