@@ -1,0 +1,45 @@
+From 935bfe672157dff12176448ede2df63a6850224b Mon Sep 17 00:00:00 2001
+From: Brett Brotherton <bbrotherton@google.com>
+Date: Wed, 9 Nov 2022 14:27:21 -0800
+Subject: [PATCH] base: remove static from ToDoNothingCallback
+
+removing static keyword from ToDoNothingCallback fixes -Wunused-template
+errors seen in chromeos package builds that rely on libchrome, also
+added missing newline to end of callback_tags.h which was also causing
+errors
+
+BUG=b:258275503
+
+Change-Id: I61416c950419ee5144f8b06883e0a7f2d3d4f600
+Reviewed-on: https://chromium-review.googlesource.com/c/chromium/src/+/4016917
+Reviewed-by: Daniel Cheng <dcheng@chromium.org>
+Auto-Submit: Brett Brotherton <bbrotherton@google.com>
+Commit-Queue: Brett Brotherton <bbrotherton@google.com>
+Cr-Commit-Position: refs/heads/main@{#1069377}
+
+
+CrOS-Libchrome-Original-Commit: 892e0f632474554580ba8631473ba95aa405e81d
+---
+ base/functional/callback.h | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/base/functional/callback.h b/base/functional/callback.h
+index 64513d3031..ac8c1f5a5f 100644
+--- a/base/functional/callback.h
++++ b/base/functional/callback.h
+@@ -63,9 +63,9 @@ template <bool is_once,
+           typename R,
+           typename... UnboundArgs,
+           typename... BoundArgs>
+-static std::conditional_t<is_once,
+-                          OnceCallback<R(UnboundArgs...)>,
+-                          RepeatingCallback<R(UnboundArgs...)>>
++std::conditional_t<is_once,
++                   OnceCallback<R(UnboundArgs...)>,
++                   RepeatingCallback<R(UnboundArgs...)>>
+ ToDoNothingCallback(DoNothingCallbackTag::WithBoundArguments<BoundArgs...> t) {
+   return std::apply(
+       [](auto&&... args) {
+-- 
+2.38.1.431.g37b22c650d-goog
+
