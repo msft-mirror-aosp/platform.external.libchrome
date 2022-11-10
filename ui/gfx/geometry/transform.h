@@ -23,27 +23,40 @@ class RectF;
 class Point;
 class PointF;
 class Point3F;
+class QuadF;
 class Quaternion;
 class Vector2dF;
 class Vector3dF;
+struct DecomposedTransform;
 
 // 4x4 Transformation matrix. Depending on the complexity of the matrix, it may
-// be internally stored as an AxisTransform2d or a full 4x4 matrix.
+// be internally stored as an AxisTransform2d (float precision) or a full
+// Matrix44 (4x4 double precision). Which one is used only affects precision and
+// performance.
+// - On construction (including constructors and static functions returning a
+//   new Transform object), AxisTransform2d will be used if it the matrix will
+//   be 2d scale and/or translation, otherwise Matrix44, with some exceptions
+//   (e.g. ColMajor()) described in the method comments.
+// - On mutation, if the matrix has been using AxisTransform2d and the result
+//   can still be 2d scale and/or translation, AxisTransform2d will still be
+//   used, otherwise Matrix44, with some exceptions (e.g. set_rc()) described
+//   in the method comments.
+// - On assignment, the new matrix will keep the choice of the rhs matrix.
+//
 class GEOMETRY_SKIA_EXPORT Transform {
  public:
   Transform();
   ~Transform();
-
-  // TODO(crbug.com/1359528): This is same as Transform(). Remove this.
-  enum SkipInitialization { kSkipInitialization };
-  explicit Transform(SkipInitialization);
 
   Transform(const Transform& rhs);
   Transform& operator=(const Transform& rhs);
   Transform(Transform&&);
   Transform& operator=(Transform&&);
 
+  explicit Transform(const AxisTransform2d& axis_2d);
+
   // Creates a transform from explicit 16 matrix elements in row-major order.
+  // Always creates a double precision 4x4 matrix.
   static Transform RowMajor(double r0c0,
                             double r0c1,
                             double r0c2,
@@ -67,6 +80,8 @@ class GEOMETRY_SKIA_EXPORT Transform {
   }
 
   // Creates a transform from explicit 16 matrix elements in col-major order.
+  // Always creates a double precision 4x4 matrix.
+  // See also ColMajor(double[]) and ColMajorF(float[]).
   static Transform ColMajor(double r0c0,
                             double r1c0,
                             double r2c0,
@@ -91,9 +106,12 @@ class GEOMETRY_SKIA_EXPORT Transform {
 
   // Creates a transform from explicit 2d elements. All other matrix elements
   // remain the same as the corresponding elements of an identity matrix.
+  // Always creates a double precision 4x4 matrix.
+  // TODO(crbug.com/1359528): Revisit the above statement. Evaluate performance
+  // and precision requirements of SVG and CSS transform:matrix().
   static Transform Affine(double a,    // a.k.a. r0c0 or scale_x
                           double b,    // a.k.a. r1c0 or tan(skew_y)
-                          double c,    // a.k.a. r0c1 or tan(skew_x) 
+                          double c,    // a.k.a. r0c1 or tan(skew_x)
                           double d,    // a.k.a  r1c1 or scale_y
                           double e,    // a.k.a  r0c3 or translation_x
                           double f) {  // a.k.a  r1c3 or translaiton_y
@@ -104,12 +122,12 @@ class GEOMETRY_SKIA_EXPORT Transform {
   explicit Transform(const Quaternion& q);
 
   // Creates a transform as a 2d translation.
-  static Transform MakeTranslation(double tx, double ty) {
+  static Transform MakeTranslation(float tx, float ty) {
     return Transform(1, 1, tx, ty);
   }
   // Creates a transform as a 2d scale.
-  static Transform MakeScale(double scale) { return MakeScale(scale, scale); }
-  static Transform MakeScale(double sx, double sy) {
+  static Transform MakeScale(float scale) { return MakeScale(scale, scale); }
+  static Transform MakeScale(float sx, float sy) {
     return Transform(sx, sy, 0, 0);
   }
   // Accurately rotate by 90, 180 or 270 degrees about the z axis.
@@ -149,17 +167,27 @@ class GEOMETRY_SKIA_EXPORT Transform {
     return matrix_->rc(row, col);
   }
 
-  // Set a value in the matrix at |row|, |col|.
+  // Sets a value in the matrix at |row|, |col|. It forces full double precision
+  // 4x4 matrix.
   void set_rc(int row, int col, double v) {
     DCHECK_LE(static_cast<unsigned>(row), 3u);
     DCHECK_LE(static_cast<unsigned>(col), 3u);
     EnsureFullMatrix().set_rc(row, col, v);
   }
 
-  // TODO(crbug.com/1359528): Add ColMajor()/GetColMajor() with double parameter
-  // when we use double as the type of the components.
+  // Constructs Transform from a double col-major array.
+  // Always creates a double precision 4x4 matrix.
+  static Transform ColMajor(const double a[16]);
+
+  // Constructs Transform from a float col-major array. Creates an
+  // AxisTransform2d or a Matrix44 depending on the values. GetColMajorF() and
+  // ColMajorF() are used when passing a Transform through mojo.
   static Transform ColMajorF(const float a[16]);
+
+  // Gets col-major data.
+  void GetColMajor(double a[16]) const;
   void GetColMajorF(float a[16]) const;
+  double ColMajorData(int index) const { return rc(index % 4, index / 4); }
 
   // Applies a transformation on the current transformation,
   // i.e. this = this * transform.
@@ -184,29 +212,29 @@ class GEOMETRY_SKIA_EXPORT Transform {
 
   // Applies the current transformation on a scaling and assigns the result
   // to |this|, i.e. this = this * scaling.
-  void Scale(double scale) { Scale(scale, scale); }
-  void Scale(double x, double y);
-  void Scale3d(double x, double y, double z);
+  void Scale(float scale) { Scale(scale, scale); }
+  void Scale(float x, float y);
+  void Scale3d(float x, float y, float z);
 
   // Applies a scale to the current transformation and assigns the result to
   // |this|, i.e. this = scaling * this.
-  void PostScale(double scale) { PostScale(scale, scale); }
-  void PostScale(double x, double y);
-  void PostScale3d(double x, double y, double z);
+  void PostScale(float scale) { PostScale(scale, scale); }
+  void PostScale(float x, float y);
+  void PostScale3d(float x, float y, float z);
 
   // Applies the current transformation on a translation and assigns the result
   // to |this|, i.e. this = this * translation.
   void Translate(const Vector2dF& offset);
-  void Translate(double x, double y);
+  void Translate(float x, float y);
   void Translate3d(const Vector3dF& offset);
-  void Translate3d(double x, double y, double z);
+  void Translate3d(float x, float y, float z);
 
   // Applies a translation to the current transformation and assigns the result
   // to |this|, i.e. this = translation * this.
   void PostTranslate(const Vector2dF& offset);
-  void PostTranslate(double x, double y);
+  void PostTranslate(float x, float y);
   void PostTranslate3d(const Vector3dF& offset);
-  void PostTranslate3d(double x, double y, double z);
+  void PostTranslate3d(float x, float y, float z);
 
   // The following methods have the "Pre" semantics,
   // i.e. this = this * operation.
@@ -220,6 +248,7 @@ class GEOMETRY_SKIA_EXPORT Transform {
   void RotateAboutXAxis(double degrees);
   void RotateAboutYAxis(double degrees);
   void RotateAboutZAxis(double degrees);
+  void RotateAbout(double x, double y, double z, double degrees);
   void RotateAbout(const Vector3dF& axis, double degrees);
 
   // Applies the current transformation on a skew and assigns the result
@@ -309,13 +338,23 @@ class GEOMETRY_SKIA_EXPORT Transform {
     return LIKELY(!matrix_) ? axis_2d_.IsInvertible() : matrix_->IsInvertible();
   }
 
+  // If |this| is invertible, inverts |this| and stores the result in
+  // |*transform|, and returns true. Otherwise sets |*transform| to identity
+  // and returns false.
+  [[nodiscard]] bool GetInverse(Transform* transform) const;
+
+  // Same as above except that it assumes success, otherwise DCHECK fails.
+  // This is suitable when the transform is known to be invertible.
+  [[nodiscard]] Transform GetCheckedInverse() const;
+
+  // Same as GetInverse() except that it returns the the inverse of |this| or
+  // identity, instead of a bool. This is suitable when it's good to fallback
+  // to identity silently.
+  [[nodiscard]] Transform InverseOrIdentity() const;
+
   // Returns true if a layer with a forward-facing normal of (0, 0, 1) would
   // have its back side facing frontwards after applying the transform.
   bool IsBackFaceVisible() const;
-
-  // Inverts the transform which is passed in. Returns true if successful, or
-  // sets |transform| to the identify matrix on failure.
-  [[nodiscard]] bool GetInverse(Transform* transform) const;
 
   // Transposes this transform in place.
   void Transpose();
@@ -339,6 +378,9 @@ class GEOMETRY_SKIA_EXPORT Transform {
   // Returns true if the 3rd row and 3rd column are both (0, 0, 1, 0).
   bool IsFlat() const;
 
+  // Returns true if the transform is flat and doesn't have perspective.
+  bool Is2dTransform() const;
+
   // Returns the x and y translation components of the matrix, clamped with
   // ClampFloatGeometry().
   Vector2dF To2dTranslation() const;
@@ -350,6 +392,7 @@ class GEOMETRY_SKIA_EXPORT Transform {
   // Returns the point with the transformation applied to |point|, clamped
   // with ClampFloatGeometry().
   [[nodiscard]] Point3F MapPoint(const Point3F& point) const;
+  // Maps [point.x(), point.y(), 0] to [result.x(), result.y(), discarded_z].
   [[nodiscard]] PointF MapPoint(const PointF& point) const;
   [[nodiscard]] Point MapPoint(const Point& point) const;
 
@@ -361,7 +404,6 @@ class GEOMETRY_SKIA_EXPORT Transform {
   // Applies the transformation to the vector. The results are clamped with
   // ClampFloatGeometry().
   void TransformVector4(float vector[4]) const;
-  void TransformVector4(double vector[4]) const;
 
   // Returns the point with reverse transformation applied to `point`, clamped
   // with ClampFloatGeometry(), or `absl::nullopt` if the transformation cannot
@@ -393,15 +435,66 @@ class GEOMETRY_SKIA_EXPORT Transform {
   // transformed box, clamped with ClampFloatGeometry().
   [[nodiscard]] BoxF MapBox(const BoxF& box) const;
 
+  // Applies transformation on the given quad by applying the transformation
+  // on each point of the quad.
+  [[nodiscard]] QuadF MapQuad(const QuadF& quad) const;
+
+  // Maps a point on the z=0 plane into a point on the plane with which the
+  // transform applied, by extending a ray perpendicular to the source plane and
+  // computing the local x,y position of the point where that ray intersects
+  // with the destination plane. If such a point exists, sets |*clamped| (if
+  // provided) to false and returns the point. Otherwise sets |*clamped| (if
+  // provided) to true and:
+  // - If the ray is parallel with the destination plane, returns PointF().
+  // - If the opposite ray intersects with the destination plane, returns
+  //   a point containing signed big values (simulating infinities).
+  //
+  // See https://bit.ly/perspective-projection-clamping for an illustration of
+  // clamping with perspective.
+  //
+  // When |this| is invertible and the result |*clamped| is false, this
+  // function is equivalent to:
+  //   inverse(flatten(inverse(this))).MapPoint(point)
+  // and
+  //   MapPoint(Point3F(point.x(), point.y(), unknown_z)) to
+  //   Point3F(result.x(), result.y(), 0).
+  [[nodiscard]] PointF ProjectPoint(const PointF& point,
+                                    bool* clamped = nullptr) const;
+
+  // Projects the four corners of the quad with ProjectPoint(). Returns an
+  // empty quad if all of the vertices are clamped.
+  [[nodiscard]] QuadF ProjectQuad(const QuadF& quad) const;
+
+  // Decomposes |this| into |decomp|. Returns nullopt if |this| can't be
+  // decomposed. |decomp| must be identity on input.
+  //
+  // Uses routines described in the following specs:
+  // 2d: https://www.w3.org/TR/css-transforms-1/#decomposing-a-2d-matrix
+  // 3d: https://www.w3.org/TR/css-transforms-2/#decomposing-a-3d-matrix
+  //
+  // Note: when the determinant is negative, the 2d spec calls for flipping one
+  // of the axis, while the general 3d spec calls for flipping all of the
+  // scales. The latter not only introduces rotation in the case of a trivial
+  // scale inversion, but causes transformed objects to needlessly shrink and
+  // grow as they transform through scale = 0 along multiple axes. Thus 2d
+  // transforms should follow the 2d spec regarding matrix decomposition.
+  absl::optional<DecomposedTransform> Decompose() const;
+
+  // Composes a transform from the given |decomp|, following the routines
+  // detailed in this specs:
+  // https://www.w3.org/TR/css-transforms-2/#recomposing-to-a-3d-matrix
+  static Transform Compose(const DecomposedTransform& decomp);
+
   // Decomposes |this| and |from|, interpolates the decomposed values, and
   // sets |this| to the reconstituted result. Returns false if either matrix
   // can't be decomposed. Uses routines described in this spec:
-  // http://www.w3.org/TR/css3-3d-transforms/.
+  // https://www.w3.org/TR/css-transforms-2/#matrix-interpolation
   //
-  // Note: this call is expensive since we need to decompose the transform. If
-  // you're going to be calling this rapidly (e.g., in an animation) you should
-  // decompose once using gfx::DecomposeTransforms and reuse your
-  // DecomposedTransform.
+  // Note: this call is expensive for complex transforms since we need to
+  // decompose the transforms. If you're going to be calling this rapidly
+  // (e.g., in an animation) for complex transforms, you should decompose once
+  // using Decompose() and reuse your DecomposedTransform with
+  // BlendDecomposedTransforms() (see transform_util.h).
   bool Blend(const Transform& from, double progress);
 
   double Determinant() const;
@@ -431,7 +524,11 @@ class GEOMETRY_SKIA_EXPORT Transform {
 
   void EnsureFullMatrixForTesting() { EnsureFullMatrix(); }
 
+  // Returns a string in the format of "[ row0\n, row1\n, row2\n, row3 ]\n".
   std::string ToString() const;
+
+  // Returns a string containing decomposed components.
+  std::string ToDecomposedString() const;
 
  private:
   // Used internally to construct Transform with parameters in col-major order.
@@ -453,12 +550,13 @@ class GEOMETRY_SKIA_EXPORT Transform {
             double r3c3);
   Transform(float scale_x, float scale_y, float trans_x, float trans_y);
 
-  Point3F MapPointInternal(const Matrix44& xform, const Point3F& point) const;
+  Point3F MapPointInternal(const Matrix44& matrix, const Point3F& point) const;
 
   Matrix44 GetFullMatrix() const;
   Matrix44& EnsureFullMatrix();
 
   // axis_2d_ is used if matrix_is nullptr, otherwise *matrix_ is used.
+  // See the class documentation for more details about how we use them.
   AxisTransform2d axis_2d_;
   std::unique_ptr<Matrix44> matrix_;
 };

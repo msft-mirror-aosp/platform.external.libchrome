@@ -1,4 +1,4 @@
-From fc3bcc9cda511d315525ffee7a5cb47a6b06114a Mon Sep 17 00:00:00 2001
+From 59e355ced750b10a8bc044d405d2a1a37548f7ff Mon Sep 17 00:00:00 2001
 From: Brett Brotherton <bbrotherton@google.com>
 Date: Tue, 8 Nov 2022 14:01:26 -0700
 Subject: [PATCH] Revert "Reland "Make CHECK() and IMMEDIATE_CRASH()
@@ -10,27 +10,15 @@ already landed on upstream crrev.com/1066781.
 
 Change-Id: I371b830a307f1424f877d238b7f612cde8976f4e
 ---
- base/check.h           |  8 +------
+ base/check.h           |  2 +-
  base/immediate_crash.h | 52 ++++++++++++++++++++++++++++++++----------
- 2 files changed, 41 insertions(+), 19 deletions(-)
+ 2 files changed, 41 insertions(+), 13 deletions(-)
 
 diff --git a/base/check.h b/base/check.h
-index cedafac1ae..b7d990a947 100644
+index ea8ef67b90..a8ee7d7468 100644
 --- a/base/check.h
 +++ b/base/check.h
-@@ -106,19 +106,13 @@ class BASE_EXPORT CheckError {
- #if defined(OFFICIAL_BUILD) && defined(NDEBUG) && \
-     !BUILDFLAG(DCHECK_IS_CONFIGURABLE)
- 
--// Note that this uses IMMEDIATE_CRASH_ALWAYS_INLINE to force-inline in debug
--// mode as well. See LoggingTest.CheckCausesDistinctBreakpoints.
--[[noreturn]] IMMEDIATE_CRASH_ALWAYS_INLINE void CheckFailure() {
--  IMMEDIATE_CRASH();
--}
--
- // Discard log strings to reduce code bloat.
- //
- // This is not calling BreakDebugger since this is called frequently, and
+@@ -126,7 +126,7 @@ class VoidifyStream {
  // calling an out-of-line function instead of a noreturn inline macro prevents
  // compiler optimizations.
  #define CHECK(condition) \

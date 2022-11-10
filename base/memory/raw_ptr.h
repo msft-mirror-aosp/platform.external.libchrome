@@ -51,14 +51,6 @@
 #include "base/trace_event/base_tracing_forward.h"
 #endif  // BUILDFLAG(PA_USE_BASE_TRACING)
 
-#if BUILDFLAG(USE_BACKUP_REF_PTR) || defined(RAW_PTR_USE_MTE_CHECKED_PTR)
-// USE_BACKUP_REF_PTR implies USE_PARTITION_ALLOC, needed for code under
-// allocator/partition_allocator/ to be built.
-#include "base/allocator/partition_allocator/address_pool_manager_bitmap.h"
-#include "base/allocator/partition_allocator/partition_address_space.h"
-#include "base/allocator/partition_allocator/partition_alloc_constants.h"
-#endif  // BUILDFLAG(USE_BACKUP_REF_PTR) || defined(RAW_PTR_USE_MTE_CHECKED_PTR)
-
 #if BUILDFLAG(USE_MTE_CHECKED_PTR) && \
     defined(PA_ENABLE_MTE_CHECKED_PTR_SUPPORT_WITH_64_BITS_POINTERS)
 #include "base/allocator/partition_allocator/partition_tag.h"
@@ -76,8 +68,16 @@
 #endif  // BUILDFLAG(USE_MTE_CHECKED_PTR) && \
     // defined(PA_ENABLE_MTE_CHECKED_PTR_SUPPORT_WITH_64_BITS_POINTERS)
 
+#if BUILDFLAG(USE_BACKUP_REF_PTR) || defined(RAW_PTR_USE_MTE_CHECKED_PTR)
+// USE_BACKUP_REF_PTR implies USE_PARTITION_ALLOC, needed for code under
+// allocator/partition_allocator/ to be built.
+#include "base/allocator/partition_allocator/address_pool_manager_bitmap.h"
+#include "base/allocator/partition_allocator/partition_address_space.h"
+#include "base/allocator/partition_allocator/partition_alloc_constants.h"
+#endif  // BUILDFLAG(USE_BACKUP_REF_PTR) || defined(RAW_PTR_USE_MTE_CHECKED_PTR)
+
 #if BUILDFLAG(IS_WIN)
-#include "base/win/win_handle_types.h"
+#include "base/allocator/partition_allocator/partition_alloc_base/win/win_handle_types.h"
 #endif
 
 namespace cc {
@@ -887,13 +887,13 @@ struct IsSupportedType<T,
 // upside of this approach is that it will safely handle base::Bind closing over
 // HANDLE.  The downside of this approach is that base::Bind closing over a
 // void* pointer will not get UaF protection.
-#define CHROME_WINDOWS_HANDLE_TYPE(name)   \
+#define PA_WINDOWS_HANDLE_TYPE(name)       \
   template <>                              \
   struct IsSupportedType<name##__, void> { \
     static constexpr bool value = false;   \
   };
-#include "base/win/win_handle_types_list.inc"
-#undef CHROME_WINDOWS_HANDLE_TYPE
+#include "base/allocator/partition_allocator/partition_alloc_base/win/win_handle_types_list.inc"
+#undef PA_WINDOWS_HANDLE_TYPE
 #endif
 
 template <typename T>

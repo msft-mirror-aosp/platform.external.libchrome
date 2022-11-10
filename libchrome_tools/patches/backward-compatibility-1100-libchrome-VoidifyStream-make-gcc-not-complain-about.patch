@@ -1,0 +1,32 @@
+From d44d56d1f919716c180328908808b002df5fcdaa Mon Sep 17 00:00:00 2001
+From: Brett Brotherton <bbrotherton@google.com>
+Date: Thu, 10 Nov 2022 14:35:34 -0700
+Subject: [PATCH] libchrome: VoidifyStream make gcc not complain about unused
+ parameter
+
+building of pacakge puffin was giving Wunused-parameter error on
+Voidify stream add (void)ignored; statement to get rid of error
+
+Change-Id: I6f1b8a26c0637e221f2e5b813416c2985d422d64
+---
+ base/check.h | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/base/check.h b/base/check.h
+index ea8ef67b90..446e8e3064 100644
+--- a/base/check.h
++++ b/base/check.h
+@@ -98,7 +98,9 @@ class BASE_EXPORT CheckError {
+ class VoidifyStream {
+  public:
+   VoidifyStream() = default;
+-  explicit VoidifyStream(bool ignored) {}
++  explicit VoidifyStream(bool ignored) {
++    (void)ignored;
++  }
+ 
+   // These operators have lower precedence than << but higher than ?:
+   void operator&(std::ostream&) {}
+-- 
+2.38.1.431.g37b22c650d-goog
+

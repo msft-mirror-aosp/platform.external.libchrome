@@ -60,6 +60,18 @@ typedef uint32_t IpczTransportActivityFlags;
 #define IPCZ_TRANSPORT_ACTIVITY_ERROR IPCZ_FLAG_BIT(0)
 #define IPCZ_TRANSPORT_ACTIVITY_DEACTIVATED IPCZ_FLAG_BIT(1)
 
+// Options given to CreateNode() to configure the new node's behavior.
+struct IPCZ_ALIGN(8) IpczCreateNodeOptions {
+  // The exact size of this structure in bytes. Must be set accurately before
+  // passing the structure to CreateNode().
+  size_t size;
+
+  // If set to true, this node will not attempt to allocate parcel data storage
+  // within shared memory.
+  bool disable_shared_memory_parcel_data;
+};
+
+
 typedef uint32_t IpczCreateNodeFlags;
 
 #define IPCZ_CREATE_NODE_AS_BROKER IPCZ_FLAG_BIT(0)

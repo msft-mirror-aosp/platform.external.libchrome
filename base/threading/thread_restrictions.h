@@ -135,6 +135,7 @@ class CategorizedWorkerPoolImpl;
 class CategorizedWorkerPoolJob;
 class CategorizedWorkerPool;
 class DiskDataAllocator;
+class H264Encoder;
 class IdentifiabilityActiveSampler;
 class RTCVideoDecoderAdapter;
 class RTCVideoEncoder;
@@ -142,6 +143,7 @@ class SourceStream;
 class VideoFrameResourceProvider;
 class WebRtcVideoFrameAdapter;
 class LegacyWebRtcVideoFrameAdapter;
+class VpxEncoder;
 class WorkerThread;
 namespace scheduler {
 class NonMainThreadImpl;
@@ -240,6 +242,7 @@ class AudioInputDevice;
 class AudioOutputDevice;
 class BlockingUrlProtocol;
 class FileVideoCaptureDeviceFactory;
+class MojoVideoEncodeAccelerator;
 class PaintCanvasVideoRenderer;
 }  // namespace media
 namespace memory_instrumentation {
@@ -574,8 +577,10 @@ class BASE_EXPORT ScopedAllowBaseSyncPrimitives {
   friend class base::SimpleThread;
   friend class blink::CategorizedWorkerPoolImpl;
   friend class blink::CategorizedWorkerPoolJob;
+  friend class blink::H264Encoder;
   friend class blink::IdentifiabilityActiveSampler;
   friend class blink::SourceStream;
+  friend class blink::VpxEncoder;
   friend class blink::WorkerThread;
   friend class blink::scheduler::NonMainThreadImpl;
   friend class chrome_cleaner::ResetShortcutsComponent;
@@ -595,6 +600,7 @@ class BASE_EXPORT ScopedAllowBaseSyncPrimitives {
   friend class location::nearby::chrome::SubmittableExecutor;
   friend class media::AudioOutputDevice;
   friend class media::BlockingUrlProtocol;
+  friend class media::MojoVideoEncodeAccelerator;
   friend class mojo::core::ScopedIPCSupport;
   friend class net::MultiThreadedCertVerifierScopedAllowBaseSyncPrimitives;
   friend class rlz_lib::FinancialPing;

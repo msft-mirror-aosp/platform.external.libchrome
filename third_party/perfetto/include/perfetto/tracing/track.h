@@ -16,6 +16,11 @@ struct Track {
   static Track FromPointer(const void* ptr, Track parent = Track()) {
     return Track();
   }
+  static Track ThreadScoped(
+      const void* ptr,
+      Track parent = Track()) {
+    return Track::FromPointer(ptr, parent);
+  }
   const uint64_t uuid;
   const uint64_t parent_uuid;
 };

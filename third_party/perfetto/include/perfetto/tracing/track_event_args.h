@@ -18,6 +18,11 @@ public:
   static inline std::function<void(EventContext &)> Global(uint64_t flow_id) {
     return [](perfetto::EventContext &ctx) {};
   }
+
+  static inline std::function<void(EventContext&)>
+  FromPointer(void* ptr) {
+    return ProcessScoped(reinterpret_cast<uintptr_t>(ptr));
+  }
 };
 
 class TerminatingFlow {
@@ -25,6 +30,11 @@ public:
   static inline std::function<void(EventContext &)>
   ProcessScoped(uint64_t flow_id) {
     return [](perfetto::EventContext &ctx) {};
+  }
+
+  static inline std::function<void(EventContext&)>
+  FromPointer(void* ptr) {
+    return ProcessScoped(reinterpret_cast<uintptr_t>(ptr));
   }
 };
 

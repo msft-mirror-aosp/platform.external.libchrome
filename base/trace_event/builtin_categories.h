@@ -148,6 +148,7 @@
   X("SiteEngagement")                                                    \
   X("safe_browsing")                                                     \
   X("scheduler")                                                         \
+  X("scheduler.long_tasks")                                              \
   X("screenlock_monitor")                                                \
   X("segmentation_platform")                                             \
   X("sequence_manager")                                                  \
@@ -175,6 +176,7 @@
   X("views.frame")                                                       \
   X("viz")                                                               \
   X("vk")                                                                \
+  X("wakeup.flow")                                                       \
   X("wayland")                                                           \
   X("webaudio")                                                          \
   X("weblayer")                                                          \
