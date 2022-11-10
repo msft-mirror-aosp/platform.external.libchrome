@@ -194,6 +194,7 @@
   X(TRACE_DISABLED_BY_DEFAULT("blink.image_decoding"))                   \
   X(TRACE_DISABLED_BY_DEFAULT("blink.invalidation"))                     \
   X(TRACE_DISABLED_BY_DEFAULT("identifiability"))                        \
+  X(TRACE_DISABLED_BY_DEFAULT("identifiability.high_entropy_api"))       \
   X(TRACE_DISABLED_BY_DEFAULT("cc"))                                     \
   X(TRACE_DISABLED_BY_DEFAULT("cc.debug"))                               \
   X(TRACE_DISABLED_BY_DEFAULT("cc.debug.cdp-perf"))                      \
@@ -324,6 +325,8 @@
   X("inc,inc2")                                                               \
   X("input,benchmark")                                                        \
   X("input,benchmark,devtools.timeline")                                      \
+  X("input,benchmark,devtools.timeline,latencyInfo")                          \
+  X("input,benchmark,latencyInfo")                                            \
   X("input,latency")                                                          \
   X("input,rail")                                                             \
   X("input,views")                                                            \

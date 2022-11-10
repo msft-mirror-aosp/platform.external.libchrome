@@ -1,4 +1,4 @@
-From 79a83ad9f5d06adc9b97153115f7e97c6206e4f8 Mon Sep 17 00:00:00 2001
+From f05d04bc85187748b5b1ec4e01462f0e4d281cb4 Mon Sep 17 00:00:00 2001
 From: Grace Cham <hscham@chromium.org>
 Date: Fri, 14 Oct 2022 14:41:31 +0900
 Subject: [PATCH] disable allocator sanitizer
@@ -12,11 +12,11 @@ Change-Id: I593b2acc1b51b8fbd310acdff264f58cd4947773
  2 files changed, 8 insertions(+)
 
 diff --git a/base/allocator/partition_allocator/shim/allocator_shim_override_cpp_symbols.h b/base/allocator/partition_allocator/shim/allocator_shim_override_cpp_symbols.h
-index 5047ad2f3da0..5d16f759b113 100644
+index 33bfedaeb6..0ca60bcd6e 100644
 --- a/base/allocator/partition_allocator/shim/allocator_shim_override_cpp_symbols.h
 +++ b/base/allocator/partition_allocator/shim/allocator_shim_override_cpp_symbols.h
 @@ -31,6 +31,9 @@
- #define SHIM_CPP_SYMBOLS_EXPORT NOINLINE
+ #define SHIM_CPP_SYMBOLS_EXPORT PA_NOINLINE
  #endif
  
 +// Disable custom memory allocator when asan is used.
@@ -33,7 +33,7 @@ index 5047ad2f3da0..5d16f759b113 100644
  
  #endif  // BASE_ALLOCATOR_PARTITION_ALLOCATOR_SHIM_ALLOCATOR_SHIM_OVERRIDE_CPP_SYMBOLS_H_
 diff --git a/base/allocator/partition_allocator/shim/allocator_shim_override_libc_symbols.h b/base/allocator/partition_allocator/shim/allocator_shim_override_libc_symbols.h
-index 2163736beeeb..16e86f74c2c9 100644
+index bb07170019..8d39b073bf 100644
 --- a/base/allocator/partition_allocator/shim/allocator_shim_override_libc_symbols.h
 +++ b/base/allocator/partition_allocator/shim/allocator_shim_override_libc_symbols.h
 @@ -22,6 +22,9 @@
@@ -54,5 +54,5 @@ index 2163736beeeb..16e86f74c2c9 100644
  
  #endif  // BASE_ALLOCATOR_PARTITION_ALLOCATOR_SHIM_ALLOCATOR_SHIM_OVERRIDE_LIBC_SYMBOLS_H_
 -- 
-2.38.0.413.g74048e4d9e-goog
+2.30.2
 

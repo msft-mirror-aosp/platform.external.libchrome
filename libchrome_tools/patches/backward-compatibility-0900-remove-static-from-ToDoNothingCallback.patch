@@ -1,0 +1,29 @@
+From b5a88eb81595be3d7d673bb7e7b48615b60f0e72 Mon Sep 17 00:00:00 2001
+From: Grace Cham <hscham@google.com>
+Date: Wed, 9 Nov 2022 09:57:51 +0800
+Subject: [PATCH] backward compatibility: remove static from
+ ToDoNothingCallback template
+
+To fix Wunused-template error when building chromeos-base/hpsd.
+
+Change-Id: Id34a00f09aad25bc46faec04963a9df883344019
+---
+ base/functional/callback.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/base/functional/callback.h b/base/functional/callback.h
+index 64513d3031..31545e3855 100644
+--- a/base/functional/callback.h
++++ b/base/functional/callback.h
+@@ -63,7 +63,7 @@ template <bool is_once,
+           typename R,
+           typename... UnboundArgs,
+           typename... BoundArgs>
+-static std::conditional_t<is_once,
++std::conditional_t<is_once,
+                           OnceCallback<R(UnboundArgs...)>,
+                           RepeatingCallback<R(UnboundArgs...)>>
+ ToDoNothingCallback(DoNothingCallbackTag::WithBoundArguments<BoundArgs...> t) {
+-- 
+2.30.2
+

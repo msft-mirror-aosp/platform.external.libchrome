@@ -1,0 +1,59 @@
+From df9a29d5120669acb746bd775a4964675435bc5b Mon Sep 17 00:00:00 2001
+From: Grace Cham <hscham@google.com>
+Date: Wed, 9 Nov 2022 16:10:59 +0800
+Subject: [PATCH] backward compatibility: make base::Location ctor public
+
+Became private in crrev.com/1062455.
+
+Change-Id: Ia0994ec5b4ca575666373ba15ceab33035bd6bbc
+---
+ base/location.h | 26 +++++++++++++-------------
+ 1 file changed, 13 insertions(+), 13 deletions(-)
+
+diff --git a/base/location.h b/base/location.h
+index 79d70fc688..a9c572b567 100644
+--- a/base/location.h
++++ b/base/location.h
+@@ -37,6 +37,19 @@ class BASE_EXPORT Location {
+   Location(Location&& other) noexcept;
+   Location& operator=(const Location& other);
+ 
++  // Only initializes the file name and program counter, the source information
++  // will be null for the strings, and -1 for the line number.
++  // TODO(http://crbug.com/760702) remove file name from this constructor.
++  Location(const char* file_name, const void* program_counter);
++
++  // Constructor should be called with a long-lived char*, such as __FILE__.
++  // It assumes the provided value will persist as a global constant, and it
++  // will not make a copy of it.
++  Location(const char* function_name,
++           const char* file_name,
++           int line_number,
++           const void* program_counter);
++
+   static Location CreateForTesting(const char* function_name,
+                                    const char* file_name,
+                                    int line_number,
+@@ -98,19 +111,6 @@ class BASE_EXPORT Location {
+ #endif  // SUPPORTS_LOCATION_BUILTINS
+ 
+  private:
+-  // Only initializes the file name and program counter, the source information
+-  // will be null for the strings, and -1 for the line number.
+-  // TODO(http://crbug.com/760702) remove file name from this constructor.
+-  Location(const char* file_name, const void* program_counter);
+-
+-  // Constructor should be called with a long-lived char*, such as __FILE__.
+-  // It assumes the provided value will persist as a global constant, and it
+-  // will not make a copy of it.
+-  Location(const char* function_name,
+-           const char* file_name,
+-           int line_number,
+-           const void* program_counter);
+-
+   const char* function_name_ = nullptr;
+   const char* file_name_ = nullptr;
+   int line_number_ = -1;
+-- 
+2.30.2
+
