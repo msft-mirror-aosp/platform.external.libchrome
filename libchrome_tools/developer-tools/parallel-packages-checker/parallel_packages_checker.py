@@ -33,7 +33,7 @@ _MAX_BUILD_PACKAGES = 3
 class State(threading.Thread):
     """Describes states for the running checker."""
 
-    def __init__(self):
+    def __init__(self, update_internval):
         """Initializes State"""
         super(State, self).__init__()
         # A lock to modify states/msgs.
@@ -48,6 +48,8 @@ class State(threading.Thread):
         self.failed = {}
         # A event to stop the thread.
         self.stop_print_event = threading.Event()
+        # Update interval.
+        self.update_internval = update_internval
 
     def set_failed(self, board, packages):
         """
@@ -81,7 +83,8 @@ class State(threading.Thread):
         packages = set()
         for failed in self.failed.values():
             packages.update(failed)
-        max_packages_len = max(len(p) for p in packages) if align and packages else 0
+        max_packages_len = max(
+            len(p) for p in packages) if align and packages else 0
         header = ' ' * max_packages_len + delimiter + delimiter.join(
             sorted(self.failed.keys())) + '\n'
         data = []
@@ -119,7 +122,7 @@ class State(threading.Thread):
         while not self.stop_print_event.is_set():
             with self.in_use:
                 self.print()
-            time.sleep(1)
+            time.sleep(self.update_internval)
 
     def stop(self):
         """Stops printing status to screen"""
@@ -199,7 +202,7 @@ class CheckOneBoard:
         """
         self.state.update(self.board, 'cros_workon start', packages)
         for package in packages.split():
-          self._cros_workon('start', package, fail_silent=True)
+            self._cros_workon('start', package, fail_silent=True)
 
     def build_packages(self):
         """Runs build_packages"""
@@ -376,8 +379,8 @@ class CheckOneBoard:
         return True
 
     def _build_packages(
-        self,
-        params=[],
+            self,
+            params=[],
     ):
         """
         Runs build_packages, and update state.
@@ -436,12 +439,13 @@ class CheckOneBoard:
             self.state.update(self.board, 'emerge_' + package)
         env = dict(os.environ)
         if self.run_unittest:
-          env['FEATURES'] = 'test'
-        proc = subprocess.run(['emerge-' + self.board, package],
-                              stdout=out,
-                              stderr=out,
-                              env=env,
-                              )
+            env['FEATURES'] = 'test'
+        proc = subprocess.run(
+            ['emerge-' + self.board, package],
+            stdout=out,
+            stderr=out,
+            env=env,
+        )
         if proc.returncode != 0:
             if update_state:
                 self.state.update(
@@ -598,12 +602,20 @@ def main():
         'Maximum parallization for emerge(s). Default to %d (or %d when --unittest)'
         % (_MAX_EMERGES_WITHOUT_UNITTEST, _MAX_EMERGES),
         type=int)
-    parser.add_argument('-p',
+    parser.add_argument(
+        '-p',
         '--cros-workon-packages',
         metavar='cros_workon_packages',
-        help='Packages to use 9999 ebuild. A string of list of packages space-separated. Default to None (libchrome only).',
+        help=
+        'Packages to use 9999 ebuild. A string of list of packages space-separated. Default to None (libchrome only).',
         type=str,
         default='')
+    parser.add_argument(
+        '--status-update-interval',
+        metavar='status_update_interval',
+        help='Interval for updating current status. every (f) seconds',
+        type=int,
+        default=1)
 
     arg = parser.parse_args(sys.argv[1:])
 
@@ -628,7 +640,7 @@ def main():
         else:
             boards.append(board)
 
-    state = State()
+    state = State(arg.status_update_interval)
 
     os.makedirs(arg.output_directory,
                 exist_ok=arg.allow_output_directory_exists)
@@ -657,10 +669,11 @@ def main():
                     handle_exception(work.board, state, 'setup_board'))
 
     if arg.cros_workon_packages:
-      with concurrent.futures.ThreadPoolExecutor(
-              max_workers=max_build_packages) as executor:
-          for work in work_list:
-                task = executor.submit(work.cros_workon_start, arg.cros_workon_packages)
+        with concurrent.futures.ThreadPoolExecutor(
+                max_workers=max_build_packages) as executor:
+            for work in work_list:
+                task = executor.submit(work.cros_workon_start,
+                                       arg.cros_workon_packages)
 
     if not arg.skip_first_pass_build_packages:
         with concurrent.futures.ThreadPoolExecutor(
