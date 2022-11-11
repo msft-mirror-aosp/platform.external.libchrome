@@ -330,7 +330,7 @@ class NSSInitSingleton {
     // NSS is allowed to do IO on the current thread since dispatching
     // to a dedicated thread would still have the affect of blocking
     // the current thread, due to NSS's internal locking requirements
-    base::ThreadRestrictions::ScopedAllowIO allow_io;
+    ScopedAllowBlockingForNSS allow_blocking;
 
     base::FilePath nssdb_path = path.AppendASCII(".pki").AppendASCII("nssdb");
     if (!base::CreateDirectory(nssdb_path)) {
@@ -908,7 +908,7 @@ void EnsureNSSInit() {
   // Initializing SSL causes us to do blocking IO.
   // Temporarily allow it until we fix
   //   http://code.google.com/p/chromium/issues/detail?id=59847
-  base::ThreadRestrictions::ScopedAllowIO allow_io;
+  ScopedAllowBlockingForNSS allow_blocking;
   g_nss_singleton.Get();
 }
 

@@ -168,6 +168,7 @@ buildflag_header("partition_allocator_buildflags") {
     "ENABLE_SHADOW_METADATA_FOR_64_BITS_POINTERS=false",
     "STARSCAN=false",
     "PA_USE_BASE_TRACING=false",
+    "ENABLE_PKEYS=false",
   ]
 }
 
@@ -373,7 +374,6 @@ libbase_sublibs = [
       "base/files/file_posix.cc",
       "base/files/file_tracing.cc",
       "base/files/file_util.cc",
-      "base/files/file_util_linux.cc",
       "base/files/file_util_posix.cc",
       "base/files/important_file_writer.cc",
       "base/files/important_file_writer_cleaner.cc",
@@ -626,6 +626,7 @@ libbase_sublibs = [
       "base/trace_event/category_registry.cc",
       "base/trace_event/event_name_filter.cc",
       "base/trace_event/heap_profiler_allocation_context_tracker.cc",
+      "base/trace_event/interned_args_helper.cc",
       "base/trace_event/malloc_dump_provider.cc",
       "base/trace_event/memory_allocator_dump.cc",
       "base/trace_event/memory_allocator_dump_guid.cc",
@@ -1069,6 +1070,7 @@ if (use.mojo) {
           "mojo/core/ipcz_driver/mojo_message.cc",
           "mojo/core/ipcz_driver/mojo_trap.cc",
           "mojo/core/ipcz_driver/object.cc",
+          "mojo/core/ipcz_driver/ring_buffer.cc",
           "mojo/core/ipcz_driver/shared_buffer.cc",
           "mojo/core/ipcz_driver/shared_buffer_mapping.cc",
           "mojo/core/ipcz_driver/transmissible_platform_handle.cc",

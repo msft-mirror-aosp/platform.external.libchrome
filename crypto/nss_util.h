@@ -9,6 +9,7 @@
 
 #include <string>
 #include "base/callback.h"
+#include "base/threading/thread_restrictions.h"
 #include "crypto/crypto_export.h"
 
 namespace base {
@@ -21,6 +22,8 @@ class Time;
 // is included by various (non-crypto) parts of chrome to call the
 // initialization functions.
 namespace crypto {
+
+class ScopedAllowBlockingForNSS : public base::ScopedAllowBlocking {};
 
 #if defined(USE_NSS_CERTS)
 // EarlySetupForNSSInit performs lightweight setup which must occur before the

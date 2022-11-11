@@ -18,6 +18,7 @@
 #include "base/memory/weak_ptr.h"
 #include "base/synchronization/waitable_event.h"
 #include "base/task/bind_post_task.h"
+#include "base/task/common/task_annotator.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/threading/thread_local.h"
 #include "base/trace_event/interned_args_helper.h"
@@ -442,13 +443,13 @@ InterfaceEndpointClient::InterfaceEndpointClient(
     ScopedInterfaceEndpointHandle handle,
     MessageReceiverWithResponderStatus* receiver,
     std::unique_ptr<MessageReceiver> payload_validator,
-    bool expect_sync_requests,
+    base::span<const uint32_t> sync_method_ordinals,
     scoped_refptr<base::SequencedTaskRunner> task_runner,
     uint32_t interface_version,
     const char* interface_name,
     MessageToMethodInfoCallback method_info_callback,
     MessageToMethodNameCallback method_name_callback)
-    : expect_sync_requests_(expect_sync_requests),
+    : sync_method_ordinals_(sync_method_ordinals),
       handle_(std::move(handle)),
       incoming_receiver_(receiver),
       dispatcher_(&thunk_),
@@ -858,7 +859,8 @@ void InterfaceEndpointClient::InitControllerIfNecessary() {
 
   controller_ = handle_.group_controller()->AttachEndpointClient(handle_, this,
                                                                  task_runner_);
-  if (expect_sync_requests_ && task_runner_->RunsTasksInCurrentSequence())
+  if (!sync_method_ordinals_.empty() &&
+      task_runner_->RunsTasksInCurrentSequence())
     controller_->AllowWokenUpBySyncWatchOnSameThread();
 }
 
@@ -920,6 +922,13 @@ bool InterfaceEndpointClient::HandleValidatedMessage(Message* message) {
               });
 
   DCHECK_EQ(handle_.id(), message->interface_id());
+
+  // Sync messages can be sent and received at arbitrary points in time and we
+  // should not associate them with the top-level scheduler task.
+  if (!message->has_flag(Message::kFlagIsSync)) {
+    const auto method_info = method_info_callback_(*message);
+    base::TaskAnnotator::OnIPCReceived(interface_name_, method_info);
+  }
 
   if (encountered_error_) {
     // This message is received after error has been encountered. For associated

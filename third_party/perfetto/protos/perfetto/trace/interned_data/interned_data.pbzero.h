@@ -6,6 +6,7 @@
 
 #include "third_party/perfetto/include/perfetto/protozero/message.h"
 
+#include "third_party/perfetto/protos/perfetto/trace/profiling/profile_common.pbzero.h"
 #include "third_party/perfetto/protos/perfetto/trace/track_event/log_message.pbzero.h"
 #include "third_party/perfetto/protos/perfetto/trace/track_event/source_location.pbzero.h"
 
@@ -31,6 +32,23 @@ public:
   template <typename T = LogMessageBody> T *add_log_message_body() {
     return BeginNestedMessage<T>(0);
   }
+
+  template <typename T = InternedString> T* add_build_ids() {
+    return BeginNestedMessage<T>(16);
+  }
+
+  template <typename T = InternedString> T* add_mapping_paths() {
+    return BeginNestedMessage<T>(17);
+  }
+
+  template <typename T = Mapping> T* add_mappings() {
+    return BeginNestedMessage<T>(19);
+  }
+
+  template <typename T = UnsymbolizedSourceLocation> T* add_unsymbolized_source_locations() {
+    return BeginNestedMessage<T>(28);
+  }
+
 };
 
 } // namespace pbzero

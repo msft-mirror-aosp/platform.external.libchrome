@@ -338,8 +338,7 @@ struct IPCZ_ALIGN(8) IpczAPI {
                                size_t num_handles,         // in
                                IpczEndGetFlags flags,      // in
                                const void* options,        // in
-                               IpczHandle* handles,        // out
-                               IpczHandle* validator);     // out
+                               IpczHandle* handles);       // out
 
   IpczResult(IPCZ_API* MergePortals)(IpczHandle first,      // in
                                      IpczHandle second,     // in
