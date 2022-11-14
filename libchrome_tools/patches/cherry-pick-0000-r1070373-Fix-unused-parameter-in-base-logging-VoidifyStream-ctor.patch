@@ -1,0 +1,28 @@
+From e61140c732be8235007987363c65011d2c43fac1 Mon Sep 17 00:00:00 2001
+From: Grace Cham <hscham@google.com>
+Date: Mon, 14 Nov 2022 09:55:16 +0800
+Subject: [PATCH] Fix unused parameter in base::logging::VoidifyStream ctor
+
+Cherry-pick of crrev.com/1070373 to fix b/258709783.
+
+Change-Id: Ic13036258c7b603e696f91f94d2c126fcdfc6eda
+---
+ base/check.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/base/check.h b/base/check.h
+index ea8ef67b90..f67a31abe2 100644
+--- a/base/check.h
++++ b/base/check.h
+@@ -98,7 +98,7 @@ class BASE_EXPORT CheckError {
+ class VoidifyStream {
+  public:
+   VoidifyStream() = default;
+-  explicit VoidifyStream(bool ignored) {}
++  explicit VoidifyStream(bool) {}
+ 
+   // These operators have lower precedence than << but higher than ?:
+   void operator&(std::ostream&) {}
+-- 
+2.30.2
+
