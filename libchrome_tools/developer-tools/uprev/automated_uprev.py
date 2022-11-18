@@ -47,7 +47,7 @@ import typing
 BASE_VER_FILE = "BASE_VER"
 BUILD_GN_FILE = "BUILD.gn"
 PATCHES_DIRECTORY = "libchrome_tools/patches"
-PATCHES_CONFIG_FILE = "libchrome_tools/patches/patches.config"
+PATCHES_CONFIG_FILE = os.path.join(PATCHES_DIRECTORY, "patches.config")
 
 COMMIT_REVISION_RE = re.compile(
     r"\s*Cr-Commit-Position: refs\/heads\/\w+@\{#([0-9]+)\}$"
@@ -57,6 +57,8 @@ SECTION_HEADER_RE = re.compile(r"^# ={5}=* .* ={5}=*$")
 CHERRY_PICK_PATCH_RE = re.compile(r"^cherry-pick-[0-9]{4}-r([0-9]+)-.+\.patch$")
 BUILD_GN_SOURCE_FILE_LINE_RE = re.compile(r"\s*([\"\'])(.*)\1,")
 
+MergeResult = typing.NamedTuple(
+    "MergeResult", [("succeed", bool),  ("message", typing.List[str])])
 Commit = typing.NamedTuple("Commit", [("hash", str), ("revision", int)])
 GitMergeSummary = typing.NamedTuple(
     "GitMergeSummary",
@@ -344,7 +346,7 @@ def UpdatePatches(revision: int) -> (typing.List[str]):
       return []
 
     for patch in obsolete_patches:
-        os.remove(patch)
+      os.remove(os.path.join(PATCHES_DIRECTORY, patch))
 
     with open(PATCHES_CONFIG_FILE, "r+") as f:
       sources = f.read().splitlines()
@@ -352,17 +354,25 @@ def UpdatePatches(revision: int) -> (typing.List[str]):
     # Check if config file contains any of the removed patches.
     deleted_lines = []
     for idx, line in enumerate(sources):
+      if not line or line.startswith("#"): # Ignore empty line and comments.
+        continue
       if line.split()[0] in obsolete_patches:
         deleted_lines.append(idx)
         if sources[idx-1] == "": # Remove leading empty line as well.
           deleted_lines.append(idx-1)
 
-    # Write new patches config file if any lines should be removed.
-    if delieted_lines:
-        # To avoid eating the newline at the end of the file.
-        sources.append("")
-        with open(PATCHES_CONFIG_FILE, "w") as f:
-            f.write("\n".join(sources))
+    if deleted_lines:
+      # Delete lines from config file, if any, in reverse order to avoid
+      # reindexing.
+      deleted_lines.sort(reverse=True)
+      for idx in deleted_lines:
+        del sources[idx]
+
+      # To avoid eating the newline at the end of the file.
+      sources.append("")
+      # Write new patches config file.
+      with open(PATCHES_CONFIG_FILE, "w") as f:
+          f.write("\n".join(sources))
 
     return obsolete_patches
 
@@ -431,7 +441,7 @@ def EmergeLibchrome(recipe: bool) -> bool:
         check=True,
     )
     emerge_result = subprocess.run(
-        ["FEATURES=test", "sudo", "emerge", "libchrome"],
+        ["sudo", "emerge", "libchrome"],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
@@ -442,10 +452,10 @@ def CreateUprevCommit(
     commit_hash: str,
     revision: int,
     track_branch: str,
-) -> typing.List[str]:
+) -> MergeResult:
     """Runs git merge and conduct typical changes (update BASE_VER, etc).
 
-    Returns the final commit message as list of strings (each str is one line).
+    Returns whether the merge succeeds, and the final commit message as list of strings (each str is one line).
     """
     subprocess.run(
         [
@@ -485,23 +495,23 @@ def CreateUprevCommit(
             ],
             check=True,
         )
-        return message
+        return False, message
 
     UpdateBaseVer(revision)
 
     _, removed_files = ParseGitMergeSummary(merge_summary)
     removed_from_gn_files = UpdateBuildGn(removed_files)
     if removed_from_gn_files:
-        message.append(f"Removed following files from {BUILD_GN_FILE} sources:")
-        message.extend(["  * " + f for f in removed_from_gn_files])
+        message.append(f"Update to {BUILD_GN_FILE} sources:")
+        message.extend(["  * remove " + f for f in removed_from_gn_files])
 
     removed_patches = UpdatePatches(revision)
     if removed_patches:
-        message.append(f"Removed following patches from {PATCHES_LIST_FILE}:")
+        message.append(f"Remove following patches:")
         message.extend(["  * " + f for f in removed_patches])
 
     message.append(f"\nBUG=None")
-    message.append(f"TEST=FEATURES=test sudo emerge libchrome")
+    message.append(f"TEST=sudo emerge libchrome")
 
     subprocess.run(
         [
@@ -509,7 +519,7 @@ def CreateUprevCommit(
             "add",
             "BASE_VER",
             "BUILD.gn",
-            "libchrome_tools/patches/patches.config",
+            "libchrome_tools/patches/",
         ],
         check=True,
     )
@@ -519,7 +529,7 @@ def CreateUprevCommit(
         check=True,
     )
 
-    return message
+    return True, message
 
 
 def PushOptions(emerge_success=None) -> str:
@@ -528,7 +538,7 @@ def PushOptions(emerge_success=None) -> str:
     TODO(b/251642220): before formal rotation, add Bot-Commit vote to submit
     automatically
       * remove Commit-Queue+1 and Auto-Submit+1
-      * remove fqj, hidehiko from reviewers
+      * remove fqj, hidehiko, hscham from reviewers
       * (optional) find out who is on-duty and add them as reviewer
     """
     push_options = (
@@ -537,6 +547,7 @@ def PushOptions(emerge_success=None) -> str:
         # Add reviewers
         "r=fqj@google.com,"
         + "r=hidehiko@google.com,"
+        + "r=hscham@google.com,"
         +
         # Set topic for easy searching of commits on gerrit
         "topic=libchrome-automated-uprev,"
@@ -649,19 +660,20 @@ def main():
             "Git working directory is dirty. Abort creating uprev commit."
         )
 
-    commit_message = CreateUprevCommit(
+    merge_success, commit_message = CreateUprevCommit(
         target_commit_hash, target_commit_revision, args.track_branch
     )
 
     emerge_success = None
-    if IsInsideChroot():
+    if merge_success and IsInsideChroot():
         if not EmergeLibchrome(args.recipe):
             commit_message.insert(2, "EMERGE LIBCHROME IS FAILING\n")
             emerge_success = False
         else:
             emerge_success = True
     else:
-        logging.warning("Not inside chroot, emerge libchrome is not run.")
+        reason = "git merge failed" if not merge_success else "Not inside chroot"
+        logging.warning(f"{reason}, emerge libchrome is not run.")
         commit_message.insert(2, "DID NOT EMERGE LIBCHROME\n")
     subprocess.run(
         ["git", "commit", "--amend", "--quiet", "--allow-empty",
@@ -677,7 +689,7 @@ def main():
     if not args.no_upload:
         UploadUprevCommit(push_options)
     logging.info("Finished running automated_uprev.py; emerge libchrome " +
-                 ("succeeded" if emerge_success else "failed"))
+                 ("succeeded" if emerge_success else "failed or not run"))
 
 
 if __name__ == "__main__":
