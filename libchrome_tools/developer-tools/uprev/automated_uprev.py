@@ -43,6 +43,7 @@ import re
 import subprocess
 import sys
 import typing
+from pathlib import Path
 
 BASE_VER_FILE = "BASE_VER"
 BUILD_GN_FILE = "BUILD.gn"
@@ -65,6 +66,13 @@ GitMergeSummary = typing.NamedTuple(
     [("files_added", typing.List[str]), ("files_removed", typing.List[str])],
 )
 
+
+def ChangeDirectoryToLibchrome() -> str:
+    """Change directory to libchrome for running git commands. Return cwd before changing."""
+    cwd = os.getcwd()
+    libchrome_directory = Path(os.path.realpath(__file__)).parent.parent.parent.parent
+    os.chdir(libchrome_directory)
+    return cwd
 
 def IsInsideChroot() -> bool:
     """Checks that the script is run inside chroot. Copied from chromite/lib/cros_build_lib.py"""
@@ -641,6 +649,8 @@ def main():
 
     logging.getLogger().setLevel("CRITICAL" if args.recipe else "INFO")
 
+    initial_directory = ChangeDirectoryToLibchrome()
+
     target_commit_hash, target_commit_revision = GetTargetCommit(args)
     logging.info(
         f"Uprev to revision {target_commit_revision} with hash "
@@ -690,6 +700,8 @@ def main():
         UploadUprevCommit(push_options)
     logging.info("Finished running automated_uprev.py; emerge libchrome " +
                  ("succeeded" if emerge_success else "failed or not run"))
+
+    os.chdir(initial_directory)
 
 
 if __name__ == "__main__":
