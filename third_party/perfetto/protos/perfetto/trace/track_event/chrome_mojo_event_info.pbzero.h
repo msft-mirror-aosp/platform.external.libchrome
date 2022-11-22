@@ -16,6 +16,9 @@ public:
   void set_mojo_interface_tag(std::string) {}
   void set_watcher_notify_interface_tag(std::string) {}
   void set_mojo_interface_method_iid(uint64_t) {}
+  void set_is_reply(bool) {}
+  void set_payload_size(uint64_t) {}
+  void set_data_num_bytes(uint64_t) {}
 };
 
 } // namespace pbzero

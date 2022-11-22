@@ -68,7 +68,7 @@ struct IPCZ_ALIGN(8) IpczCreateNodeOptions {
 
   // If set to true, this node will not attempt to allocate parcel data storage
   // within shared memory.
-  bool disable_shared_memory_parcel_data;
+  bool disable_parcel_memory_expansion;
 };
 
 
@@ -131,6 +131,9 @@ struct IPCZ_ALIGN(8) IpczPortalStatus {
 typedef uint32_t IpczGetFlags;
 
 typedef uint32_t IpczEndGetFlags;
+
+#define IPCZ_GET_PARTIAL IPCZ_FLAG_BIT(0)
+#define IPCZ_GET_PARCEL_ONLY IPCZ_FLAG_BIT(1)
 
 #define IPCZ_END_GET_ABORT IPCZ_FLAG_BIT(0)
 

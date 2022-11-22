@@ -146,7 +146,7 @@ class ThreadSafeInterfaceEndpointClientProxy : public ThreadSafeProxy {
    public:
     explicit ForwardToCallingThread(std::unique_ptr<MessageReceiver> responder)
         : responder_(std::move(responder)),
-          caller_task_runner_(base::SequencedTaskRunnerHandle::Get()) {}
+          caller_task_runner_(base::SequencedTaskRunner::GetCurrentDefault()) {}
 
     ~ForwardToCallingThread() override {
       caller_task_runner_->DeleteSoon(FROM_HERE, std::move(responder_));
@@ -913,6 +913,9 @@ bool InterfaceEndpointClient::HandleValidatedMessage(Message* message) {
                   }
                 }
 
+                info->set_payload_size(message->payload_num_bytes());
+                info->set_data_num_bytes(message->data_num_bytes());
+
                 static const uint8_t* flow_enabled =
                     TRACE_EVENT_API_GET_CATEGORY_GROUP_ENABLED("toplevel.flow");
                 if (!*flow_enabled)
@@ -927,7 +930,9 @@ bool InterfaceEndpointClient::HandleValidatedMessage(Message* message) {
   // should not associate them with the top-level scheduler task.
   if (!message->has_flag(Message::kFlagIsSync)) {
     const auto method_info = method_info_callback_(*message);
-    base::TaskAnnotator::OnIPCReceived(interface_name_, method_info);
+    base::TaskAnnotator::OnIPCReceived(
+        interface_name_, method_info,
+        message->has_flag(Message::kFlagIsResponse));
   }
 
   if (encountered_error_) {

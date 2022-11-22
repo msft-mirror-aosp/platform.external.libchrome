@@ -169,6 +169,7 @@ buildflag_header("partition_allocator_buildflags") {
     "STARSCAN=false",
     "PA_USE_BASE_TRACING=false",
     "ENABLE_PKEYS=false",
+    "ENABLE_POINTER_COMPRESSION=false",
   ]
 }
 
@@ -583,7 +584,7 @@ libbase_sublibs = [
       "base/task/thread_pool/thread_pool_impl.cc",
       "base/task/thread_pool/thread_pool_instance.cc",
       "base/task/thread_pool/worker_thread.cc",
-      "base/task/thread_pool/worker_thread_stack.cc",
+      "base/task/thread_pool/worker_thread_set.cc",
       "base/third_party/dynamic_annotations/dynamic_annotations.c",
       "base/third_party/nspr/prtime.cc",
       "base/threading/hang_watcher.cc",

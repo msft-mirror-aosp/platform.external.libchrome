@@ -95,6 +95,7 @@ class PA_COMPONENT_EXPORT(PARTITION_ALLOC) PartitionAddressSpace {
   static void InitConfigurablePool(uintptr_t pool_base, size_t size);
 #if BUILDFLAG(ENABLE_PKEYS)
   static void InitPkeyPool(int pkey);
+  static void UninitPkeyPoolForTesting();
 #endif
   static void UninitForTesting();
   static void UninitConfigurablePoolForTesting();
@@ -164,6 +165,15 @@ class PA_COMPONENT_EXPORT(PARTITION_ALLOC) PartitionAddressSpace {
     PA_DCHECK(ret == (IsInRegularPool(address) || IsInBRPPool(address)));
     return ret;
   }
+#if defined(PA_DYNAMICALLY_SELECT_POOL_SIZE)
+  static PA_ALWAYS_INLINE size_t CorePoolsSize() {
+    return RegularPoolSize() * 2;
+  }
+#else   // !defined(PA_DYNAMICALLY_SELECT_POOL_SIZE)
+  static PA_ALWAYS_INLINE constexpr size_t CorePoolsSize() {
+    return RegularPoolSize() * 2;
+  }
+#endif  // !defined(PA_DYNAMICALLY_SELECT_POOL_SIZE)
 #endif  // defined(PA_GLUE_CORE_POOLS)
 
   static PA_ALWAYS_INLINE uintptr_t OffsetInBRPPool(uintptr_t address) {

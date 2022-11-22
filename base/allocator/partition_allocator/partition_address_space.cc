@@ -11,6 +11,7 @@
 #include <string>
 
 #include "base/allocator/partition_allocator/address_pool_manager.h"
+#include "base/allocator/partition_allocator/compressed_pointer.h"
 #include "base/allocator/partition_allocator/page_allocator.h"
 #include "base/allocator/partition_allocator/partition_alloc_base/bits.h"
 #include "base/allocator/partition_allocator/partition_alloc_base/compiler_specific.h"
@@ -310,6 +311,10 @@ void PartitionAddressSpace::Init() {
   brp_pool_shadow_offset_ =
       brp_pool_shadow_address - setup_.brp_pool_base_address_;
 #endif
+
+#if defined(PA_POINTER_COMPRESSION)
+  CompressedPointerBaseGlobal::SetBase(setup_.regular_pool_base_address_);
+#endif  // defined(PA_POINTER_COMPRESSION)
 }
 
 void PartitionAddressSpace::InitConfigurablePool(uintptr_t pool_base,
@@ -376,6 +381,9 @@ void PartitionAddressSpace::InitPkeyPool(int pkey) {
 #endif  // BUILDFLAG(ENABLE_PKEYS)
 
 void PartitionAddressSpace::UninitForTesting() {
+#if BUILDFLAG(ENABLE_PKEYS)
+  UninitPkeyPoolForTesting();  // IN-TEST
+#endif
 #if defined(PA_GLUE_CORE_POOLS)
   // The core pools (regular & BRP) were allocated using a single allocation of
   // double size.
@@ -395,13 +403,42 @@ void PartitionAddressSpace::UninitForTesting() {
   setup_.configurable_pool_base_address_ = kUninitializedPoolBaseAddress;
   setup_.configurable_pool_base_mask_ = 0;
   AddressPoolManager::GetInstance().ResetForTesting();
+#if defined(PA_POINTER_COMPRESSION)
+  CompressedPointerBaseGlobal::ResetBaseForTesting();
+#endif  // defined(PA_POINTER_COMPRESSION)
 }
 
 void PartitionAddressSpace::UninitConfigurablePoolForTesting() {
+#if BUILDFLAG(ENABLE_PKEYS)
+  // It's possible that the pkey pool has been initialized first, in which case
+  // the setup_ memory has been made read-only. Remove the protection
+  // temporarily.
+  if (IsPkeyPoolInitialized())
+    TagGlobalsWithPkey(kDefaultPkey);
+#endif
   AddressPoolManager::GetInstance().Remove(kConfigurablePoolHandle);
   setup_.configurable_pool_base_address_ = kUninitializedPoolBaseAddress;
   setup_.configurable_pool_base_mask_ = 0;
+#if BUILDFLAG(ENABLE_PKEYS)
+  // Put the pkey protection back in place.
+  if (IsPkeyPoolInitialized())
+    TagGlobalsWithPkey(setup_.pkey_);
+#endif
 }
+
+#if BUILDFLAG(ENABLE_PKEYS)
+void PartitionAddressSpace::UninitPkeyPoolForTesting() {
+  if (IsPkeyPoolInitialized()) {
+    TagGlobalsWithPkey(kDefaultPkey);
+    PkeySettings::settings.enabled = false;
+
+    FreePages(setup_.pkey_pool_base_address_, PkeyPoolSize());
+    AddressPoolManager::GetInstance().Remove(kPkeyPoolHandle);
+    setup_.pkey_pool_base_address_ = kUninitializedPoolBaseAddress;
+    setup_.pkey_ = kInvalidPkey;
+  }
+}
+#endif
 
 #if BUILDFLAG(IS_LINUX) && defined(ARCH_CPU_ARM64)
 
