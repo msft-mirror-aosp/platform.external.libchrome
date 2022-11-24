@@ -11,6 +11,12 @@
 #include "base/strings/string_piece.h"
 #include "build/build_config.h"
 
+#if BUILDFLAG(IS_NACL)
+#include "base/hash/md5_nacl.h"
+#else
+#include "base/hash/md5_boringssl.h"
+#endif
+
 // MD5 stands for Message Digest algorithm 5.
 // MD5 is a robust hash function, designed for cyptography, but often used
 // for file checksums.  The code is complex and slow, but has few
@@ -35,15 +41,6 @@
 // You can call MD5DigestToBase16() to generate a string of the digest.
 
 namespace base {
-
-// The output of an MD5 operation.
-struct MD5Digest {
-  uint8_t a[16];
-};
-
-// Used for storing intermediate data during an MD5 computation. Callers
-// should not access the data.
-typedef char MD5Context[88];
 
 // Initializes the given MD5 context structure for subsequent calls to
 // MD5Update().

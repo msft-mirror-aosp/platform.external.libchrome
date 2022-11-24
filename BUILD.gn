@@ -394,7 +394,7 @@ libbase_sublibs = [
       "base/functional/callback_internal.cc",
       "base/guid.cc",
       "base/hash/hash.cc",
-      "base/hash/md5.cc",
+      "base/hash/md5_nacl.cc",
       "base/hash/sha1_nacl.cc",
       "base/json/json_file_value_serializer.cc",
       "base/json/json_parser.cc",

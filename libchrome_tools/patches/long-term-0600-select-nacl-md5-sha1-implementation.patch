@@ -1,10 +1,9 @@
-Select sha1_nacl.cc implementation.
+Select sha1_nacl.cc, md5_nacl.cc implementation.
 NACL doesn't have boringssl either, we can just select NACL implementation for
-SHA1 used in upstream Chromium.
+MD5/SHA1 used in upstream Chromium.
 
 
 diff --git a/base/hash/sha1.h b/base/hash/sha1.h
-index c4e656b9a68e..229042a28770 100644
 --- a/base/hash/sha1.h
 +++ b/base/hash/sha1.h
 @@ -14,11 +14,11 @@
@@ -19,6 +18,20 @@ index c4e656b9a68e..229042a28770 100644
  #endif
  
  namespace base {
+ 
+diff --git a/base/hash/md5.h b/base/hash/md5.h
+--- a/base/hash/md5.h
++++ b/base/hash/md5.h
+@@ -11,9 +11,9 @@
+ #include "base/strings/string_piece.h"
+ #include "build/build_config.h"
+
+-#if BUILDFLAG(IS_NACL)
++#if BUILDFLAG(IS_NACL) || 1
+ #include "base/hash/md5_nacl.h"
+ #else
+ #include "base/hash/md5_boringssl.h"
+ #endif
  
 -- 
 2.35.0.rc0.227.g00780c9af4-goog
