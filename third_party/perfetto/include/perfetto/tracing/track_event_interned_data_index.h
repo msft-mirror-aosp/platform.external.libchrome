@@ -8,8 +8,31 @@ namespace perfetto {
 
 class EventContext;
 
+struct SmallInternedDataTraits {
+  template <typename ValueType>
+  class Index {
+   public:
+    bool LookUpOrInsert(size_t* iid, const ValueType& value) {
+      return false;
+    }
+  };
+};
+
+struct BigInternedDataTraits {
+  template <typename ValueType>
+  class Index {
+   public:
+    bool LookUpOrInsert(size_t* iid, const ValueType& value) {
+      return false;
+    }
+  };
+};
+
 template <typename InternedDataType, size_t FieldNumber, typename ValueType,
-          typename FakeTraits = void>
+           typename Traits =
+              typename std::conditional<(std::is_pointer<ValueType>::value),
+                                        SmallInternedDataTraits,
+                                        BigInternedDataTraits>::type>
 class TrackEventInternedDataIndex {
 public:
   template <typename... Args>
@@ -17,6 +40,14 @@ public:
                     Args &&...add_args) {
     return 0;
   }
+
+protected:
+  static InternedDataType* GetOrCreateIndexForField(
+      internal::TrackEventIncrementalState* incremental_state) {
+    return nullptr;
+  }
+
+  typename Traits::template Index<ValueType> index_;
 };
 
 } // namespace perfetto

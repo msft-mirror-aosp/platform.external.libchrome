@@ -4,6 +4,7 @@
 #ifndef THIRD_PARTY_PERFETTO_INCLUDE_PERFETTO_TRACING_TRACED_VALUE_H_
 #define THIRD_PARTY_PERFETTO_INCLUDE_PERFETTO_TRACING_TRACED_VALUE_H_
 
+#include "third_party/perfetto/include/perfetto/tracing/event_context.h"
 #include "third_party/perfetto/include/perfetto/tracing/string_helpers.h"
 #include "third_party/perfetto/include/perfetto/tracing/traced_value_forward.h"
 

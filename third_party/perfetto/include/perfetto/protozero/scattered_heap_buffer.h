@@ -20,6 +20,7 @@ public:
   HeapBuffered &operator=(HeapBuffered &) = delete;
 
   T *get() { return msg_; }
+  T *operator->() { return msg_; }
 
 private:
   T *msg_;

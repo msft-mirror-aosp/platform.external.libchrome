@@ -154,6 +154,22 @@ void Matrix44::RotateUnitSinCos(double x,
                                 double z,
                                 double sin_angle,
                                 double cos_angle) {
+  // Optimize cases where the axis is along a major axis. Since we've already
+  // normalized the vector we don't need to check that the other two dimensions
+  // are zero. Tiny errors of the other two dimensions are ignored.
+  if (x == 1.0) {
+    RotateAboutXAxisSinCos(sin_angle, cos_angle);
+    return;
+  }
+  if (y == 1.0) {
+    RotateAboutYAxisSinCos(sin_angle, cos_angle);
+    return;
+  }
+  if (z == 1.0) {
+    RotateAboutZAxisSinCos(sin_angle, cos_angle);
+    return;
+  }
+
   double c = cos_angle;
   double s = sin_angle;
   double C = 1 - c;
@@ -295,6 +311,15 @@ void Matrix44::Transpose() {
   swap(matrix_[2][3], matrix_[3][2]);
 }
 
+void Matrix44::Zoom(double zoom_factor) {
+  matrix_[0][3] /= zoom_factor;
+  matrix_[1][3] /= zoom_factor;
+  matrix_[2][3] /= zoom_factor;
+  matrix_[3][0] *= zoom_factor;
+  matrix_[3][1] *= zoom_factor;
+  matrix_[3][2] *= zoom_factor;
+}
+
 void Matrix44::MapScalars(double vec[4]) const {
   Double4 v = LoadDouble4(vec);
   Double4 r0{matrix_[0][0], matrix_[1][0], matrix_[2][0], matrix_[3][0]};
@@ -305,7 +330,7 @@ void Matrix44::MapScalars(double vec[4]) const {
                vec);
 }
 
-void Matrix44::FlattenTo2d() {
+void Matrix44::Flatten() {
   matrix_[0][2] = 0;
   matrix_[1][2] = 0;
   matrix_[3][2] = 0;

@@ -17,6 +17,13 @@ public:
   void set_iid(uint64_t) {}
 };
 
+class UnsymbolizedSourceLocation : public ::protozero::Message {
+ public:
+  void set_iid(uint64_t value) {}
+  void set_mapping_id(uint64_t value) {}
+  void set_rel_pc(uint64_t value) {}
+};
+
 } // namespace pbzero
 } // namespace protos
 } // namespace perfetto

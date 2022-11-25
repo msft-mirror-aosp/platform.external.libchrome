@@ -10,7 +10,6 @@
 #include <string>
 
 #include "base/check.h"
-#include "base/strings/stringprintf.h"
 #include "ui/gfx/geometry/point3_f.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/rect_f.h"
@@ -49,6 +48,35 @@ DecomposedTransform BlendDecomposedTransforms(const DecomposedTransform& to,
   Combine<3>(out.skew, to.skew, from.skew, scalea, scaleb);
   Combine<4>(out.perspective, to.perspective, from.perspective, scalea, scaleb);
   out.quaternion = from.quaternion.Slerp(to.quaternion, progress);
+  return out;
+}
+
+DecomposedTransform AccumulateDecomposedTransforms(
+    const DecomposedTransform& a,
+    const DecomposedTransform& b) {
+  DecomposedTransform out;
+
+  // Translate is a simple addition.
+  for (size_t i = 0; i < std::size(a.translate); i++)
+    out.translate[i] = a.translate[i] + b.translate[i];
+
+  // Scale is accumulated using 1-based addition.
+  for (size_t i = 0; i < std::size(a.scale); i++)
+    out.scale[i] = a.scale[i] + b.scale[i] - 1;
+
+  // Skew can be added.
+  for (size_t i = 0; i < std::size(a.skew); i++)
+    out.skew[i] = a.skew[i] + b.skew[i];
+
+  // We sum the perspective components; note that w is 1-based.
+  for (size_t i = 0; i < std::size(a.perspective); i++)
+    out.perspective[i] = a.perspective[i] + b.perspective[i];
+  out.perspective[3] -= 1;
+
+  // To accumulate quaternions, we multiply them. This is equivalent to 'adding'
+  // the rotations that they represent.
+  out.quaternion = a.quaternion * b.quaternion;
+
   return out;
 }
 

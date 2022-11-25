@@ -18,7 +18,8 @@ public:
       internal::TrackEventIncrementalState *incremental_state = nullptr,
       bool filter_debug_annotations = false)
       : event_(event),
-        filter_debug_annotations_(filter_debug_annotations) {}
+        filter_debug_annotations_(filter_debug_annotations),
+        incremental_state_(incremental_state) {}
 
   bool ShouldFilterDebugAnnotations() const {
     return filter_debug_annotations_;
@@ -32,9 +33,14 @@ public:
     return static_cast<EventType *>(event_);
   }
 
+  internal::TrackEventIncrementalState* GetIncrementalState() const {
+    return incremental_state_;
+  }
+
 private:
   protos::pbzero::TrackEvent *event_;
   const bool filter_debug_annotations_;
+  internal::TrackEventIncrementalState* incremental_state_;
 };
 
 } // namespace perfetto

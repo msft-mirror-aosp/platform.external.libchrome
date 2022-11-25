@@ -4,6 +4,7 @@
 #ifndef THIRD_PARTY_PERFETTO_INCLUDE_PERFETTO_TRACING_TRACK_H_
 #define THIRD_PARTY_PERFETTO_INCLUDE_PERFETTO_TRACING_TRACK_H_
 
+#include "base/threading/platform_thread.h"
 #include "third_party/perfetto/include/perfetto/protozero/message_handle.h"
 #include "third_party/perfetto/protos/perfetto/trace/trace_packet.pbzero.h"
 
