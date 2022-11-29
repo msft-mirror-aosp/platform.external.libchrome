@@ -1,0 +1,25 @@
+Select sha1_nacl.cc implementation.
+NACL doesn't have boringssl either, we can just select NACL implementation for
+SHA1 used in upstream Chromium.
+
+
+diff --git a/base/hash/sha1.h b/base/hash/sha1.h
+index c4e656b9a68e..229042a28770 100644
+--- a/base/hash/sha1.h
++++ b/base/hash/sha1.h
+@@ -14,11 +14,11 @@
+ #include "base/containers/span.h"
+ #include "base/strings/string_piece.h"
+ #include "build/build_config.h"
+-#if BUILDFLAG(IS_NACL)
++#if BUILDFLAG(IS_NACL) || 1
+ #include "base/hash/sha1_nacl.h"
+ #else
+ #include "base/hash/sha1_boringssl.h"
+ #endif
+ 
+ namespace base {
+ 
+-- 
+2.35.0.rc0.227.g00780c9af4-goog
+
