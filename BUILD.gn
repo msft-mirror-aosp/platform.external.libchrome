@@ -45,6 +45,7 @@ group("all_buildflags") {
     ":feature_list_buildflags",
     ":ios_cronet_buildflags",
     ":ipc_buildflags",
+    ":allocator_logging_buildflags",
     ":message_pump_buildflags",
     ":mojo_buildflags",
     ":parsing_buildflags",
@@ -152,6 +153,12 @@ buildflag_header("allocator_buildflags") {
     "FORCE_ENABLE_RAW_PTR_EXCLUSION=false"
     # "USE_FAKE_BINARY_EXPERIMENT=",
   ]
+}
+
+buildflag_header("allocator_logging_buildflags") {
+  header = "base/allocator/partition_allocator/logging_buildflags.h"
+
+  flags = [ "PA_ENABLE_LOG_ERROR_NOT_REACHED=false" ]
 }
 
 buildflag_header("partition_allocator_buildflags") {
@@ -281,7 +288,7 @@ buildflag_header("mojo_buildflags") {
 
 buildflag_header("parsing_buildflags") {
   header = "base/parsing_buildflags.h"
-  flags = [ "BUILD_RUST_JSON_PARSER=false" ]
+  flags = [ "BUILD_RUST_JSON_READER=false" ]
 }
 
 buildflag_header("profiler_buildflags") {
@@ -625,7 +632,6 @@ libbase_sublibs = [
       "base/timer/wall_clock_timer.cc",
       "base/token.cc",
       "base/trace_event/category_registry.cc",
-      "base/trace_event/event_name_filter.cc",
       "base/trace_event/heap_profiler_allocation_context_tracker.cc",
       "base/trace_event/interned_args_helper.cc",
       "base/trace_event/malloc_dump_provider.cc",
@@ -642,7 +648,6 @@ libbase_sublibs = [
       "base/trace_event/trace_buffer.cc",
       "base/trace_event/trace_config.cc",
       "base/trace_event/trace_config_category_filter.cc",
-      "base/trace_event/trace_event_filter.cc",
       "base/trace_event/trace_event_impl.cc",
       "base/trace_event/trace_event_memory_overhead.cc",
       "base/trace_event/trace_id_helper.cc",

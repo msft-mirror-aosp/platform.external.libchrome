@@ -12,9 +12,9 @@
 #include "base/base_switches.h"
 #include "base/debug/crash_logging.h"
 #include "base/debug/dump_without_crashing.h"
-#include "base/debug/stack_trace.h"
 #include "base/logging.h"
 #include "base/memory/ptr_util.h"
+#include "base/memory/raw_ptr.h"
 #include "base/metrics/field_trial.h"
 #include "base/metrics/field_trial_param_associator.h"
 #include "base/metrics/field_trial_params.h"
@@ -92,9 +92,9 @@ class EarlyFeatureAccessTracker {
     DCHECK(!feature) << "Accessed feature " << feature->name
                      << " before FeatureList registration.";
     // TODO(crbug.com/1383852): When we believe that all early accesses have
-    // been fixed, add a base::debug::DumpWithoutCrashing(), to get reports from
-    // the field without making Chrome unusable. If we don't get reports, change
-    // the DCHECK above to a CHECK.
+    // been fixed, remove this base::debug::DumpWithoutCrashing() and change the
+    // above DCHECK to a CHECK.
+    base::debug::DumpWithoutCrashing();
 #endif  // !BUILDFLAG(IS_IOS) && !BUILDFLAG(IS_ANDROID) &&
         // !BUILDFLAG(IS_CHROMEOS)
   }
@@ -107,7 +107,7 @@ class EarlyFeatureAccessTracker {
   Lock lock_;
 
   // First feature to be accessed before FeatureList registration.
-  const Feature* feature_ GUARDED_BY(lock_) = nullptr;
+  raw_ptr<const Feature> feature_ GUARDED_BY(lock_) = nullptr;
 
   // Whether AccessedFeature() should fail instantly.
   bool fail_instantly_ GUARDED_BY(lock_) = false;
@@ -869,7 +869,7 @@ void FeatureList::GetFeatureOverridesImpl(std::string* enable_overrides,
       target_list->push_back('*');
     target_list->append(entry.first);
     if (entry.second.field_trial) {
-      auto* const field_trial = entry.second.field_trial;
+      auto* const field_trial = entry.second.field_trial.get();
       target_list->push_back('<');
       target_list->append(field_trial->trial_name());
       if (include_group_name) {
