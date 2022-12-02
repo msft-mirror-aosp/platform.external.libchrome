@@ -164,6 +164,9 @@ buildflag_header("allocator_logging_buildflags") {
 buildflag_header("partition_allocator_buildflags") {
   header = "base/allocator/partition_allocator/partition_alloc_buildflags.h"
   flags = [
+    "USE_PARTITION_ALLOC=false",
+    "USE_ASAN_BACKUP_REF_PTR=false",
+    "BACKUP_REF_PTR_POISON_OOB_PTR=false",
     "ENABLE_PARTITION_ALLOC_AS_MALLOC_SUPPORT=false",
     "ENABLE_BACKUP_REF_PTR_SUPPORT=false",
     "ENABLE_BACKUP_REF_PTR_SLOW_CHECKS=false",
@@ -477,6 +480,7 @@ libbase_sublibs = [
       "base/process/launch_posix.cc",
       "base/process/memory.cc",
       "base/process/memory_linux.cc",
+      "base/process/current_process.cc",
       "base/process/process_handle.cc",
       "base/process/process_handle_linux.cc",
       "base/process/process_handle_posix.cc",

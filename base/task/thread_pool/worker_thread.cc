@@ -147,6 +147,7 @@ WorkerThread::WorkerThread(ThreadType thread_type_hint,
   DCHECK(CanUseBackgroundThreadTypeForWorkerThread() ||
          thread_type_hint_ != ThreadType::kBackground);
   wake_up_event_.declare_only_used_while_idle();
+  wake_up_event_.opt_out_of_wakeup_flow_events();
 }
 
 bool WorkerThread::Start(
@@ -205,6 +206,8 @@ void WorkerThread::WakeUp() {
   // WorkerThread cannot run more tasks.
   DCHECK(!join_called_for_testing_.IsSet());
   DCHECK(!should_exit_.IsSet());
+  TRACE_EVENT_INSTANT("wakeup.flow", "WorkerThread::WakeUp",
+                      perfetto::Flow::FromPointer(this));
   wake_up_event_.Signal();
 }
 
@@ -426,9 +429,10 @@ void WorkerThread::RunWorker() {
     // TODO(crbug.com/1021571): Remove this once fixed.
     PERFETTO_INTERNAL_ADD_EMPTY_EVENT();
     delegate_->WaitForWork(&wake_up_event_);
-    TRACE_EVENT_BEGIN0("base", "WorkerThread active");
+    TRACE_EVENT_BEGIN("base", "WorkerThread active",
+                      perfetto::TerminatingFlow::FromPointer(this));
   }
-
+  bool got_work_this_wakeup = false;
   while (!ShouldExit()) {
 #if BUILDFLAG(IS_APPLE)
     mac::ScopedNSAutoreleasePool autorelease_pool;
@@ -446,14 +450,24 @@ void WorkerThread::RunWorker() {
       if (ShouldExit())
         break;
 
+      // If this is the first time we called GetWork and the worker's still
+      // alive, record that this is an unnecessary wakeup.
+      if (!got_work_this_wakeup)
+        delegate_->RecordUnnecessaryWakeup();
+
       TRACE_EVENT_END0("base", "WorkerThread active");
       // TODO(crbug.com/1021571): Remove this once fixed.
       PERFETTO_INTERNAL_ADD_EMPTY_EVENT();
       hang_watch_scope.reset();
       delegate_->WaitForWork(&wake_up_event_);
-      TRACE_EVENT_BEGIN0("base", "WorkerThread active");
+      got_work_this_wakeup = false;
+
+      TRACE_EVENT_BEGIN("base", "WorkerThread active",
+                        perfetto::TerminatingFlow::FromPointer(this));
       continue;
     }
+
+    got_work_this_wakeup = true;
 
     // Alias pointer for investigation of memory corruption. crbug.com/1218384
     TaskSource* task_source_before_run = task_source.get();

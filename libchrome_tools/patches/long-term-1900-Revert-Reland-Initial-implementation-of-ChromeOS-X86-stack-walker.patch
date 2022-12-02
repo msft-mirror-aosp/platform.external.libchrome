@@ -1,4 +1,4 @@
-From 21a766eef71e199412877f7129e03b6587255c5b Mon Sep 17 00:00:00 2001
+From 21f9c89052841a1a60f62e527dfaf1121a5518a9 Mon Sep 17 00:00:00 2001
 From: Grace Cham <hscham@chromium.org>
 Date: Mon, 26 Sep 2022 16:05:08 +0900
 Subject: [PATCH] Revert "Reland "Initial implementation of ChromeOS X86_64
@@ -11,7 +11,7 @@ IUSE build flags to select source files.
 
 This reverts commit c25cdd501bd8b3e8970848e56372924140215496.
 ---
- base/profiler/chrome_unwinder_android.cc      |  1 +
+ base/profiler/chrome_unwinder_android.cc      |  3 ++
  base/profiler/native_unwinder.h               | 20 ++++++++
  base/profiler/native_unwinder_android.cc      |  1 +
  ...r_unwinder.cc => native_unwinder_apple.cc} | 25 ++++-----
@@ -19,24 +19,26 @@ This reverts commit c25cdd501bd8b3e8970848e56372924140215496.
  ...t.cc => native_unwinder_apple_unittest.cc} | 35 +++++--------
  base/profiler/stack_sampler_posix.cc          | 32 ------------
  .../stack_sampling_profiler_unittest.cc       | 51 +++++--------------
- 8 files changed, 95 insertions(+), 104 deletions(-)
+ 8 files changed, 97 insertions(+), 104 deletions(-)
  create mode 100644 base/profiler/native_unwinder.h
  rename base/profiler/{frame_pointer_unwinder.cc => native_unwinder_apple.cc} (86%)
  create mode 100644 base/profiler/native_unwinder_apple.h
  rename base/profiler/{frame_pointer_unwinder_unittest.cc => native_unwinder_apple_unittest.cc} (93%)
 
 diff --git a/base/profiler/chrome_unwinder_android.cc b/base/profiler/chrome_unwinder_android.cc
-index 3322b9255c..c471fa2c6b 100644
+index da959ce8e6..6127f99c68 100644
 --- a/base/profiler/chrome_unwinder_android.cc
 +++ b/base/profiler/chrome_unwinder_android.cc
-@@ -6,6 +6,7 @@
- 
+@@ -11,6 +11,9 @@
+ #include "base/notreached.h"
  #include "base/numerics/checked_math.h"
- #include "base/profiler/module_cache.h"
+ #include "base/profiler/chrome_unwind_info_android.h"
++#include "base/profiler/module_cache.h"
 +#include "base/profiler/native_unwinder.h"
- #include "build/build_config.h"
++#include "build/build_config.h"
  
  namespace base {
+ namespace {
 diff --git a/base/profiler/native_unwinder.h b/base/profiler/native_unwinder.h
 new file mode 100644
 index 0000000000..f26c5ad2b6
@@ -474,5 +476,5 @@ index 2663815fa0..948be12819 100644
  #else
  #define MAYBE_UnloadedLibrary UnloadedLibrary
 -- 
-2.38.1.431.g37b22c650d-goog
+2.37.3
 

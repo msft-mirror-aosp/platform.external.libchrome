@@ -9,9 +9,7 @@ import android.app.Application;
 import android.content.Context;
 import android.content.ContextWrapper;
 import android.content.pm.ApplicationInfo;
-import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
-import android.content.pm.PackageManager.NameNotFoundException;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.LayoutInflater;
@@ -58,7 +56,6 @@ public class BundleUtils {
     private static Boolean sIsBundle;
     private static final Object sSplitLock = new Object();
 
-    private static ApplicationInfo sAppInfo;
     // This cache is needed to support the workaround for b/172602571, see
     // createIsolatedSplitContext() for more info.
     private static final SimpleArrayMap<String, ClassLoader> sCachedClassLoaders =
@@ -74,7 +71,6 @@ public class BundleUtils {
 
     public static void resetForTesting() {
         sIsBundle = null;
-        sAppInfo = null;
         sCachedClassLoaders.clear();
         sInflationClassLoaders.clear();
         sSplitCompatClassLoaderInstance = null;
@@ -112,40 +108,9 @@ public class BundleUtils {
         return BuildConfig.ISOLATED_SPLITS_ENABLED;
     }
 
-    /**
-     * Updates the ApplicationInfo used to know what splits are installed.
-     */
-    public static void invalidateListOfInstalledSplits() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            Context c = ContextUtils.getApplicationContext();
-            try {
-                // Re-query list of installed split from package manager rather than from
-                // Context.getApplicationInfo(), because the latter is not updated yet.
-                // b/258453540
-                PackageInfo pi = c.getPackageManager().getPackageInfo(c.getPackageName(), 0);
-                synchronized (sSplitLock) {
-                    sAppInfo = pi.applicationInfo;
-                }
-            } catch (NameNotFoundException e) {
-                throw new RuntimeException(e);
-            }
-        }
-    }
-
     @RequiresApi(api = Build.VERSION_CODES.O)
     private static String getSplitApkPath(String splitName) {
-        ApplicationInfo appInfo;
-        synchronized (sSplitLock) {
-            appInfo = sAppInfo;
-            if (appInfo == null) {
-                // For the initial initialization, use the readily available ApplicationInfo from
-                // the application Context. When modules are installed on-the-fly,
-                // setInstalledSplits() is used to set them from the potentially more up-to-date
-                // PackageManager results.
-                appInfo = ContextUtils.getApplicationContext().getApplicationInfo();
-                sAppInfo = appInfo;
-            }
-        }
+        ApplicationInfo appInfo = ContextUtils.getApplicationContext().getApplicationInfo();
         String[] splitNames = appInfo.splitNames;
         if (splitNames == null) {
             return null;
@@ -163,11 +128,6 @@ public class BundleUtils {
             return false;
         }
         return getSplitApkPath(splitName) != null;
-    }
-
-    // TODO(agrieve): Delete downstream references.
-    public static boolean isIsolatedSplitInstalled(Context unused, String splitName) {
-        return isIsolatedSplitInstalled(splitName);
     }
 
     /**
@@ -354,14 +314,30 @@ public class BundleUtils {
         };
     }
 
-    public static ClassLoader registerSplitClassLoaderForInflation(String splitName) {
-        ClassLoader splitClassLoader = sInflationClassLoaders.get(splitName);
-        if (splitClassLoader == null) {
-            splitClassLoader =
-                    createIsolatedSplitContext(ContextUtils.getApplicationContext(), splitName)
-                            .getClassLoader();
-            sInflationClassLoaders.put(splitName, splitClassLoader);
+    /**
+     * Returns the ClassLoader for the given split, loading the split if it has not yet been
+     * loaded.
+     */
+    public static ClassLoader getOrCreateSplitClassLoader(String splitName) {
+        ClassLoader ret;
+        synchronized (sCachedClassLoaders) {
+            ret = sCachedClassLoaders.get(splitName);
         }
+
+        if (ret == null) {
+            // Do not hold lock since split loading can be slow.
+            createIsolatedSplitContext(ContextUtils.getApplicationContext(), splitName);
+            synchronized (sCachedClassLoaders) {
+                ret = sCachedClassLoaders.get(splitName);
+                assert ret != null;
+            }
+        }
+        return ret;
+    }
+
+    public static ClassLoader registerSplitClassLoaderForInflation(String splitName) {
+        ClassLoader splitClassLoader = getOrCreateSplitClassLoader(splitName);
+        sInflationClassLoaders.put(splitName, splitClassLoader);
         return splitClassLoader;
     }
 
@@ -398,10 +374,13 @@ public class BundleUtils {
     }
 
     private static class SplitCompatClassLoader extends ClassLoader {
+        private static final String TAG = "SplitCompatClassLoader";
+
         public SplitCompatClassLoader() {
             // The chrome split classloader if the chrome split exists, otherwise
             // the base module class loader.
             super(ContextUtils.getApplicationContext().getClassLoader());
+            Log.i(TAG, "Splits: %s", sSplitsToRestore);
         }
 
         private Class<?> checkSplitsClassLoaders(String className) throws ClassNotFoundException {
@@ -436,6 +415,7 @@ public class BundleUtils {
                     return foundClass;
                 }
             }
+            Log.w(TAG, "No class %s amongst %s", cn, sInflationClassLoaders.keySet());
             throw new ClassNotFoundException(cn);
         }
 

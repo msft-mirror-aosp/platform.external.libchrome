@@ -1081,10 +1081,6 @@ void Value::Append(Value&& value) {
   GetList().Append(std::move(value));
 }
 
-void Value::ClearList() {
-  GetList().clear();
-}
-
 Value* Value::FindKey(StringPiece key) {
   return GetDict().Find(key);
 }
@@ -1366,10 +1362,6 @@ size_t Value::DictSize() const {
 
 bool Value::DictEmpty() const {
   return GetDict().empty();
-}
-
-void Value::DictClear() {
-  GetDict().clear();
 }
 
 void Value::MergeDictionary(const Value* dictionary) {

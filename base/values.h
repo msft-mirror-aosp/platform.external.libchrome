@@ -734,11 +734,6 @@ class BASE_EXPORT GSL_OWNER Value {
   // DEPRECATED: prefer `Value::List::Append()`.
   void Append(std::string&& value);
 
-  // Erases all Values from the list.
-  //
-  // DEPRECATED: prefer `Value::List::clear()`.
-  void ClearList();
-
   // ===== DEPRECATED methods that require `type() == Type::DICT` =====
 
   // `FindKey` looks up `key` in the underlying dictionary. If found, it returns
@@ -983,9 +978,6 @@ class BASE_EXPORT GSL_OWNER Value {
 
   // DEPRECATED: prefer `Value::Dict::empty()`.
   bool DictEmpty() const;
-
-  // DEPRECATED: prefer `Value::Dict::clear()`.
-  void DictClear();
 
   // Merge `dictionary` into this value. This is done recursively, i.e. any
   // sub-dictionaries will be merged as well. In case of key collisions, the

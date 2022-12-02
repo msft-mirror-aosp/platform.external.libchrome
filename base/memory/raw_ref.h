@@ -12,6 +12,7 @@
 #include "base/allocator/partition_allocator/partition_alloc_base/augmentations/compiler_specific.h"
 #include "base/allocator/partition_allocator/partition_alloc_base/compiler_specific.h"
 #include "base/allocator/partition_allocator/partition_alloc_buildflags.h"
+#include "base/allocator/partition_allocator/partition_alloc_config.h"
 #include "base/memory/raw_ptr.h"
 
 namespace base {
@@ -61,13 +62,15 @@ class PA_TRIVIAL_ABI PA_GSL_POINTER raw_ref {
   // and aborts. Failure to clear would be indicated by the related death tests
   // not CHECKing appropriately.
   static constexpr bool need_clear_after_move =
-      std::is_same_v<Impl, internal::RawPtrNoOpImpl> ||
-#if defined(RAW_PTR_USE_MTE_CHECKED_PTR)
+#if defined(PA_ENABLE_MTE_CHECKED_PTR_SUPPORT_WITH_64_BITS_POINTERS)
       std::is_same_v<Impl,
                      internal::MTECheckedPtrImpl<
                          internal::MTECheckedPtrImplPartitionAllocSupport>> ||
-#endif  // defined(RAW_PTR_USE_MTE_CHECKED_PTR)
-      std::is_same_v<Impl, internal::AsanBackupRefPtrImpl>;
+#endif  // defined(PA_ENABLE_MTE_CHECKED_PTR_SUPPORT_WITH_64_BITS_POINTERS)
+#if BUILDFLAG(USE_ASAN_BACKUP_REF_PTR)
+      std::is_same_v<Impl, internal::AsanBackupRefPtrImpl> ||
+#endif  // BUILDFLAG(USE_ASAN_BACKUP_REF_PTR)
+      std::is_same_v<Impl, internal::RawPtrNoOpImpl>;
 
  public:
   PA_ALWAYS_INLINE explicit raw_ref(T& p) noexcept
@@ -169,17 +172,6 @@ class PA_TRIVIAL_ABI PA_GSL_POINTER raw_ref {
     PA_RAW_PTR_CHECK(rhs.inner_.get());  // Catch use-after-move.
     swap(lhs.inner_, rhs.inner_);
   }
-
-#if BUILDFLAG(PA_USE_BASE_TRACING)
-  // If T can be serialised into trace, its alias is also
-  // serialisable.
-  template <class U = T>
-  typename perfetto::check_traced_value_support<U>::type WriteIntoTrace(
-      perfetto::TracedValue&& context) const {
-    PA_RAW_PTR_CHECK(inner_.get());  // Catch use-after-move.
-    inner_.WriteIntoTrace(std::move(context));
-  }
-#endif  // BUILDFLAG(PA_USE_BASE_TRACING)
 
   template <class U>
   friend PA_ALWAYS_INLINE bool operator==(const raw_ref& lhs,

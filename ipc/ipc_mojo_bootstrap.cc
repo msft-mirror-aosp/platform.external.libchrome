@@ -673,9 +673,12 @@ class ChannelAssociatedGroupController
     void OnSyncMessageEventReady() {
       DCHECK(task_runner_->RunsTasksInCurrentSequence());
 
-      scoped_refptr<Endpoint> keepalive(this);
+      // SUBTLE: The order of these scoped_refptrs matters.
+      // `controller_keepalive` MUST outlive `keepalive` because the Endpoint
+      // holds raw pointer to the AssociatedGroupController.
       scoped_refptr<AssociatedGroupController> controller_keepalive(
           controller_.get());
+      scoped_refptr<Endpoint> keepalive(this);
       base::AutoLock locker(controller_->lock_);
       bool more_to_process = false;
       if (!sync_messages_.empty()) {
@@ -884,13 +887,17 @@ class ChannelAssociatedGroupController
       client->NotifyError(reason);
     } else {
       endpoint->task_runner()->PostTask(
-          FROM_HERE, base::BindOnce(&ChannelAssociatedGroupController::
-                                        NotifyEndpointOfErrorOnEndpointThread,
-                                    this, endpoint->id(),
-                                    base::UnsafeDanglingUntriaged(endpoint)));
+          FROM_HERE,
+          base::BindOnce(&ChannelAssociatedGroupController::
+                             NotifyEndpointOfErrorOnEndpointThread,
+                         this, endpoint->id(),
+                         // This is safe as `endpoint` is verified to be in
+                         // `endpoints_` (a map with ownership) before use.
+                         base::UnsafeDangling(endpoint)));
     }
   }
 
+  // `endpoint` might be a dangling ptr and must be checked before dereference.
   void NotifyEndpointOfErrorOnEndpointThread(mojo::InterfaceId id,
                                              Endpoint* endpoint) {
     base::AutoLock locker(lock_);

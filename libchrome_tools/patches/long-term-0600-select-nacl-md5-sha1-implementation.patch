@@ -1,12 +1,22 @@
+From 4d2f8cd3e3c386f1e5f22e80c4adc61633a2ca0d Mon Sep 17 00:00:00 2001
+From: Grace Cham <hscham@chromium.org>
+Date: Mon, 12 Dec 2022 15:54:19 +0900
+Subject: [PATCH] Select sha1_nacl.cc implementation.
+
 Select sha1_nacl.cc, md5_nacl.cc implementation.
 NACL doesn't have boringssl either, we can just select NACL implementation for
 MD5/SHA1 used in upstream Chromium.
 
+Change-Id: I82e14ea2a001fdb435da9aa813379191aec8d4f4
+---
+ base/hash/sha1.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/base/hash/sha1.h b/base/hash/sha1.h
+index 29626e5853c6..c357078fb868 100644
 --- a/base/hash/sha1.h
 +++ b/base/hash/sha1.h
-@@ -14,11 +14,11 @@
+@@ -14,7 +14,7 @@
  #include "base/containers/span.h"
  #include "base/strings/string_piece.h"
  #include "build/build_config.h"
@@ -34,5 +44,5 @@ diff --git a/base/hash/md5.h b/base/hash/md5.h
  #endif
  
 -- 
-2.35.0.rc0.227.g00780c9af4-goog
+2.39.0.rc1.256.g54fd8350bd-goog
 
