@@ -28,10 +28,14 @@ Format could be e.g. "yyyy-MM-dd" or "yyyy-MM-dd'T'HH:mm:ssZ".
 For aid to manual uprev:
   libchrome_tools/developer-tools/uprev/automated_uprev.py
     --before_revision <revision target>
-If creating for local experiment on top of existing uprev commit at branch:
+If creating for local experiment on top of local (or remote) branch:
   libchrome_tools/developer-tools/uprev/automated_uprev.py
     --before_revision <revision target>
     --track_branch <on-going uprev branch>
+Use --track_active option to find the most recent active uprev commit on gerrit:
+  libchrome_tools/developer-tools/uprev/automated_uprev.py
+    --before_revision <revision target>
+    --track_active
 Run with --no_upload option to skip uploading the created change to Gerrit.
 """
 
@@ -45,6 +49,18 @@ import sys
 import typing
 from pathlib import Path
 
+# Path to the libchrome dir.
+LIBCHROME_DIR = Path(__file__).resolve().parent.parent.parent.parent
+# Find chromite relative to $CHROMEOS_CHECKOUT/src/platform/libchrome/, so
+# go up four dirs. For importing following the chromite libraries.
+sys.path.insert(0, str(LIBCHROME_DIR.parent.parent.parent))
+
+# pylint: disable=wrong-import-position
+from chromite.lib import gerrit
+from chromite.lib import gob_util
+
+chromium_helper = gerrit.GetGerritHelper(gob="chromium", print_cmd=False)
+
 BASE_VER_FILE = "BASE_VER"
 BUILD_GN_FILE = "BUILD.gn"
 PATCHES_DIRECTORY = "libchrome_tools/patches"
@@ -57,9 +73,11 @@ PATCH_RE = re.compile(r"^.+\.patch$")
 SECTION_HEADER_RE = re.compile(r"^# ={5}=* .* ={5}=*$")
 CHERRY_PICK_PATCH_RE = re.compile(r"^cherry-pick-[0-9]{4}-r([0-9]+)-.+\.patch$")
 BUILD_GN_SOURCE_FILE_LINE_RE = re.compile(r"\s*([\"\'])(.*)\1,")
+EMERGE_LIBCHROME_LOG_FILE_RE = re.compile(r" \* Build log: (.+)")
 
 MergeResult = typing.NamedTuple(
-    "MergeResult", [("succeed", bool),  ("message", typing.List[str])])
+    "MergeResult", [("succeed", bool), ("message", typing.List[str])]
+)
 Commit = typing.NamedTuple("Commit", [("hash", str), ("revision", int)])
 GitMergeSummary = typing.NamedTuple(
     "GitMergeSummary",
@@ -70,9 +88,12 @@ GitMergeSummary = typing.NamedTuple(
 def ChangeDirectoryToLibchrome() -> str:
     """Change directory to libchrome for running git commands. Return cwd before changing."""
     cwd = os.getcwd()
-    libchrome_directory = Path(os.path.realpath(__file__)).parent.parent.parent.parent
+    libchrome_directory = Path(
+        os.path.realpath(__file__)
+    ).parent.parent.parent.parent
     os.chdir(libchrome_directory)
     return cwd
+
 
 def IsInsideChroot() -> bool:
     """Checks that the script is run inside chroot. Copied from chromite/lib/cros_build_lib.py"""
@@ -174,15 +195,15 @@ def GetLatestCommitHashBeforeRevision(revision: int) -> str:
 
         last_digit = revision_prefix % 10
         if last_digit:
-            pattern = r"[0-%d][0-9]\{%d\}"%(last_digit - 1, l)
+            pattern = r"[0-%d][0-9]\{%d\}" % (last_digit - 1, l)
             revision_prefix //= 10
         else:
-            pattern = r"[0-9]\{%d\}"%(l+1)
+            pattern = r"[0-9]\{%d\}" % (l + 1)
             revision_prefix = revision_prefix // 10 - 1
 
     # No commit has revision number with the same number of digits as the target
     # revision number.
-    l = len(str(revision))-1
+    l = len(str(revision)) - 1
     grep_pattern = r"^\s*Cr-Commit-Position: refs\/heads\/\w\+@{#[0-9]\{,l\}}"
     try:
         commit_hash = subprocess.check_output(
@@ -205,7 +226,6 @@ def GetLatestCommitHashBeforeRevision(revision: int) -> str:
 
     if commit_hash:
         return commit_hash
-
 
     raise ValueError(
         f"No commit with revision number <= {revision} found on "
@@ -286,25 +306,107 @@ def GetLatestUpstreamCommit() -> Commit:
     return commit_hash, GetRevisionFromHash(commit_hash)
 
 
-def GetTargetCommit(args) -> Commit:
+def GetTargetCommit(args, track_branch: str) -> Commit:
     """Returns hash and revision number of uprev target commit on cros/upstream
     based on input argument.
     """
     if args.hash:
+        logging.info(f"Target option: use hash {args.hash}")
         return args.hash, GetRevisionFromHash(args.hash)
     if args.before_revision:
+        logging.info(
+            f"Target option: use latest commit before revision {args.before_revision}"
+        )
         commit_hash = GetLatestCommitHashBeforeRevision(args.before_revision)
         return commit_hash, GetRevisionFromHash(commit_hash)
     if args.datetime:
+        logging.info(f"Target option: use latest commit before {args.datetime}")
         return GetTargetCommitFromDateTime(args.datetime)
     if args.days:
+        logging.info(
+            f"Target option: use latest commit {args.days} after HEAD of branch {track_branch}"
+        )
         assert args.days >= 0, "Invalid args for --days; must be non-negative."
-        target_date = GetLibchromeDate(args.track_branch) + datetime.timedelta(
+        target_date = GetLibchromeDate(track_branch) + datetime.timedelta(
             days=args.days
         )
         return GetTargetCommitFromDateTime(str(target_date))
     # default option --head
+    logging.info(f"Target default: use latest commit on cros/upstream")
     return GetLatestUpstreamCommit()
+
+
+def CreateNewBranchFromGerritCommit(ref: str, commit_number: str) -> str:
+    """Create new branch by downloading given commit ref and return its name."""
+    branch_name = f"change-{commit_number}"
+    subprocess.run(
+        [
+            "git",
+            "fetch",
+            "https://chromium.googlesource.com/chromiumos/platform/libchrome",
+            ref,
+            "--quiet",
+        ]
+    )
+    subprocess.run(
+        ["git", "checkout", "-B", branch_name, "FETCH_HEAD", "--quiet"]
+    )
+    logging.info(f"Created new branch {branch_name} for tracking")
+    return branch_name
+
+
+def GetTrackingBranch(args) -> str:
+    """Returns name of branch to track when creating the new uprev commit.
+    Create new branch by downloading from gerrit if in track_active mode.
+    """
+    if args.track_active:
+        logging.info(
+            f"Tracking option: track active commit on gerrit, fetching..."
+        )
+        # Get a list of all open libchrome uprev CLs on gerrit.
+        open_uprev_cls = gob_util.QueryChanges(
+            chromium_helper.host,
+            {
+                "repo": "chromiumos/platform/libchrome",
+                "status": "open",
+                "topic": "libchrome-automated-uprev",
+            },
+            o_params=["CURRENT_REVISION", "DOWNLOAD_COMMANDS"],
+        )
+        if open_uprev_cls:
+            # Create a local branch using the most recently updated uprev commit
+            # (gerrit query result is sorted).
+            try:
+                current_revision = open_uprev_cls[0]["current_revision"]
+                commit_number = open_uprev_cls[0]["_number"]
+                ref = open_uprev_cls[0]["revisions"][current_revision]["ref"]
+                logging.info(
+                    f"Found most recent active uprev commit: crrev.com/c/{commit_number}"
+                )
+                return CreateNewBranchFromGerritCommit(ref, commit_number)
+            except subprocess.CalledProcessError as e:
+                logging.warning(
+                    f"Failed to create new branch from active uprev commit crrev.com/c/{commit_number}: {e.output}, fallback to cros/main."
+                )
+        else:
+            logging.info(
+                f"No active uprev commit on gerrit, fallback to cros/main"
+            )
+    if args.track_branch:
+        logging.info(f"Tracking option: track branch {args.track_branch}")
+        branches = subprocess.run(
+            ["git", "rev-parse", "--verify", args.track_branch],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        if not branches.retcode:
+            logging.info(f"Tracking branch {args.track_branch}")
+            return args.track_branch
+        else:
+            logging.info(
+                f"Cannot find {args.track_branch}, fallback to cros/main"
+            )
+    return "cros/main"
 
 
 def GetLibchromeRevision(track_branch: str = "cros/main") -> int:
@@ -331,14 +433,13 @@ def UpdateBaseVer(revision: int) -> None:
 
 
 def OutdatedPatches(revision: int, directory: str = PATCHES_DIRECTORY):
-    """Return list of otudated patches in libchrome_tools/patches/.
-    """
+    """Return list of otudated patches in libchrome_tools/patches/."""
     obsolete_patches = []
     for patch in os.listdir(directory):
-      m = CHERRY_PICK_PATCH_RE.match(patch)
-      # Remove cherry-pick patch if uprev passed its revision.
-      if m and revision >= int(m.group(1)):
-        obsolete_patches.append(patch)
+        m = CHERRY_PICK_PATCH_RE.match(patch)
+        # Remove cherry-pick patch if uprev passed its revision.
+        if m and revision >= int(m.group(1)):
+            obsolete_patches.append(patch)
     return obsolete_patches
 
 
@@ -350,37 +451,37 @@ def UpdatePatches(revision: int) -> (typing.List[str]):
     """
     obsolete_patches = OutdatedPatches(revision)
 
-    if not obsolete_patches: # Return early if no patch should be removed.
-      return []
+    if not obsolete_patches:  # Return early if no patch should be removed.
+        return []
 
     for patch in obsolete_patches:
-      os.remove(os.path.join(PATCHES_DIRECTORY, patch))
+        os.remove(os.path.join(PATCHES_DIRECTORY, patch))
 
     with open(PATCHES_CONFIG_FILE, "r+") as f:
-      sources = f.read().splitlines()
+        sources = f.read().splitlines()
 
     # Check if config file contains any of the removed patches.
     deleted_lines = []
     for idx, line in enumerate(sources):
-      if not line or line.startswith("#"): # Ignore empty line and comments.
-        continue
-      if line.split()[0] in obsolete_patches:
-        deleted_lines.append(idx)
-        if sources[idx-1] == "": # Remove leading empty line as well.
-          deleted_lines.append(idx-1)
+        if not line or line.startswith("#"):  # Ignore empty line and comments.
+            continue
+        if line.split()[0] in obsolete_patches:
+            deleted_lines.append(idx)
+            if sources[idx - 1] == "":  # Remove leading empty line as well.
+                deleted_lines.append(idx - 1)
 
     if deleted_lines:
-      # Delete lines from config file, if any, in reverse order to avoid
-      # reindexing.
-      deleted_lines.sort(reverse=True)
-      for idx in deleted_lines:
-        del sources[idx]
+        # Delete lines from config file, if any, in reverse order to avoid
+        # reindexing.
+        deleted_lines.sort(reverse=True)
+        for idx in deleted_lines:
+            del sources[idx]
 
-      # To avoid eating the newline at the end of the file.
-      sources.append("")
-      # Write new patches config file.
-      with open(PATCHES_CONFIG_FILE, "w") as f:
-          f.write("\n".join(sources))
+        # To avoid eating the newline at the end of the file.
+        sources.append("")
+        # Write new patches config file.
+        with open(PATCHES_CONFIG_FILE, "w") as f:
+            f.write("\n".join(sources))
 
     return obsolete_patches
 
@@ -448,11 +549,23 @@ def EmergeLibchrome(recipe: bool) -> bool:
         stderr=subprocess.DEVNULL,
         check=True,
     )
+    logging.info("`sudo emerge libchrome` running...")
     emerge_result = subprocess.run(
         ["sudo", "emerge", "libchrome"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        universal_newlines=True,
     )
+    if emerge_result.returncode:
+        for l in reversed(emerge_result.stdout.splitlines()):
+            m = EMERGE_LIBCHROME_LOG_FILE_RE.match
+            if m:
+                logging.warning(
+                    f"`sudo emerge libchrome` failed, build log available at: {m.group(1)}"
+                )
+            else:
+                logging.warning(f"`sudo emerge libchrome` failed")
+    else:
+        logging.info(f"`sudo emerge libchrome` succeeded")
     return emerge_result.returncode == 0
 
 
@@ -503,6 +616,7 @@ def CreateUprevCommit(
             ],
             check=True,
         )
+        logging.error("Failed to `git merge` and create uprev commit")
         return False, message
 
     UpdateBaseVer(revision)
@@ -532,11 +646,19 @@ def CreateUprevCommit(
         check=True,
     )
     subprocess.run(
-        ["git", "commit", "--amend", "--quiet", "--allow-empty",
-         "-m", "\n".join(message)],
+        [
+            "git",
+            "commit",
+            "--amend",
+            "--quiet",
+            "--allow-empty",
+            "-m",
+            "\n".join(message),
+        ],
         check=True,
     )
 
+    logging.info("Created uprev commit")
     return True, message
 
 
@@ -582,45 +704,51 @@ def UploadUprevCommit(push_options: str) -> None:
     )
 
 
-
 def main():
     parser = argparse.ArgumentParser(
         description="Generate and upload libchrome uprev commit."
     )
 
-    group = parser.add_mutually_exclusive_group()
-    group.add_argument(
+    parser_target_group = parser.add_mutually_exclusive_group()
+    parser_target_group.add_argument(
         "--hash",
         type=str,
         help="Uprev to the given hash, exit with error if not found.",
     )
-    group.add_argument(
+    parser_target_group.add_argument(
         "--before_revision",
         type=int,
         help="Uprev to the latest commit on or before the given revision number.",
     )
-    group.add_argument(
+    parser_target_group.add_argument(
         "--datetime",
         type=str,
         help="Uprev to the latest commit on or before the given date time.",
     )
-    group.add_argument(
+    parser_target_group.add_argument(
         "--days",
         type=int,
         help="Uprev to the latest commit submitted n days after current latest on"
         " cros/main.",
     )
-    group.add_argument(
+    parser_target_group.add_argument(
         "--head",
         action="store_true",
         help="Uprev to (latest commit) HEAD on cros/upstream.",
     )
 
-    parser.add_argument(
+    parser_track_group = parser.add_mutually_exclusive_group()
+    parser_track_group.add_argument(
         "--track_branch",
         type=str,
-        help="Branch to be tracked by the uprev commit. Default is cros/main.",
-        default="cros/main",
+        help="(Local or remote) branch to be tracked by the uprev commit.",
+        default="",
+    )
+    parser_track_group.add_argument(
+        "--track_active",
+        action="store_true",
+        help="Track most recent active uprev commit on gerrit.",
+        default=False,
     )
 
     parser.add_argument(
@@ -651,7 +779,12 @@ def main():
 
     initial_directory = ChangeDirectoryToLibchrome()
 
-    target_commit_hash, target_commit_revision = GetTargetCommit(args)
+    track_branch = GetTrackingBranch(args)
+    logging.info(f"Uprev commit will track {track_branch}")
+
+    target_commit_hash, target_commit_revision = GetTargetCommit(
+        args, track_branch
+    )
     logging.info(
         f"Uprev to revision {target_commit_revision} with hash "
         f"{target_commit_hash}"
@@ -659,7 +792,7 @@ def main():
     if args.query_commit:
         exit()
 
-    if target_commit_revision < GetLibchromeRevision(args.track_branch):
+    if target_commit_revision < GetLibchromeRevision(track_branch):
         raise Exception(
             f"Target revision {target_commit_revision} has been reached already: "
             f"libchrome is currently at {GetLibchromeRevision(args.track_branch)}."
@@ -671,7 +804,7 @@ def main():
         )
 
     merge_success, commit_message = CreateUprevCommit(
-        target_commit_hash, target_commit_revision, args.track_branch
+        target_commit_hash, target_commit_revision, track_branch
     )
 
     emerge_success = None
@@ -682,12 +815,21 @@ def main():
         else:
             emerge_success = True
     else:
-        reason = "git merge failed" if not merge_success else "Not inside chroot"
+        reason = (
+            "git merge failed" if not merge_success else "Not inside chroot"
+        )
         logging.warning(f"{reason}, emerge libchrome is not run.")
         commit_message.insert(2, "DID NOT EMERGE LIBCHROME\n")
     subprocess.run(
-        ["git", "commit", "--amend", "--quiet", "--allow-empty",
-         "-m", "\n".join(commit_message)],
+        [
+            "git",
+            "commit",
+            "--amend",
+            "--quiet",
+            "--allow-empty",
+            "-m",
+            "\n".join(commit_message),
+        ],
         check=True,
     )
 
@@ -698,8 +840,6 @@ def main():
 
     if not args.no_upload:
         UploadUprevCommit(push_options)
-    logging.info("Finished running automated_uprev.py; emerge libchrome " +
-                 ("succeeded" if emerge_success else "failed or not run"))
 
     os.chdir(initial_directory)
 
