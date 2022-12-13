@@ -130,10 +130,40 @@ struct IPCZ_ALIGN(8) IpczPortalStatus {
 
 typedef uint32_t IpczGetFlags;
 
-typedef uint32_t IpczEndGetFlags;
-
 #define IPCZ_GET_PARTIAL IPCZ_FLAG_BIT(0)
 #define IPCZ_GET_PARCEL_ONLY IPCZ_FLAG_BIT(1)
+
+typedef uint32_t IpczEndGetFlags;
+
+typedef uint32_t IpczBoxType;
+
+#define IPCZ_BOX_TYPE_DRIVER_OBJECT ((IpczBoxType)0)
+#define IPCZ_BOX_TYPE_APPLICATION_OBJECT ((IpczBoxType)1)
+#define IPCZ_BOX_TYPE_SUBPARCEL ((IpczBoxType)2)
+
+typedef IpczResult (*IpczApplicationObjectSerializer)(uintptr_t object,
+                                                      uint32_t flags,
+                                                      const void* options,
+                                                      void* data,
+                                                      size_t* num_bytes,
+                                                      IpczHandle* handles,
+                                                      size_t* num_handles);
+
+typedef void (*IpczApplicationObjectDestructor)(uintptr_t object,
+                                                uint32_t flags,
+                                                const void* options);
+
+struct IPCZ_ALIGN(8) IpczBoxContents {
+  size_t size;
+  IpczBoxType type;
+  union {
+    IpczDriverHandle driver_object;
+    uintptr_t application_object;
+    IpczHandle subparcel;
+  } object;
+  IpczApplicationObjectSerializer serializer;
+  IpczApplicationObjectDestructor destructor;
+};
 
 #define IPCZ_END_GET_ABORT IPCZ_FLAG_BIT(0)
 
@@ -363,16 +393,16 @@ struct IPCZ_ALIGN(8) IpczAPI {
                                uint32_t flags,
                                const void* options);
 
-  IpczResult(IPCZ_API* Box)(IpczHandle node,                 // in
-                            IpczDriverHandle driver_handle,  // in
-                            uint32_t flags,                  // in
-                            const void* options,             // in
-                            IpczHandle* handle);             // out
+  IpczResult(IPCZ_API* Box)(IpczHandle node,                   // in
+                             const IpczBoxContents* contents,  // in
+                            uint32_t flags,                    // in
+                            const void* options,               // in
+                            IpczHandle* handle);               // out
 
-  IpczResult(IPCZ_API* Unbox)(IpczHandle handle,                 // in
-                              IpczUnboxFlags flags,              // in
-                              const void* options,               // in
-                              IpczDriverHandle* driver_handle);  // out
+  IpczResult(IPCZ_API* Unbox)(IpczHandle handle,           // in
+                              IpczUnboxFlags flags,        // in
+                              const void* options,         // in
+                              IpczBoxContents* contents);  // out
 };
 
 #if defined(__cplusplus)

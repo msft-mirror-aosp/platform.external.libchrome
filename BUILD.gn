@@ -1076,7 +1076,6 @@ if (use.mojo) {
           "mojo/core/ipcz_driver/data_pipe.cc",
           "mojo/core/ipcz_driver/driver.cc",
           "mojo/core/ipcz_driver/invitation.cc",
-          "mojo/core/ipcz_driver/message_wrapper.cc",
           "mojo/core/ipcz_driver/mojo_message.cc",
           "mojo/core/ipcz_driver/mojo_trap.cc",
           "mojo/core/ipcz_driver/object.cc",
