@@ -136,16 +136,20 @@ void WorkerThread::Delegate::WaitForWork(WaitableEvent* wake_up_event) {
 WorkerThread::WorkerThread(ThreadType thread_type_hint,
                            std::unique_ptr<Delegate> delegate,
                            TrackedRef<TaskTracker> task_tracker,
+                           size_t sequence_num,
                            const CheckedLock* predecessor_lock)
     : thread_lock_(predecessor_lock),
       delegate_(std::move(delegate)),
       task_tracker_(std::move(task_tracker)),
       thread_type_hint_(thread_type_hint),
-      current_thread_type_(GetDesiredThreadType()) {
+      current_thread_type_(GetDesiredThreadType()),
+      sequence_num_(sequence_num) {
   DCHECK(delegate_);
   DCHECK(task_tracker_);
   DCHECK(CanUseBackgroundThreadTypeForWorkerThread() ||
          thread_type_hint_ != ThreadType::kBackground);
+  DCHECK(CanUseUtilityThreadTypeForWorkerThread() ||
+         thread_type_hint != ThreadType::kUtility);
   wake_up_event_.declare_only_used_while_idle();
   wake_up_event_.opt_out_of_wakeup_flow_events();
 }

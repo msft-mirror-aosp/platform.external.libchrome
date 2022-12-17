@@ -37,10 +37,10 @@
 #include "base/memory/weak_ptr.h"
 #include "base/posix/eintr_wrapper.h"
 #include "base/synchronization/lock.h"
+#include "base/task/sequenced_task_runner.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/threading/platform_thread.h"
 #include "base/threading/scoped_blocking_call.h"
-#include "base/threading/sequenced_task_runner_handle.h"
 #include "base/trace_event/base_tracing.h"
 #include "build/build_config.h"
 
@@ -70,28 +70,6 @@ class InotifyReader;
 
 // Used by test to override inotify watcher limit.
 size_t g_override_max_inotify_watches = 0u;
-
-// Get the maximum number of inotify watches can be used by a FilePathWatcher
-// instance. This is based on /proc/sys/fs/inotify/max_user_watches entry.
-size_t GetMaxNumberOfInotifyWatches() {
-#if BUILDFLAG(IS_FUCHSIA)
-  // Fuchsia has no limit on the number of watches.
-  return std::numeric_limits<int>::max();
-#else
-  static const size_t max = []() {
-    size_t max_number_of_inotify_watches = 0u;
-
-    std::ifstream in(kInotifyMaxUserWatchesPath);
-    if (!in.is_open() || !(in >> max_number_of_inotify_watches)) {
-      LOG(ERROR) << "Failed to read " << kInotifyMaxUserWatchesPath;
-      return kDefaultInotifyMaxUserWatches / kExpectedFilePathWatchers;
-    }
-
-    return max_number_of_inotify_watches / kExpectedFilePathWatchers;
-  }();
-  return g_override_max_inotify_watches ? g_override_max_inotify_watches : max;
-#endif  // if BUILDFLAG(IS_FUCHSIA)
-}
 
 class InotifyReaderThreadDelegate final : public PlatformThread::Delegate {
  public:
@@ -580,7 +558,7 @@ bool FilePathWatcherImpl::Watch(const FilePath& path,
                                 const FilePathWatcher::Callback& callback) {
   DCHECK(target_.empty());
 
-  set_task_runner(SequencedTaskRunnerHandle::Get());
+  set_task_runner(SequencedTaskRunner::GetCurrentDefault());
   callback_ = callback;
   target_ = path;
   type_ = type;
@@ -831,6 +809,26 @@ bool FilePathWatcherImpl::HasValidWatchVector() const {
 }
 
 }  // namespace
+
+size_t GetMaxNumberOfInotifyWatches() {
+#if BUILDFLAG(IS_FUCHSIA)
+  // Fuchsia has no limit on the number of watches.
+  return std::numeric_limits<int>::max();
+#else
+  static const size_t max = []() {
+    size_t max_number_of_inotify_watches = 0u;
+
+    std::ifstream in(kInotifyMaxUserWatchesPath);
+    if (!in.is_open() || !(in >> max_number_of_inotify_watches)) {
+      LOG(ERROR) << "Failed to read " << kInotifyMaxUserWatchesPath;
+      return kDefaultInotifyMaxUserWatches / kExpectedFilePathWatchers;
+    }
+
+    return max_number_of_inotify_watches / kExpectedFilePathWatchers;
+  }();
+  return g_override_max_inotify_watches ? g_override_max_inotify_watches : max;
+#endif  // if BUILDFLAG(IS_FUCHSIA)
+}
 
 ScopedMaxNumberOfInotifyWatchesOverrideForTest::
     ScopedMaxNumberOfInotifyWatchesOverrideForTest(size_t override_max) {

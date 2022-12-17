@@ -59,7 +59,8 @@ class BASE_EXPORT ThreadGroupImpl : public ThreadGroup {
                   StringPiece thread_group_label,
                   ThreadType thread_type_hint,
                   TrackedRef<TaskTracker> task_tracker,
-                  TrackedRef<Delegate> delegate);
+                  TrackedRef<Delegate> delegate,
+                  ThreadGroup* predecessor_thread_group = nullptr);
 
   // Creates threads, allowing existing and future tasks to run. The thread
   // group runs at most |max_tasks| / `max_best_effort_tasks` unblocked task
@@ -280,6 +281,7 @@ class BASE_EXPORT ThreadGroupImpl : public ThreadGroup {
 
   // All workers owned by this thread group.
   std::vector<scoped_refptr<WorkerThread>> workers_ GUARDED_BY(lock_);
+  size_t worker_sequence_num_ GUARDED_BY(lock_) = 0;
 
   bool shutdown_started_ GUARDED_BY(lock_) = false;
 
