@@ -557,13 +557,14 @@ def EmergeLibchrome(recipe: bool) -> bool:
     )
     if emerge_result.returncode:
         for l in reversed(emerge_result.stdout.splitlines()):
-            m = EMERGE_LIBCHROME_LOG_FILE_RE.match
+            m = EMERGE_LIBCHROME_LOG_FILE_RE.match(l)
             if m:
                 logging.warning(
                     f"`sudo emerge libchrome` failed, build log available at: {m.group(1)}"
                 )
-            else:
-                logging.warning(f"`sudo emerge libchrome` failed")
+                break
+        else:
+            logging.warning(f"`sudo emerge libchrome` failed")
     else:
         logging.info(f"`sudo emerge libchrome` succeeded")
     return emerge_result.returncode == 0
