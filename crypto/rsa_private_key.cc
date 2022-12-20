@@ -228,11 +228,9 @@ bool PrivateKeyInfoCodec::ReadIntegerWithExpectedSize(
     return false;
 
   int pad = expected_size - temp.size();
-  int index = 0;
   if (out->size() == expected_size + 1) {
     READ_ASSERT(out->front() == 0x00);
     pad++;
-    index++;
   } else {
     READ_ASSERT(out->size() <= expected_size);
   }
