@@ -180,6 +180,7 @@ buildflag_header("partition_allocator_buildflags") {
     "PA_USE_BASE_TRACING=false",
     "ENABLE_PKEYS=false",
     "ENABLE_POINTER_COMPRESSION=false",
+    "USE_ASAN_UNOWNED_PTR=false",
   ]
 }
 
@@ -1132,7 +1133,6 @@ if (use.mojo) {
           "mojo/public/cpp/bindings/lib/message_dispatcher.cc",
           "mojo/public/cpp/bindings/lib/message_header_validator.cc",
           "mojo/public/cpp/bindings/lib/message_internal.cc",
-          "mojo/public/cpp/bindings/lib/message_quota_checker.cc",
           "mojo/public/cpp/bindings/lib/multiplex_router.cc",
           "mojo/public/cpp/bindings/lib/pending_receiver_state.cc",
           "mojo/public/cpp/bindings/lib/pending_remote_state.cc",
