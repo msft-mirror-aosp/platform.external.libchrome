@@ -69,6 +69,8 @@ config("libchrome_config") {
     "NO_TCMALLOC",
     "MOJO_BACKWARDS_COMPAT",
     "MOJO_CORE_LEGACY_PROTOCOL",
+    "BASE_USE_PERFETTO_CLIENT_LIBRARY",
+    "PERFETTO_ENABLE_LEGACY_TRACE_EVENTS",
   ]
   if (use.asan) {
     defines += [
@@ -89,9 +91,14 @@ config("libchrome_config") {
     "-Xclang-only=-Wno-char-subscripts",
   ]
 
+  # Prevent --gc-sections from removing unused perfetto symbols, because
+  # clients of libchrome (e.g., libbrillo) may need them. This avoids having to
+  # statically link separate copies of perfetto into each library.
+  ldflags = [ "-Wl,--undefined-glob=*perfetto*SystemProducer*" ]
+
   # Address sanitizer + coverage builds do not support -z,defs.
   if (!(use.asan || use.coverage)) {
-    ldflags = [ "-Wl,-z,defs" ]
+    ldflags += [ "-Wl,-z,defs" ]
   }
 }
 
@@ -366,9 +373,8 @@ buildflag_header("tracing_buildflags") {
   header = "base/tracing_buildflags.h"
   flags = [
     "ENABLE_BASE_TRACING=true",
-    "USE_PERFETTO_CLIENT_LIBRARY=false",
+    "USE_PERFETTO_CLIENT_LIBRARY=true",
     "USE_PERFETTO_TRACE_PROCESSOR=false",
-
     # "OPTIONAL_TRACE_EVENTS_ENABLED=",
   ]
 }
@@ -387,6 +393,7 @@ libbase_sublibs = [
       "absl",
       "glib-2.0",
       "libevent",
+      "perfetto",
     ]
     configs = [
       ":base_core_config",
@@ -702,6 +709,7 @@ libbase_sublibs = [
       "base/trace_event/memory_dump_request_args.cc",
       "base/trace_event/memory_dump_scheduler.cc",
       "base/trace_event/memory_infra_background_allowlist.cc",
+      "base/trace_event/memory_pressure_level_proto.cc",
       "base/trace_event/memory_usage_estimator.cc",
       "base/trace_event/process_memory_dump.cc",
       "base/trace_event/trace_arguments.cc",
@@ -934,6 +942,8 @@ libchrome_exported_cflags = [
   "-I/usr/include/libchrome",
   "-Wno-unused-local-typedefs",
   "-DBASE_VER=${libchrome_basever}",
+  "-DBASE_USE_PERFETTO_CLIENT_LIBRARY",
+  "-DPERFETTO_ENABLE_LEGACY_TRACE_EVENTS=1",
 ]
 
 if (use.asan) {
