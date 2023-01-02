@@ -12,6 +12,7 @@
 #include "base/test/gtest_util.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #if BUILDFLAG(USE_ASAN_BACKUP_REF_PTR)
+#include "base/debug/asan_service.h"
 #include "base/memory/raw_ptr_asan_service.h"
 #endif  // BUILDFLAG(USE_ASAN_BACKUP_REF_PTR)
 
@@ -199,27 +200,27 @@ TEST(RawRef, MoveConstruct) {
 TEST(RawRef, CopyAssign) {
   {
     int i = 1;
+    int j = 2;
     auto r = raw_ref<int>(i);
     EXPECT_EQ(&*r, &i);
-    int j = 2;
     auto rj = raw_ref<int>(j);
     r = rj;
     EXPECT_EQ(&*r, &j);
   }
   {
     int i = 1;
+    int j = 2;
     auto r = raw_ref<const int>(i);
     EXPECT_EQ(&*r, &i);
-    int j = 2;
     auto rj = raw_ref<const int>(j);
     r = rj;
     EXPECT_EQ(&*r, &j);
   }
   {
     int i = 1;
+    int j = 2;
     auto r = raw_ref<const int>(i);
     EXPECT_EQ(&*r, &i);
-    int j = 2;
     auto rj = raw_ref<int>(j);
     r = rj;
     EXPECT_EQ(&*r, &j);
@@ -228,9 +229,9 @@ TEST(RawRef, CopyAssign) {
 
 TEST(RawRef, CopyReassignAfterMove) {
   int i = 1;
+  int j = 1;
   auto r = raw_ref<int>(i);
   auto r2 = std::move(r);
-  int j = 1;
   r2 = raw_ref<int>(j);
   // Reassign to the moved-from `r` so it can be used again.
   r = r2;
@@ -240,25 +241,25 @@ TEST(RawRef, CopyReassignAfterMove) {
 TEST(RawRef, MoveAssign) {
   {
     int i = 1;
+    int j = 2;
     auto r = raw_ref<int>(i);
     EXPECT_EQ(&*r, &i);
-    int j = 2;
     r = raw_ref<int>(j);
     EXPECT_EQ(&*r, &j);
   }
   {
     int i = 1;
+    int j = 2;
     auto r = raw_ref<const int>(i);
     EXPECT_EQ(&*r, &i);
-    int j = 2;
     r = raw_ref<const int>(j);
     EXPECT_EQ(&*r, &j);
   }
   {
     int i = 1;
+    int j = 2;
     auto r = raw_ref<const int>(i);
     EXPECT_EQ(&*r, &i);
-    int j = 2;
     r = raw_ref<int>(j);
     EXPECT_EQ(&*r, &j);
   }
@@ -266,9 +267,9 @@ TEST(RawRef, MoveAssign) {
 
 TEST(RawRef, MoveReassignAfterMove) {
   int i = 1;
+  int j = 1;
   auto r = raw_ref<int>(i);
   auto r2 = std::move(r);
-  int j = 1;
   // Reassign to the moved-from `r` so it can be used again.
   r = raw_ref<int>(j);
   EXPECT_EQ(&*r, &j);
@@ -382,8 +383,8 @@ TEST(RawRef, Arrow) {
 
 TEST(RawRef, Swap) {
   int i;
-  auto ri = raw_ref<int>(i);
   int j;
+  auto ri = raw_ref<int>(i);
   auto rj = raw_ref<int>(j);
   swap(ri, rj);
   EXPECT_EQ(&*ri, &j);
@@ -817,6 +818,8 @@ TEST(RawRef, StdLess) {
 #if BUILDFLAG(USE_ASAN_BACKUP_REF_PTR)
 
 TEST(AsanBackupRefPtrImpl, RawRefGet) {
+  base::debug::AsanService::GetInstance()->Initialize();
+
   if (!base::RawPtrAsanService::GetInstance().IsEnabled()) {
     base::RawPtrAsanService::GetInstance().Configure(
         base::EnableDereferenceCheck(true), base::EnableExtractionCheck(true),
@@ -841,6 +844,8 @@ TEST(AsanBackupRefPtrImpl, RawRefGet) {
 }
 
 TEST(AsanBackupRefPtrImpl, RawRefOperatorStar) {
+  base::debug::AsanService::GetInstance()->Initialize();
+
   if (!base::RawPtrAsanService::GetInstance().IsEnabled()) {
     base::RawPtrAsanService::GetInstance().Configure(
         base::EnableDereferenceCheck(true), base::EnableExtractionCheck(true),

@@ -165,6 +165,7 @@ buildflag_header("partition_allocator_buildflags") {
   header = "base/allocator/partition_allocator/partition_alloc_buildflags.h"
   flags = [
     "USE_PARTITION_ALLOC=false",
+    "USE_PARTITION_ALLOC_AS_MALLOC=false",
     "USE_ASAN_BACKUP_REF_PTR=false",
     "BACKUP_REF_PTR_POISON_OOB_PTR=false",
     "ENABLE_PARTITION_ALLOC_AS_MALLOC_SUPPORT=false",

@@ -118,14 +118,19 @@ void CheckThatAddressIsntWithinFirstPartitionPage(uintptr_t address) {
 #elif BUILDFLAG(USE_ASAN_BACKUP_REF_PTR)
 
 #include <sanitizer/asan_interface.h>
-#include "base/debug/alias.h"
-#include "base/logging.h"
+#include "base/allocator/partition_allocator/partition_alloc_base/debug/alias.h"
+#include "base/compiler_specific.h"
+#include "base/debug/asan_service.h"
 #include "base/memory/raw_ptr_asan_service.h"
 #include "base/process/process.h"
 
 namespace base::internal {
 
 namespace {
+
+static bool asan_brp_callbacks_installed = false;
+static AsanBackupRefPtrCallbacks g_callbacks = {};
+
 bool IsFreedHeapPointer(void const volatile* ptr) {
   // Use `__asan_region_is_poisoned` instead of `__asan_address_is_poisoned`
   // because the latter may crash on an invalid pointer.
@@ -158,11 +163,17 @@ bool IsFreedHeapPointer(void const volatile* ptr) {
 // Force a non-optimizable memory load operation to trigger an ASan crash.
 NOINLINE NOT_TAIL_CALLED void CrashImmediatelyOnUseAfterFree(
     void const volatile* ptr) {
-  NO_CODE_FOLDING();
+  PA_NO_CODE_FOLDING();
   auto unused = *reinterpret_cast<char const volatile*>(ptr);
   asm volatile("" : "+r"(unused));
 }
 }  // namespace
+
+void InstallAsanBackupRefPtrCallbacks(
+    const AsanBackupRefPtrCallbacks& callbacks) {
+  g_callbacks = callbacks;
+  asan_brp_callbacks_installed = true;
+}
 
 NO_SANITIZE("address")
 void AsanBackupRefPtrImpl::AsanCheckIfValidDereference(
@@ -189,7 +200,7 @@ void AsanBackupRefPtrImpl::AsanCheckIfValidExtraction(
     // to catch the potential subsequent dangling dereference, but don't report
     // the extraction itself.
     if (service.is_extraction_check_enabled()) {
-      RawPtrAsanService::Log(
+      debug::AsanService::GetInstance()->Log(
           "=================================================================\n"
           "==%d==WARNING: MiraclePtr: dangling-pointer-extraction on address "
           "%p\n"
@@ -197,7 +208,7 @@ void AsanBackupRefPtrImpl::AsanCheckIfValidExtraction(
           Process::Current().Pid(), ptr);
       __sanitizer_print_stack_trace();
       __asan_describe_address(const_cast<void*>(ptr));
-      RawPtrAsanService::Log(
+      debug::AsanService::GetInstance()->Log(
           "A regular ASan report will follow if the extracted pointer is "
           "dereferenced later.\n"
           "Otherwise, it is still likely a bug to rely on the address of an "
@@ -224,3 +235,30 @@ void AsanBackupRefPtrImpl::AsanCheckIfValidInstantiation(
 }  // namespace base::internal
 
 #endif  // BUILDFLAG(USE_ASAN_BACKUP_REF_PTR)
+
+#if BUILDFLAG(USE_ASAN_UNOWNED_PTR)
+
+#include <sanitizer/asan_interface.h>
+#include "base/allocator/partition_allocator/partition_alloc_base/debug/alias.h"
+#include "base/compiler_specific.h"
+#include "base/debug/asan_service.h"
+#include "base/memory/raw_ptr_asan_service.h"
+#include "base/process/process.h"
+
+namespace base::internal {
+
+NO_SANITIZE("address")
+bool AsanUnownedPtrImpl::EndOfAliveAllocation(const volatile void* ptr) {
+  uintptr_t address = reinterpret_cast<uintptr_t>(ptr);
+  return __asan_region_is_poisoned(reinterpret_cast<void*>(address), 1) &&
+         !__asan_region_is_poisoned(reinterpret_cast<void*>(address - 1), 1);
+}
+
+bool AsanUnownedPtrImpl::LikelySmuggledScalar(const volatile void* ptr) {
+  intptr_t address = reinterpret_cast<intptr_t>(ptr);
+  return address < 0x100;  // Negative or small positive.
+}
+
+}  // namespace base::internal
+
+#endif  // BUILDFLAG(USE_ASAN_UNOWNED_PTR)

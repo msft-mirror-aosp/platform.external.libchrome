@@ -208,7 +208,8 @@ class circular_deque_const_iterator {
   friend std::ptrdiff_t operator-(const circular_deque_const_iterator& lhs,
                                   const circular_deque_const_iterator& rhs) {
     lhs.CheckComparable(rhs);
-    return lhs.OffsetFromBegin() - rhs.OffsetFromBegin();
+    return static_cast<std::ptrdiff_t>(lhs.OffsetFromBegin() -
+                                       rhs.OffsetFromBegin());
   }
 
   // Comparisons.
@@ -431,7 +432,7 @@ class circular_deque {
   constexpr circular_deque() = default;
 
   // Constructs with |count| copies of |value| or default constructed version.
-  circular_deque(size_type count) { resize(count); }
+  explicit circular_deque(size_type count) { resize(count); }
   circular_deque(size_type count, const T& value) { resize(count, value); }
 
   // Range constructor.
