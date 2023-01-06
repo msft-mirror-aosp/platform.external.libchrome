@@ -538,7 +538,7 @@ def UpdateBuildGn(deleted_files: typing.List[str]) -> typing.List[str]:
     return build_gn_deleted_files
 
 
-def EmergeLibchrome(recipe: bool) -> bool:
+def EmergeLibchrome(emerge_log: str) -> bool:
     """Returns whether or not running emerge libchrome succeeds.
 
     Runs the commands silently to avoid spamming output.
@@ -552,21 +552,10 @@ def EmergeLibchrome(recipe: bool) -> bool:
     logging.info("`sudo emerge libchrome` running...")
     emerge_result = subprocess.run(
         ["sudo", "emerge", "libchrome"],
-        stdout=subprocess.PIPE,
         universal_newlines=True,
+        stdout=open(emerge_log, 'w') if emerge_log else None,
+        stderr=subprocess.STDOUT if emerge_log else None,
     )
-    if emerge_result.returncode:
-        for l in reversed(emerge_result.stdout.splitlines()):
-            m = EMERGE_LIBCHROME_LOG_FILE_RE.match(l)
-            if m:
-                logging.warning(
-                    f"`sudo emerge libchrome` failed, build log available at: {m.group(1)}"
-                )
-                break
-        else:
-            logging.warning(f"`sudo emerge libchrome` failed")
-    else:
-        logging.info(f"`sudo emerge libchrome` succeeded")
     return emerge_result.returncode == 0
 
 
@@ -663,38 +652,36 @@ def CreateUprevCommit(
     return True, message
 
 
-def PushOptions(emerge_success=None) -> str:
+def PushOptions(emerge_success, recipe: bool) -> str:
     """
     Returns options to be used with `git push`.
-    TODO(b/251642220): before formal rotation, add Bot-Commit vote to submit
-    automatically
-      * remove Commit-Queue+1 and Auto-Submit+1
-      * remove fqj, hidehiko, hscham from reviewers
-      * (optional) find out who is on-duty and add them as reviewer
+
+    Args:
+      emerge_success: bool or None (not run)
+      recipe: in recipe mode
     """
     push_options = (
         "%"
         +
-        # Add reviewers
-        "r=fqj@google.com,"
-        + "r=hidehiko@google.com,"
-        + "r=hscham@google.com,"
+        # Add libchrome team to cc
+        "cc=chromeos-libchrome@google.com,"
         +
         # Set topic for easy searching of commits on gerrit
         "topic=libchrome-automated-uprev,"
-        +
-        # Submit CL to CQ automatically after approval
-        "l=Auto-Submit+1,"
     )
+    # Auto bot-commit (triggers CQ) if emerge libchrome succeeded in recipe mode
+    if recipe:
+      if emerge_success:
+          push_options += "l=Commit-Queue+2,l=Bot-Commit+1,"
     # Add verified label according to 'sudo emerge libchrome' result, not set if
-    # emerge is not run
-    if emerge_success:
-        push_options += "l=Verified+1,"
-    elif emerge_success == False:
-        push_options += "l=Verified-1,"
-    # Start CQ dry run on upload if emerge libchrome succeeded locally
-    if emerge_success:
-        push_options += "l=Commit-Queue+1,"
+    # emerge is not run, in manual mode
+    else:
+      if emerge_success:
+          push_options += "l=Verified+1,"
+      elif emerge_success == False:
+          push_options += "l=Verified-1,"
+      # Submit CL to CQ automatically after approval
+      push_options += "l=Auto-Submit+1,"
     return push_options
 
 
@@ -774,9 +761,16 @@ def main():
         default=False,
     )
 
+    parser.add_argument(
+        "--emerge_log",
+        type=str,
+        help="Path to redirect output from running `sudo emerge libchrome`.",
+        default="",
+    )
+
     args = parser.parse_args()
 
-    logging.getLogger().setLevel("CRITICAL" if args.recipe else "INFO")
+    logging.getLogger().setLevel("INFO")
 
     initial_directory = ChangeDirectoryToLibchrome()
 
@@ -810,7 +804,8 @@ def main():
 
     emerge_success = None
     if merge_success and IsInsideChroot():
-        if not EmergeLibchrome(args.recipe):
+        if not EmergeLibchrome(args.emerge_log):
+            logging.warning(f"emerge libchrome failed.")
             commit_message.insert(2, "EMERGE LIBCHROME IS FAILING\n")
             emerge_success = False
         else:
@@ -834,7 +829,7 @@ def main():
         check=True,
     )
 
-    push_options = PushOptions(emerge_success)
+    push_options = PushOptions(emerge_success, args.recipe)
     if args.recipe:
         print(push_options)
         return
