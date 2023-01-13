@@ -1,7 +1,7 @@
-From d85bdc67f6b8791d609d9b9ac3ad0c15beabfb68 Mon Sep 17 00:00:00 2001
+From 04d86beef1b4ed104ddda9792087a60adb47f0c0 Mon Sep 17 00:00:00 2001
 From: hscham <hscham@chromium.org>
 Date: Thu, 21 Apr 2022 11:59:27 +0900
-Subject: [PATCH] Disable base::{Dictionary,List}Value
+Subject: [PATCH] Disable base::DictionaryValue
 
 All usages of the deprecated APIs in CrOS have been cleaned.
 Since they are still used internally, remove BASE_EXPORT keyword to
@@ -9,14 +9,14 @@ strictly forbid client packages from introducing them again.
 
 Change-Id: Ib184df47ee90ebd5bb676aee0c51325dcb1354d4
 ---
- base/values.h | 4 ++--
- 1 file changed, 2 insertions(+), 2 deletions(-)
+ base/values.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/base/values.h b/base/values.h
-index f1b25181d2..777b995639 100644
+index 548f534518..3ef6c057c7 100644
 --- a/base/values.h
 +++ b/base/values.h
-@@ -1166,7 +1166,7 @@ class BASE_EXPORT GSL_OWNER Value {
+@@ -1243,7 +1243,7 @@ class BASE_EXPORT GSL_POINTER DictAdapterForMigration {
  // are std::string's and should be UTF-8 encoded.
  //
  // DEPRECATED: prefer `Value::Dict`.
@@ -25,15 +25,6 @@ index f1b25181d2..777b995639 100644
   public:
    // Returns `value` if it is a dictionary, nullptr otherwise.
    static std::unique_ptr<DictionaryValue> From(std::unique_ptr<Value> value);
-@@ -1324,7 +1324,7 @@ class BASE_EXPORT DictionaryValue : public Value {
- // This type of Value represents a list of other Value values.
- //
- // DEPRECATED: prefer `base::Value::List`.
--class BASE_EXPORT ListValue : public Value {
-+class ListValue : public Value {
-  public:
-   using const_iterator = ListView::const_iterator;
-   using iterator = ListView::iterator;
 -- 
-2.36.0.rc2.479.g8af0fa9b8e-goog
+2.39.0.314.g84b9a713c41-goog
 
