@@ -344,10 +344,12 @@ class TaskEnvironment::MockTimeDomain : public sequence_manager::TimeDomain {
  private:
   SEQUENCE_CHECKER(sequence_checker_);
 
-  raw_ptr<internal::ThreadPoolImpl> thread_pool_ = nullptr;
-  raw_ptr<const TestTaskTracker> thread_pool_task_tracker_ = nullptr;
+  raw_ptr<internal::ThreadPoolImpl, DanglingUntriaged> thread_pool_ = nullptr;
+  raw_ptr<const TestTaskTracker, DanglingUntriaged> thread_pool_task_tracker_ =
+      nullptr;
 
-  const raw_ptr<sequence_manager::internal::SequenceManagerImpl>
+  const raw_ptr<sequence_manager::internal::SequenceManagerImpl,
+                DanglingUntriaged>
       sequence_manager_;
 
   // Protects |now_ticks_|
