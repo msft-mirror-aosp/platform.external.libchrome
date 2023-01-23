@@ -9,10 +9,10 @@
 #include <utility>
 
 #include "base/base_switches.h"
-#include "base/callback.h"
 #include "base/command_line.h"
 #include "base/compiler_specific.h"
 #include "base/debug/alias.h"
+#include "base/functional/callback.h"
 #include "base/json/json_writer.h"
 #include "base/logging.h"
 #include "base/memory/ptr_util.h"
@@ -469,21 +469,21 @@ void TaskTracker::RunTask(Task task,
     // Set up TaskRunner CurrentDefaultHandle as expected for the scope of the
     // task.
     absl::optional<SequencedTaskRunner::CurrentDefaultHandle>
-        sequenced_task_runner_handle;
+        sequenced_task_runner_current_default_handle;
     absl::optional<SingleThreadTaskRunner::CurrentDefaultHandle>
-        single_thread_task_runner_handle;
+        single_thread_task_runner_current_default_handle;
     switch (task_source->execution_mode()) {
       case TaskSourceExecutionMode::kJob:
       case TaskSourceExecutionMode::kParallel:
         break;
       case TaskSourceExecutionMode::kSequenced:
         DCHECK(task_source->task_runner());
-        sequenced_task_runner_handle.emplace(
+        sequenced_task_runner_current_default_handle.emplace(
             static_cast<SequencedTaskRunner*>(task_source->task_runner()));
         break;
       case TaskSourceExecutionMode::kSingleThread:
         DCHECK(task_source->task_runner());
-        single_thread_task_runner_handle.emplace(
+        single_thread_task_runner_current_default_handle.emplace(
             static_cast<SingleThreadTaskRunner*>(task_source->task_runner()));
         break;
     }

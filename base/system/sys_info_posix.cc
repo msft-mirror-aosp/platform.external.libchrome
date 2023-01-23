@@ -67,13 +67,16 @@ bool IsStatsZeroIfUnlimited(const base::FilePath& path) {
   if (HANDLE_EINTR(statfs(path.value().c_str(), &stats)) != 0)
     return false;
 
-  // In some platforms, |statfs_buf.f_type| is declared as signed, but some of
-  // the values will overflow it, causing narrowing warnings. Cast to the
-  // largest possible unsigned integer type to avoid it.
-  switch (static_cast<uintmax_t>(stats.f_type)) {
+  // This static_cast is here because various libcs disagree about the size
+  // and signedness of statfs::f_type. In particular, glibc has it as either a
+  // signed long or a signed int depending on platform, and other libcs
+  // (following the statfs(2) man page) use unsigned int instead. To avoid
+  // either an unsigned -> signed cast, or a narrowing cast, we always upcast
+  // statfs::f_type to unsigned long. :(
+  switch (static_cast<unsigned long>(stats.f_type)) {
     case TMPFS_MAGIC:
-    case static_cast<int>(HUGETLBFS_MAGIC):
-    case static_cast<int>(RAMFS_MAGIC):
+    case HUGETLBFS_MAGIC:
+    case RAMFS_MAGIC:
       return true;
   }
   return false;

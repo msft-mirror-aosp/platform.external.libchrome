@@ -1,0 +1,737 @@
+From 750c671da1f19e6089789197c9b11d41eed5eef0 Mon Sep 17 00:00:00 2001
+From: Grace Cham <hscham@chromium.org>
+Date: Fri, 20 Jan 2023 11:37:15 +0900
+Subject: [PATCH] Reintroduce task runner handles
+
+TODO(b/265541831): Adds deprecated task posting APIs until all usages
+are mgirated in CrOS.
+
+This reverts commit 967bc1cbe0e8499ff403dba248506be01462240e.
+It also adds include of base/threading/thread_task_runner_handle.h back
+to mojo/public/cpp/bindings/scoped_interface_endpoint_handle.h for
+clients relying on the indirect include.
+
+Change-Id: I5d6645cca7c2d22d6ffe6d690dd684681e0a3bb3
+---
+ ...deferred_sequenced_task_runner_unittest.cc |   1 +
+ base/task/single_thread_task_runner.cc        |   2 +
+ base/task/single_thread_task_runner.h         |   4 +
+ base/task/thread_pool/task_tracker.cc         |   8 +-
+ .../task/thread_pool/task_tracker_unittest.cc |  10 +-
+ base/task/thread_pool/test_task_factory.cc    |   3 +-
+ base/task/thread_pool/test_task_factory.h     |   4 +-
+ base/threading/sequence_bound.h               |   6 +-
+ .../threading/sequenced_task_runner_handle.cc |  21 +++
+ base/threading/sequenced_task_runner_handle.h |  49 ++++++
+ .../sequenced_task_runner_handle_unittest.cc  |  89 +++++++++++
+ base/threading/thread.cc                      |   2 +-
+ base/threading/thread.h                       |   6 +-
+ base/threading/thread_checker_impl.cc         |   5 +-
+ base/threading/thread_task_runner_handle.cc   |  21 +++
+ base/threading/thread_task_runner_handle.h    | 116 ++++++++++++++
+ .../thread_task_runner_handle_unittest.cc     | 141 ++++++++++++++++++
+ .../scoped_interface_endpoint_handle.h        |   1 +
+ 18 files changed, 466 insertions(+), 23 deletions(-)
+ create mode 100644 base/threading/sequenced_task_runner_handle.cc
+ create mode 100644 base/threading/sequenced_task_runner_handle.h
+ create mode 100644 base/threading/sequenced_task_runner_handle_unittest.cc
+ create mode 100644 base/threading/thread_task_runner_handle.cc
+ create mode 100644 base/threading/thread_task_runner_handle.h
+ create mode 100644 base/threading/thread_task_runner_handle_unittest.cc
+
+diff --git a/base/task/deferred_sequenced_task_runner_unittest.cc b/base/task/deferred_sequenced_task_runner_unittest.cc
+index 9360c0deff0d..a307d476d40a 100644
+--- a/base/task/deferred_sequenced_task_runner_unittest.cc
++++ b/base/task/deferred_sequenced_task_runner_unittest.cc
+@@ -13,6 +13,7 @@
+ #include "base/task/single_thread_task_runner.h"
+ #include "base/test/task_environment.h"
+ #include "base/threading/thread.h"
++#include "base/threading/thread_task_runner_handle.h"
+ #include "testing/gmock/include/gmock/gmock.h"
+ #include "testing/gtest/include/gtest/gtest.h"
+ 
+diff --git a/base/task/single_thread_task_runner.cc b/base/task/single_thread_task_runner.cc
+index ebf286712d46..7e421215ef2d 100644
+--- a/base/task/single_thread_task_runner.cc
++++ b/base/task/single_thread_task_runner.cc
+@@ -3,6 +3,7 @@
+ // found in the LICENSE file.
+ 
+ #include "base/task/single_thread_task_runner.h"
++#include "base/threading/thread_task_runner_handle.h"
+ 
+ #include <memory>
+ #include <utility>
+@@ -14,6 +15,7 @@
+ #include "base/lazy_instance.h"
+ #include "base/no_destructor.h"
+ #include "base/run_loop.h"
++#include "base/threading/sequenced_task_runner_handle.h"
+ #include "base/threading/thread_local.h"
+ 
+ namespace base {
+diff --git a/base/task/single_thread_task_runner.h b/base/task/single_thread_task_runner.h
+index 3cbc4ee4eb61..43bc98768e02 100644
+--- a/base/task/single_thread_task_runner.h
++++ b/base/task/single_thread_task_runner.h
+@@ -108,6 +108,10 @@ class BASE_EXPORT SingleThreadTaskRunner : public SequencedTaskRunner {
+     FRIEND_TEST_ALL_PREFIXES(SingleThreadTaskRunnerCurrentDefaultHandleTest,
+                              NestedRunLoop);
+ 
++    // This is in order for ThreadTaskRunnerHandleOverride to call this private
++    // constructor during migration.
++    friend class ThreadTaskRunnerHandleOverride;
++
+     // We expect SingleThreadTaskRunner::CurrentHandleOverride to be only needed
+     // under special circumstances. Require them to be enumerated as friends to
+     // require //base/OWNERS review. Use
+diff --git a/base/task/thread_pool/task_tracker.cc b/base/task/thread_pool/task_tracker.cc
+index 51f2e15b1b5d..e525d78987d5 100644
+--- a/base/task/thread_pool/task_tracker.cc
++++ b/base/task/thread_pool/task_tracker.cc
+@@ -469,21 +469,21 @@ void TaskTracker::RunTask(Task task,
+     // Set up TaskRunner CurrentDefaultHandle as expected for the scope of the
+     // task.
+     absl::optional<SequencedTaskRunner::CurrentDefaultHandle>
+-        sequenced_task_runner_current_default_handle;
++        sequenced_task_runner_handle;
+     absl::optional<SingleThreadTaskRunner::CurrentDefaultHandle>
+-        single_thread_task_runner_current_default_handle;
++        single_thread_task_runner_handle;
+     switch (task_source->execution_mode()) {
+       case TaskSourceExecutionMode::kJob:
+       case TaskSourceExecutionMode::kParallel:
+         break;
+       case TaskSourceExecutionMode::kSequenced:
+         DCHECK(task_source->task_runner());
+-        sequenced_task_runner_current_default_handle.emplace(
++        sequenced_task_runner_handle.emplace(
+             static_cast<SequencedTaskRunner*>(task_source->task_runner()));
+         break;
+       case TaskSourceExecutionMode::kSingleThread:
+         DCHECK(task_source->task_runner());
+-        single_thread_task_runner_current_default_handle.emplace(
++        single_thread_task_runner_handle.emplace(
+             static_cast<SingleThreadTaskRunner*>(task_source->task_runner()));
+         break;
+     }
+diff --git a/base/task/thread_pool/task_tracker_unittest.cc b/base/task/thread_pool/task_tracker_unittest.cc
+index b89082a032c1..195c94bb5837 100644
+--- a/base/task/thread_pool/task_tracker_unittest.cc
++++ b/base/task/thread_pool/task_tracker_unittest.cc
+@@ -545,8 +545,8 @@ static void RunTaskRunnerCurrentDefaultHandleVerificationTask(
+   // Pretend |verify_task| is posted to respect TaskTracker's contract.
+   EXPECT_TRUE(tracker->WillPostTask(&verify_task, traits.shutdown_behavior()));
+ 
+-  // Confirm that the test conditions are right (no
+-  // task runner CurrentDefaultHandles set already).
++  // Confirm that the test conditions are right (no TaskRunnerHandles set
++  // already).
+   EXPECT_FALSE(SingleThreadTaskRunner::HasCurrentDefault());
+   EXPECT_FALSE(SequencedTaskRunner::HasCurrentDefault());
+ 
+@@ -555,12 +555,12 @@ static void RunTaskRunnerCurrentDefaultHandleVerificationTask(
+       test::CreateSequenceWithTask(std::move(verify_task), traits,
+                                    std::move(task_runner), execution_mode));
+ 
+-  // task runner CurrentDefaultHandle state is reset outside of task's scope.
++  // TaskRunnerHandle state is reset outside of task's scope.
+   EXPECT_FALSE(SingleThreadTaskRunner::HasCurrentDefault());
+   EXPECT_FALSE(SequencedTaskRunner::HasCurrentDefault());
+ }
+ 
+-static void VerifyNoTaskRunnerCurrentDefaultHandle() {
++static void VerifyNoTaskRunnerHandle() {
+   EXPECT_FALSE(SingleThreadTaskRunner::HasCurrentDefault());
+   EXPECT_FALSE(SequencedTaskRunner::HasCurrentDefault());
+ }
+@@ -568,7 +568,7 @@ static void VerifyNoTaskRunnerCurrentDefaultHandle() {
+ TEST_P(ThreadPoolTaskTrackerTest, TaskRunnerHandleIsNotSetOnParallel) {
+   // Create a task that will verify that TaskRunnerHandles are not set in its
+   // scope per no TaskRunner ref being set to it.
+-  Task verify_task(FROM_HERE, BindOnce(&VerifyNoTaskRunnerCurrentDefaultHandle),
++  Task verify_task(FROM_HERE, BindOnce(&VerifyNoTaskRunnerHandle),
+                    TimeTicks::Now(), TimeDelta());
+ 
+   RunTaskRunnerCurrentDefaultHandleVerificationTask(
+diff --git a/base/task/thread_pool/test_task_factory.cc b/base/task/thread_pool/test_task_factory.cc
+index a9d9fa99edf1..857d4d9950b0 100644
+--- a/base/task/thread_pool/test_task_factory.cc
++++ b/base/task/thread_pool/test_task_factory.cc
+@@ -59,8 +59,7 @@ void TestTaskFactory::RunTaskCallback(size_t task_index,
+                     ->RunsTasksInCurrentSequence());
+   }
+ 
+-  // Verify task runner CurrentDefaultHandles are set as expected in the task's
+-  // scope.
++  // Verify TaskRunnerHandles are set as expected in the task's scope.
+   switch (execution_mode_) {
+     case TaskSourceExecutionMode::kJob:
+     case TaskSourceExecutionMode::kParallel:
+diff --git a/base/task/thread_pool/test_task_factory.h b/base/task/thread_pool/test_task_factory.h
+index 9805eb3c038c..f155969986bf 100644
+--- a/base/task/thread_pool/test_task_factory.h
++++ b/base/task/thread_pool/test_task_factory.h
+@@ -27,8 +27,8 @@ namespace test {
+ // - The RunsTasksInCurrentSequence() method of the SequencedTaskRunner
+ //   (kSequenced or kSingleThread modes) returns false on a thread on which a
+ //   Task is run.
+-// - The task runner CurrentDefaultHandles set in the context of the task don't
+-//   match what's expected for the tested TaskSourceExecutionMode.
++// - The TaskRunnerHandles set in the context of the task don't match what's
++//   expected for the tested TaskSourceExecutionMode.
+ // - The TaskSourceExecutionMode of the TaskRunner is kSequenced or
+ //   kSingleThread and Tasks don't run in posting order.
+ // - The TaskSourceExecutionMode of the TaskRunner is kSingleThread and Tasks
+diff --git a/base/threading/sequence_bound.h b/base/threading/sequence_bound.h
+index 02380d737376..e848fffad1c9 100644
+--- a/base/threading/sequence_bound.h
++++ b/base/threading/sequence_bound.h
+@@ -52,9 +52,9 @@ namespace base {
+ //     }
+ //   };
+ //
+-//   // SequenceBound itself is owned on
+-//   // `SequencedTaskRunner::GetCurrentDefault()`. The managed Database
+-//   // instance managed by it is constructed and owned on `GetDBTaskRunner()`.
++//   // SequenceBound itself is owned on `SequencedTaskRunnerHandle::Get()`.
++//   // The managed Database instance managed by it is constructed and owned on
++//   // `GetDBTaskRunner()`.
+ //   base::SequenceBound<Database> db(GetDBTaskRunner());
+ //
+ //   // `Database::Query()` runs on `GetDBTaskRunner()`, but
+diff --git a/base/threading/sequenced_task_runner_handle.cc b/base/threading/sequenced_task_runner_handle.cc
+new file mode 100644
+index 000000000000..2ab4b6437e61
+--- /dev/null
++++ b/base/threading/sequenced_task_runner_handle.cc
+@@ -0,0 +1,21 @@
++// Copyright 2015 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "base/threading/sequenced_task_runner_handle.h"
++
++namespace base {
++
++// DEPRECATED: Use SequencedTaskRunner::GetCurrentDefault instead
++// static
++const scoped_refptr<SequencedTaskRunner>& SequencedTaskRunnerHandle::Get() {
++  return SequencedTaskRunner::GetCurrentDefault();
++}
++
++// DEPRECATED: Use SequencedTaskRunner::HasCurrentDefault instead
++// static
++bool SequencedTaskRunnerHandle::IsSet() {
++  return SequencedTaskRunner::HasCurrentDefault();
++}
++
++}  // namespace base
+diff --git a/base/threading/sequenced_task_runner_handle.h b/base/threading/sequenced_task_runner_handle.h
+new file mode 100644
+index 000000000000..9b555d7c8d34
+--- /dev/null
++++ b/base/threading/sequenced_task_runner_handle.h
+@@ -0,0 +1,49 @@
++// Copyright 2015 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef BASE_THREADING_SEQUENCED_TASK_RUNNER_HANDLE_H_
++#define BASE_THREADING_SEQUENCED_TASK_RUNNER_HANDLE_H_
++
++#include "base/base_export.h"
++#include "base/memory/scoped_refptr.h"
++#include "base/task/sequenced_task_runner.h"
++
++namespace base {
++
++class ThreadTaskRunnerHandle;
++
++class BASE_EXPORT SequencedTaskRunnerHandle {
++ public:
++  // DEPRECATED: Use SequencedTaskRunner::GetCurrentDefault() instead.
++  // Returns a SequencedTaskRunner which guarantees that posted tasks will only
++  // run after the current task is finished and will satisfy a SequenceChecker.
++  // It should only be called if IsSet() returns true (see the comment there for
++  // the requirements).
++  [[nodiscard]] static const scoped_refptr<SequencedTaskRunner>& Get();
++
++  // DEPRECATED: Use SequencedTaskRunner::HasCurrentDefault() instead.
++  // Returns true if one of the following conditions is fulfilled:
++  // a) A SequencedTaskRunner has been assigned to the current thread by
++  //    instantiating a SequencedTaskRunnerHandle.
++  // b) The current thread has a ThreadTaskRunnerHandle (which includes any
++  //    thread that has a MessageLoop associated with it).
++  [[nodiscard]] static bool IsSet();
++
++  explicit SequencedTaskRunnerHandle(
++      scoped_refptr<SequencedTaskRunner> task_runner)
++      : contained_current_default_(std::move(task_runner)) {}
++
++  SequencedTaskRunnerHandle(const SequencedTaskRunnerHandle&) = delete;
++  SequencedTaskRunnerHandle& operator=(const SequencedTaskRunnerHandle&) =
++      delete;
++
++  ~SequencedTaskRunnerHandle() = default;
++
++ private:
++  SequencedTaskRunner::CurrentDefaultHandle contained_current_default_;
++};
++
++}  // namespace base
++
++#endif  // BASE_THREADING_SEQUENCED_TASK_RUNNER_HANDLE_H_
+diff --git a/base/threading/sequenced_task_runner_handle_unittest.cc b/base/threading/sequenced_task_runner_handle_unittest.cc
+new file mode 100644
+index 000000000000..569df19855b7
+--- /dev/null
++++ b/base/threading/sequenced_task_runner_handle_unittest.cc
+@@ -0,0 +1,89 @@
++// Copyright 2015 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "base/threading/sequenced_task_runner_handle.h"
++
++#include <memory>
++#include <utility>
++
++#include "base/bind.h"
++#include "base/callback.h"
++#include "base/location.h"
++#include "base/memory/ref_counted.h"
++#include "base/run_loop.h"
++#include "base/sequence_checker_impl.h"
++#include "base/synchronization/waitable_event.h"
++#include "base/task/sequenced_task_runner.h"
++#include "base/task/thread_pool.h"
++#include "base/test/task_environment.h"
++#include "base/test/test_simple_task_runner.h"
++#include "base/threading/thread_task_runner_handle.h"
++#include "testing/gtest/include/gtest/gtest.h"
++
++namespace base {
++namespace {
++
++class SequencedTaskRunnerHandleTest : public ::testing::Test {
++ protected:
++  // Verifies that the context it runs on has a SequencedTaskRunnerHandle
++  // and that posting to it results in the posted task running in that same
++  // context (sequence).
++  static void VerifyCurrentSequencedTaskRunner() {
++    ASSERT_TRUE(SequencedTaskRunnerHandle::IsSet());
++    scoped_refptr<SequencedTaskRunner> task_runner =
++        SequencedTaskRunnerHandle::Get();
++    ASSERT_TRUE(task_runner);
++
++    // Use SequenceCheckerImpl to make sure it's not a no-op in Release builds.
++    std::unique_ptr<SequenceCheckerImpl> sequence_checker(
++        new SequenceCheckerImpl);
++    task_runner->PostTask(
++        FROM_HERE,
++        base::BindOnce(&SequencedTaskRunnerHandleTest::CheckValidSequence,
++                       std::move(sequence_checker)));
++  }
++
++  static void CheckValidSequence(
++      std::unique_ptr<SequenceCheckerImpl> sequence_checker) {
++    EXPECT_TRUE(sequence_checker->CalledOnValidSequence());
++  }
++
++  base::test::TaskEnvironment task_environment_;
++};
++
++TEST_F(SequencedTaskRunnerHandleTest, FromTaskEnvironment) {
++  VerifyCurrentSequencedTaskRunner();
++  RunLoop().RunUntilIdle();
++}
++
++TEST_F(SequencedTaskRunnerHandleTest, FromThreadPoolSequencedTask) {
++  base::ThreadPool::CreateSequencedTaskRunner({})->PostTask(
++      FROM_HERE,
++      base::BindOnce(
++          &SequencedTaskRunnerHandleTest::VerifyCurrentSequencedTaskRunner));
++  task_environment_.RunUntilIdle();
++}
++
++TEST_F(SequencedTaskRunnerHandleTest, NoHandleFromUnsequencedTask) {
++  base::ThreadPool::PostTask(base::BindOnce(
++      []() { EXPECT_FALSE(SequencedTaskRunnerHandle::IsSet()); }));
++  task_environment_.RunUntilIdle();
++}
++
++TEST(SequencedTaskRunnerHandleTestWithoutTaskEnvironment, FromHandleInScope) {
++  scoped_refptr<SequencedTaskRunner> test_task_runner(new TestSimpleTaskRunner);
++  EXPECT_FALSE(SequencedTaskRunnerHandle::IsSet());
++  EXPECT_FALSE(ThreadTaskRunnerHandle::IsSet());
++  {
++    SequencedTaskRunnerHandle handle(test_task_runner);
++    EXPECT_TRUE(SequencedTaskRunnerHandle::IsSet());
++    EXPECT_FALSE(ThreadTaskRunnerHandle::IsSet());
++    EXPECT_EQ(test_task_runner, SequencedTaskRunnerHandle::Get());
++  }
++  EXPECT_FALSE(SequencedTaskRunnerHandle::IsSet());
++  EXPECT_FALSE(ThreadTaskRunnerHandle::IsSet());
++}
++
++}  // namespace
++}  // namespace base
+diff --git a/base/threading/thread.cc b/base/threading/thread.cc
+index 174beed23eed..744832a41526 100644
+--- a/base/threading/thread.cc
++++ b/base/threading/thread.cc
+@@ -376,7 +376,7 @@ void Thread::ThreadMain() {
+ 
+   // Lazily initialize the |message_loop| so that it can run on this thread.
+   DCHECK(delegate_);
+-  // This binds CurrentThread and SingleThreadTaskRunner::CurrentDefaultHandle.
++  // This binds CurrentThread and ThreadTaskRunnerHandle.
+   delegate_->BindToCurrentThread(timer_slack_);
+   DCHECK(CurrentThread::Get());
+   DCHECK(SingleThreadTaskRunner::HasCurrentDefault());
+diff --git a/base/threading/thread.h b/base/threading/thread.h
+index 06dd7028b5e7..5c490194e33d 100644
+--- a/base/threading/thread.h
++++ b/base/threading/thread.h
+@@ -65,9 +65,9 @@ class BASE_EXPORT Thread : PlatformThread::Delegate {
+ 
+     virtual scoped_refptr<SingleThreadTaskRunner> GetDefaultTaskRunner() = 0;
+ 
+-    // Binds a RunLoop::Delegate and task runner CurrentDefaultHandle to the
+-    // thread. The underlying MessagePump will have its |timer_slack| set to the
+-    // specified amount.
++    // Binds a RunLoop::Delegate and TaskRunnerHandle to the thread. The
++    // underlying MessagePump will have its |timer_slack| set to the specified
++    // amount.
+     virtual void BindToCurrentThread(TimerSlack timer_slack) = 0;
+   };
+ 
+diff --git a/base/threading/thread_checker_impl.cc b/base/threading/thread_checker_impl.cc
+index cb7eb30f7317..48adb59c3b02 100644
+--- a/base/threading/thread_checker_impl.cc
++++ b/base/threading/thread_checker_impl.cc
+@@ -86,9 +86,8 @@ bool ThreadCheckerImpl::CalledOnValidThread(
+ 
+     // If this ThreadCheckerImpl is bound to a valid SequenceToken, it must be
+     // equal to the current SequenceToken and there must be a registered
+-    // SingleThreadTaskRunner::CurrentDefaultHandle. Otherwise, the fact that
+-    // the current task runs on the thread to which this ThreadCheckerImpl is
+-    // bound is fortuitous.
++    // ThreadTaskRunnerHandle. Otherwise, the fact that the current task runs on
++    // the thread to which this ThreadCheckerImpl is bound is fortuitous.
+     if (sequence_token_.IsValid() &&
+         (sequence_token_ != SequenceToken::GetForCurrentThread() ||
+          !SingleThreadTaskRunner::HasCurrentDefault())) {
+diff --git a/base/threading/thread_task_runner_handle.cc b/base/threading/thread_task_runner_handle.cc
+new file mode 100644
+index 000000000000..1158eea52df2
+--- /dev/null
++++ b/base/threading/thread_task_runner_handle.cc
+@@ -0,0 +1,21 @@
++// Copyright 2016 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "base/threading/thread_task_runner_handle.h"
++
++namespace base {
++
++// DEPRECATED: Use SequencedTaskRunner::GetCurrentDefault instead
++// static
++const scoped_refptr<SingleThreadTaskRunner>& ThreadTaskRunnerHandle::Get() {
++  return SingleThreadTaskRunner::GetCurrentDefault();
++}
++
++// DEPRECATED: Use SequencedTaskRunner::HasCurrentDefault instead
++// static
++bool ThreadTaskRunnerHandle::IsSet() {
++  return SingleThreadTaskRunner::HasCurrentDefault();
++}
++
++}  // namespace base
+diff --git a/base/threading/thread_task_runner_handle.h b/base/threading/thread_task_runner_handle.h
+new file mode 100644
+index 000000000000..5faedf8b7e60
+--- /dev/null
++++ b/base/threading/thread_task_runner_handle.h
+@@ -0,0 +1,116 @@
++// Copyright 2016 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef BASE_THREADING_THREAD_TASK_RUNNER_HANDLE_H_
++#define BASE_THREADING_THREAD_TASK_RUNNER_HANDLE_H_
++
++#include "base/base_export.h"
++#include "base/dcheck_is_on.h"
++#include "base/gtest_prod_util.h"
++#include "base/memory/scoped_refptr.h"
++#include "base/task/single_thread_task_runner.h"
++#include "base/threading/sequenced_task_runner_handle.h"
++#include "third_party/abseil-cpp/absl/types/optional.h"
++
++namespace base {
++
++// ThreadTaskRunnerHandle stores a reference to a thread's TaskRunner
++// in thread-local storage.  Callers can then retrieve the TaskRunner
++// for the current thread by calling ThreadTaskRunnerHandle::Get().
++// At most one TaskRunner may be bound to each thread at a time.
++// Prefer SequencedTaskRunnerHandle to this unless thread affinity is required.
++class BASE_EXPORT ThreadTaskRunnerHandle {
++ public:
++  // DEPRECATED: use SingleThreadTaskRunner::GetCurrentDefault instead
++  // Gets the SingleThreadTaskRunner for the current thread.
++  [[nodiscard]] static const scoped_refptr<SingleThreadTaskRunner>& Get();
++
++  // DEPRECATED: Use SingleThreadTaskRunner::HasCurrentDefault
++  // Returns true if the SingleThreadTaskRunner is already created for
++  // the current thread.
++  [[nodiscard]] static bool IsSet();
++
++  // Binds |task_runner| to the current thread. |task_runner| must belong
++  // to the current thread for this to succeed.
++  explicit ThreadTaskRunnerHandle(
++      scoped_refptr<SingleThreadTaskRunner> task_runner)
++      : contained_current_default_(std::move(task_runner)) {}
++
++  ThreadTaskRunnerHandle(const ThreadTaskRunnerHandle&) = delete;
++  ThreadTaskRunnerHandle& operator=(const ThreadTaskRunnerHandle&) = delete;
++
++  ~ThreadTaskRunnerHandle() = default;
++
++ private:
++  SingleThreadTaskRunner::CurrentDefaultHandle contained_current_default_;
++};
++
++// DEPRECATED: Use SingleThreadTaskRunner::CurrentHandleOverride instead.
++//
++// ThreadTaskRunnerHandleOverride overrides the task runner returned by
++// |ThreadTaskRunnerHandle::Get()| to point at |overriding_task_runner| until
++// the |ThreadTaskRunnerHandleOverride| goes out of scope.
++// ThreadTaskRunnerHandleOverride instantiates a new ThreadTaskRunnerHandle if
++// ThreadTaskRunnerHandle is not instantiated on the current thread. Nested
++// overrides are allowed but callers must ensure the
++// |ThreadTaskRunnerHandleOverride| expire in LIFO (stack) order.
++//
++// Note: nesting ThreadTaskRunnerHandle is subtle and should be done with care,
++// hence the need to friend and request a //base/OWNERS review for usage outside
++// of tests. Use ThreadTaskRunnerHandleOverrideForTesting to bypass the friend
++// requirement in tests.
++class BASE_EXPORT ThreadTaskRunnerHandleOverride {
++ public:
++  ThreadTaskRunnerHandleOverride(const ThreadTaskRunnerHandleOverride&) =
++      delete;
++  ThreadTaskRunnerHandleOverride& operator=(
++      const ThreadTaskRunnerHandleOverride&) = delete;
++  ~ThreadTaskRunnerHandleOverride() = default;
++
++ private:
++  friend class ThreadTaskRunnerHandleOverrideForTesting;
++  FRIEND_TEST_ALL_PREFIXES(ThreadTaskRunnerHandleTest, NestedRunLoop);
++
++  // We expect ThreadTaskRunnerHandleOverride to be only needed under special
++  // circumstances. Require them to be enumerated as friends to require
++  // //base/OWNERS review. Use ThreadTaskRunnerHandleOverrideForTesting
++  // in unit tests to avoid the friend requirement.
++
++  friend class blink::scheduler::MainThreadSchedulerImpl;
++
++  // Constructs a ThreadTaskRunnerHandleOverride which will make
++  // ThreadTaskRunnerHandle::Get() return |overriding_task_runner| for its
++  // lifetime. |allow_nested_loop| specifies whether RunLoop::Run() is allowed
++  // during this override's lifetime. It's not recommended to allow this unless
++  // the current thread's scheduler guarantees that only tasks which pertain to
++  // |overriding_task_runner|'s context will be run by nested RunLoops.
++  explicit ThreadTaskRunnerHandleOverride(
++      scoped_refptr<SingleThreadTaskRunner> overriding_task_runner,
++      bool allow_nested_runloop = false)
++      : contained_override_(std::move(overriding_task_runner),
++                            allow_nested_runloop) {}
++
++  SingleThreadTaskRunner::CurrentHandleOverride contained_override_;
++};
++
++// Note: nesting ThreadTaskRunnerHandles isn't generally desired but it's useful
++// in some unit tests where multiple task runners share the main thread for
++// simplicity and determinism. Only use this when no other constructs will work
++// (see base/test/task_environment.h and base/test/test_mock_time_task_runner.h
++// for preferred alternatives).
++class ThreadTaskRunnerHandleOverrideForTesting {
++ public:
++  explicit ThreadTaskRunnerHandleOverrideForTesting(
++      scoped_refptr<SingleThreadTaskRunner> overriding_task_runner)
++      : contained_override_(std::move(overriding_task_runner)) {}
++
++  ~ThreadTaskRunnerHandleOverrideForTesting() = default;
++
++ private:
++  SingleThreadTaskRunner::CurrentHandleOverrideForTesting contained_override_;
++};
++
++}  // namespace base
++
++#endif  // BASE_THREADING_THREAD_TASK_RUNNER_HANDLE_H_
+diff --git a/base/threading/thread_task_runner_handle_unittest.cc b/base/threading/thread_task_runner_handle_unittest.cc
+new file mode 100644
+index 000000000000..4e211a605183
+--- /dev/null
++++ b/base/threading/thread_task_runner_handle_unittest.cc
+@@ -0,0 +1,141 @@
++// Copyright 2017 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "base/threading/thread_task_runner_handle.h"
++
++#include "base/memory/ref_counted.h"
++#include "base/run_loop.h"
++#include "base/test/gtest_util.h"
++#include "base/test/task_environment.h"
++#include "base/test/test_simple_task_runner.h"
++#include "testing/gtest/include/gtest/gtest.h"
++
++namespace base {
++
++TEST(ThreadTaskRunnerHandleTest, Basic) {
++  scoped_refptr<SingleThreadTaskRunner> task_runner(new TestSimpleTaskRunner);
++
++  EXPECT_FALSE(ThreadTaskRunnerHandle::IsSet());
++  {
++    ThreadTaskRunnerHandle ttrh1(task_runner);
++    EXPECT_TRUE(ThreadTaskRunnerHandle::IsSet());
++    EXPECT_EQ(task_runner, ThreadTaskRunnerHandle::Get());
++  }
++  EXPECT_FALSE(ThreadTaskRunnerHandle::IsSet());
++}
++
++TEST(ThreadTaskRunnerHandleTest, DeathOnImplicitOverride) {
++  scoped_refptr<SingleThreadTaskRunner> task_runner(new TestSimpleTaskRunner);
++  scoped_refptr<SingleThreadTaskRunner> overidding_task_runner(
++      new TestSimpleTaskRunner);
++
++  ThreadTaskRunnerHandle ttrh(task_runner);
++  EXPECT_DCHECK_DEATH(
++      { ThreadTaskRunnerHandle overriding_ttrh(overidding_task_runner); });
++}
++
++TEST(ThreadTaskRunnerHandleTest, OverrideExistingTTRH) {
++  scoped_refptr<SingleThreadTaskRunner> task_runner_1(new TestSimpleTaskRunner);
++  scoped_refptr<SingleThreadTaskRunner> task_runner_2(new TestSimpleTaskRunner);
++  scoped_refptr<SingleThreadTaskRunner> task_runner_3(new TestSimpleTaskRunner);
++  scoped_refptr<SingleThreadTaskRunner> task_runner_4(new TestSimpleTaskRunner);
++
++  EXPECT_FALSE(ThreadTaskRunnerHandle::IsSet());
++  {
++    // TTRH in place prior to override.
++    ThreadTaskRunnerHandle ttrh1(task_runner_1);
++    EXPECT_TRUE(ThreadTaskRunnerHandle::IsSet());
++    EXPECT_EQ(task_runner_1, ThreadTaskRunnerHandle::Get());
++
++    {
++      // Override.
++      ThreadTaskRunnerHandleOverrideForTesting ttrh_override_2(task_runner_2);
++      EXPECT_TRUE(ThreadTaskRunnerHandle::IsSet());
++      EXPECT_EQ(task_runner_2, ThreadTaskRunnerHandle::Get());
++
++      {
++        // Nested override.
++        ThreadTaskRunnerHandleOverrideForTesting ttrh_override_3(task_runner_3);
++        EXPECT_TRUE(ThreadTaskRunnerHandle::IsSet());
++        EXPECT_EQ(task_runner_3, ThreadTaskRunnerHandle::Get());
++      }
++
++      // Back to single override.
++      EXPECT_TRUE(ThreadTaskRunnerHandle::IsSet());
++      EXPECT_EQ(task_runner_2, ThreadTaskRunnerHandle::Get());
++
++      {
++        // Backup to double override with another TTRH.
++        ThreadTaskRunnerHandleOverrideForTesting ttrh_override_4(task_runner_4);
++        EXPECT_TRUE(ThreadTaskRunnerHandle::IsSet());
++        EXPECT_EQ(task_runner_4, ThreadTaskRunnerHandle::Get());
++      }
++    }
++
++    // Back to simple TTRH.
++    EXPECT_TRUE(ThreadTaskRunnerHandle::IsSet());
++    EXPECT_EQ(task_runner_1, ThreadTaskRunnerHandle::Get());
++  }
++  EXPECT_FALSE(ThreadTaskRunnerHandle::IsSet());
++}
++
++TEST(ThreadTaskRunnerHandleTest, OverrideNoExistingTTRH) {
++  scoped_refptr<SingleThreadTaskRunner> task_runner_1(new TestSimpleTaskRunner);
++  scoped_refptr<SingleThreadTaskRunner> task_runner_2(new TestSimpleTaskRunner);
++
++  EXPECT_FALSE(ThreadTaskRunnerHandle::IsSet());
++  {
++    // Override with no TTRH in place.
++    ThreadTaskRunnerHandleOverrideForTesting ttrh_override_1(task_runner_1);
++    EXPECT_TRUE(ThreadTaskRunnerHandle::IsSet());
++    EXPECT_EQ(task_runner_1, ThreadTaskRunnerHandle::Get());
++
++    {
++      // Nested override works the same.
++      ThreadTaskRunnerHandleOverrideForTesting ttrh_override_2(task_runner_2);
++      EXPECT_TRUE(ThreadTaskRunnerHandle::IsSet());
++      EXPECT_EQ(task_runner_2, ThreadTaskRunnerHandle::Get());
++    }
++
++    // Back to single override.
++    EXPECT_TRUE(ThreadTaskRunnerHandle::IsSet());
++    EXPECT_EQ(task_runner_1, ThreadTaskRunnerHandle::Get());
++  }
++  EXPECT_FALSE(ThreadTaskRunnerHandle::IsSet());
++}
++
++TEST(ThreadTaskRunnerHandleTest, DeathOnTTRHOverOverride) {
++  scoped_refptr<SingleThreadTaskRunner> task_runner(new TestSimpleTaskRunner);
++  scoped_refptr<SingleThreadTaskRunner> overidding_task_runner(
++      new TestSimpleTaskRunner);
++
++  ThreadTaskRunnerHandleOverrideForTesting ttrh_override(task_runner);
++  EXPECT_DCHECK_DEATH(
++      { ThreadTaskRunnerHandle overriding_ttrh(overidding_task_runner); });
++}
++
++TEST(ThreadTaskRunnerHandleTest, NestedRunLoop) {
++  test::SingleThreadTaskEnvironment task_environment;
++  EXPECT_TRUE(ThreadTaskRunnerHandle::IsSet());
++  scoped_refptr<SingleThreadTaskRunner> task_runner(new TestSimpleTaskRunner);
++  ThreadTaskRunnerHandleOverride ttrh_override(task_runner,
++                                               /*allow_nested_runloop=*/true);
++  EXPECT_TRUE(ThreadTaskRunnerHandle::IsSet());
++  EXPECT_EQ(task_runner, ThreadTaskRunnerHandle::Get());
++  EXPECT_EQ(task_runner, SequencedTaskRunnerHandle::Get());
++  RunLoop().RunUntilIdle();
++}
++
++TEST(ThreadTaskRunnerHandleTest, DeathOnNestedRunLoop) {
++  test::SingleThreadTaskEnvironment task_environment;
++  EXPECT_TRUE(ThreadTaskRunnerHandle::IsSet());
++  scoped_refptr<SingleThreadTaskRunner> task_runner(new TestSimpleTaskRunner);
++  ThreadTaskRunnerHandleOverrideForTesting ttrh_override(task_runner);
++  EXPECT_TRUE(ThreadTaskRunnerHandle::IsSet());
++  EXPECT_EQ(task_runner, ThreadTaskRunnerHandle::Get());
++  EXPECT_EQ(task_runner, SequencedTaskRunnerHandle::Get());
++  EXPECT_DCHECK_DEATH({ RunLoop().RunUntilIdle(); });
++}
++
++}  // namespace base
+diff --git a/mojo/public/cpp/bindings/scoped_interface_endpoint_handle.h b/mojo/public/cpp/bindings/scoped_interface_endpoint_handle.h
+index 9acfe5275fb0..c3892a9aab14 100644
+--- a/mojo/public/cpp/bindings/scoped_interface_endpoint_handle.h
++++ b/mojo/public/cpp/bindings/scoped_interface_endpoint_handle.h
+@@ -9,6 +9,7 @@
+ #include "base/functional/callback.h"
+ #include "base/memory/scoped_refptr.h"
+ #include "base/strings/string_piece.h"
++#include "base/threading/thread_task_runner_handle.h"
+ #include "mojo/public/cpp/bindings/disconnect_reason.h"
+ #include "mojo/public/cpp/bindings/interface_id.h"
+ #include "third_party/abseil-cpp/absl/types/optional.h"
+-- 
+2.39.1.456.gfc5497dd1b-goog
+

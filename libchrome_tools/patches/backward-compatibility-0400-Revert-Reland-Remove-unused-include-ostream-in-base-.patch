@@ -1,0 +1,29 @@
+From c4499e1ebd00bd3396e24de7f713255690f7e52b Mon Sep 17 00:00:00 2001
+From: Georg Neis <neis@chromium.org>
+Date: Tue, 24 Jan 2023 03:58:06 +0000
+Subject: [PATCH] Revert "Reland "Remove unused #include <ostream> in
+ base/numerics/safe_conversions.h""
+
+This reverts commit b95ac403c2dcd782666bf3bb646a3c2c000b956a.
+---
+ base/numerics/safe_conversions.h | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/base/numerics/safe_conversions.h b/base/numerics/safe_conversions.h
+index 2fc20098b6..ea5d1a40e3 100644
+--- a/base/numerics/safe_conversions.h
++++ b/base/numerics/safe_conversions.h
+@@ -20,6 +20,10 @@
+ #define BASE_HAS_OPTIMIZED_SAFE_CONVERSIONS (0)
+ #endif
+ 
++#if !BASE_NUMERICS_DISABLE_OSTREAM_OPERATORS
++#include <ostream>
++#endif
++
+ namespace base {
+ namespace internal {
+ 
+-- 
+2.39.0.246.g2a6d74b583-goog
+
