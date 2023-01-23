@@ -29,7 +29,7 @@
 #include <map>
 #include <vector>
 
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "base/cpu.h"
 #include "base/debug/alias.h"
 #include "base/debug/stack_trace.h"
@@ -43,11 +43,11 @@
 #include "base/stl_util.h"
 #include "base/strings/stringprintf.h"
 #include "base/task/single_thread_task_executor.h"
+#include "base/task/single_thread_task_runner.h"
 #include "base/task/thread_pool.h"
 #include "base/threading/scoped_blocking_call.h"
 #include "base/threading/thread_checker.h"
 #include "base/threading/thread_restrictions.h"
-#include "base/threading/thread_task_runner_handle.h"
 #include "build/build_config.h"
 
 #if !defined(OS_CHROMEOS)
@@ -363,7 +363,7 @@ class NSSInitSingleton {
     DCHECK(!initializing_tpm_token_);
     // If EnableTPMTokenForNSS hasn't been called, return false.
     if (!tpm_token_enabled_for_nss_) {
-      base::ThreadTaskRunnerHandle::Get()->PostTask(
+      base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
           FROM_HERE, base::BindOnce(std::move(callback), false));
       return;
     }
@@ -372,8 +372,8 @@ class NSSInitSingleton {
     // Note that only |tpm_slot_| is checked, since |chaps_module_| could be
     // NULL in tests while |tpm_slot_| has been set to the test DB.
     if (tpm_slot_) {
-      base::ThreadTaskRunnerHandle::Get()->
-          PostTask(FROM_HERE, base::BindOnce(std::move(callback), true));
+      base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+          FROM_HERE, base::BindOnce(std::move(callback), true));
       return;
     }
 
@@ -601,7 +601,7 @@ class NSSInitSingleton {
     if (username_hash.empty()) {
       DVLOG(2) << "empty username_hash";
       if (!callback.is_null()) {
-        base::ThreadTaskRunnerHandle::Get()->PostTask(
+        base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
             FROM_HERE, base::BindOnce(std::move(callback), ScopedPK11Slot()));
       }
       return ScopedPK11Slot();

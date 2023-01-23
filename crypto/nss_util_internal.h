@@ -7,7 +7,7 @@
 
 #include <secmodt.h>
 
-#include "base/callback.h"
+#include "base/functional/callback.h"
 #include "crypto/crypto_export.h"
 #include "crypto/scoped_nss_types.h"
 
