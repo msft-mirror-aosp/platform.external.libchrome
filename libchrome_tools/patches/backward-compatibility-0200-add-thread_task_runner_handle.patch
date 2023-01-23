@@ -1,0 +1,28 @@
+From 46f24268c5103c1515c9d3ca4478fdb3d42db537 Mon Sep 17 00:00:00 2001
+From: Nathan Muggli <nmuggli@google.com>
+Date: Fri, 13 Jan 2023 09:34:41 -0700
+Subject: [PATCH] backward compatibility: add thread_task_runner_handle include
+
+Adds thread_task_runner_handle.h include file back to certain source
+files since this is still being used in CrOS.
+
+Change-Id: I2785abd7e9327f7ae2c7b47849f062b6eff52a1e
+---
+ mojo/public/cpp/bindings/scoped_interface_endpoint_handle.h | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/mojo/public/cpp/bindings/scoped_interface_endpoint_handle.h b/mojo/public/cpp/bindings/scoped_interface_endpoint_handle.h
+index a406941716..60b82cae44 100644
+--- a/mojo/public/cpp/bindings/scoped_interface_endpoint_handle.h
++++ b/mojo/public/cpp/bindings/scoped_interface_endpoint_handle.h
+@@ -9,6 +9,7 @@
+ #include "base/component_export.h"
+ #include "base/memory/scoped_refptr.h"
+ #include "base/strings/string_piece.h"
++#include "base/threading/thread_task_runner_handle.h"
+ #include "mojo/public/cpp/bindings/disconnect_reason.h"
+ #include "mojo/public/cpp/bindings/interface_id.h"
+ #include "third_party/abseil-cpp/absl/types/optional.h"
+-- 
+2.39.0.314.g84b9a713c41-goog
+

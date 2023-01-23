@@ -13,11 +13,11 @@
 #include <utility>
 #include <vector>
 
-#include "base/bind.h"
-#include "base/callback.h"
 #include "base/check_op.h"
 #include "base/containers/circular_deque.h"
 #include "base/containers/contains.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/raw_ptr.h"
 #include "base/no_destructor.h"
@@ -30,7 +30,6 @@
 #include "base/task/single_thread_task_runner.h"
 #include "base/threading/thread_checker.h"
 #include "base/threading/thread_local.h"
-#include "base/threading/thread_task_runner_handle.h"
 #include "base/trace_event/memory_allocator_dump.h"
 #include "base/trace_event/memory_dump_manager.h"
 #include "base/trace_event/memory_dump_provider.h"
