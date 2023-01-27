@@ -1,0 +1,66 @@
+From 6b47f434f8d3f63f61abc034e11d2fba7fd99906 Mon Sep 17 00:00:00 2001
+From: Grace Cham <hscham@chromium.org>
+Date: Mon, 30 Jan 2023 15:35:07 +0900
+Subject: [PATCH] Revert "Remove the old UnguessableToken::Deserialize"
+
+Clean-up bug: b/267117536
+
+This reverts commit a150dbb23e71f80c06a04707223571b9e68a5fd9.
+---
+ base/unguessable_token.cc | 11 +++++++++++
+ base/unguessable_token.h  | 15 ++++++++++++---
+ 2 files changed, 23 insertions(+), 3 deletions(-)
+
+diff --git a/base/unguessable_token.cc b/base/unguessable_token.cc
+index db7a36144729..af8afb24367d 100644
+--- a/base/unguessable_token.cc
++++ b/base/unguessable_token.cc
+@@ -32,6 +32,17 @@ const UnguessableToken& UnguessableToken::Null() {
+   return null_token;
+ }
+ 
++// static
++UnguessableToken UnguessableToken::Deserialize(uint64_t high, uint64_t low) {
++  // Receiving a zeroed out UnguessableToken from another process means that it
++  // was never initialized via Create(). The real check for this is in the
++  // StructTraits in mojo/public/cpp/base/unguessable_token_mojom_traits.cc
++  // where a zero-ed out token will fail to deserialize. This DCHECK is a
++  // backup check.
++  DCHECK(!(high == 0 && low == 0));
++  return UnguessableToken(Token{high, low});
++}
++
+ // static
+ absl::optional<UnguessableToken> UnguessableToken::Deserialize2(uint64_t high,
+                                                                 uint64_t low) {
+diff --git a/base/unguessable_token.h b/base/unguessable_token.h
+index 121f92d07a60..f35749ddfc22 100644
+--- a/base/unguessable_token.h
++++ b/base/unguessable_token.h
+@@ -56,11 +56,20 @@ class BASE_EXPORT UnguessableToken {
+   // default constructor.
+   static const UnguessableToken& Null();
+ 
+-  // Return an UnguessableToken built from the high/low bytes provided.
++  // NOTE: This method is deprecated and will soon be replaced by the one below.
++  // Return a UnguessableToken built from the high/low bytes provided.
+   // It should only be used in deserialization scenarios.
+   //
+-  // NOTE: If the returned `absl::optional` does not have a value, it means that
+-  // `high` and `low` correspond to an `UnguesssableToken` that was never
++  // NOTE: If the deserialized token is empty, it means that it was never
++  // initialized via Create(). This is a security issue, and should be handled.
++  static UnguessableToken Deserialize(uint64_t high, uint64_t low);
++
++  // Return a UnguessableToken built from the high/low bytes provided.
++  // It should only be used in deserialization scenarios.
++  //
++  // NOTE: Once `Deserialize` above is removed, this will be renamed to that.
++  //
++  // NOTE: If the deserialized token is empty, it means that it was never
+   // initialized via Create(). This is a security issue, and should be handled.
+   static absl::optional<UnguessableToken> Deserialize2(uint64_t high,
+                                                        uint64_t low);
+-- 
+2.39.1.456.gfc5497dd1b-goog
+

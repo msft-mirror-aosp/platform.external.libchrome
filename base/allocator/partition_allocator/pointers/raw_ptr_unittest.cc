@@ -2,13 +2,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "base/memory/raw_ptr.h"
+#include "base/allocator/partition_allocator/pointers/raw_ptr.h"
 
 #include <climits>
 #include <cstddef>
 #include <string>
 #include <thread>
-#include <tuple>
 #include <type_traits>
 #include <utility>
 
@@ -20,11 +19,11 @@
 #include "base/allocator/partition_allocator/partition_alloc_buildflags.h"
 #include "base/allocator/partition_allocator/partition_alloc_config.h"
 #include "base/allocator/partition_allocator/partition_alloc_constants.h"
+#include "base/allocator/partition_allocator/pointers/raw_ref.h"
 #include "base/allocator/partition_allocator/tagging.h"
 #include "base/cpu.h"
 #include "base/logging.h"
 #include "base/memory/raw_ptr_asan_service.h"
-#include "base/memory/raw_ref.h"
 #include "base/task/thread_pool.h"
 #include "base/test/bind.h"
 #include "base/test/gtest_util.h"
@@ -94,16 +93,32 @@ static_assert(
 // this namespace calls the correct functions from this namespace.
 namespace {
 
-using RawPtrCountingImpl =
-    base::internal::RawPtrCountingImplWrapperForTest<base::DefaultRawPtrType>;
+// TraitBundle<> matches what CountingRawPtr does internally.
+// UseCountingWrapperForTest is removed.
+using RawPtrCountingImpl = base::internal::RawPtrCountingImplWrapperForTest<
+    base::raw_ptr_traits::TraitBundle<>>;
+
+// TraitBundle<MayDangle> matches what CountingRawPtrMayDangle does internally.
+// UseCountingWrapperForTest is removed, and MayDangle is kept.
 using RawPtrCountingMayDangleImpl =
-    base::internal::RawPtrCountingImplWrapperForTest<base::RawPtrMayDangle>;
+    base::internal::RawPtrCountingImplWrapperForTest<
+        base::raw_ptr_traits::TraitBundle<base::raw_ptr_traits::MayDangle>>;
 
 template <typename T>
-using CountingRawPtr = raw_ptr<T, RawPtrCountingImpl>;
+using CountingRawPtr =
+    raw_ptr<T,
+            base::raw_ptr_traits::TraitBundle<
+                base::raw_ptr_traits::UseCountingWrapperForTest>>;
+static_assert(std::is_same_v<CountingRawPtr<int>::Impl, RawPtrCountingImpl>);
 
 template <typename T>
-using CountingRawPtrMayDangle = raw_ptr<T, RawPtrCountingMayDangleImpl>;
+using CountingRawPtrMayDangle =
+    raw_ptr<T,
+            base::raw_ptr_traits::TraitBundle<
+                base::raw_ptr_traits::MayDangle,
+                base::raw_ptr_traits::UseCountingWrapperForTest>>;
+static_assert(std::is_same_v<CountingRawPtrMayDangle<int>::Impl,
+                             RawPtrCountingMayDangleImpl>);
 
 struct MyStruct {
   int x;
@@ -392,63 +407,39 @@ TEST_F(RawPtrTest, ClearAndDeleteArray) {
 TEST_F(RawPtrTest, ExtractAsDangling) {
   CountingRawPtr<int> ptr(new int);
 
-  if constexpr (std::is_same_v<RawPtrCountingImpl,
-                               RawPtrCountingMayDangleImpl>) {
-    auto expectations = CountingRawPtrExpectations{
-        .wrap_raw_ptr_cnt = 1,
-        .release_wrapped_ptr_cnt = 0,
-        .get_for_dereference_cnt = 0,
-        .wrapped_ptr_swap_cnt = 0,
-    };
-    EXPECT_THAT((expectations), CountingRawPtrHasCounts());
-    EXPECT_THAT((expectations), MayDangleCountingRawPtrHasCounts());
-  } else {
-    EXPECT_THAT((CountingRawPtrExpectations{
-                    .wrap_raw_ptr_cnt = 1,
-                    .release_wrapped_ptr_cnt = 0,
-                    .get_for_dereference_cnt = 0,
-                    .wrapped_ptr_swap_cnt = 0,
-                }),
-                CountingRawPtrHasCounts());
-    EXPECT_THAT((CountingRawPtrExpectations{
-                    .wrap_raw_ptr_cnt = 0,
-                    .release_wrapped_ptr_cnt = 0,
-                    .get_for_dereference_cnt = 0,
-                    .wrapped_ptr_swap_cnt = 0,
-                }),
-                MayDangleCountingRawPtrHasCounts());
-  }
+  EXPECT_THAT((CountingRawPtrExpectations{
+                  .wrap_raw_ptr_cnt = 1,
+                  .release_wrapped_ptr_cnt = 0,
+                  .get_for_dereference_cnt = 0,
+                  .wrapped_ptr_swap_cnt = 0,
+              }),
+              CountingRawPtrHasCounts());
+  EXPECT_THAT((CountingRawPtrExpectations{
+                  .wrap_raw_ptr_cnt = 0,
+                  .release_wrapped_ptr_cnt = 0,
+                  .get_for_dereference_cnt = 0,
+                  .wrapped_ptr_swap_cnt = 0,
+              }),
+              MayDangleCountingRawPtrHasCounts());
 
   EXPECT_TRUE(ptr.get());
 
   CountingRawPtrMayDangle<int> dangling = ptr.ExtractAsDangling();
 
-  if constexpr (std::is_same_v<RawPtrCountingImpl,
-                               RawPtrCountingMayDangleImpl>) {
-    auto expectations = CountingRawPtrExpectations{
-        .wrap_raw_ptr_cnt = 1,
-        .release_wrapped_ptr_cnt = 1,
-        .get_for_dereference_cnt = 0,
-        .wrapped_ptr_swap_cnt = 0,
-    };
-    EXPECT_THAT((expectations), CountingRawPtrHasCounts());
-    EXPECT_THAT((expectations), MayDangleCountingRawPtrHasCounts());
-  } else {
-    EXPECT_THAT((CountingRawPtrExpectations{
-                    .wrap_raw_ptr_cnt = 1,
-                    .release_wrapped_ptr_cnt = 1,
-                    .get_for_dereference_cnt = 0,
-                    .wrapped_ptr_swap_cnt = 0,
-                }),
-                CountingRawPtrHasCounts());
-    EXPECT_THAT((CountingRawPtrExpectations{
-                    .wrap_raw_ptr_cnt = 1,
-                    .release_wrapped_ptr_cnt = 0,
-                    .get_for_dereference_cnt = 0,
-                    .wrapped_ptr_swap_cnt = 0,
-                }),
-                MayDangleCountingRawPtrHasCounts());
-  }
+  EXPECT_THAT((CountingRawPtrExpectations{
+                  .wrap_raw_ptr_cnt = 1,
+                  .release_wrapped_ptr_cnt = 1,
+                  .get_for_dereference_cnt = 0,
+                  .wrapped_ptr_swap_cnt = 0,
+              }),
+              CountingRawPtrHasCounts());
+  EXPECT_THAT((CountingRawPtrExpectations{
+                  .wrap_raw_ptr_cnt = 1,
+                  .release_wrapped_ptr_cnt = 0,
+                  .get_for_dereference_cnt = 0,
+                  .wrapped_ptr_swap_cnt = 0,
+              }),
+              MayDangleCountingRawPtrHasCounts());
 
   EXPECT_FALSE(ptr.get());
   EXPECT_TRUE(dangling.get());
@@ -1218,6 +1209,47 @@ TEST_F(RawPtrTest, ComparisonOperatorUsesGetForComparison) {
                   .wrapped_ptr_less_cnt = 0,
               }),
               CountingRawPtrHasCounts());
+}
+
+// Two `raw_ptr`s with different `TraitBundle`s should still hit
+// `GetForComparison()` (as opposed to `GetForExtraction()`) in their
+// comparison operators. We use `CountingRawPtr` and
+// `CountingRawPtrMayDangle` to contrast two different `TraitBundle`s.
+TEST_F(RawPtrTest, OperatorsUseGetForComparison) {
+  int x = 123;
+  CountingRawPtr<int> ptr1 = &x;
+  CountingRawPtrMayDangle<int> ptr2 = &x;
+
+  RawPtrCountingImpl::ClearCounters();
+  RawPtrCountingMayDangleImpl::ClearCounters();
+
+  EXPECT_TRUE(ptr1 == ptr2);
+  EXPECT_FALSE(ptr1 != ptr2);
+  EXPECT_THAT((CountingRawPtrExpectations{
+                  .get_for_extraction_cnt = 0,
+                  .get_for_comparison_cnt = 2,
+              }),
+              CountingRawPtrHasCounts());
+  EXPECT_THAT((CountingRawPtrExpectations{
+                  .get_for_extraction_cnt = 0,
+                  .get_for_comparison_cnt = 2,
+              }),
+              MayDangleCountingRawPtrHasCounts());
+
+  EXPECT_FALSE(ptr1 < ptr2);
+  EXPECT_FALSE(ptr1 > ptr2);
+  EXPECT_TRUE(ptr1 <= ptr2);
+  EXPECT_TRUE(ptr1 >= ptr2);
+  EXPECT_THAT((CountingRawPtrExpectations{
+                  .get_for_extraction_cnt = 0,
+                  .get_for_comparison_cnt = 6,
+              }),
+              CountingRawPtrHasCounts());
+  EXPECT_THAT((CountingRawPtrExpectations{
+                  .get_for_extraction_cnt = 0,
+                  .get_for_comparison_cnt = 6,
+              }),
+              MayDangleCountingRawPtrHasCounts());
 }
 
 // This test checks how the std library handles collections like

@@ -150,8 +150,6 @@ buildflag_header("allocator_buildflags") {
     "USE_BACKUP_REF_PTR=false",
     "USE_ASAN_BACKUP_REF_PTR=false",
     "USE_MTE_CHECKED_PTR=false",
-    "FORCE_ENABLE_RAW_PTR_EXCLUSION=false"
-    # "USE_FAKE_BINARY_EXPERIMENT=",
   ]
 }
 
@@ -178,11 +176,12 @@ buildflag_header("partition_allocator_buildflags") {
     "RECORD_ALLOC_INFO=false",
     "GLUE_CORE_POOLS=false",
     "ENABLE_SHADOW_METADATA_FOR_64_BITS_POINTERS=false",
-    "STARSCAN=false",
+    "USE_STARSCAN=false",
     "PA_USE_BASE_TRACING=false",
     "ENABLE_PKEYS=false",
     "ENABLE_POINTER_COMPRESSION=false",
     "USE_ASAN_UNOWNED_PTR=false",
+    "FORCE_ENABLE_RAW_PTR_EXCLUSION=false",
   ]
 }
 
@@ -1225,6 +1224,7 @@ install_config("install_header") {
     "base/allocator/partition_allocator/*.h",
     "base/allocator/partition_allocator/partition_alloc_base/*.h",
     "base/allocator/partition_allocator/partition_alloc_base/augmentations/*.h",
+    "base/allocator/partition_allocator/pointers/*.h",
     "base/allocator/partition_allocator/starscan/*.h",
     "base/containers/*.h",
     "base/debug/*.h",
