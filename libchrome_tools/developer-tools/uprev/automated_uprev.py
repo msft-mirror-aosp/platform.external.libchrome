@@ -538,10 +538,8 @@ def UpdateBuildGn(deleted_files: typing.List[str]) -> typing.List[str]:
     return build_gn_deleted_files
 
 
-def EmergeLibchrome(emerge_log: str) -> bool:
-    """Returns whether or not running emerge libchrome succeeds.
-
-    Runs the commands silently to avoid spamming output.
+def EmergeLibchrome() -> bool:
+    """Run `emerge libchrome` and returns whether or not it succeeded.
     """
     subprocess.run(
         ["sudo", "cros-workon", "--host", "start", "libchrome"],
@@ -550,13 +548,25 @@ def EmergeLibchrome(emerge_log: str) -> bool:
         check=True,
     )
     logging.info("`sudo emerge libchrome` running...")
-    emerge_result = subprocess.run(
-        ["sudo", "emerge", "libchrome"],
-        universal_newlines=True,
-        stdout=open(emerge_log, 'w') if emerge_log else None,
-        stderr=subprocess.STDOUT if emerge_log else None,
-    )
-    return emerge_result.returncode == 0
+    try:
+        process = subprocess.Popen(
+            ["sudo", "emerge", "libchrome"],
+            universal_newlines=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+        process_output, _ = process.communicate()
+    except (OSError, subprocess.CalledProcessError) as e:
+        logging.warning('! `emerge libchrome` failed, see log below:')
+        logging.warning(e.stderr)
+        return False
+    else:
+        if process.returncode == 0:
+            logging.info(process_output)
+        else:
+            logging.warning('! `emerge libchrome` failed, see log below:')
+            logging.warning(process_output)
+        return process.returncode == 0
 
 
 def CreateUprevCommit(
@@ -671,17 +681,17 @@ def PushOptions(emerge_success, recipe: bool) -> str:
     )
     # Auto bot-commit (triggers CQ) if emerge libchrome succeeded in recipe mode
     if recipe:
-      if emerge_success:
-          push_options += "l=Commit-Queue+2,l=Bot-Commit+1,"
+        if emerge_success:
+            push_options += "l=Commit-Queue+2,l=Bot-Commit+1,"
     # Add verified label according to 'sudo emerge libchrome' result, not set if
     # emerge is not run, in manual mode
     else:
-      if emerge_success:
-          push_options += "l=Verified+1,"
-      elif emerge_success == False:
-          push_options += "l=Verified-1,"
-      # Submit CL to CQ automatically after approval
-      push_options += "l=Auto-Submit+1,"
+        if emerge_success:
+            push_options += "l=Verified+1,"
+        elif emerge_success == False:
+            push_options += "l=Verified-1,"
+        # Submit CL to CQ automatically after approval
+        push_options += "l=Auto-Submit+1,"
     return push_options
 
 
@@ -761,13 +771,6 @@ def main():
         default=False,
     )
 
-    parser.add_argument(
-        "--emerge_log",
-        type=str,
-        help="Path to redirect output from running `sudo emerge libchrome`.",
-        default="",
-    )
-
     args = parser.parse_args()
 
     logging.getLogger().setLevel("INFO")
@@ -804,7 +807,7 @@ def main():
 
     emerge_success = None
     if merge_success and IsInsideChroot():
-        if not EmergeLibchrome(args.emerge_log):
+        if not EmergeLibchrome():
             logging.warning(f"emerge libchrome failed.")
             commit_message.insert(2, "EMERGE LIBCHROME IS FAILING\n")
             emerge_success = False
