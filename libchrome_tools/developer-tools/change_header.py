@@ -18,11 +18,11 @@ Usage:
 change_header.py --add "<utility>" foo/bar.cc foo/baz.cc foo/baz.h
     Add <utility> to the three files
 
-change_header.py --remove "<utility>" foo/bar.cc foo/baz.cc foo/baz.h
-    Remove <utility>, if exists, from the three files
-change_header.py --remove "base/optional.h" foo/bar.cc foo/baz.cc foo/baz.h
-    Remove base/optional.h, if exists regardless of decorator (<> or ""), from
-    the three files
+change_header.py --remove "<base/optional.h>" foo/bar.cc foo/baz.cc foo/baz.h
+change_header.py --remove '"base/optional.h"' foo/bar.cc foo/baz.cc foo/baz.h
+change_header.py --remove 'base/optional.h' foo/bar.cc foo/baz.cc foo/baz.h
+    All three remove any include of base/optional.h, if exists with matching or
+    non-matching decorator, from the three files
 
 change_header.py --replace 'base/optional.h' '<optional>' foo/bar.cc foo/baz.cc foo/baz.h
     Replace base/optional.h (regardless of decorator) by <optional>, from the
@@ -406,10 +406,7 @@ def RemoveHeaderFromSource(source, name):
       to remove.
     """
     logging.debug(f'Trying to remove {name} from file.')
-    is_decorated = IsDecorated(name)
     undecorated_name = UndecorateName(name)
-    if is_decorated:
-        is_system_header = IsSystemHeader(name)
 
     file_length = len(source)
     in_comment_block = False
@@ -426,9 +423,7 @@ def RemoveHeaderFromSource(source, name):
         if m:
             # This include's filepath matches target header filepath, and
             # decorator also matches if input is decorated.
-            if (UndecorateName(m.group(2)) == undecorated_name
-                    and (not is_decorated
-                         or IsSystemHeader(m.group(2)) == is_system_header)):
+            if UndecorateName(m.group(2)) == undecorated_name:
                 # Delete empty line after if it belongs to a single-line block.
                 if ((idx > 0 and source[idx - 1] == '')
                         and (idx + 1 < file_length and source[idx + 1] == '')):

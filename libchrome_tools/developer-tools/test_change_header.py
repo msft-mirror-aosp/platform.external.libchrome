@@ -274,11 +274,20 @@ class TestRemoveHeader(unittest.TestCase):
         self.assertIsNone(source)
         self.assertIsNone(removed_header)
 
-    def test_remove_header_wrong_decorator(self):
-        header = '"base/logging.h"'
-        source, removed_header = RemoveHeaderFromSource(self.source, header)
-        self.assertIsNone(source)
-        self.assertIsNone(removed_header)
+    def test_remove_header_different_decorator(self):
+        header = 'base/logging.h'
+        quote_header = '"' + header + '"'
+        arrow_header = '<' + header + '>'
+        expected_source = self.source.copy()
+        del expected_source[expected_source.index(f'#include {arrow_header}')]
+
+        source, removed_header = RemoveHeaderFromSource(self.source, quote_header)
+        self.assertIsNotNone(source)
+        self.assertIsNotNone(removed_header)
+
+        self.assertEqual(source, expected_source)
+        self.assertEqual(arrow_header, removed_header)
+
 
     def test_remove_header_same_decorator(self):
         header = '<base/strings/string_util.h>'
