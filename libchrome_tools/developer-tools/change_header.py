@@ -129,8 +129,7 @@ def IsUserHeader(decorated_name):
 EMPTY_LINE_RE = re.compile(r'\s*$')
 COMMENT_RE = re.compile(r'\s*(//|/\*)')
 COMMENT_END_RE = re.compile(r'.*\*/$')
-INCLUDE_RE = re.compile(
-    r'\s*#(import|include)\s+([<"].+?[">])\s*?(?://(.*))?$')
+INCLUDE_RE = re.compile(r'\s*#(import|include)\s+([<"].+?[">])(\s*(//.*))?$')
 MACRO_RE = re.compile(r'\s*#(.*)$')
 
 
@@ -358,7 +357,11 @@ def InsertAt(filename, source, decorated_name, target_header_type):
     return GuessBlockToInsert(blocks, target_header_type)
 
 
-def AddHeaderToSource(filename, source, decorated_name, header_type):
+def AddHeaderToSource(filename,
+                      source,
+                      decorated_name,
+                      header_type,
+                      comment=''):
     """Adds the specified header into the source text with minimal changes.
 
     Args:
@@ -366,6 +369,7 @@ def AddHeaderToSource(filename, source, decorated_name, header_type):
       source: The contents of the source file in list of lines.
       decorated_name: The decorated name of the header to add.
       header_type: The type of header to be added.
+      comment: In-line comment following the include header.
 
     Returns:
       None if no changes are needed or the modified source text otherwise.
@@ -380,7 +384,7 @@ def AddHeaderToSource(filename, source, decorated_name, header_type):
         return None
 
     # Add include to end of block, i.e. at index end.
-    source.insert(end, '#include %s' % (decorated_name))
+    source.insert(end, '#include %s%s' % (decorated_name, comment))
 
     # There is no block in original file of the same type, insert extra empty line
     # after this include statement. No need to sort since it has one line only.
@@ -401,9 +405,9 @@ def RemoveHeaderFromSource(source, name):
       name: The decorated or undecorated name of the header to remove.
 
     Returns:
-      The modified source text in list of lines and removed header (for
-      --same-decorator option with replace operation), or (None, None) if nothing
-      to remove.
+      The modified source text in list of lines, removed header (for
+      --same-decorator option with replace operation), in-line comments
+      or (None, None) if nothing to remove.
     """
     logging.debug(f'Trying to remove {name} from file.')
     undecorated_name = UndecorateName(name)
@@ -431,13 +435,13 @@ def RemoveHeaderFromSource(source, name):
                 del source[idx]
                 logging.debug(
                     f'Header {m.group(2)} found, removing from file.')
-                return source, m.group(2)
+                return source, m.group(2), m.group(3)
 
         # Hitting body of code, stop looking.
         if (not EMPTY_LINE_RE.match(line) and not MACRO_RE.match(line)):
             break
 
-    return None, None
+    return None, None, None
 
 
 def ReplaceHeaderWithMinimumSorting(source, old_header, new_header, prefix,
@@ -452,7 +456,7 @@ def ReplaceHeaderWithMinimumSorting(source, old_header, new_header, prefix,
       old_header: The decorated or undecorated name of the header to remove; in
       both cases match only by the path (decorator will be removed).
       new_header: The decorated or undecorated name of the header to remove; if
-      same_decorator is True it must be decorated.
+      same_decorator is False it must be decorated.
       prefix: indicates sorting range (only the includes surrounding the replaced
       header AND starting with sort_only_prefix will be sorted).
       same_decorator: Whether or not to use the decorator of replaced header for
@@ -536,6 +540,38 @@ def ReplaceHeaderWithMinimumSorting(source, old_header, new_header, prefix,
     # Overwrite the range with itself sorted.
     source[start:end] = sorted(source[start:end])
     return source
+
+
+def ReplaceHeader(source, old_header, new_header, same_decorator, filename):
+    """Replaces the old header by the new one from the source text.
+       If old header doesn't exist, do nothing.
+       Resort blocks touched.
+
+    Args:
+      source: The contents of the source file in list of lines.
+      old_header: The decorated or undecorated name of the header to remove; in
+      both cases match only by the path (decorator will be removed).
+      new_header: The decorated or undecorated name of the header to remove; if
+      same_decorator is False it must be decorated.
+      same_decorator: Whether or not to use the decorator of replaced header for
+      the replacement.
+      filename: Filename of the file being modified.
+
+    Returns:
+      The modified source text in list of lines, or None if old header not found.
+    """
+    source, removed_header, comment = RemoveHeaderFromSource(
+        source, old_header)
+    if not source:
+        return None
+    new_header = (CopyDecoratorTo(new_header, removed_header)
+                  if same_decorator else new_header)
+    new_source = AddHeaderToSource(os.path.normpath(filename), source,
+                                   new_header, ClassifyHeader(new_header),
+                                   comment if comment else '')
+    # new_source is None if new header already exists, but source has been
+    # modified by removing the old header.
+    return new_source if new_source else source
 
 
 def main():
@@ -630,7 +666,7 @@ def main():
             logging.info(f'Processing {filename}...')
             source = f.read().splitlines()
             if args.remove:
-                source, _ = RemoveHeaderFromSource(source, args.remove)
+                source, _, _ = RemoveHeaderFromSource(source, args.remove)
                 if not source:
                     logging.info(
                         f'To be removed header {args.remove} not found, skipping file.'
@@ -641,20 +677,13 @@ def main():
                         source, args.replace[0], args.replace[1],
                         args.sort_only_prefix, args.same_decorator)
                 else:
-                    source, removed_header = RemoveHeaderFromSource(
-                        source, args.replace[0])
-
+                    source = ReplaceHeader(source, args.replace[0],
+                                           args.replace[1],
+                                           args.same_decorator, filename)
                 if not source:
                     logging.info(
                         f'To be replaced header {args.replace[0]} not found, skipping file.'
                     )
-                elif not args.sort_only_prefix:  # Old header found and to be replaced
-                    add_file = (CopyDecoratorTo(args.replace[1],
-                                                removed_header)
-                                if args.same_decorator else args.replace[1])
-                    source = AddHeaderToSource(os.path.normpath(filename),
-                                               source, add_file,
-                                               ClassifyHeader(add_file))
             else:  # args.add
                 source = AddHeaderToSource(os.path.normpath(filename), source,
                                            args.add, ClassifyHeader(args.add))

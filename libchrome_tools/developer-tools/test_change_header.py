@@ -270,7 +270,7 @@ class TestRemoveHeader(unittest.TestCase):
 
     def test_remove_header_not_there(self):
         header = '<utility>'
-        source, removed_header = RemoveHeaderFromSource(self.source, header)
+        source, removed_header, _ = RemoveHeaderFromSource(self.source, header)
         self.assertIsNone(source)
         self.assertIsNone(removed_header)
 
@@ -281,20 +281,20 @@ class TestRemoveHeader(unittest.TestCase):
         expected_source = self.source.copy()
         del expected_source[expected_source.index(f'#include {arrow_header}')]
 
-        source, removed_header = RemoveHeaderFromSource(self.source, quote_header)
+        source, removed_header, _ = RemoveHeaderFromSource(
+            self.source, quote_header)
         self.assertIsNotNone(source)
         self.assertIsNotNone(removed_header)
 
         self.assertEqual(source, expected_source)
         self.assertEqual(arrow_header, removed_header)
 
-
     def test_remove_header_same_decorator(self):
         header = '<base/strings/string_util.h>'
         expected_source = self.source.copy()
         del expected_source[expected_source.index(f'#include {header}')]
 
-        source, removed_header = RemoveHeaderFromSource(self.source, header)
+        source, removed_header, _ = RemoveHeaderFromSource(self.source, header)
         self.assertIsNotNone(source)
         self.assertIsNotNone(removed_header)
 
@@ -306,7 +306,7 @@ class TestRemoveHeader(unittest.TestCase):
         expected_source = self.source.copy()
         del expected_source[expected_source.index(f'#include <{header}>')]
 
-        source, removed_header = RemoveHeaderFromSource(self.source, header)
+        source, removed_header, _ = RemoveHeaderFromSource(self.source, header)
         self.assertIsNotNone(source)
         self.assertIsNotNone(removed_header)
 
@@ -320,7 +320,7 @@ class TestRemoveHeader(unittest.TestCase):
         del expected_source[idx]
         del expected_source[idx]
 
-        source, removed_header = RemoveHeaderFromSource(self.source, header)
+        source, removed_header, _ = RemoveHeaderFromSource(self.source, header)
         self.assertIsNotNone(source)
         self.assertIsNotNone(removed_header)
 
@@ -375,6 +375,75 @@ class TestAddHeader(unittest.TestCase):
                                    self.source, header, ClassifyHeader(header))
 
         self.assertIsNone(source)
+
+
+class TestReplaceHeader(unittest.TestCase):
+    def setUp(self):
+        self.filename = '../testdata/change_header_test.cc'
+        with open(self.filename, 'r') as f:
+            self.source = f.read().splitlines()
+
+    def test_old_header_does_not_exist(self):
+        new_header = '<base/foo.h>'
+        old_header = '<base/bar.h>'
+        source = ReplaceHeader(self.source, old_header, new_header, True,
+                               os.path.normpath(self.filename))
+        self.assertIsNone(source)
+
+    def test_new_header_exists(self):
+        new_header = '<base/strings/string_number_conversions.h>'
+        old_header = '<base/strings/string_util.h>'
+
+        expected_source = self.source.copy()
+        idx = expected_source.index(f'#include {old_header}')
+        del expected_source[idx]
+
+        source = ReplaceHeader(self.source, old_header, new_header, True,
+                               os.path.normpath(self.filename))
+        self.assertIsNotNone(source)
+        self.assertEqual(source, expected_source)
+
+    def test_replace_header_with_decorator(self):
+        new_header = '"base/foo.h"'
+        old_header = '<base/logging.h>'
+
+        expected_source = self.source.copy()
+        idx = expected_source.index(f'#include {old_header}')
+        expected_source[idx] = '#include {}'.format(new_header)
+
+        source = ReplaceHeader(self.source, old_header, new_header, False,
+                               os.path.normpath(self.filename))
+        self.assertIsNotNone(source)
+        self.assertEqual(source, expected_source)
+
+    def test_change_decorator_to_match(self):
+        new_header = '"base/foo.h"'
+        old_header = '<base/logging.h>'
+
+        expected_source = self.source.copy()
+        idx = expected_source.index(f'#include {old_header}')
+        expected_source[idx] = '#include <{}>'.format(new_header[1:-1])
+
+        source = ReplaceHeader(self.source, old_header, new_header, True,
+                               os.path.normpath(self.filename))
+        self.assertIsNotNone(source)
+        self.assertEqual(source, expected_source)
+
+    def test_replace_with_comment(self):
+        comment = ' // for base::Foo'
+        new_header = '<base/foo.h>'
+        old_header = '<base/logging.h>'
+
+        idx = self.source.index(f'#include {old_header}')
+        self.source[idx] = self.source[idx] + comment
+
+        expected_source = self.source.copy()
+        expected_source[idx] = '#include {}{}'.format(new_header, comment)
+
+        source = ReplaceHeader(self.source, old_header, new_header, True,
+                               os.path.normpath(self.filename))
+        self.assertIsNotNone(source)
+        self.assertEqual(source, expected_source)
 
 
 class TestReplaceHeaderMinimum(unittest.TestCase):
