@@ -160,8 +160,19 @@ buildflag_header("allocator_logging_buildflags") {
 }
 
 buildflag_header("partition_allocator_buildflags") {
+  # Copied from base/allocator/partition_allocator/partition_alloc.gni without
+  # using is_nacl.
+  if (current_cpu == "x64" || current_cpu == "arm64") {
+    has_64_bit_pointers = true
+  } else if (current_cpu == "x86" || current_cpu == "arm") {
+    has_64_bit_pointers = false
+  } else {
+    assert(false, "Unknown CPU: $current_cpu")
+  }
+
   header = "base/allocator/partition_allocator/partition_alloc_buildflags.h"
   flags = [
+    "HAS_64_BIT_POINTERS=$has_64_bit_pointers",
     "USE_PARTITION_ALLOC=false",
     "USE_PARTITION_ALLOC_AS_MALLOC=false",
     "USE_ASAN_BACKUP_REF_PTR=false",
