@@ -11,7 +11,7 @@
 
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
-#include "base/memory/raw_ptr.h"
+#include "base/allocator/partition_allocator/pointers/raw_ptr.h"
 
 namespace {
 
@@ -25,7 +25,21 @@ struct PmfTest {
   int Func(char, double) const { return 11; }
 };
 
-#if defined(NCTEST_AUTO_DOWNCAST)  // [r"no viable conversion from 'raw_ptr<Producer>' to 'raw_ptr<DerivedProducer>'"]
+#if defined(NCTEST_INVALID_RAW_PTR_TRAIT)  // [r"Unknown raw_ptr trait"]
+
+void WontCompile() {
+  struct InvalidRawPtrTrait {};
+  raw_ptr<int, base::raw_ptr_traits::TraitBundle<InvalidRawPtrTrait>> p;
+}
+
+#elif defined(NCTEST_INVALID_RAW_PTR_TRAIT_OF_MANY)  // [r"Unknown raw_ptr trait"]
+
+void WontCompile() {
+  struct InvalidRawPtrTrait {};
+  raw_ptr<int, base::raw_ptr_traits::TraitBundle<base::raw_ptr_traits::MayDangle, InvalidRawPtrTrait, base::raw_ptr_traits::DisableMTECheckedPtr>> p;
+}
+
+#elif defined(NCTEST_AUTO_DOWNCAST)  // [r"no viable conversion from 'raw_ptr<Producer>' to 'raw_ptr<DerivedProducer>'"]
 
 void WontCompile() {
   Producer f;
