@@ -54,13 +54,13 @@ const base::FeatureParam<DanglingPtrType> kDanglingPtrTypeParam{
     &kDanglingPtrTypeOption,
 };
 
-#if PA_CONFIG(ALLOW_PCSCAN)
+#if BUILDFLAG(USE_STARSCAN)
 // If enabled, PCScan is turned on by default for all partitions that don't
 // disable it explicitly.
 BASE_FEATURE(kPartitionAllocPCScan,
              "PartitionAllocPCScan",
              FEATURE_DISABLED_BY_DEFAULT);
-#endif  // PA_CONFIG(ALLOW_PCSCAN)
+#endif  // BUILDFLAG(USE_STARSCAN)
 
 #if BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
 // If enabled, PCScan is turned on only for the browser's malloc partition.
@@ -193,11 +193,11 @@ BASE_FEATURE(kPartitionAllocPCScanEagerClearing,
 // In addition to heap, scan also the stack of the current mutator.
 BASE_FEATURE(kPartitionAllocPCScanStackScanning,
              "PartitionAllocPCScanStackScanning",
-#if defined(PA_PCSCAN_STACK_SUPPORTED)
+#if BUILDFLAG(PCSCAN_STACK_SUPPORTED)
              FEATURE_ENABLED_BY_DEFAULT
 #else
              FEATURE_DISABLED_BY_DEFAULT
-#endif  // defined(PA_PCSCAN_STACK_SUPPORTED)
+#endif  // BUILDFLAG(PCSCAN_STACK_SUPPORTED)
 );
 
 BASE_FEATURE(kPartitionAllocDCScan,

@@ -16,6 +16,7 @@ import("//ui/webui/webui_features.gni")
 import("//build/config/chrome_build.gni")
 import("//build/config/chromecast_build.gni")
 import("//build/config/chromeos/ui_mode.gni")
+import("//build/config/features.gni")
 import("//build/config/nacl/config.gni")
 import("//build/toolchain/kythe.gni")
 import("//components/nacl/features.gni")
@@ -331,10 +332,25 @@ if (enable_scrambled_message_ids) {
 #   use_typescript_sources (optional)
 #       Uses the Typescript generator to generate JavaScript bindings.
 #
-#   js_interface_binder (optional)
+#   generate_legacy_js_bindings (optional)
+#       Generate js_data_deps target containing legacy JavaScript bindings files
+#       for Blink tests and other non-WebUI users when generating TypeScript
+#       bindings for WebUI. Ignored if use_typescript_sources is not set to
+#       true.
+#
+#   js_interface_binder_config (optional)
 #       A JsInterfaceBinder is a Mojo interface that contains binders for all
-#       interfaces that can be bound from WebUI's JavaScript. Setting this flag
-#       to true will generate a C++ implementationa of the JSInterfaceBinder(s).
+#       interfaces that can be bound from a WebUI's JavaScript. Defining this
+#       variable will generate a C++ implementation of the JSInterfaceBinder
+#       and a {target_name}_js_interface_binder_impl target that can be depended
+#       on. A mojom target can only contain a single JsInterfaceBinder.
+#
+#       This variable should be a scope with two parameters:
+#        - `webui_controller`: The name of the WebUIController associated with
+#          JsInterfaceBinder.
+#        - `webui_controller_header`: The header where the WebUIController
+#          is declared.
+#        - `webui_controller_deps`: The target containing the WebUIController.
 #
 #   js_generate_struct_deserializers (optional)
 #       Generates JS deerialize methods for structs.
@@ -713,6 +729,10 @@ template("mojom") {
       enabled_features += [ "is_win" ]
     }
 
+    if (is_apple) {
+      enabled_features += [ "is_apple" ]
+    }
+
     action(parser_target_name) {
       allow_remote = true
       custom_processor = "mojom_parser"
@@ -773,6 +793,9 @@ template("mojom") {
           "--add-module-metadata",
           "webui_module_path=${invoker.webui_module_path}",
         ]
+        if (defined(invoker.generate_legacy_js_bindings)) {
+          args += [ "legacy_js_only=${invoker.generate_legacy_js_bindings}" ]
+        }
       }
     }
   }
@@ -1143,7 +1166,7 @@ template("mojom") {
     component_macro_suffix = ""
   }
   if ((!defined(invoker.disable_variants) || !invoker.disable_variants) &&
-      !is_ios) {
+      use_blink) {
     blink_variant = {
       variant = "blink"
       component_macro_suffix = "_BLINK"
@@ -1788,8 +1811,19 @@ template("mojom") {
     }
   }
 
-  if (defined(invoker.js_interface_binder) && invoker.js_interface_binder) {
+  if (defined(invoker.js_interface_binder_config)) {
     if (sources_list != []) {
+      binder_config = invoker.js_interface_binder_config
+      assert(defined(binder_config.webui_controller),
+             "js_interface_binder_config should have a " +
+                 "`webui_controller` parameter e.g. `foo::FooUI`.")
+      assert(defined(binder_config.webui_controller_header),
+             "js_interface_binder_config should have a " +
+                 "`webui_controller_header` parameter.")
+      assert(defined(binder_config.webui_controller_deps),
+             "js_interface_binder_config should have a " +
+                 "`webui_controller_dep` parameter.")
+
       generator_js_interface_binder_impl_target_name =
           "${target_name}_js_interface_binder_impl__generator"
       action(generator_js_interface_binder_impl_target_name) {
@@ -1824,6 +1858,17 @@ template("mojom") {
           "-g",
           "js_interface_binder",
         ]
+
+        rebased_webui_controller_header =
+            rebase_path(binder_config.webui_controller_header, "//")
+
+        # Use a single string for the argument to avoid it being parsed as a
+        # filename by the mojom_bindings_generator.py argument parser.
+        config_arg =
+            "--js_interface_binder_config=" + binder_config.webui_controller +
+            "=" + rebased_webui_controller_header
+
+        args += [ config_arg ]
       }
 
       cpp_target_name = target_name
@@ -1843,6 +1888,8 @@ template("mojom") {
           ":$cpp_target_name",
           ":$generator_js_interface_binder_impl_target_name",
         ]
+
+        deps += binder_config.webui_controller_deps
       }
     }
   }
@@ -1855,8 +1902,17 @@ template("mojom") {
     not_needed(invoker, [ "use_typescript_sources" ])
   }
 
-  if ((generate_fuzzing || !defined(invoker.cpp_only) || !invoker.cpp_only) &&
-      !use_typescript_for_target) {
+  generate_legacy_js = !use_typescript_for_target ||
+                       (defined(invoker.generate_legacy_js_bindings) &&
+                        invoker.generate_legacy_js_bindings)
+
+  # Targets needed by both TS and JS bindings targets. These are needed
+  # unconditionally for JS bindings targets, and are needed for TS bindings
+  # targets when generate_legacy_js_bindings is true. This option is provided
+  # since the legacy bindings are needed by Blink tests and non-Chromium users,
+  # which are not expected to migrate to modules or TypeScript.
+  if (generate_legacy_js &&
+      (generate_fuzzing || !defined(invoker.cpp_only) || !invoker.cpp_only)) {
     if (sources_list != []) {
       generator_js_target_name = "${target_name}_js__generator"
 
@@ -1885,7 +1941,8 @@ template("mojom") {
             "$root_gen_dir/$base_path-lite-for-compile.js",
           ]
 
-          if (defined(invoker.webui_module_path)) {
+          if (defined(invoker.webui_module_path) &&
+              !use_typescript_for_target) {
             outputs += [ "$root_gen_dir/mojom-webui/$base_path-webui.js" ]
           }
         }
@@ -1959,8 +2016,7 @@ template("mojom") {
   # generate these targets if the mojom target is not C++ only and is not using
   # TypeScript.
   if (generate_mojom_closure_libraries &&
-      (!defined(invoker.cpp_only) || !invoker.cpp_only) &&
-      !use_typescript_for_target) {
+      (!defined(invoker.cpp_only) || !invoker.cpp_only) && generate_legacy_js) {
     js_library_target_name = "${target_name}_js_library"
     if (sources_list != []) {
       js_library(js_library_target_name) {
@@ -2011,7 +2067,9 @@ template("mojom") {
       }
     }
 
-    if (defined(invoker.webui_module_path)) {
+    # WebUI specific closure targets, not needed by targets that are generating
+    # TypeScript WebUI bindings or by legacy-only targets.
+    if (defined(invoker.webui_module_path) && !use_typescript_for_target) {
       webui_js_target_name = "${target_name}_webui_js"
       if (sources_list != []) {
         js_library(webui_js_target_name) {
