@@ -713,6 +713,7 @@ libbase_sublibs = [
     sources = [
       "base/test/mock_entropy_provider.cc",
       "base/test/scoped_chromeos_version_info.cc",
+      "base/test/scoped_command_line.cc",
       "base/test/scoped_feature_list.cc",
       "base/test/scoped_run_loop_timeout.cc",
       "base/test/simple_test_clock.cc",
@@ -1304,6 +1305,7 @@ install_config("install_header") {
     "base/test/mock_callback.h",
     "base/test/repeating_test_future.h",
     "base/test/scoped_chromeos_version_info.h",
+    "base/test/scoped_command_line.h",
     "base/test/scoped_feature_list.h",
     "base/test/scoped_logging_settings.h",
     "base/test/scoped_run_loop_timeout.h",
