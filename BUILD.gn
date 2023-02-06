@@ -22,8 +22,8 @@ group("all") {
   ]
   if (use.mojo) {
     deps += [
-      ":libmojo",
       ":install_mojom_generated",
+      ":libmojo",
     ]
   }
   if (use.test) {
@@ -35,6 +35,7 @@ group("all_buildflags") {
   deps = [
     ":allocator_buildflags",
     ":allocator_debugging_buildflags",
+    ":allocator_logging_buildflags",
     ":branding_buildflags",
     ":cfi_buildflags",
     ":chromecast_buildflags",
@@ -45,7 +46,6 @@ group("all_buildflags") {
     ":feature_list_buildflags",
     ":ios_cronet_buildflags",
     ":ipc_buildflags",
-    ":allocator_logging_buildflags",
     ":message_pump_buildflags",
     ":mojo_buildflags",
     ":parsing_buildflags",
@@ -75,7 +75,7 @@ config("libchrome_config") {
 
   include_dirs = [
     ".",
-    "${root_gen_dir}/libchrome", # for generated buildflags headers
+    "${root_gen_dir}/libchrome",  # for generated buildflags headers
   ]
   cflags = [
     "-Wno-deprecated-register",
@@ -234,6 +234,7 @@ buildflag_header("chromeos_buildflags") {
     "IS_CHROMEOS_DEVICE=false",
     "IS_CHROMEOS_LACROS=false",
     "IS_CHROMEOS_ASH=true",
+
     # "IS_CHROMEOS_WITH_HW_DETAILS=",
     # "IS_REVEN=",
   ]
@@ -264,12 +265,16 @@ buildflag_header("debugging_buildflags") {
     "FROM_HERE_USES_LOCATION_BUILTINS=true",
     "ENABLE_PROFILING=false",
     "CAN_UNWIND_WITH_FRAME_POINTERS=true",
+
     # "UNSAFE_DEVELOPER_BUILD=",
     "CAN_UNWIND_WITH_CFI_TABLE=false",
+
     # "EXCLUDE_UNWIND_TABLES=",
     "ENABLE_GDBINIT_WARNING=false",
+
     # "ENABLE_LLDBINIT_WARNING=",
     "EXPENSIVE_DCHECKS_ARE_ON=false",
+
     # "ENABLE_STACK_TRACE_LINE_NUMBERS=",
   ]
 }
@@ -318,8 +323,7 @@ buildflag_header("profiler_buildflags") {
 
 buildflag_header("synchronization_buildflags") {
   header = "base/synchronization/synchronization_buildflags.h"
-  flags =
-      [ "ENABLE_MUTEX_PRIORITY_INHERITANCE=false" ]
+  flags = [ "ENABLE_MUTEX_PRIORITY_INHERITANCE=false" ]
 }
 
 buildflag_header("tracing_buildflags") {
@@ -327,6 +331,7 @@ buildflag_header("tracing_buildflags") {
   flags = [
     "ENABLE_BASE_TRACING=true",
     "USE_PERFETTO_CLIENT_LIBRARY=false",
+
     # "OPTIONAL_TRACE_EVENTS_ENABLED=",
   ]
 }
@@ -385,8 +390,8 @@ libbase_sublibs = [
       "base/debug/stack_trace_posix.cc",
       "base/debug/task_trace.cc",
       "base/environment.cc",
-      "base/features.cc",
       "base/feature_list.cc",
+      "base/features.cc",
       "base/file_descriptor_posix.cc",
       "base/files/file.cc",
       "base/files/file_descriptor_watcher_posix.cc",
@@ -485,6 +490,7 @@ libbase_sublibs = [
       "base/power_monitor/power_monitor_device_source.cc",
       "base/power_monitor/power_monitor_device_source_chromeos.cc",
       "base/power_monitor/power_monitor_source.cc",
+      "base/process/current_process.cc",
       "base/process/environment_internal.cc",
       "base/process/internal_linux.cc",
       "base/process/kill.cc",
@@ -493,7 +499,6 @@ libbase_sublibs = [
       "base/process/launch_posix.cc",
       "base/process/memory.cc",
       "base/process/memory_linux.cc",
-      "base/process/current_process.cc",
       "base/process/process_handle.cc",
       "base/process/process_handle_linux.cc",
       "base/process/process_handle_posix.cc",
@@ -1043,11 +1048,11 @@ if (use.mojo) {
   # crbug.com/924035.
   shared_library("mojo") {
     deps = [
+      ":all_buildflags",
       ":base-core",
       ":base-crypto",
       ":mojom_bindings_gen",
       ":mojom_bindings_gen",
-      ":all_buildflags"
 
       # ":mojom_bindings_native_gen",
       # ":mojom_type_mappings",
@@ -1084,6 +1089,7 @@ if (use.mojo) {
           "mojo/core/embedder/scoped_ipc_support.cc",
           "mojo/core/entrypoints.cc",
           "mojo/core/handle_table.cc",
+          "mojo/core/invitation_dispatcher.cc",
           "mojo/core/ipcz_api.cc",
           "mojo/core/ipcz_driver/base_shared_memory_service.cc",
           "mojo/core/ipcz_driver/data_pipe.cc",
@@ -1098,7 +1104,6 @@ if (use.mojo) {
           "mojo/core/ipcz_driver/transmissible_platform_handle.cc",
           "mojo/core/ipcz_driver/transport.cc",
           "mojo/core/ipcz_driver/wrapped_platform_handle.cc",
-          "mojo/core/invitation_dispatcher.cc",
           "mojo/core/message_pipe_dispatcher.cc",
           "mojo/core/mojo_core.cc",
           "mojo/core/node_channel.cc",
@@ -1126,7 +1131,6 @@ if (use.mojo) {
           "mojo/public/cpp/bindings/async_flusher.cc",
           "mojo/public/cpp/bindings/connection_group.cc",
           "mojo/public/cpp/bindings/features.cc",
-          "mojo/public/cpp/bindings/receiver_set.cc",
           "mojo/public/cpp/bindings/lib/array_internal.cc",
           "mojo/public/cpp/bindings/lib/associated_group.cc",
           "mojo/public/cpp/bindings/lib/associated_group_controller.cc",
@@ -1152,8 +1156,8 @@ if (use.mojo) {
           "mojo/public/cpp/bindings/lib/pipe_control_message_proxy.cc",
           "mojo/public/cpp/bindings/lib/proxy_to_responder.cc",
           "mojo/public/cpp/bindings/lib/scoped_interface_endpoint_handle.cc",
-          "mojo/public/cpp/bindings/lib/sequence_local_sync_event_watcher.cc",
           "mojo/public/cpp/bindings/lib/send_message_helper.cc",
+          "mojo/public/cpp/bindings/lib/sequence_local_sync_event_watcher.cc",
           "mojo/public/cpp/bindings/lib/sync_call_restrictions.cc",
           "mojo/public/cpp/bindings/lib/sync_event_watcher.cc",
           "mojo/public/cpp/bindings/lib/sync_handle_registry.cc",
@@ -1164,6 +1168,7 @@ if (use.mojo) {
           "mojo/public/cpp/bindings/lib/validation_errors.cc",
           "mojo/public/cpp/bindings/lib/validation_util.cc",
           "mojo/public/cpp/bindings/pending_flush.cc",
+          "mojo/public/cpp/bindings/receiver_set.cc",
           "mojo/public/cpp/platform/platform_channel.cc",
           "mojo/public/cpp/platform/platform_channel_endpoint.cc",
           "mojo/public/cpp/platform/platform_channel_server_endpoint.cc",
@@ -1206,8 +1211,8 @@ if (use.mojo) {
 if (use.test) {
   executable("optional_unittests") {
     sources = [
-      "base/types/optional_unittest.cc",
       "base/test/gtest_util.cc",
+      "base/types/optional_unittest.cc",
     ]
     configs += [
       "//common-mk:test",
@@ -1276,9 +1281,7 @@ install_config("install_header") {
     "testing/gtest/include/gtest/*.h",
   ]
   if (use.dbus) {
-    sources += [
-      "dbus/*.h",
-    ]
+    sources += [ "dbus/*.h" ]
   }
   if (use.mojo) {
     sources += [
