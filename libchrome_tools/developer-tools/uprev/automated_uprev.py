@@ -777,6 +777,17 @@ def main():
 
     initial_directory = ChangeDirectoryToLibchrome()
 
+    # Ensure upstream branch is up-to-date.
+    logging.info("Git fetch cros to ensure cros/upstream is up-to-date")
+    subprocess.run(
+        [
+            "git",
+            "fetch",
+            "cros"
+        ],
+        check=True,
+    )
+
     track_branch = GetTrackingBranch(args)
     logging.info(f"Uprev commit will track {track_branch}")
 
