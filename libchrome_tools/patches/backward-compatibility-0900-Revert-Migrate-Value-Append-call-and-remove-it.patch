@@ -1,0 +1,65 @@
+From 0f827eafb455ec0deb24ccedd98f2db1990a2587 Mon Sep 17 00:00:00 2001
+From: Qijiang Fan <fqj@google.com>
+Date: Tue, 21 Feb 2023 16:26:24 +0900
+Subject: [PATCH] Revert "Migrate Value::Append() call and remove it"
+
+This reverts commit 85d89132b4cca0f3ae9435044d1615a361999d52.
+---
+ base/values.cc | 16 ++++++++++++++++
+ base/values.h  | 13 +++++++++++++
+ 2 files changed, 29 insertions(+)
+
+diff --git a/base/values.cc b/base/values.cc
+index 431df641be..f824c79cd4 100644
+--- a/base/values.cc
++++ b/base/values.cc
+@@ -1031,6 +1031,22 @@ bool operator>=(const Value::List& lhs, const Value::List& rhs) {
+   return !(lhs < rhs);
+ }
+ 
++void Value::Append(const char* value) {
++  GetList().Append(value);
++}
++
++void Value::Append(StringPiece value) {
++  GetList().Append(value);
++}
++
++void Value::Append(std::string&& value) {
++  GetList().Append(std::move(value));
++}
++
++void Value::Append(Value&& value) {
++  GetList().Append(std::move(value));
++}
++
+ Value* Value::FindKey(StringPiece key) {
+   return GetDict().Find(key);
+ }
+diff --git a/base/values.h b/base/values.h
+index 6362e0ad2b..06ea56ecc1 100644
+--- a/base/values.h
++++ b/base/values.h
+@@ -668,6 +668,19 @@ class BASE_EXPORT GSL_OWNER Value {
+     std::vector<Value> storage_;
+   };
+ 
++  // ===== DEPRECATED methods that require `type() == Type::LIST` =====
++
++  // Appends `value` to the end of the list.
++  //
++  // DEPRECATED: prefer `Value::List::Append()`.
++  void Append(Value&& value);
++  // DEPRECATED: prefer `Value::List::Append()`.
++  void Append(StringPiece value);
++  // DEPRECATED: prefer `Value::List::Append()`.
++  void Append(const char* value);
++  // DEPRECATED: prefer `Value::List::Append()`.
++  void Append(std::string&& value);
++
+   // ===== DEPRECATED methods that require `type() == Type::DICT` =====
+ 
+   // `FindKey` looks up `key` in the underlying dictionary. If found, it returns
+-- 
+2.39.1
+
