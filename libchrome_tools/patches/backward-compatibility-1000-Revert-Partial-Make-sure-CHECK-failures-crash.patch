@@ -1,0 +1,44 @@
+From ba8bc1f1a1c54d7bca44c09978225e3ef56d8994 Mon Sep 17 00:00:00 2001
+From: Byron Lee <byronlee@google.com>
+Date: Fri, 3 Mar 2023 16:59:13 +0000
+Subject: [PATCH] Revert "(Partial) Make sure CHECK() failures crash"
+
+This reverts commit 97b1e6d4bc07e14cb5a3aa11d16e193eda6b66af.
+---
+ base/check.cc | 16 ----------------
+ 1 file changed, 16 deletions(-)
+
+diff --git a/base/check.cc b/base/check.cc
+index f8f786ede0..fba92fefda 100644
+--- a/base/check.cc
++++ b/base/check.cc
+@@ -180,26 +180,10 @@ std::ostream& CheckError::stream() {
+ }
+ 
+ CheckError::~CheckError() {
+-  // TODO(crbug.com/1409729): Consider splitting out CHECK from DCHECK so that
+-  // the destructor can be marked [[noreturn]] and we don't need to check
+-  // severity in the destructor.
+-  const bool is_fatal = log_message_->severity() == LOGGING_FATAL;
+   // Note: This function ends up in crash stack traces. If its full name
+   // changes, the crash server's magic signature logic needs to be updated.
+   // See cl/306632920.
+   delete log_message_;
+-
+-  // Make sure we crash even if LOG(FATAL) has been overridden.
+-  // TODO(crbug.com/1409729): Include Windows and iOS here too. This is done in
+-  // steps to prevent backsliding on platforms where this goes through CQ.
+-  // Currently iOS is blocked by:
+-  //   * ListModelTest.InvalidIndexPath
+-  // Windows is blocked by:
+-  //   * All/RenderProcessHostWriteableFileDeathTest.
+-  //       PassUnsafeWriteableExecutableFile/2
+-  if (is_fatal && !BUILDFLAG(IS_WIN) && !BUILDFLAG(IS_IOS)) {
+-    base::ImmediateCrash();
+-  }
+ }
+ 
+ NotReachedError NotReachedError::NotReached(const char* file, int line) {
+-- 
+2.40.0.rc0.216.gc4246ad0f0-goog
+
