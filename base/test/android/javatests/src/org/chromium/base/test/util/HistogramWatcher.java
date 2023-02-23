@@ -11,30 +11,36 @@ import androidx.annotation.Nullable;
 import org.chromium.base.metrics.RecordHistogram;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Watches a number of histograms in tests to assert later that the expected values were recorded.
  *
- * Uses the delta of records between startWatching() and assertExpectedHistogramsRecorded(), so
- * that records logged in previous tests (in batched tests) don't interfere with the counting.
+ * Uses the delta of records between build() and assertExpected(), so that records logged in
+ * previous tests (in batched tests) don't interfere with the counting as would happen with direct
+ * calls to {@link RecordHistogram}.
  *
  * Usage:
  *
- * HistogramWatcher histogramWatcher = HistogramWatcher.newBuilder()
+ * // Arrange
+ * var histogramWatcher = HistogramWatcher.newBuilder()
  *     .expectIntRecord("Histogram1", 555)
  *     .expectIntRecord("Histogram1", 666)
  *     .expectBooleanRecord("Histogram2", true)
  *     .expectAnyRecord("Histogram3")
  *     .build();
+ * or:
+ * var histogramWatcher = HistogramWatcher.newSingleRecordWatcher("Histogram1", 555);
  *
  * // Act
  * [code under test that is expected to record the histograms above]
  *
  * // Assert
- * histogramWatcher.assertExpectedHistogramsRecorded();
+ * histogramWatcher.assertExpected();
  */
 public class HistogramWatcher {
     /**
@@ -61,11 +67,20 @@ public class HistogramWatcher {
     }
 
     /**
+     * Convenience method to create a new {@link HistogramWatcher} that expects a single record with
+     * any value for {@code histogram} and no more records to the same histogram.
+     */
+    public static HistogramWatcher newSingleRecordWatcher(String histogram) {
+        return newBuilder().expectAnyRecord(histogram).build();
+    }
+
+    /**
      * Builder for {@link HistogramWatcher}. Use to list the expectations of records.
      */
     public static class Builder {
         private final Map<HistogramAndValue, Integer> mRecordsExpected = new HashMap<>();
         private final Map<String, Integer> mTotalRecordsExpected = new HashMap<>();
+        private final Set<String> mHistogramsAllowedExtraRecords = new HashSet<>();
 
         /**
          * Use {@link HistogramWatcher#newBuilder()} to instantiate.
@@ -77,7 +92,8 @@ public class HistogramWatcher {
          * histograms to calculate the delta later.
          */
         public HistogramWatcher build() {
-            return new HistogramWatcher(mRecordsExpected, mTotalRecordsExpected);
+            return new HistogramWatcher(
+                    mRecordsExpected, mTotalRecordsExpected, mHistogramsAllowedExtraRecords);
         }
 
         /**
@@ -144,6 +160,26 @@ public class HistogramWatcher {
             return this;
         }
 
+        /**
+         * Make more lenient the assert that records matched the expectations for {@code histogram}
+         * by ignoring extra records.
+         */
+        public Builder allowExtraRecords(String histogram) {
+            mHistogramsAllowedExtraRecords.add(histogram);
+            return this;
+        }
+
+        /**
+         * For all histograms with expectations added before, make more lenient the assert that
+         * records matched the expectations by ignoring extra records.
+         */
+        public Builder allowExtraRecordsForHistogramsAbove() {
+            for (String histogram : mTotalRecordsExpected.keySet()) {
+                allowExtraRecords(histogram);
+            }
+            return this;
+        }
+
         private void incrementRecordsExpected(HistogramAndValue histogramAndValue, int increase) {
             int previousCountExpected = mRecordsExpected.getOrDefault(histogramAndValue, 0);
             mRecordsExpected.put(histogramAndValue, previousCountExpected + increase);
@@ -157,14 +193,16 @@ public class HistogramWatcher {
 
     private final Map<HistogramAndValue, Integer> mRecordsExpected;
     private final Map<String, Integer> mTotalRecordsExpected;
+    private final Set<String> mHistogramsAllowedExtraRecords;
 
     private final Map<HistogramAndValue, Integer> mStartingCounts = new HashMap<>();
     private final Map<String, Integer> mStartingTotalCounts = new HashMap<>();
 
     private HistogramWatcher(Map<HistogramAndValue, Integer> recordsExpected,
-            Map<String, Integer> totalRecordsExpected) {
+            Map<String, Integer> totalRecordsExpected, Set<String> histogramsAllowedExtraRecords) {
         mRecordsExpected = recordsExpected;
         mTotalRecordsExpected = totalRecordsExpected;
+        mHistogramsAllowedExtraRecords = histogramsAllowedExtraRecords;
 
         takeSnapshot();
     }
@@ -184,6 +222,14 @@ public class HistogramWatcher {
      * Assert that the watched histograms were recorded as expected.
      */
     public void assertExpected() {
+        assertExpected(/* failureMessage */ null);
+    }
+
+    /**
+     * Assert that the watched histograms were recorded as expected, with a custom message if the
+     * assertion is not satisfied.
+     */
+    public void assertExpected(@Nullable String customMessage) {
         for (Entry<HistogramAndValue, Integer> kv : mRecordsExpected.entrySet()) {
             HistogramAndValue histogramAndValue = kv.getKey();
             int expectedDelta = kv.getValue();
@@ -191,12 +237,24 @@ public class HistogramWatcher {
             int actualFinalCount = histogramAndValue.getHistogramValueCountForTesting();
             int actualDelta = actualFinalCount - mStartingCounts.get(histogramAndValue);
 
-            if (expectedDelta != actualDelta) {
-                fail(String.format(
-                        "Expected delta of <%d record(s)> of histogram \"%s\" with value [%d], "
-                                + "but saw a delta of <%d record(s)> in that value's bucket.",
-                        expectedDelta, histogramAndValue.mHistogram, histogramAndValue.mValue,
-                        actualDelta));
+            if (!mHistogramsAllowedExtraRecords.contains(histogramAndValue.mHistogram)) {
+                if (expectedDelta != actualDelta) {
+                    String defaultMessage = String.format(
+                            "Expected delta of <%d record(s)> of histogram \"%s\" with value [%d], "
+                                    + "but saw a delta of <%d record(s)> in that value's bucket.",
+                            expectedDelta, histogramAndValue.mHistogram, histogramAndValue.mValue,
+                            actualDelta);
+                    failWithDefaultOrCustomMessage(customMessage, defaultMessage);
+                }
+            } else {
+                if (expectedDelta < actualDelta) {
+                    String defaultMessage = String.format(
+                            "Expected delta of at least <%d record(s)> of histogram \"%s\" with value "
+                                    + "[%d], but saw a delta of <%d record(s)> in that value's bucket.",
+                            expectedDelta, histogramAndValue.mHistogram, histogramAndValue.mValue,
+                            actualDelta);
+                    failWithDefaultOrCustomMessage(customMessage, defaultMessage);
+                }
             }
         }
 
@@ -207,12 +265,32 @@ public class HistogramWatcher {
             int actualFinalCount = RecordHistogram.getHistogramTotalCountForTesting(histogram);
             int actualDelta = actualFinalCount - mStartingTotalCounts.get(histogram);
 
-            if (expectedDelta != actualDelta) {
-                fail(String.format(
-                        "Expected delta of <%d total record(s)> of histogram \"%s\", but saw a "
-                                + "delta of <%d total record(s)>.",
-                        expectedDelta, histogram, actualDelta));
+            if (!mHistogramsAllowedExtraRecords.contains(histogram)) {
+                if (expectedDelta != actualDelta) {
+                    String defaultMessage = String.format(
+                            "Expected delta of <%d total record(s)> of histogram \"%s\", but saw a "
+                                    + "delta of <%d total record(s)>.",
+                            expectedDelta, histogram, actualDelta);
+                    failWithDefaultOrCustomMessage(customMessage, defaultMessage);
+                }
+            } else {
+                if (expectedDelta < actualDelta) {
+                    String defaultMessage = String.format(
+                            "Expected delta of at least <%d total record(s)> of histogram \"%s\", but "
+                                    + " saw a delta of <%d total record(s)>.",
+                            expectedDelta, histogram, actualDelta);
+                    failWithDefaultOrCustomMessage(customMessage, defaultMessage);
+                }
             }
+        }
+    }
+
+    private void failWithDefaultOrCustomMessage(
+            @Nullable String customMessage, String defaultMessage) {
+        if (customMessage != null) {
+            fail(String.format("%s\n%s", customMessage, defaultMessage));
+        } else {
+            fail(defaultMessage);
         }
     }
 
