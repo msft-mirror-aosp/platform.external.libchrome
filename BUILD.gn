@@ -714,6 +714,7 @@ libbase_sublibs = [
     testonly = true
     sources = [
       "base/test/mock_entropy_provider.cc",
+      "base/test/mock_log.cc",
       "base/test/power_monitor_test.cc",
       "base/test/scoped_chromeos_version_info.cc",
       "base/test/scoped_command_line.cc",
@@ -1306,6 +1307,7 @@ install_config("install_header") {
     "base/test/bind.h",
     "base/test/gmock_callback_support.h",
     "base/test/mock_callback.h",
+    "base/test/mock_log.h",
     "base/test/power_monitor_test.h",
     "base/test/repeating_test_future.h",
     "base/test/scoped_chromeos_version_info.h",
