@@ -21,7 +21,7 @@ index 0000000000..3f0c0a1744
 --- /dev/null
 +++ b/dbus/mock_object_manager.cc
 @@ -0,0 +1,17 @@
-+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
++// Copyright 2013 The Chromium Authors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
@@ -44,7 +44,7 @@ index 0000000000..6eb95de9a4
 --- /dev/null
 +++ b/dbus/mock_object_manager.h
 @@ -0,0 +1,41 @@
-+// Copyright (c) 2013 The Chromium Authors. All rights reserved.
++// Copyright 2013 The Chromium Authors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
