@@ -134,6 +134,11 @@ enum class RawPtrTraits : unsigned {
   //
   // Test only.
   kUseCountingWrapperForTest = (1 << 4),
+
+  // Helper trait that can be used to test raw_ptr's behaviour or conversions.
+  //
+  // Test only.
+  kDummyForTest = (1 << 5),
 };
 
 // Used to combine RawPtrTraits:
@@ -160,12 +165,12 @@ constexpr RawPtrTraits Remove(RawPtrTraits a, RawPtrTraits b) {
 }
 
 constexpr bool AreValid(RawPtrTraits traits) {
-  return Remove(traits, RawPtrTraits::kMayDangle |
-                            RawPtrTraits::kDisableMTECheckedPtr |
-                            RawPtrTraits::kDisableHooks |
-                            RawPtrTraits::kAllowPtrArithmetic |
-                            RawPtrTraits::kUseCountingWrapperForTest) ==
-         RawPtrTraits::kEmpty;
+  return Remove(traits,
+                RawPtrTraits::kMayDangle | RawPtrTraits::kDisableMTECheckedPtr |
+                    RawPtrTraits::kDisableHooks |
+                    RawPtrTraits::kAllowPtrArithmetic |
+                    RawPtrTraits::kUseCountingWrapperForTest |
+                    RawPtrTraits::kDummyForTest) == RawPtrTraits::kEmpty;
 }
 
 template <RawPtrTraits Traits>
@@ -224,9 +229,19 @@ struct RawPtrNoOpImpl {
       typename T,
       typename Z,
       typename =
-          std::enable_if_t<partition_alloc::internal::offset_type<Z>, void>>
+          std::enable_if_t<partition_alloc::internal::is_offset_type<Z>, void>>
   static PA_ALWAYS_INLINE T* Advance(T* wrapped_ptr, Z delta_elems) {
     return wrapped_ptr + delta_elems;
+  }
+
+  // Retreat the wrapped pointer by `delta_elems`.
+  template <
+      typename T,
+      typename Z,
+      typename =
+          std::enable_if_t<partition_alloc::internal::is_offset_type<Z>, void>>
+  static PA_ALWAYS_INLINE T* Retreat(T* wrapped_ptr, Z delta_elems) {
+    return wrapped_ptr - delta_elems;
   }
 
   template <typename T>
@@ -424,9 +439,19 @@ struct MTECheckedPtrImpl {
       typename T,
       typename Z,
       typename =
-          std::enable_if_t<partition_alloc::internal::offset_type<Z>, void>>
+          std::enable_if_t<partition_alloc::internal::is_offset_type<Z>, void>>
   static PA_ALWAYS_INLINE T* Advance(T* wrapped_ptr, Z delta_elems) {
     return wrapped_ptr + delta_elems;
+  }
+
+  // Retreat the wrapped pointer by `delta_elems`.
+  template <
+      typename T,
+      typename Z,
+      typename =
+          std::enable_if_t<partition_alloc::internal::is_offset_type<Z>, void>>
+  static PA_ALWAYS_INLINE T* Retreat(T* wrapped_ptr, Z delta_elems) {
+    return wrapped_ptr - delta_elems;
   }
 
   template <typename T>
@@ -834,17 +859,37 @@ class PA_TRIVIAL_ABI PA_GSL_POINTER raw_ptr {
 #endif  // BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT) ||
         // BUILDFLAG(USE_ASAN_UNOWNED_PTR)
 
+  // Cross-kind copy constructor.
+  // Move is not supported as different traits may use different ref-counts, so
+  // let move operations degrade to copy, which handles it well.
   template <RawPtrTraits PassedTraits,
             typename Unused = std::enable_if_t<Traits != PassedTraits>>
   PA_ALWAYS_INLINE explicit raw_ptr(const raw_ptr<T, PassedTraits>& p) noexcept
       : wrapped_ptr_(Impl::WrapRawPtrForDuplication(
             raw_ptr_traits::TraitsToImpl<PassedTraits>::Impl::
-                UnsafelyUnwrapPtrForDuplication(p.wrapped_ptr_))) {}
+                UnsafelyUnwrapPtrForDuplication(p.wrapped_ptr_))) {
+    // Limit cross-kind conversions only to cases where kMayDangle gets added,
+    // because that's needed for Unretained(Ref)Wrapper. Use a static_assert,
+    // instead of disabling via SFINAE, so that the compiler catches other
+    // conversions. Otherwise implicit raw_ptr<T> -> T* -> raw_ptr<> route will
+    // be taken.
+    static_assert(Traits == (PassedTraits | RawPtrTraits::kMayDangle));
+  }
 
+  // Cross-kind assignment.
+  // Move is not supported as different traits may use different ref-counts, so
+  // let move operations degrade to copy, which handles it well.
   template <RawPtrTraits PassedTraits,
             typename Unused = std::enable_if_t<Traits != PassedTraits>>
   PA_ALWAYS_INLINE raw_ptr& operator=(
       const raw_ptr<T, PassedTraits>& p) noexcept {
+    // Limit cross-kind assignments only to cases where kMayDangle gets added,
+    // because that's needed for Unretained(Ref)Wrapper. Use a static_assert,
+    // instead of disabling via SFINAE, so that the compiler catches other
+    // conversions. Otherwise implicit raw_ptr<T> -> T* -> raw_ptr<> route will
+    // be taken.
+    static_assert(Traits == (PassedTraits | RawPtrTraits::kMayDangle));
+
     Impl::ReleaseWrappedPtr(wrapped_ptr_);
     wrapped_ptr_ = Impl::WrapRawPtrForDuplication(
         raw_ptr_traits::TraitsToImpl<PassedTraits>::Impl::
@@ -967,7 +1012,7 @@ class PA_TRIVIAL_ABI PA_GSL_POINTER raw_ptr {
     return *this;
   }
   PA_ALWAYS_INLINE raw_ptr& operator--() {
-    wrapped_ptr_ = Impl::Advance(wrapped_ptr_, -1);
+    wrapped_ptr_ = Impl::Retreat(wrapped_ptr_, 1);
     return *this;
   }
   PA_ALWAYS_INLINE raw_ptr operator++(int /* post_increment */) {
@@ -982,16 +1027,17 @@ class PA_TRIVIAL_ABI PA_GSL_POINTER raw_ptr {
   }
   template <
       typename Z,
-      typename = std::enable_if_t<partition_alloc::internal::offset_type<Z>>>
+      typename = std::enable_if_t<partition_alloc::internal::is_offset_type<Z>>>
   PA_ALWAYS_INLINE raw_ptr& operator+=(Z delta_elems) {
     wrapped_ptr_ = Impl::Advance(wrapped_ptr_, delta_elems);
     return *this;
   }
   template <
       typename Z,
-      typename = std::enable_if_t<partition_alloc::internal::offset_type<Z>>>
+      typename = std::enable_if_t<partition_alloc::internal::is_offset_type<Z>>>
   PA_ALWAYS_INLINE raw_ptr& operator-=(Z delta_elems) {
-    return *this += -delta_elems;
+    wrapped_ptr_ = Impl::Retreat(wrapped_ptr_, delta_elems);
+    return *this;
   }
 
   // Do not disable operator+() and operator-().

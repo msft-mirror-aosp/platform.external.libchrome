@@ -1,18 +1,20 @@
-From ba8bc1f1a1c54d7bca44c09978225e3ef56d8994 Mon Sep 17 00:00:00 2001
-From: Byron Lee <byronlee@google.com>
-Date: Fri, 3 Mar 2023 16:59:13 +0000
-Subject: [PATCH] Revert "(Partial) Make sure CHECK() failures crash"
+From 7382695b0b3280b315515eec5c204d6678d72eb9 Mon Sep 17 00:00:00 2001
+From: Jae Hoon Kim <kimjae@chromium.org>
+Date: Tue, 7 Mar 2023 00:50:50 +0000
+Subject: [PATCH] Revert "Make CHECK failures fatal on all platforms"
 
-This reverts commit 97b1e6d4bc07e14cb5a3aa11d16e193eda6b66af.
+This reverts commit afb98ae85b08f83909c3764afed9999c1b3ce1b0.
+
+Change-Id: I51324c7357f6c6f5bf180e466aa95b3c391e0ea9
 ---
- base/check.cc | 16 ----------------
- 1 file changed, 16 deletions(-)
+ base/check.cc | 11 -----------
+ 1 file changed, 11 deletions(-)
 
 diff --git a/base/check.cc b/base/check.cc
-index f8f786ede0..fba92fefda 100644
+index 5bdb0d7f7b..33b194988a 100644
 --- a/base/check.cc
 +++ b/base/check.cc
-@@ -180,26 +180,10 @@ std::ostream& CheckError::stream() {
+@@ -180,21 +180,10 @@ std::ostream& CheckError::stream() {
  }
  
  CheckError::~CheckError() {
@@ -26,14 +28,9 @@ index f8f786ede0..fba92fefda 100644
    delete log_message_;
 -
 -  // Make sure we crash even if LOG(FATAL) has been overridden.
--  // TODO(crbug.com/1409729): Include Windows and iOS here too. This is done in
--  // steps to prevent backsliding on platforms where this goes through CQ.
--  // Currently iOS is blocked by:
--  //   * ListModelTest.InvalidIndexPath
--  // Windows is blocked by:
--  //   * All/RenderProcessHostWriteableFileDeathTest.
--  //       PassUnsafeWriteableExecutableFile/2
--  if (is_fatal && !BUILDFLAG(IS_WIN) && !BUILDFLAG(IS_IOS)) {
+-  // TODO(crbug.com/1409729): Remove severity checking in the destructor when
+-  // LOG(FATAL) is [[noreturn]] and can't be overridden.
+-  if (is_fatal) {
 -    base::ImmediateCrash();
 -  }
  }

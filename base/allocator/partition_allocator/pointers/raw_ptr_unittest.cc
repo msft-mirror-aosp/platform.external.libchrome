@@ -14,11 +14,13 @@
 #include "base/allocator/partition_alloc_features.h"
 #include "base/allocator/partition_alloc_support.h"
 #include "base/allocator/partition_allocator/dangling_raw_ptr_checks.h"
+#include "base/allocator/partition_allocator/partition_alloc-inl.h"
 #include "base/allocator/partition_allocator/partition_alloc.h"
 #include "base/allocator/partition_allocator/partition_alloc_base/numerics/checked_math.h"
 #include "base/allocator/partition_allocator/partition_alloc_buildflags.h"
 #include "base/allocator/partition_allocator/partition_alloc_config.h"
 #include "base/allocator/partition_allocator/partition_alloc_constants.h"
+#include "base/allocator/partition_allocator/partition_alloc_hooks.h"
 #include "base/allocator/partition_allocator/pointers/raw_ptr_test_support.h"
 #include "base/allocator/partition_allocator/pointers/raw_ref.h"
 #include "base/allocator/partition_allocator/tagging.h"
@@ -1352,7 +1354,7 @@ TEST_F(RawPtrTest, WorksWithVariant) {
   EXPECT_EQ(&x, absl::get<raw_ptr<int>>(vary));
 }
 
-TEST_F(RawPtrTest, CrossKindConversions) {
+TEST_F(RawPtrTest, CrossKindConversion) {
   int x = 123;
   CountingRawPtr<int> ptr1 = &x;
 
@@ -1360,28 +1362,37 @@ TEST_F(RawPtrTest, CrossKindConversions) {
   RawPtrCountingMayDangleImpl::ClearCounters();
 
   CountingRawPtrMayDangle<int> ptr2(ptr1);
+  CountingRawPtrMayDangle<int> ptr3(std::move(ptr1));  // Falls back to copy.
 
   EXPECT_THAT((CountingRawPtrExpectations<RawPtrCountingImpl>{
                   .get_for_dereference_cnt = 0,
                   .get_for_extraction_cnt = 0,
-                  .get_for_duplication_cnt = 1}),
+                  .get_for_duplication_cnt = 2}),
               CountersMatch());
   EXPECT_THAT((CountingRawPtrExpectations<RawPtrCountingMayDangleImpl>{
-                  .wrap_raw_ptr_cnt = 0, .wrap_raw_ptr_for_dup_cnt = 1}),
+                  .wrap_raw_ptr_cnt = 0, .wrap_raw_ptr_for_dup_cnt = 2}),
               CountersMatch());
+}
+
+TEST_F(RawPtrTest, CrossKindAssignment) {
+  int x = 123;
+  CountingRawPtr<int> ptr1 = &x;
 
   RawPtrCountingImpl::ClearCounters();
   RawPtrCountingMayDangleImpl::ClearCounters();
 
-  CountingRawPtr<int> ptr3(ptr2);
+  CountingRawPtrMayDangle<int> ptr2;
+  CountingRawPtrMayDangle<int> ptr3;
+  ptr2 = ptr1;
+  ptr3 = std::move(ptr1);  // Falls back to copy.
 
-  EXPECT_THAT((CountingRawPtrExpectations<RawPtrCountingMayDangleImpl>{
+  EXPECT_THAT((CountingRawPtrExpectations<RawPtrCountingImpl>{
                   .get_for_dereference_cnt = 0,
                   .get_for_extraction_cnt = 0,
-                  .get_for_duplication_cnt = 1}),
+                  .get_for_duplication_cnt = 2}),
               CountersMatch());
-  EXPECT_THAT((CountingRawPtrExpectations<RawPtrCountingImpl>{
-                  .wrap_raw_ptr_cnt = 0, .wrap_raw_ptr_for_dup_cnt = 1}),
+  EXPECT_THAT((CountingRawPtrExpectations<RawPtrCountingMayDangleImpl>{
+                  .wrap_raw_ptr_cnt = 0, .wrap_raw_ptr_for_dup_cnt = 2}),
               CountersMatch());
 }
 
@@ -1553,7 +1564,7 @@ void RunBackupRefPtrImplAdvanceTest(
   // end-of-allocation address should not cause an error immediately, but it may
   // result in the pointer being poisoned.
   protected_ptr = protected_ptr + requested_size / 2;
-#if PA_CONFIG(USE_OOB_POISON)
+#if BUILDFLAG(BACKUP_REF_PTR_POISON_OOB_PTR)
   EXPECT_DEATH_IF_SUPPORTED(*protected_ptr = ' ', "");
   protected_ptr -= 1;  // This brings the pointer back within
                        // bounds, which causes the poison to be removed.
@@ -1574,7 +1585,7 @@ void RunBackupRefPtrImplAdvanceTest(
   EXPECT_CHECK_DEATH(protected_ptr -= 1);
   EXPECT_CHECK_DEATH(--protected_ptr);
 
-#if PA_CONFIG(USE_OOB_POISON)
+#if BUILDFLAG(BACKUP_REF_PTR_POISON_OOB_PTR)
   // An array type that should be more than a third the size of the available
   // memory for the allocation such that incrementing a pointer to this type
   // twice causes it to point to a memory location that is too small to fit a
@@ -1841,48 +1852,36 @@ TEST_F(BackupRefPtrTest, DanglingPtrComparison) {
 }
 
 // Check the assignment operator works, even across raw_ptr with different
-// dangling policies.
+// dangling policies (only `not dangling` -> `dangling` direction is supported).
 TEST_F(BackupRefPtrTest, DanglingPtrAssignment) {
   ScopedInstallDanglingRawPtrChecks enable_dangling_raw_ptr_checks;
 
   void* ptr = allocator_.root()->Alloc(16, "");
 
-  raw_ptr<void, DisableDanglingPtrDetection> dangling_ptr_1;
-  raw_ptr<void, DisableDanglingPtrDetection> dangling_ptr_2;
+  raw_ptr<void, DisableDanglingPtrDetection> dangling_ptr;
   raw_ptr<void> not_dangling_ptr;
 
-  dangling_ptr_1 = ptr;
-
-  not_dangling_ptr = dangling_ptr_1;
-  dangling_ptr_1 = nullptr;
-
-  dangling_ptr_2 = not_dangling_ptr;
+  not_dangling_ptr = ptr;
+  dangling_ptr = not_dangling_ptr;
   not_dangling_ptr = nullptr;
 
   allocator_.root()->Free(ptr);
 
-  dangling_ptr_1 = dangling_ptr_2;
-  dangling_ptr_2 = nullptr;
-
-  not_dangling_ptr = dangling_ptr_1;
-  dangling_ptr_1 = nullptr;
+  dangling_ptr = nullptr;
 }
 
 // Check the copy constructor works, even across raw_ptr with different dangling
-// policies.
+// policies (only `not dangling` -> `dangling` direction is supported).
 TEST_F(BackupRefPtrTest, DanglingPtrCopyContructor) {
   ScopedInstallDanglingRawPtrChecks enable_dangling_raw_ptr_checks;
 
   void* ptr = allocator_.root()->Alloc(16, "");
 
-  raw_ptr<void, DisableDanglingPtrDetection> dangling_ptr_1(ptr);
-  raw_ptr<void> not_dangling_ptr_1(ptr);
+  raw_ptr<void> not_dangling_ptr(ptr);
+  raw_ptr<void, DisableDanglingPtrDetection> dangling_ptr(not_dangling_ptr);
 
-  raw_ptr<void, DisableDanglingPtrDetection> dangling_ptr_2(not_dangling_ptr_1);
-  raw_ptr<void> not_dangling_ptr_2(dangling_ptr_1);
-
-  not_dangling_ptr_1 = nullptr;
-  not_dangling_ptr_2 = nullptr;
+  not_dangling_ptr = nullptr;
+  dangling_ptr = nullptr;
 
   allocator_.root()->Free(ptr);
 }
@@ -1937,7 +1936,7 @@ TEST_F(BackupRefPtrTest, SpatialAlgoCompat) {
   CountingRawPtr<int> protected_ptr = ptr;
   CountingRawPtr<int> protected_ptr_end = protected_ptr + requested_elements;
 
-#if PA_CONFIG(USE_OOB_POISON)
+#if BUILDFLAG(BACKUP_REF_PTR_POISON_OOB_PTR)
   EXPECT_DEATH_IF_SUPPORTED(*protected_ptr_end = 1, "");
 #endif
 
@@ -2015,7 +2014,7 @@ TEST_F(BackupRefPtrTest, SpatialAlgoCompat) {
   allocator_.root()->Free(ptr);
 }
 
-#if PA_CONFIG(USE_OOB_POISON)
+#if BUILDFLAG(BACKUP_REF_PTR_POISON_OOB_PTR)
 TEST_F(BackupRefPtrTest, Duplicate) {
   size_t requested_size = allocator_.root()->AdjustSizeForExtrasSubtract(512);
   char* ptr = static_cast<char*>(allocator_.root()->Alloc(requested_size, ""));
@@ -2039,7 +2038,33 @@ TEST_F(BackupRefPtrTest, Duplicate) {
 
   allocator_.root()->Free(ptr);
 }
-#endif  // PA_USE_OOB_POISON
+#endif  // BUILDFLAG(BACKUP_REF_PTR_POISON_OOB_PTR)
+
+namespace {
+constexpr uint8_t kCustomQuarantineByte = 0xff;
+static_assert(kCustomQuarantineByte !=
+              partition_alloc::internal::kQuarantinedByte);
+
+void CustomQuarantineHook(void* address, size_t size) {
+  partition_alloc::internal::SecureMemset(address, kCustomQuarantineByte, size);
+}
+}  // namespace
+
+TEST_F(BackupRefPtrTest, QuarantineHook) {
+  partition_alloc::PartitionAllocHooks::SetQuarantineOverrideHook(
+      CustomQuarantineHook);
+  uint8_t* native_ptr =
+      static_cast<uint8_t*>(allocator_.root()->Alloc(sizeof(uint8_t), ""));
+  *native_ptr = 0;
+  raw_ptr<uint8_t> smart_ptr = native_ptr;
+
+  allocator_.root()->Free(smart_ptr);
+  // Access the allocation through the native pointer to avoid triggering
+  // dereference checks in debug builds.
+  EXPECT_EQ(*native_ptr, kCustomQuarantineByte);
+
+  partition_alloc::PartitionAllocHooks::SetQuarantineOverrideHook(nullptr);
+}
 
 #endif  // BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT) &&
         // !defined(MEMORY_TOOL_REPLACES_ALLOCATOR)
@@ -2350,6 +2375,12 @@ constexpr RawPtrHooks raw_ptr_hooks{
 
 class HookableRawPtrImplTest : public testing::Test {
  protected:
+  static void SetUpTestSuite() {
+    // Force-initialize the thread local registry in gtest to avoid
+    // unexpected raw_ptr<T> operations while the tests are running.
+    SCOPED_TRACE("dummy");
+  }
+
   void SetUp() override {
     g_counting_hooks = &hooks_;
     InstallRawPtrHooks(&raw_ptr_hooks);
