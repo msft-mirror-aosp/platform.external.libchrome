@@ -36,6 +36,7 @@ group("all_buildflags") {
     ":allocator_buildflags",
     ":allocator_debugging_buildflags",
     ":allocator_logging_buildflags",
+    ":blink_buildflags",
     ":branding_buildflags",
     ":cfi_buildflags",
     ":chromecast_buildflags",
@@ -48,6 +49,7 @@ group("all_buildflags") {
     ":ipc_buildflags",
     ":message_pump_buildflags",
     ":mojo_buildflags",
+    ":mojo_cpp_bindings_buildflags",
     ":parsing_buildflags",
     ":partition_allocator_buildflags",
     ":profiler_buildflags",
@@ -205,6 +207,14 @@ buildflag_header("allocator_debugging_buildflags") {
   ]
 }
 
+buildflag_header("blink_buildflags") {
+  header = "build/blink_buildflags.h"
+
+  flags = [
+    "USE_BLINK=false",
+  ]
+}
+
 buildflag_header("branding_buildflags") {
   header = "build/branding_buildflags.h"
 
@@ -301,6 +311,13 @@ buildflag_header("message_pump_buildflags") {
 }
 
 buildflag_header("mojo_buildflags") {
+  header = "mojo/buildflags.h"
+  flags = [
+    "MOJO_USE_APPLE_CHANNEL=false",
+  ]
+}
+
+buildflag_header("mojo_cpp_bindings_buildflags") {
   header = "mojo/public/cpp/bindings/mojo_buildflags.h"
   flags = [
     "MOJO_TRACE_ENABLED=false",
