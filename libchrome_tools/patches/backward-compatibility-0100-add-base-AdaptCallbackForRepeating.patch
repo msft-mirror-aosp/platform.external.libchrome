@@ -3,8 +3,8 @@ From: hscham <hscham@chromium.org>
 Date: Thu, 28 Oct 2021 10:51:29 +0900
 Subject: [PATCH] Add base::AdaptCallbackForRepeating
 
-TODO(b/204383858): remove usage of base::AdaptCallbackForRepeating in
-media_perception.
+TODO(b/204383858, b/272116721): remove usage of base::AdaptCallbackForRepeating
+in media_perception.
 
 Change-Id: I9fd2f789c6c31dacbb901d28c0d20a984b2e9162
 ---
