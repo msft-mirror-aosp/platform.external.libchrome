@@ -1,0 +1,28 @@
+From 14acd9b32c31ea3d3f65f5d5094b673804984a6b Mon Sep 17 00:00:00 2001
+From: Jae Hoon Kim <kimjae@chromium.org>
+Date: Fri, 10 Mar 2023 06:40:26 +0000
+Subject: [PATCH] [PATCH] Use template_util remove_cvref_t pre-C++20
+
+Until libchrome in CrOS is built using C++20.
+
+Change-Id: I0b9035974ccaa6386113089a8b97c0afb3e2fd4f
+---
+ base/strings/string_util.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/base/strings/string_util.h b/base/strings/string_util.h
+index 120ffb20be..bda1cdf18f 100644
+--- a/base/strings/string_util.h
++++ b/base/strings/string_util.h
+@@ -197,7 +197,7 @@ struct ToStringHelper<T,
+ template <typename... Ts>
+ std::string ToString(const Ts&... values) {
+   std::ostringstream ss;
+-  (ToStringHelper<typename std::remove_cvref_t<decltype(values)>>::Stringify(
++  (ToStringHelper<remove_cvref_t<decltype(values)>>::Stringify(
+        values, ss),
+    ...);
+   return ss.str();
+-- 
+2.40.0.rc1.284.g88254d51c5-goog
+

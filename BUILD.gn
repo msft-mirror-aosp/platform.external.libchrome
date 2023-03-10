@@ -1234,6 +1234,7 @@ if (use.test) {
   executable("optional_unittests") {
     sources = [
       "base/test/gtest_util.cc",
+      "base/test/values_test_util.cc",
       "base/types/optional_unittest.cc",
     ]
     configs += [
