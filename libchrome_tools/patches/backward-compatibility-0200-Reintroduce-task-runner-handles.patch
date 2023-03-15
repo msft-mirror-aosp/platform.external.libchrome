@@ -1,6 +1,6 @@
-From 750c671da1f19e6089789197c9b11d41eed5eef0 Mon Sep 17 00:00:00 2001
+From 60683588ae08a12430f7979d82223bd6a45e41e3 Mon Sep 17 00:00:00 2001
 From: Grace Cham <hscham@chromium.org>
-Date: Fri, 20 Jan 2023 11:37:15 +0900
+Date: Tue, 14 Mar 2023 14:17:45 +0900
 Subject: [PATCH] Reintroduce task runner handles
 
 TODO(b/265541831): Adds deprecated task posting APIs until all usages
@@ -40,7 +40,7 @@ Change-Id: I5d6645cca7c2d22d6ffe6d690dd684681e0a3bb3
  create mode 100644 base/threading/thread_task_runner_handle_unittest.cc
 
 diff --git a/base/task/deferred_sequenced_task_runner_unittest.cc b/base/task/deferred_sequenced_task_runner_unittest.cc
-index 9360c0deff0d..a307d476d40a 100644
+index 9360c0deff..a307d476d4 100644
 --- a/base/task/deferred_sequenced_task_runner_unittest.cc
 +++ b/base/task/deferred_sequenced_task_runner_unittest.cc
 @@ -13,6 +13,7 @@
@@ -52,7 +52,7 @@ index 9360c0deff0d..a307d476d40a 100644
  #include "testing/gtest/include/gtest/gtest.h"
  
 diff --git a/base/task/single_thread_task_runner.cc b/base/task/single_thread_task_runner.cc
-index ebf286712d46..7e421215ef2d 100644
+index 5d80337de5..3ec7202c28 100644
 --- a/base/task/single_thread_task_runner.cc
 +++ b/base/task/single_thread_task_runner.cc
 @@ -3,6 +3,7 @@
@@ -63,19 +63,19 @@ index ebf286712d46..7e421215ef2d 100644
  
  #include <memory>
  #include <utility>
-@@ -14,6 +15,7 @@
+@@ -13,6 +14,7 @@
+ #include "base/functional/bind.h"
  #include "base/lazy_instance.h"
- #include "base/no_destructor.h"
  #include "base/run_loop.h"
 +#include "base/threading/sequenced_task_runner_handle.h"
- #include "base/threading/thread_local.h"
+ #include "third_party/abseil-cpp/absl/base/attributes.h"
  
  namespace base {
 diff --git a/base/task/single_thread_task_runner.h b/base/task/single_thread_task_runner.h
-index 3cbc4ee4eb61..43bc98768e02 100644
+index b4409c907b..f3fd3b773b 100644
 --- a/base/task/single_thread_task_runner.h
 +++ b/base/task/single_thread_task_runner.h
-@@ -108,6 +108,10 @@ class BASE_EXPORT SingleThreadTaskRunner : public SequencedTaskRunner {
+@@ -111,6 +111,10 @@ class BASE_EXPORT SingleThreadTaskRunner : public SequencedTaskRunner {
      FRIEND_TEST_ALL_PREFIXES(SingleThreadTaskRunnerCurrentDefaultHandleTest,
                               NestedRunLoop);
  
@@ -87,10 +87,10 @@ index 3cbc4ee4eb61..43bc98768e02 100644
      // under special circumstances. Require them to be enumerated as friends to
      // require //base/OWNERS review. Use
 diff --git a/base/task/thread_pool/task_tracker.cc b/base/task/thread_pool/task_tracker.cc
-index 51f2e15b1b5d..e525d78987d5 100644
+index fcc106cfa8..56b6a7092d 100644
 --- a/base/task/thread_pool/task_tracker.cc
 +++ b/base/task/thread_pool/task_tracker.cc
-@@ -469,21 +469,21 @@ void TaskTracker::RunTask(Task task,
+@@ -464,21 +464,21 @@ void TaskTracker::RunTask(Task task,
      // Set up TaskRunner CurrentDefaultHandle as expected for the scope of the
      // task.
      absl::optional<SequencedTaskRunner::CurrentDefaultHandle>
@@ -117,7 +117,7 @@ index 51f2e15b1b5d..e525d78987d5 100644
          break;
      }
 diff --git a/base/task/thread_pool/task_tracker_unittest.cc b/base/task/thread_pool/task_tracker_unittest.cc
-index b89082a032c1..195c94bb5837 100644
+index b89082a032..195c94bb58 100644
 --- a/base/task/thread_pool/task_tracker_unittest.cc
 +++ b/base/task/thread_pool/task_tracker_unittest.cc
 @@ -545,8 +545,8 @@ static void RunTaskRunnerCurrentDefaultHandleVerificationTask(
@@ -156,7 +156,7 @@ index b89082a032c1..195c94bb5837 100644
  
    RunTaskRunnerCurrentDefaultHandleVerificationTask(
 diff --git a/base/task/thread_pool/test_task_factory.cc b/base/task/thread_pool/test_task_factory.cc
-index a9d9fa99edf1..857d4d9950b0 100644
+index a9d9fa99ed..857d4d9950 100644
 --- a/base/task/thread_pool/test_task_factory.cc
 +++ b/base/task/thread_pool/test_task_factory.cc
 @@ -59,8 +59,7 @@ void TestTaskFactory::RunTaskCallback(size_t task_index,
@@ -170,7 +170,7 @@ index a9d9fa99edf1..857d4d9950b0 100644
      case TaskSourceExecutionMode::kJob:
      case TaskSourceExecutionMode::kParallel:
 diff --git a/base/task/thread_pool/test_task_factory.h b/base/task/thread_pool/test_task_factory.h
-index 9805eb3c038c..f155969986bf 100644
+index 9805eb3c03..f155969986 100644
 --- a/base/task/thread_pool/test_task_factory.h
 +++ b/base/task/thread_pool/test_task_factory.h
 @@ -27,8 +27,8 @@ namespace test {
@@ -185,7 +185,7 @@ index 9805eb3c038c..f155969986bf 100644
  //   kSingleThread and Tasks don't run in posting order.
  // - The TaskSourceExecutionMode of the TaskRunner is kSingleThread and Tasks
 diff --git a/base/threading/sequence_bound.h b/base/threading/sequence_bound.h
-index 02380d737376..e848fffad1c9 100644
+index 02380d7373..e848fffad1 100644
 --- a/base/threading/sequence_bound.h
 +++ b/base/threading/sequence_bound.h
 @@ -52,9 +52,9 @@ namespace base {
@@ -203,7 +203,7 @@ index 02380d737376..e848fffad1c9 100644
  //   // `Database::Query()` runs on `GetDBTaskRunner()`, but
 diff --git a/base/threading/sequenced_task_runner_handle.cc b/base/threading/sequenced_task_runner_handle.cc
 new file mode 100644
-index 000000000000..2ab4b6437e61
+index 0000000000..2ab4b6437e
 --- /dev/null
 +++ b/base/threading/sequenced_task_runner_handle.cc
 @@ -0,0 +1,21 @@
@@ -230,7 +230,7 @@ index 000000000000..2ab4b6437e61
 +}  // namespace base
 diff --git a/base/threading/sequenced_task_runner_handle.h b/base/threading/sequenced_task_runner_handle.h
 new file mode 100644
-index 000000000000..9b555d7c8d34
+index 0000000000..9b555d7c8d
 --- /dev/null
 +++ b/base/threading/sequenced_task_runner_handle.h
 @@ -0,0 +1,49 @@
@@ -285,7 +285,7 @@ index 000000000000..9b555d7c8d34
 +#endif  // BASE_THREADING_SEQUENCED_TASK_RUNNER_HANDLE_H_
 diff --git a/base/threading/sequenced_task_runner_handle_unittest.cc b/base/threading/sequenced_task_runner_handle_unittest.cc
 new file mode 100644
-index 000000000000..569df19855b7
+index 0000000000..569df19855
 --- /dev/null
 +++ b/base/threading/sequenced_task_runner_handle_unittest.cc
 @@ -0,0 +1,89 @@
@@ -379,7 +379,7 @@ index 000000000000..569df19855b7
 +}  // namespace
 +}  // namespace base
 diff --git a/base/threading/thread.cc b/base/threading/thread.cc
-index 174beed23eed..744832a41526 100644
+index 174beed23e..744832a415 100644
 --- a/base/threading/thread.cc
 +++ b/base/threading/thread.cc
 @@ -376,7 +376,7 @@ void Thread::ThreadMain() {
@@ -392,7 +392,7 @@ index 174beed23eed..744832a41526 100644
    DCHECK(CurrentThread::Get());
    DCHECK(SingleThreadTaskRunner::HasCurrentDefault());
 diff --git a/base/threading/thread.h b/base/threading/thread.h
-index 06dd7028b5e7..5c490194e33d 100644
+index 06dd7028b5..5c490194e3 100644
 --- a/base/threading/thread.h
 +++ b/base/threading/thread.h
 @@ -65,9 +65,9 @@ class BASE_EXPORT Thread : PlatformThread::Delegate {
@@ -409,7 +409,7 @@ index 06dd7028b5e7..5c490194e33d 100644
    };
  
 diff --git a/base/threading/thread_checker_impl.cc b/base/threading/thread_checker_impl.cc
-index cb7eb30f7317..48adb59c3b02 100644
+index cb7eb30f73..48adb59c3b 100644
 --- a/base/threading/thread_checker_impl.cc
 +++ b/base/threading/thread_checker_impl.cc
 @@ -86,9 +86,8 @@ bool ThreadCheckerImpl::CalledOnValidThread(
@@ -426,7 +426,7 @@ index cb7eb30f7317..48adb59c3b02 100644
           !SingleThreadTaskRunner::HasCurrentDefault())) {
 diff --git a/base/threading/thread_task_runner_handle.cc b/base/threading/thread_task_runner_handle.cc
 new file mode 100644
-index 000000000000..1158eea52df2
+index 0000000000..1158eea52d
 --- /dev/null
 +++ b/base/threading/thread_task_runner_handle.cc
 @@ -0,0 +1,21 @@
@@ -453,7 +453,7 @@ index 000000000000..1158eea52df2
 +}  // namespace base
 diff --git a/base/threading/thread_task_runner_handle.h b/base/threading/thread_task_runner_handle.h
 new file mode 100644
-index 000000000000..5faedf8b7e60
+index 0000000000..5faedf8b7e
 --- /dev/null
 +++ b/base/threading/thread_task_runner_handle.h
 @@ -0,0 +1,116 @@
@@ -575,7 +575,7 @@ index 000000000000..5faedf8b7e60
 +#endif  // BASE_THREADING_THREAD_TASK_RUNNER_HANDLE_H_
 diff --git a/base/threading/thread_task_runner_handle_unittest.cc b/base/threading/thread_task_runner_handle_unittest.cc
 new file mode 100644
-index 000000000000..4e211a605183
+index 0000000000..4e211a6051
 --- /dev/null
 +++ b/base/threading/thread_task_runner_handle_unittest.cc
 @@ -0,0 +1,141 @@
@@ -721,7 +721,7 @@ index 000000000000..4e211a605183
 +
 +}  // namespace base
 diff --git a/mojo/public/cpp/bindings/scoped_interface_endpoint_handle.h b/mojo/public/cpp/bindings/scoped_interface_endpoint_handle.h
-index 9acfe5275fb0..c3892a9aab14 100644
+index 9acfe5275f..c3892a9aab 100644
 --- a/mojo/public/cpp/bindings/scoped_interface_endpoint_handle.h
 +++ b/mojo/public/cpp/bindings/scoped_interface_endpoint_handle.h
 @@ -9,6 +9,7 @@
@@ -733,5 +733,5 @@ index 9acfe5275fb0..c3892a9aab14 100644
  #include "mojo/public/cpp/bindings/interface_id.h"
  #include "third_party/abseil-cpp/absl/types/optional.h"
 -- 
-2.39.1.456.gfc5497dd1b-goog
+2.39.2
 
