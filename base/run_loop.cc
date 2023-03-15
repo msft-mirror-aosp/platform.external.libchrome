@@ -6,6 +6,7 @@
 
 #include "base/cancelable_callback.h"
 #include "base/check.h"
+#include "base/compiler_specific.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
 #include "base/observer_list.h"
@@ -304,6 +305,11 @@ void RunLoop::SetTimeoutForCurrentThread(const RunLoopTimeout* timeout) {
 
 // static
 const RunLoop::RunLoopTimeout* RunLoop::GetTimeoutForCurrentThread() {
+  // Workaround false-positive MSAN use-of-uninitialized-value on
+  // thread_local storage for loaded libraries:
+  // https://github.com/google/sanitizers/issues/1265
+  MSAN_UNPOISON(&run_loop_timeout, sizeof(RunLoopTimeout*));
+
   return run_loop_timeout;
 }
 

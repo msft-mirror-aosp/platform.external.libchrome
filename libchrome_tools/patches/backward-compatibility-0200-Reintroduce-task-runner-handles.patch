@@ -1,6 +1,6 @@
-From 60683588ae08a12430f7979d82223bd6a45e41e3 Mon Sep 17 00:00:00 2001
-From: Grace Cham <hscham@chromium.org>
-Date: Tue, 14 Mar 2023 14:17:45 +0900
+From cf38eba9d049abc64afb123a15826f7dcfebe446 Mon Sep 17 00:00:00 2001
+From: Wei-Luan Wang <weiluanwang@google.com>
+Date: Thu, 16 Mar 2023 09:25:29 +0000
 Subject: [PATCH] Reintroduce task runner handles
 
 TODO(b/265541831): Adds deprecated task posting APIs until all usages
@@ -52,7 +52,7 @@ index 9360c0deff..a307d476d4 100644
  #include "testing/gtest/include/gtest/gtest.h"
  
 diff --git a/base/task/single_thread_task_runner.cc b/base/task/single_thread_task_runner.cc
-index 5d80337de5..3ec7202c28 100644
+index ebf286712d..7e421215ef 100644
 --- a/base/task/single_thread_task_runner.cc
 +++ b/base/task/single_thread_task_runner.cc
 @@ -3,6 +3,7 @@
@@ -63,19 +63,19 @@ index 5d80337de5..3ec7202c28 100644
  
  #include <memory>
  #include <utility>
-@@ -13,6 +14,7 @@
- #include "base/functional/bind.h"
+@@ -14,6 +15,7 @@
  #include "base/lazy_instance.h"
+ #include "base/no_destructor.h"
  #include "base/run_loop.h"
 +#include "base/threading/sequenced_task_runner_handle.h"
- #include "third_party/abseil-cpp/absl/base/attributes.h"
+ #include "base/threading/thread_local.h"
  
  namespace base {
 diff --git a/base/task/single_thread_task_runner.h b/base/task/single_thread_task_runner.h
-index b4409c907b..f3fd3b773b 100644
+index 3cbc4ee4eb..43bc98768e 100644
 --- a/base/task/single_thread_task_runner.h
 +++ b/base/task/single_thread_task_runner.h
-@@ -111,6 +111,10 @@ class BASE_EXPORT SingleThreadTaskRunner : public SequencedTaskRunner {
+@@ -108,6 +108,10 @@ class BASE_EXPORT SingleThreadTaskRunner : public SequencedTaskRunner {
      FRIEND_TEST_ALL_PREFIXES(SingleThreadTaskRunnerCurrentDefaultHandleTest,
                               NestedRunLoop);
  
@@ -87,10 +87,10 @@ index b4409c907b..f3fd3b773b 100644
      // under special circumstances. Require them to be enumerated as friends to
      // require //base/OWNERS review. Use
 diff --git a/base/task/thread_pool/task_tracker.cc b/base/task/thread_pool/task_tracker.cc
-index fcc106cfa8..56b6a7092d 100644
+index 51f2e15b1b..e525d78987 100644
 --- a/base/task/thread_pool/task_tracker.cc
 +++ b/base/task/thread_pool/task_tracker.cc
-@@ -464,21 +464,21 @@ void TaskTracker::RunTask(Task task,
+@@ -469,21 +469,21 @@ void TaskTracker::RunTask(Task task,
      // Set up TaskRunner CurrentDefaultHandle as expected for the scope of the
      // task.
      absl::optional<SequencedTaskRunner::CurrentDefaultHandle>
@@ -379,10 +379,10 @@ index 0000000000..569df19855
 +}  // namespace
 +}  // namespace base
 diff --git a/base/threading/thread.cc b/base/threading/thread.cc
-index 174beed23e..744832a415 100644
+index 0642ab8fe6..9906acff3b 100644
 --- a/base/threading/thread.cc
 +++ b/base/threading/thread.cc
-@@ -376,7 +376,7 @@ void Thread::ThreadMain() {
+@@ -379,7 +379,7 @@ void Thread::ThreadMain() {
  
    // Lazily initialize the |message_loop| so that it can run on this thread.
    DCHECK(delegate_);
@@ -733,5 +733,5 @@ index 9acfe5275f..c3892a9aab 100644
  #include "mojo/public/cpp/bindings/interface_id.h"
  #include "third_party/abseil-cpp/absl/types/optional.h"
 -- 
-2.39.2
+2.40.0.rc1.284.g88254d51c5-goog
 
