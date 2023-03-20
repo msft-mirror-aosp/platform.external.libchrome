@@ -657,6 +657,7 @@ libbase_sublibs = [
       "base/threading/thread_local_storage_posix.cc",
       "base/threading/thread_restrictions.cc",
       "base/threading/thread_task_runner_handle.cc",
+      "base/threading/watchdog.cc",
       "base/time/clock.cc",
       "base/time/default_clock.cc",
       "base/time/default_tick_clock.cc",
