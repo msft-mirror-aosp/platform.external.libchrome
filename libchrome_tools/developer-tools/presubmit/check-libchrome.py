@@ -23,6 +23,9 @@ BAD_KEYWORDS = {
     # unify *::optionals to std::optional
     r'(include.*absl/types/optional.h|absl::(optional|make_optional|nullopt))':
     'Use std::optional. absl::optional is an alias of std::optional. See go/use-std-optional-in-cros for discussion.',
+    # Migrate base::Delete* to brillo::Delete* to fix security bugs
+    r'base::Delete(File|PathRecursively)\(':
+    'Deprecated base::Delete* APIs. Use brillo::Delete* instead. See b/272503861',
 }
 
 LINE_NUMBER_RE=re.compile(r'^@@ [0-9\,\+\-]+ \+([0-9]+)[ \,][0-9 ]*@@')
