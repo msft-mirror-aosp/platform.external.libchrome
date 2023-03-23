@@ -26,6 +26,9 @@ BAD_KEYWORDS = {
     # Migrate base::Delete* to brillo::Delete* to fix security bugs
     r'base::Delete(File|PathRecursively)\(':
     'Deprecated base::Delete* APIs. Use brillo::Delete* instead. See b/272503861',
+    # removal of deprecated base::ThreadLocal(Pointer|Boolean) APIs
+    r'base::(ThreadLocalBoolean|ThreadLocalPointer)':
+    'Use `thread_local bool|T*` instead. See https://chromium.googlesource.com/chromium/src/+/main/styleguide/c++/c++.md#thread_local-variables for discussion. (b/274724518)',
 }
 
 LINE_NUMBER_RE=re.compile(r'^@@ [0-9\,\+\-]+ \+([0-9]+)[ \,][0-9 ]*@@')
