@@ -1,4 +1,4 @@
-From cf38eba9d049abc64afb123a15826f7dcfebe446 Mon Sep 17 00:00:00 2001
+From fdf0e3a13df67e376fd048442c7f9d3b9e6eee86 Mon Sep 17 00:00:00 2001
 From: Wei-Luan Wang <weiluanwang@google.com>
 Date: Thu, 16 Mar 2023 09:25:29 +0000
 Subject: [PATCH] Reintroduce task runner handles
@@ -14,7 +14,7 @@ clients relying on the indirect include.
 Change-Id: I5d6645cca7c2d22d6ffe6d690dd684681e0a3bb3
 ---
  ...deferred_sequenced_task_runner_unittest.cc |   1 +
- base/task/single_thread_task_runner.cc        |   2 +
+ base/task/single_thread_task_runner.cc        |   3 +
  base/task/single_thread_task_runner.h         |   4 +
  base/task/thread_pool/task_tracker.cc         |   8 +-
  .../task/thread_pool/task_tracker_unittest.cc |  10 +-
@@ -31,7 +31,7 @@ Change-Id: I5d6645cca7c2d22d6ffe6d690dd684681e0a3bb3
  base/threading/thread_task_runner_handle.h    | 116 ++++++++++++++
  .../thread_task_runner_handle_unittest.cc     | 141 ++++++++++++++++++
  .../scoped_interface_endpoint_handle.h        |   1 +
- 18 files changed, 466 insertions(+), 23 deletions(-)
+ 18 files changed, 467 insertions(+), 23 deletions(-)
  create mode 100644 base/threading/sequenced_task_runner_handle.cc
  create mode 100644 base/threading/sequenced_task_runner_handle.h
  create mode 100644 base/threading/sequenced_task_runner_handle_unittest.cc
@@ -52,7 +52,7 @@ index 9360c0deff..a307d476d4 100644
  #include "testing/gtest/include/gtest/gtest.h"
  
 diff --git a/base/task/single_thread_task_runner.cc b/base/task/single_thread_task_runner.cc
-index ebf286712d..7e421215ef 100644
+index f11574e516..3710525a3c 100644
 --- a/base/task/single_thread_task_runner.cc
 +++ b/base/task/single_thread_task_runner.cc
 @@ -3,6 +3,7 @@
@@ -63,19 +63,20 @@ index ebf286712d..7e421215ef 100644
  
  #include <memory>
  #include <utility>
-@@ -14,6 +15,7 @@
+@@ -14,6 +15,8 @@
+ #include "base/functional/bind.h"
  #include "base/lazy_instance.h"
- #include "base/no_destructor.h"
  #include "base/run_loop.h"
 +#include "base/threading/sequenced_task_runner_handle.h"
- #include "base/threading/thread_local.h"
++#include "base/threading/thread_local.h"
+ #include "third_party/abseil-cpp/absl/base/attributes.h"
  
  namespace base {
 diff --git a/base/task/single_thread_task_runner.h b/base/task/single_thread_task_runner.h
-index 3cbc4ee4eb..43bc98768e 100644
+index b4409c907b..f3fd3b773b 100644
 --- a/base/task/single_thread_task_runner.h
 +++ b/base/task/single_thread_task_runner.h
-@@ -108,6 +108,10 @@ class BASE_EXPORT SingleThreadTaskRunner : public SequencedTaskRunner {
+@@ -111,6 +111,10 @@ class BASE_EXPORT SingleThreadTaskRunner : public SequencedTaskRunner {
      FRIEND_TEST_ALL_PREFIXES(SingleThreadTaskRunnerCurrentDefaultHandleTest,
                               NestedRunLoop);
  
@@ -87,10 +88,10 @@ index 3cbc4ee4eb..43bc98768e 100644
      // under special circumstances. Require them to be enumerated as friends to
      // require //base/OWNERS review. Use
 diff --git a/base/task/thread_pool/task_tracker.cc b/base/task/thread_pool/task_tracker.cc
-index 51f2e15b1b..e525d78987 100644
+index fcc106cfa8..56b6a7092d 100644
 --- a/base/task/thread_pool/task_tracker.cc
 +++ b/base/task/thread_pool/task_tracker.cc
-@@ -469,21 +469,21 @@ void TaskTracker::RunTask(Task task,
+@@ -464,21 +464,21 @@ void TaskTracker::RunTask(Task task,
      // Set up TaskRunner CurrentDefaultHandle as expected for the scope of the
      // task.
      absl::optional<SequencedTaskRunner::CurrentDefaultHandle>
