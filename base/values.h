@@ -766,11 +766,6 @@ class BASE_EXPORT GSL_OWNER Value {
   absl::optional<bool> FindBoolKey(StringPiece key) const;
   // DEPRECATED: prefer `Value::Dict::FindInt()`.
   absl::optional<int> FindIntKey(StringPiece key) const;
-  // Returns a non-null value for both `Value::Type::DOUBLE` and
-  // `Value::Type::INT`, converting the latter to a double.
-  //
-  // DEPRECATED: prefer `Value::Dict::FindDouble()`.
-  absl::optional<double> FindDoubleKey(StringPiece key) const;
   // DEPRECATED: prefer `Value::Dict::FindString()`.
   const std::string* FindStringKey(StringPiece key) const;
   std::string* FindStringKey(StringPiece key);
@@ -879,12 +874,6 @@ class BASE_EXPORT GSL_OWNER Value {
   // SetPath(...) call.
   //
   // DEPRECATED: Use `Value::Dict::SetByDottedPath()`.
-  Value* SetBoolPath(StringPiece path, bool value);
-  // DEPRECATED: Use `Value::Dict::SetByDottedPath()`.
-  Value* SetIntPath(StringPiece path, int value);
-  // DEPRECATED: Use `Value::Dict::SetByDottedPath()`.
-  Value* SetDoublePath(StringPiece path, double value);
-  // DEPRECATED: Use `Value::Dict::SetByDottedPath()`.
   Value* SetStringPath(StringPiece path, StringPiece value);
   // DEPRECATED: Use `Value::Dict::SetByDottedPath()`.
   Value* SetStringPath(StringPiece path, const char* value);
@@ -919,9 +908,6 @@ class BASE_EXPORT GSL_OWNER Value {
 
   // DEPRECATED: prefer `Value::Dict::size()`.
   size_t DictSize() const;
-
-  // DEPRECATED: prefer `Value::Dict::empty()`.
-  bool DictEmpty() const;
 
   // Note: Do not add more types. See the file-level comment above for why.
 

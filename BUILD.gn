@@ -50,9 +50,9 @@ group("all_buildflags") {
     ":message_pump_buildflags",
     ":mojo_buildflags",
     ":mojo_cpp_bindings_buildflags",
-    ":parsing_buildflags",
     ":partition_allocator_buildflags",
     ":profiler_buildflags",
+    ":rust_buildflags",
     ":synchronization_buildflags",
     ":tracing_buildflags",
   ]
@@ -325,17 +325,20 @@ buildflag_header("mojo_cpp_bindings_buildflags") {
   ]
 }
 
-buildflag_header("parsing_buildflags") {
-  header = "base/parsing_buildflags.h"
-  flags = [ "BUILD_RUST_JSON_READER=false" ]
-}
-
 buildflag_header("profiler_buildflags") {
   header = "base/profiler/profiler_buildflags.h"
   flags = [
     "ENABLE_ARM_CFI_TABLE=false",
     "IOS_STACK_PROFILER_ENABLED=true",
     "USE_ANDROID_UNWINDER_V2=false",
+  ]
+}
+
+buildflag_header("rust_buildflags") {
+  header = "base/rust_buildflags.h"
+  flags = [
+    "BUILD_RUST_JSON_READER=false",
+    "BUILD_RUST_BASE_CONVERSIONS=false",
   ]
 }
 
@@ -387,7 +390,6 @@ libbase_sublibs = [
       "base/base64url.cc",
       "base/base_switches.cc",
       "base/big_endian.cc",
-      "base/build_time.cc",
       "base/callback_list.cc",
       "base/check.cc",
       "base/check_is_test.cc",

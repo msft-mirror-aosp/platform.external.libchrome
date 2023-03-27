@@ -269,7 +269,7 @@ void SampleVectorBase::MoveSingleSampleToCounts() {
   DCHECK(counts());
 
   // Disable the single-sample since there is now counts storage for the data.
-  SingleSample sample = single_sample().Extract(/*disable=*/true);
+  SingleSample sample = single_sample().ExtractAndDisable();
 
   // Stop here if there is no "count" as trying to find the bucket index of
   // an invalid (including zero) "value" will crash.
@@ -521,14 +521,11 @@ void SampleVectorIterator::Next() {
 
 void SampleVectorIterator::Get(HistogramBase::Sample* min,
                                int64_t* max,
-                               HistogramBase::Count* count) const {
+                               HistogramBase::Count* count) {
   DCHECK(!Done());
-  if (min != nullptr)
-    *min = bucket_ranges_->range(index_);
-  if (max != nullptr)
-    *max = strict_cast<int64_t>(bucket_ranges_->range(index_ + 1));
-  if (count != nullptr)
-    *count = subtle::NoBarrier_Load(&counts_[index_]);
+  *min = bucket_ranges_->range(index_);
+  *max = strict_cast<int64_t>(bucket_ranges_->range(index_ + 1));
+  *count = subtle::NoBarrier_Load(&counts_[index_]);
 }
 
 bool SampleVectorIterator::GetBucketIndex(size_t* index) const {

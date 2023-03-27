@@ -1161,10 +1161,6 @@ absl::optional<int> Value::FindIntKey(StringPiece key) const {
   return GetDict().FindInt(key);
 }
 
-absl::optional<double> Value::FindDoubleKey(StringPiece key) const {
-  return GetDict().FindDouble(key);
-}
-
 const std::string* Value::FindStringKey(StringPiece key) const {
   return GetDict().FindString(key);
 }
@@ -1289,18 +1285,6 @@ Value* Value::SetPath(StringPiece path, Value&& value) {
   return GetDict().SetByDottedPath(path, std::move(value));
 }
 
-Value* Value::SetBoolPath(StringPiece path, bool value) {
-  return GetDict().SetByDottedPath(path, value);
-}
-
-Value* Value::SetIntPath(StringPiece path, int value) {
-  return GetDict().SetByDottedPath(path, value);
-}
-
-Value* Value::SetDoublePath(StringPiece path, double value) {
-  return GetDict().SetByDottedPath(path, value);
-}
-
 Value* Value::SetStringPath(StringPiece path, StringPiece value) {
   return GetDict().SetByDottedPath(path, value);
 }
@@ -1365,10 +1349,6 @@ Value::const_dict_iterator_proxy Value::DictItems() const {
 
 size_t Value::DictSize() const {
   return GetDict().size();
-}
-
-bool Value::DictEmpty() const {
-  return GetDict().empty();
 }
 
 bool operator==(const Value& lhs, const Value& rhs) {
