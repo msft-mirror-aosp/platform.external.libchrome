@@ -17,8 +17,8 @@ index 056a608dbfd9..5f842ff768c1 100644
 --- a/base/feature_list.cc
 +++ b/base/feature_list.cc
 @@ -529,7 +529,7 @@ void FeatureList::SetInstance(std::unique_ptr<FeatureList> instance) {
-   // Note: Intentional leak of global singleton.
-   g_feature_list_instance = instance.release();
+ 
+   EarlyFeatureAccessTracker::GetInstance()->AssertNoAccess();
  
 -#if !BUILDFLAG(IS_NACL)
 +#if !BUILDFLAG(IS_NACL) && 0
