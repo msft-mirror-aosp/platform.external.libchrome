@@ -409,6 +409,7 @@ class Generator(generator.Generator):
         "should_inline_union": ShouldInlineUnion,
         "is_array_kind": mojom.IsArrayKind,
         "is_bool_kind": mojom.IsBoolKind,
+        "is_default_constructible": self._IsDefaultConstructible,
         "is_enum_kind": mojom.IsEnumKind,
         "is_nullable_value_kind_packed_field":
         pack.IsNullableValueKindPackedField,
@@ -544,9 +545,8 @@ class Generator(generator.Generator):
 
   def _DefaultValue(self, field):
     if not field.default:
-      if self._IsTypemappedKind(field.kind):
-        return "mojo::DefaultConstructTraits::CreateInstance<%s>()" % (
-            self._GetCppWrapperType(field.kind))
+      if not self._IsDefaultConstructible(field.kind):
+        return "mojo::internal::DefaultConstructTag()"
       return ""
 
     if mojom.IsStructKind(field.kind):
@@ -740,6 +740,15 @@ class Generator(generator.Generator):
     if kind.is_nullable:
       return _AddOptional(_kind_to_cpp_type[kind.MakeUnnullableKind()])
     return _kind_to_cpp_type[kind]
+
+  def _IsDefaultConstructible(self, kind):
+    # TODO(b/277122551): Once mojom definitions have been updated with
+    # default_constructible, revert this to original check.
+    return True
+    # if self._IsTypemappedKind(kind):
+    #   return self.typemap[self._GetFullMojomNameForKind(
+    #       kind)]["default_constructible"]
+    # return True
 
   def _IsMoveOnlyKind(self, kind):
     if self._IsTypemappedKind(kind):
