@@ -29,10 +29,6 @@ BAD_KEYWORDS = {
     # removal of deprecated base::ThreadLocal(Pointer|Boolean) APIs
     r'base::(ThreadLocalBoolean|ThreadLocalPointer)':
     'Use `thread_local bool|T*` instead. See https://chromium.googlesource.com/chromium/src/+/main/styleguide/c++/c++.md#thread_local-variables for discussion. (b/274724518)',
-    # removal of deprecated Value::DictItems
-    # See patch backward-compatibility-1650-Revert-Remove-Value-DictItems-replacing-it-with-Value.patch
-    r'DictItems\(\)':
-    'Use Value::GetDict instead.  See crbug.com/1187001#c541.',
 }
 
 LINE_NUMBER_RE=re.compile(r'^@@ [0-9\,\+\-]+ \+([0-9]+)[ \,][0-9 ]*@@')
