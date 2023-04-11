@@ -749,6 +749,7 @@ libbase_sublibs = [
       "base/test/test_simple_task_runner.cc",
       "base/test/test_switches.cc",
       "base/test/test_timeouts.cc",
+      "base/timer/mock_timer.cc",
     ]
   },
 ]
