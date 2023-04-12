@@ -801,7 +801,7 @@ def main():
     if args.query_commit:
         exit()
 
-    if target_commit_revision < GetLibchromeRevision(track_branch):
+    if target_commit_revision <= GetLibchromeRevision(track_branch):
         raise Exception(
             f"Target revision {target_commit_revision} has been reached already: "
             f"libchrome is currently at {GetLibchromeRevision(args.track_branch)}."
