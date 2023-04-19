@@ -742,13 +742,10 @@ class Generator(generator.Generator):
     return _kind_to_cpp_type[kind]
 
   def _IsDefaultConstructible(self, kind):
-    # TODO(b/277122551): Once mojom definitions have been updated with
-    # default_constructible, revert this to original check.
+    if self._IsTypemappedKind(kind):
+      return self.typemap[self._GetFullMojomNameForKind(
+          kind)]["default_constructible"]
     return True
-    # if self._IsTypemappedKind(kind):
-    #   return self.typemap[self._GetFullMojomNameForKind(
-    #       kind)]["default_constructible"]
-    # return True
 
   def _IsMoveOnlyKind(self, kind):
     if self._IsTypemappedKind(kind):
