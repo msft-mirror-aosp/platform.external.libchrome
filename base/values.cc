@@ -1169,18 +1169,6 @@ std::string* Value::FindStringKey(StringPiece key) {
   return GetDict().FindString(key);
 }
 
-const Value* Value::FindListKey(StringPiece key) const {
-  const Value* result = GetDict().Find(key);
-  if (!result || result->type() != Type::LIST) {
-    return nullptr;
-  }
-  return result;
-}
-
-Value* Value::FindListKey(StringPiece key) {
-  return const_cast<Value*>(std::as_const(*this).FindListKey(key));
-}
-
 Value* Value::SetKey(StringPiece key, Value&& value) {
   return GetDict().Set(key, std::move(value));
 }
@@ -1190,10 +1178,6 @@ Value* Value::SetBoolKey(StringPiece key, bool value) {
 }
 
 Value* Value::SetIntKey(StringPiece key, int value) {
-  return GetDict().Set(key, value);
-}
-
-Value* Value::SetDoubleKey(StringPiece key, double value) {
   return GetDict().Set(key, value);
 }
 

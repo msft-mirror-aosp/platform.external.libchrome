@@ -1,0 +1,43 @@
+From 30bab8296ee4d0f923363e523744fc6882c8372f Mon Sep 17 00:00:00 2001
+From: Ren-Pei Zeng <kamesan@chromium.org>
+Date: Thu, 27 Apr 2023 10:20:21 +0000
+Subject: [PATCH] Revert "[Code Health] Remove unused
+ base::Value::SetDoubleKey"
+
+This reverts commit 620a7c5741a8d5842933472ce214f2d13da83ad5.
+---
+ base/values.cc | 4 ++++
+ base/values.h  | 2 ++
+ 2 files changed, 6 insertions(+)
+
+diff --git a/base/values.cc b/base/values.cc
+index e0e7f76b54..55a4cfc566 100644
+--- a/base/values.cc
++++ b/base/values.cc
+@@ -1181,6 +1181,10 @@ Value* Value::SetIntKey(StringPiece key, int value) {
+   return GetDict().Set(key, value);
+ }
+ 
++Value* Value::SetDoubleKey(StringPiece key, double value) {
++  return GetDict().Set(key, value);
++}
++
+ Value* Value::SetStringKey(StringPiece key, StringPiece value) {
+   return GetDict().Set(key, value);
+ }
+diff --git a/base/values.h b/base/values.h
+index 4e2a6bdd66..9be0dd35c3 100644
+--- a/base/values.h
++++ b/base/values.h
+@@ -789,6 +789,8 @@ class BASE_EXPORT GSL_OWNER Value {
+   // DEPRECATED: Prefer `Value::Dict::Set()`.
+   Value* SetIntKey(StringPiece key, int val);
+   // DEPRECATED: Prefer `Value::Dict::Set()`.
++  Value* SetDoubleKey(StringPiece key, double val);
++  // DEPRECATED: Prefer `Value::Dict::Set()`.
+   Value* SetStringKey(StringPiece key, StringPiece val);
+   // DEPRECATED: Prefer `Value::Dict::Set()`.
+   Value* SetStringKey(StringPiece key, StringPiece16 val);
+-- 
+2.40.1.495.gc816e09b53d-goog
+
