@@ -1,0 +1,51 @@
+From b535b7b120cd19f6f0a1b1601446281b51db6c36 Mon Sep 17 00:00:00 2001
+From: Ren-Pei Zeng <kamesan@chromium.org>
+Date: Wed, 26 Apr 2023 04:49:31 +0000
+Subject: [PATCH] Revert "Eliminate remaining calls to FindDictKey()"
+
+This reverts commit 826ec0d4b23411b6b1055ce8428693cab8ffbaac.
+---
+ base/values.cc | 12 ++++++++++++
+ base/values.h  |  3 +++
+ 2 files changed, 15 insertions(+)
+
+diff --git a/base/values.cc b/base/values.cc
+index ac4cc65f3e..2e51b987d3 100644
+--- a/base/values.cc
++++ b/base/values.cc
+@@ -1169,6 +1169,18 @@ std::string* Value::FindStringKey(StringPiece key) {
+   return GetDict().FindString(key);
+ }
+ 
++const Value* Value::FindDictKey(StringPiece key) const {
++  const Value* result = GetDict().Find(key);
++  if (!result || result->type() != Type::DICT) {
++    return nullptr;
++  }
++  return result;
++}
++
++Value* Value::FindDictKey(StringPiece key) {
++  return const_cast<Value*>(std::as_const(*this).FindDictKey(key));
++}
++
+ const Value* Value::FindListKey(StringPiece key) const {
+   const Value* result = GetDict().Find(key);
+   if (!result || result->type() != Type::LIST) {
+diff --git a/base/values.h b/base/values.h
+index d9e9e2df67..45dfea06a8 100644
+--- a/base/values.h
++++ b/base/values.h
+@@ -769,6 +769,9 @@ class BASE_EXPORT GSL_OWNER Value {
+   // DEPRECATED: prefer `Value::Dict::FindString()`.
+   const std::string* FindStringKey(StringPiece key) const;
+   std::string* FindStringKey(StringPiece key);
++  // DEPRECATED: prefer `Value::Dict::FindDict()`.
++  const Value* FindDictKey(StringPiece key) const;
++  Value* FindDictKey(StringPiece key);
+   // DEPRECATED: prefer `Value::Dict::FindList()`.
+   const Value* FindListKey(StringPiece key) const;
+   Value* FindListKey(StringPiece key);
+-- 
+2.40.1.495.gc816e09b53d-goog
+
