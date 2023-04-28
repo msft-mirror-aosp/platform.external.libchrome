@@ -195,6 +195,7 @@ buildflag_header("partition_allocator_buildflags") {
     "ENABLE_POINTER_COMPRESSION=false",
     "USE_ASAN_UNOWNED_PTR=false",
     "FORCE_ENABLE_RAW_PTR_EXCLUSION=false",
+    "ENABLE_RAW_PTR_EXPERIMENTAL=false",
   ]
 }
 
