@@ -1,0 +1,126 @@
+From 6e4e80da836ed257aa6af73a853fb1d795fc81d7 Mon Sep 17 00:00:00 2001
+From: Jeff Lin <jeffulin@google.com>
+Date: Wed, 3 May 2023 03:48:16 +0000
+Subject: [PATCH] Revert "Misc. cleanup."
+
+This reverts commit a105937f5fd7c20ba609abed0711e9825be39f47.
+---
+ base/files/file_error_or_unittest.cc | 13 +++++++------
+ base/json/json_reader.h              |  6 ------
+ base/json/json_writer_unittest.cc    |  5 +++--
+ base/types/expected_unittest.cc      |  4 ++++
+ 4 files changed, 14 insertions(+), 14 deletions(-)
+
+diff --git a/base/files/file_error_or_unittest.cc b/base/files/file_error_or_unittest.cc
+index 0a6e5c242d..6945710f83 100644
+--- a/base/files/file_error_or_unittest.cc
++++ b/base/files/file_error_or_unittest.cc
+@@ -11,22 +11,23 @@ namespace base {
+ namespace {
+ 
+ TEST(FileErrorOrDeathTest, Error) {
+-  FileErrorOr<int> error = unexpected(File::Error::FILE_ERROR_FAILED);
+-  ASSERT_FALSE(error.has_value());
++  FileErrorOr<int> error;
++  error = unexpected(File::Error::FILE_ERROR_FAILED);
++  EXPECT_FALSE(error.has_value());
+   EXPECT_EQ(error.error(), File::Error::FILE_ERROR_FAILED);
+   EXPECT_DEATH_IF_SUPPORTED(error.value(), "");
+ }
+ 
+ TEST(FileErrorOrDeathTest, Value) {
+-  FileErrorOr<int> value = 42;
+-  ASSERT_TRUE(value.has_value());
++  FileErrorOr<int> value(42);
++  EXPECT_TRUE(value.has_value());
+   EXPECT_EQ(value.value(), 42);
+   EXPECT_DEATH_IF_SUPPORTED(value.error(), "");
+ }
+ 
+ TEST(FileErrorOrDeathTest, ConstValue) {
+-  const FileErrorOr<int> const_value = 1234;
+-  ASSERT_TRUE(const_value.has_value());
++  const FileErrorOr<int> const_value(1234);
++  EXPECT_TRUE(const_value.has_value());
+   EXPECT_EQ(const_value.value(), 1234);
+   EXPECT_DEATH_IF_SUPPORTED(const_value.error(), "");
+ }
+diff --git a/base/json/json_reader.h b/base/json/json_reader.h
+index 2ad32abe36..00d23cfcd6 100644
+--- a/base/json/json_reader.h
++++ b/base/json/json_reader.h
+@@ -40,7 +40,6 @@
+ 
+ #include "base/base_export.h"
+ #include "base/json/json_common.h"
+-#include "base/strings/string_number_conversions.h"
+ #include "base/strings/string_piece.h"
+ #include "base/types/expected.h"
+ #include "base/values.h"
+@@ -91,11 +90,6 @@ class BASE_EXPORT JSONReader {
+     std::string message;
+     int line = 0;
+     int column = 0;
+-
+-    std::string ToString() const {
+-      return "line " + base::NumberToString(line) + ", column " +
+-             base::NumberToString(column) + ": " + message;
+-    }
+   };
+ 
+   using Result = base::expected<Value, Error>;
+diff --git a/base/json/json_writer_unittest.cc b/base/json/json_writer_unittest.cc
+index 479feb4f8f..0fc6da95e4 100644
+--- a/base/json/json_writer_unittest.cc
++++ b/base/json/json_writer_unittest.cc
+@@ -185,8 +185,9 @@ TEST(JsonWriterTest, TestMaxDepthWithValidNodes) {
+   // Ensure we can read and write the JSON
+   auto json_val = JSONReader::ReadAndReturnValueWithError(
+       nested_json, JSON_ALLOW_TRAILING_COMMAS);
+-  ASSERT_TRUE(json_val.has_value());
+-  EXPECT_NE(WriteJson(*json_val), absl::nullopt);
++  EXPECT_TRUE(json_val.has_value());
++  const Value& value = *json_val;
++  EXPECT_NE(WriteJson(value), absl::nullopt);
+ }
+ 
+ // Test that the JSONWriter::Write method still works.
+diff --git a/base/types/expected_unittest.cc b/base/types/expected_unittest.cc
+index 240c8434a2..af286447cd 100644
+--- a/base/types/expected_unittest.cc
++++ b/base/types/expected_unittest.cc
+@@ -520,6 +520,7 @@ TEST(Expected, MemberSwap) {
+   ex1.swap(ex2);
+   ASSERT_FALSE(ex1.has_value());
+   EXPECT_EQ(ex1.error(), 123);
++
+   ASSERT_TRUE(ex2.has_value());
+   EXPECT_EQ(ex2.value(), 42);
+ }
+@@ -531,6 +532,7 @@ TEST(Expected, FreeSwap) {
+   swap(ex1, ex2);
+   ASSERT_FALSE(ex1.has_value());
+   EXPECT_EQ(ex1.error(), 123);
++
+   ASSERT_TRUE(ex2.has_value());
+   EXPECT_EQ(ex2.value(), 42);
+ }
+@@ -1054,6 +1056,7 @@ TEST(ExpectedVoid, MemberSwap) {
+   ex1.swap(ex2);
+   ASSERT_FALSE(ex1.has_value());
+   EXPECT_EQ(ex1.error(), 123);
++
+   ASSERT_TRUE(ex2.has_value());
+ }
+ 
+@@ -1064,6 +1067,7 @@ TEST(ExpectedVoid, FreeSwap) {
+   swap(ex1, ex2);
+   ASSERT_FALSE(ex1.has_value());
+   EXPECT_EQ(ex1.error(), 123);
++
+   ASSERT_TRUE(ex2.has_value());
+ }
+ 
+-- 
+2.40.1.495.gc816e09b53d-goog
+
