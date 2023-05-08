@@ -10,13 +10,9 @@ namespace policy {
 
 namespace features {
 
-BASE_FEATURE(kLoginEventReporting,
-             "LoginEventReporting",
-             base::FEATURE_ENABLED_BY_DEFAULT);
-
-BASE_FEATURE(kPasswordBreachEventReporting,
-             "PasswordBreachEventReporting",
-             base::FEATURE_ENABLED_BY_DEFAULT);
+BASE_FEATURE(kCrowdstrikeSignalReporting,
+             "CrowdstrikeSignalReporting",
+             base::FEATURE_DISABLED_BY_DEFAULT);
 
 BASE_FEATURE(kEnableUserCloudSigninRestrictionPolicyFetcher,
              "UserCloudSigninRestrictionPolicyFetcher",
@@ -43,7 +39,7 @@ BASE_FEATURE(kPolicyMergeMultiSource,
 #if BUILDFLAG(IS_IOS)
 BASE_FEATURE(kPolicyLogsPageIOS,
              "PolicyLogsPageIOS",
-             base::FEATURE_DISABLED_BY_DEFAULT);
+             base::FEATURE_ENABLED_BY_DEFAULT);
 #endif  // BUILDFLAG(IS_IOS)
 
 }  // namespace features
