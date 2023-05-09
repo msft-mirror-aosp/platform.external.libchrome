@@ -408,23 +408,7 @@ index 06dd7028b5..5c490194e3 100644
 +    // amount.
      virtual void BindToCurrentThread(TimerSlack timer_slack) = 0;
    };
- 
-diff --git a/base/threading/thread_checker_impl.cc b/base/threading/thread_checker_impl.cc
-index cb7eb30f73..48adb59c3b 100644
---- a/base/threading/thread_checker_impl.cc
-+++ b/base/threading/thread_checker_impl.cc
-@@ -86,9 +86,8 @@ bool ThreadCheckerImpl::CalledOnValidThread(
- 
-     // If this ThreadCheckerImpl is bound to a valid SequenceToken, it must be
-     // equal to the current SequenceToken and there must be a registered
--    // SingleThreadTaskRunner::CurrentDefaultHandle. Otherwise, the fact that
--    // the current task runs on the thread to which this ThreadCheckerImpl is
--    // bound is fortuitous.
-+    // ThreadTaskRunnerHandle. Otherwise, the fact that the current task runs on
-+    // the thread to which this ThreadCheckerImpl is bound is fortuitous.
-     if (sequence_token_.IsValid() &&
-         (sequence_token_ != SequenceToken::GetForCurrentThread() ||
-          !SingleThreadTaskRunner::HasCurrentDefault())) {
+
 diff --git a/base/threading/thread_task_runner_handle.cc b/base/threading/thread_task_runner_handle.cc
 new file mode 100644
 index 0000000000..1158eea52d
