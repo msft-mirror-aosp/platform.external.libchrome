@@ -1152,10 +1152,6 @@ bool operator>=(const Value::List& lhs, const Value::List& rhs) {
   return !(lhs < rhs);
 }
 
-absl::optional<bool> Value::FindBoolKey(StringPiece key) const {
-  return GetDict().FindBool(key);
-}
-
 absl::optional<int> Value::FindIntKey(StringPiece key) const {
   return GetDict().FindInt(key);
 }
@@ -1242,10 +1238,6 @@ const Value* Value::FindListPath(StringPiece path) const {
 
 Value* Value::FindListPath(StringPiece path) {
   return const_cast<Value*>(std::as_const(*this).FindListPath(path));
-}
-
-size_t Value::DictSize() const {
-  return GetDict().size();
 }
 
 bool operator==(const Value& lhs, const Value& rhs) {

@@ -196,6 +196,7 @@ buildflag_header("partition_allocator_buildflags") {
     "USE_ASAN_UNOWNED_PTR=false",
     "FORCE_ENABLE_RAW_PTR_EXCLUSION=false",
     "ENABLE_RAW_PTR_EXPERIMENTAL=false",
+    "ENABLE_THREAD_ISOLATION=false",
   ]
 }
 
