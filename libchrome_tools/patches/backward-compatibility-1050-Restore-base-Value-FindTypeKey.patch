@@ -1,0 +1,63 @@
+From 349569436a41d06a6334f7442c7f0f56cb11e6b9 Mon Sep 17 00:00:00 2001
+From: Cici Ruan <cuicuiruan@google.com>
+Date: Thu, 11 May 2023 14:46:34 -0700
+Subject: [PATCH] Restore base::Value::Find{Type}Key
+
+This restores base::Value::Find{String, List}Key for packages which
+are still using the deprecated functions.
+---
+ base/values.cc | 20 ++++++++++++++++++++
+ base/values.h  |  6 ++++++
+ 2 files changed, 26 insertions(+)
+
+diff --git a/base/values.cc b/base/values.cc
+index 0b1b6886475d7..e750e119a2473 100644
+--- a/base/values.cc
++++ b/base/values.cc
+@@ -1156,6 +1156,26 @@ absl::optional<int> Value::FindIntKey(StringPiece key) const {
+   return GetDict().FindInt(key);
+ }
+ 
++const std::string* Value::FindStringKey(StringPiece key) const {
++  return GetDict().FindString(key);
++}
++
++std::string* Value::FindStringKey(StringPiece key) {
++  return GetDict().FindString(key);
++}
++
++const Value* Value::FindListKey(StringPiece key) const {
++  const Value* result = GetDict().Find(key);
++  if (!result || result->type() != Type::LIST) {
++    return nullptr;
++  }
++  return result;
++}
++
++Value* Value::FindListKey(StringPiece key) {
++  return const_cast<Value*>(std::as_const(*this).FindListKey(key));
++}
++
+ Value* Value::SetKey(StringPiece key, Value&& value) {
+   return GetDict().Set(key, std::move(value));
+ }
+diff --git a/base/values.h b/base/values.h
+index 1c393ebdac1b7..5f04df35b35f9 100644
+--- a/base/values.h
++++ b/base/values.h
+@@ -764,6 +764,12 @@ class BASE_EXPORT GSL_OWNER Value {
+   //
+   // DEPRECATED: prefer `Value::Dict::FindInt()`.
+   absl::optional<int> FindIntKey(StringPiece key) const;
++  // DEPRECATED: prefer `Value::Dict::FindString()`.
++  const std::string* FindStringKey(StringPiece key) const;
++  std::string* FindStringKey(StringPiece key);
++  // DEPRECATED: prefer `Value::Dict::FindList()`.
++  const Value* FindListKey(StringPiece key) const;
++  Value* FindListKey(StringPiece key);
+ 
+   // `SetKey` looks up `key` in the underlying dictionary and sets the mapped
+   // value to `value`. If `key` could not be found, a new element is inserted.
+-- 
+2.40.1.606.ga4b1b128d6-goog
+
