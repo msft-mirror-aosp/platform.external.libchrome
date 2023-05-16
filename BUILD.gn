@@ -51,6 +51,8 @@ group("all_buildflags") {
     ":mojo_buildflags",
     ":mojo_cpp_bindings_buildflags",
     ":partition_allocator_buildflags",
+    ":partition_allocator_chromecast_buildflags",
+    ":partition_allocator_chromeos_buildflags",
     ":profiler_buildflags",
     ":rust_buildflags",
     ":synchronization_buildflags",
@@ -197,6 +199,22 @@ buildflag_header("partition_allocator_buildflags") {
     "FORCE_ENABLE_RAW_PTR_EXCLUSION=false",
     "ENABLE_RAW_PTR_EXPERIMENTAL=false",
     "ENABLE_THREAD_ISOLATION=false",
+    "USE_FREESLOT_BITMAP=false",
+  ]
+}
+
+buildflag_header("partition_allocator_chromecast_buildflags") {
+  header = "base/allocator/partition_allocator/chromecast_buildflags.h"
+  flags = [
+    "PA_IS_CAST_ANDROID=false",
+    "PA_IS_CASTOS=false",
+  ]
+}
+
+buildflag_header("partition_allocator_chromeos_buildflags") {
+  header = "base/allocator/partition_allocator/chromeos_buildflags.h"
+  flags = [
+    "PA_IS_CHROMEOS_ASH=false",
   ]
 }
 
@@ -212,8 +230,9 @@ buildflag_header("allocator_debugging_buildflags") {
 buildflag_header("blink_buildflags") {
   header = "build/blink_buildflags.h"
 
+  # Set to `true` because of BUILDFLAG define within crrev/c/4505733.
   flags = [
-    "USE_BLINK=false",
+    "USE_BLINK=true",
   ]
 }
 
