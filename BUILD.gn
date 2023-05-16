@@ -733,6 +733,7 @@ libbase_sublibs = [
     name = "base-base_test_support"
     testonly = true
     sources = [
+      "base/test/metrics/histogram_tester.cc",
       "base/test/mock_entropy_provider.cc",
       "base/test/mock_log.cc",
       "base/test/power_monitor_test.cc",
@@ -1330,6 +1331,7 @@ install_config("install_header") {
     "base/test/allow_check_is_test_to_be_called.h",
     "base/test/bind.h",
     "base/test/gmock_callback_support.h",
+    "base/test/metrics/histogram_tester.h",
     "base/test/mock_callback.h",
     "base/test/mock_log.h",
     "base/test/power_monitor_test.h",
