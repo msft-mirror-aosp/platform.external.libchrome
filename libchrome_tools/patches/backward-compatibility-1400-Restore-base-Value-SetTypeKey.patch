@@ -1,20 +1,21 @@
-From 5fc80714a3db455aa8ac5ae65c57821acd9262da Mon Sep 17 00:00:00 2001
-From: Cici Ruan <cuicuiruan@google.com>
-Date: Mon, 8 May 2023 21:05:48 -0700
+From 85edac88e565f5ea02ee7f2ec9f38da801068f52 Mon Sep 17 00:00:00 2001
+From: Jae Hoon Kim <kimjae@chromium.org>
+Date: Wed, 24 May 2023 07:37:42 +0000
 Subject: [PATCH] Restore base::Value::SetTypeKey
 
-This restores base::Value::SetTypeKey for the packages which are still
-using the deprecated functions.
+This restores base::Value::Set[Bool|Int]Key for the packages which are
+still using the deprecated functions.
+
 ---
  base/values.cc | 8 ++++++++
  base/values.h  | 4 ++++
  2 files changed, 12 insertions(+)
 
 diff --git a/base/values.cc b/base/values.cc
-index 62dfcdf0c66d5..162cf958eab84 100644
+index a776651656..b0c2e1d8d1 100644
 --- a/base/values.cc
 +++ b/base/values.cc
-@@ -1172,6 +1172,14 @@ Value* Value::SetKey(StringPiece key, Value&& value) {
+@@ -1196,6 +1196,14 @@ Value* Value::SetKey(StringPiece key, Value&& value) {
    return GetDict().Set(key, std::move(value));
  }
  
@@ -30,20 +31,20 @@ index 62dfcdf0c66d5..162cf958eab84 100644
    return GetDict().Set(key, value);
  }
 diff --git a/base/values.h b/base/values.h
-index 25c0824db6465..4e2a6bdd66ec7 100644
+index 37f8cd6bd0..25e611d839 100644
 --- a/base/values.h
 +++ b/base/values.h
-@@ -785,6 +785,10 @@ class BASE_EXPORT GSL_OWNER Value {
-   // ambiguities in the value type.
+@@ -786,6 +786,10 @@ class BASE_EXPORT GSL_OWNER Value {
    //
    // DEPRECATED: Prefer `Value::Dict::Set()`.
+   Value* SetKey(StringPiece key, Value&& value);
++  // DEPRECATED: Prefer `Value::Dict::Set()`.
 +  Value* SetBoolKey(StringPiece key, bool val);
 +  // DEPRECATED: Prefer `Value::Dict::Set()`.
 +  Value* SetIntKey(StringPiece key, int val);
-+  // DEPRECATED: Prefer `Value::Dict::Set()`.
-   Value* SetStringKey(StringPiece key, StringPiece val);
-   // DEPRECATED: Prefer `Value::Dict::Set()`.
-   Value* SetStringKey(StringPiece key, StringPiece16 val);
+ 
+   // `Set<Type>Key` looks up `key` in the underlying dictionary and associates a
+   // corresponding Value() constructed from the second parameter. Compared to
 -- 
-2.40.1.521.gf1e218fcd8-goog
+2.40.1.698.g37aff9b760-goog
 

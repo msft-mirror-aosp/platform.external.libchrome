@@ -905,18 +905,6 @@ void PartitionRoot<thread_safe>::Init(PartitionOptions opts) {
          PartitionOptions::UseConfigurablePool::kIfAvailable) &&
         IsConfigurablePoolAvailable();
     PA_DCHECK(!flags.use_configurable_pool || IsConfigurablePoolAvailable());
-#if PA_CONFIG(HAS_MEMORY_TAGGING)
-    TagViolationReportingMode memory_tagging_mode =
-        internal::GetMemoryTaggingModeForCurrentThread();
-    // Memory tagging is not supported in the configurable pool because MTE
-    // stores tagging information in the high bits of the pointer, it causes
-    // issues with components like V8's ArrayBuffers which use custom pointer
-    // representations. All custom representations encountered so far rely on an
-    // "is in configurable pool?" check, so we use that as a proxy.
-    flags.memory_tagging_enabled_ =
-        !flags.use_configurable_pool &&
-        memory_tagging_mode != TagViolationReportingMode::kUndefined;
-#endif
 
     // brp_enabled() is not supported in the configurable pool because
     // BRP requires objects to be in a different Pool.
@@ -952,13 +940,6 @@ void PartitionRoot<thread_safe>::Init(PartitionOptions opts) {
       // add/subtract its size in this case.
       flags.extras_size += internal::kPartitionRefCountSizeAdjustment;
       flags.extras_offset += internal::kPartitionRefCountOffsetAdjustment;
-    }
-    if (opts.add_dummy_ref_count ==
-        PartitionOptions::AddDummyRefCount::kEnabled) {
-      // AddDummyRefCount will increase the size to simulate adding
-      // PartitionRefCount, but non of the BRP logic will run.
-      PA_CHECK(!brp_enabled());
-      flags.extras_size += internal::kPartitionRefCountSizeAdjustment;
     }
 #endif  // PA_CONFIG(EXTRAS_REQUIRED)
 
