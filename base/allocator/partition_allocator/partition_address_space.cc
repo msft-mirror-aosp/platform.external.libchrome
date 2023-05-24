@@ -79,12 +79,7 @@ PA_NOINLINE void HandlePoolAllocFailure() {
 
 }  // namespace
 
-#if BUILDFLAG(ENABLE_THREAD_ISOLATION)
-alignas(PA_THREAD_ISOLATED_ALIGN_SZ)
-#else
-alignas(kPartitionCachelineSize)
-#endif
-    PartitionAddressSpace::PoolSetup PartitionAddressSpace::setup_;
+PartitionAddressSpace::PoolSetup PartitionAddressSpace::setup_;
 
 #if PA_CONFIG(ENABLE_SHADOW_METADATA)
 std::ptrdiff_t PartitionAddressSpace::regular_pool_shadow_offset_ = 0;

@@ -1,21 +1,21 @@
-From 6a5c5a3c2912b5ca5de5b1706fa101d19664f079 Mon Sep 17 00:00:00 2001
+From 62cfd44a5030d2e2397595f01e783904738a80b9 Mon Sep 17 00:00:00 2001
 From: Jae Hoon Kim <kimjae@chromium.org>
-Date: Wed, 24 May 2023 08:25:13 +0000
+Date: Thu, 25 May 2023 00:03:58 +0000
 Subject: [PATCH] Restore base::Value::[Set|Find]{Type}[Key|Path]
 
 This restores base::Value::[Set|Find]{String, List}[Key|Path] for
 packages which are still using the deprecated functions.
 
 ---
- base/values.cc | 96 ++++++++++++++++++++++++++++++++++++++++++++++++++
- base/values.h  | 78 ++++++++++++++++++++++++++++++++++++++++
- 2 files changed, 174 insertions(+)
+ base/values.cc | 100 +++++++++++++++++++++++++++++++++++++++++++++++++
+ base/values.h  |  88 +++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 188 insertions(+)
 
 diff --git a/base/values.cc b/base/values.cc
-index 9b25c55d63..e750e119a2 100644
+index 6024d31589..6dcf12d814 100644
 --- a/base/values.cc
 +++ b/base/values.cc
-@@ -1152,10 +1152,106 @@ bool operator>=(const Value::List& lhs, const Value::List& rhs) {
+@@ -1176,6 +1176,106 @@ bool operator>=(const Value::List& lhs, const Value::List& rhs) {
    return !(lhs < rhs);
  }
  
@@ -43,10 +43,10 @@ index 9b25c55d63..e750e119a2 100644
 +  return const_cast<Value*>(std::as_const(*this).FindListKey(key));
 +}
 +
- Value* Value::SetKey(StringPiece key, Value&& value) {
-   return GetDict().Set(key, std::move(value));
- }
- 
++Value* Value::SetKey(StringPiece key, Value&& value) {
++  return GetDict().Set(key, std::move(value));
++}
++
 +Value* Value::SetStringKey(StringPiece key, StringPiece value) {
 +  return GetDict().Set(key, value);
 +}
@@ -123,13 +123,14 @@ index 9b25c55d63..e750e119a2 100644
    return lhs.data_ == rhs.data_;
  }
 diff --git a/base/values.h b/base/values.h
-index ca91b5d840..5f04df35b3 100644
+index 5d62e8c70a..49792aee5a 100644
 --- a/base/values.h
 +++ b/base/values.h
-@@ -757,6 +757,20 @@ class BASE_EXPORT GSL_OWNER Value {
+@@ -767,6 +767,94 @@ class BASE_EXPORT GSL_OWNER Value {
+     std::vector<Value> storage_;
    };
  
-   // ===== DEPRECATED methods that require `type() == Type::DICT` =====
++  // ===== DEPRECATED methods that require `type() == Type::DICT` =====
 +
 +  // These are convenience forms of `FindKey`. They return `absl::nullopt` or
 +  // `nullptr` if the value is not found or doesn't have the type specified in
@@ -144,13 +145,15 @@ index ca91b5d840..5f04df35b3 100644
 +  const Value* FindListKey(StringPiece key) const;
 +  Value* FindListKey(StringPiece key);
 +
-   // `SetKey` looks up `key` in the underlying dictionary and sets the mapped
-   // value to `value`. If `key` could not be found, a new element is inserted.
-   // A pointer to the modified item is returned.
-@@ -766,6 +780,70 @@ class BASE_EXPORT GSL_OWNER Value {
-   // DEPRECATED: Prefer `Value::Dict::Set()`.
-   Value* SetKey(StringPiece key, Value&& value);
- 
++  // `SetKey` looks up `key` in the underlying dictionary and sets the mapped
++  // value to `value`. If `key` could not be found, a new element is inserted.
++  // A pointer to the modified item is returned.
++  //
++  // Note: Prefer `Set<Type>Key()` if the input is not already a `Value`.
++  //
++  // DEPRECATED: Prefer `Value::Dict::Set()`.
++  Value* SetKey(StringPiece key, Value&& value);
++
 +  // `Set<Type>Key` looks up `key` in the underlying dictionary and associates a
 +  // corresponding Value() constructed from the second parameter. Compared to
 +  // `SetKey()`, this avoids un-necessary temporary `Value()` creation, as well

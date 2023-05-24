@@ -140,6 +140,8 @@ namespace base {
 //       `front()`, `back()`, `reserve()`, `operator[]`, `clear()`, `erase()`:
 //       Identical to the STL container equivalents, with additional safety
 //       checks, e.g. `operator[]` will `CHECK()` if the index is out of range.
+// - `rbegin()` and `rend()` are also supported, but there are no safety checks
+// (see crbug.com/1446739).
 // - `Clone()`: Create a deep copy.
 // - `Append()`: Append a value to the end of the list. Accepts `Value` or any
 //       of the subtypes that `Value` can hold.
@@ -628,6 +630,15 @@ class BASE_EXPORT GSL_OWNER Value {
     const_iterator end() const;
     const_iterator cend() const;
 
+    // Returns a reverse iterator preceding the first value in this list. May
+    // not be dereferenced.
+    std::vector<Value>::reverse_iterator rend();
+    std::vector<Value>::const_reverse_iterator rend() const;
+
+    // Returns a reverse iterator to the last value in this list.
+    std::vector<Value>::reverse_iterator rbegin();
+    std::vector<Value>::const_reverse_iterator rbegin() const;
+
     // Returns a reference to the first value in the container. Fails with
     // `CHECK()` if the list is empty.
     const Value& front() const;
@@ -755,16 +766,6 @@ class BASE_EXPORT GSL_OWNER Value {
 
     std::vector<Value> storage_;
   };
-
-  // ===== DEPRECATED methods that require `type() == Type::DICT` =====
-  // `SetKey` looks up `key` in the underlying dictionary and sets the mapped
-  // value to `value`. If `key` could not be found, a new element is inserted.
-  // A pointer to the modified item is returned.
-  //
-  // Note: Prefer `Set<Type>Key()` if the input is not already a `Value`.
-  //
-  // DEPRECATED: Prefer `Value::Dict::Set()`.
-  Value* SetKey(StringPiece key, Value&& value);
 
   // Note: Do not add more types. See the file-level comment above for why.
 

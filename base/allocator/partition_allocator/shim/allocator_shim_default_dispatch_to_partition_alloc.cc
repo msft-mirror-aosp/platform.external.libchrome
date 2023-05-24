@@ -548,10 +548,11 @@ void EnablePartitionAllocMemoryReclaimer() {
 
 void ConfigurePartitions(
     EnableBrp enable_brp,
-    EnableBrpZapping enable_brp_zapping,
     EnableBrpPartitionMemoryReclaimer enable_brp_memory_reclaimer,
+    EnableMemoryTagging enable_memory_tagging,
     SplitMainPartition split_main_partition,
     UseDedicatedAlignedPartition use_dedicated_aligned_partition,
+    size_t ref_count_size,
     AlternateBucketDistribution use_alternate_bucket_distribution) {
   // BRP cannot be enabled without splitting the main partition. Furthermore, in
   // the "before allocation" mode, it can't be enabled without further splitting
@@ -611,12 +612,12 @@ void ConfigurePartitions(
               enable_brp
                   ? partition_alloc::PartitionOptions::BackupRefPtr::kEnabled
                   : partition_alloc::PartitionOptions::BackupRefPtr::kDisabled,
-          .backup_ref_ptr_zapping = enable_brp_zapping
-                                        ? partition_alloc::PartitionOptions::
-                                              BackupRefPtrZapping::kEnabled
-                                        : partition_alloc::PartitionOptions::
-                                              BackupRefPtrZapping::kDisabled,
-      });
+          .ref_count_size = ref_count_size,
+          .memory_tagging =
+              enable_memory_tagging
+                  ? partition_alloc::PartitionOptions::MemoryTagging::kEnabled
+                  : partition_alloc::PartitionOptions::MemoryTagging::
+                        kDisabled});
   partition_alloc::ThreadSafePartitionRoot* new_root = new_main_partition.get();
 
   partition_alloc::ThreadSafePartitionRoot* new_aligned_root;
@@ -678,6 +679,16 @@ void ConfigurePartitions(
       g_aligned_root.Get()->SwitchToDenserBucketDistribution();
       break;
   }
+}
+
+// No synchronization provided: `PartitionRoot.flags` is only written
+// to in `PartitionRoot::Init()`.
+uint32_t GetMainPartitionRootExtrasSize() {
+#if PA_CONFIG(EXTRAS_REQUIRED)
+  return g_root.Get()->flags.extras_size;
+#else
+  return 0;
+#endif  // PA_CONFIG(EXTRAS_REQUIRED)
 }
 
 #if BUILDFLAG(USE_STARSCAN)
