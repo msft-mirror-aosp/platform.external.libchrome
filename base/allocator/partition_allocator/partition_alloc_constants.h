@@ -314,8 +314,6 @@ static_assert(kThreadIsolatedPoolHandle == kNumPools,
 // for allocations larger than this constant should not be backed with PROT_MTE
 // (which saves shadow tag memory). We also save CPU cycles by skipping tagging
 // of large areas which are less likely to benefit from MTE protection.
-// TODO(Richard.Townsend@arm.com): adjust RecommitSystemPagesForData to skip
-// PROT_MTE.
 constexpr size_t kMaxMemoryTaggingSize = 1024;
 
 #if PA_CONFIG(HAS_MEMORY_TAGGING)
@@ -477,17 +475,6 @@ constexpr size_t kInvalidBucketSize = 1;
 #if PA_CONFIG(ENABLE_MAC11_MALLOC_SIZE_HACK)
 // Requested size that require the hack.
 constexpr size_t kMac11MallocSizeHackRequestedSize = 32;
-// Usable size for allocations that require the hack.
-constexpr size_t kMac11MallocSizeHackUsableSize =
-#if BUILDFLAG(ENABLE_DANGLING_RAW_PTR_CHECKS) || \
-    PA_CONFIG(REF_COUNT_STORE_REQUESTED_SIZE) || \
-    PA_CONFIG(REF_COUNT_CHECK_COOKIE)
-    40;
-#else
-    44;
-#endif  // BUILDFLAG(ENABLE_DANGLING_RAW_PTR_CHECKS) ||
-        // PA_CONFIG(REF_COUNT_STORE_REQUESTED_SIZE) ||
-        // PA_CONFIG(REF_COUNT_CHECK_COOKIE)
 #endif  // PA_CONFIG(ENABLE_MAC11_MALLOC_SIZE_HACK)
 }  // namespace internal
 
