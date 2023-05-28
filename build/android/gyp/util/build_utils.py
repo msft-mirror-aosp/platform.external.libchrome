@@ -12,7 +12,6 @@ import fnmatch
 import json
 import logging
 import os
-import pipes
 import re
 import shlex
 import shutil
@@ -21,7 +20,6 @@ import subprocess
 import sys
 import tempfile
 import textwrap
-import time
 import zipfile
 
 # pylib conflicts with mojo/public/tools/bindings/pylib. Prioritize

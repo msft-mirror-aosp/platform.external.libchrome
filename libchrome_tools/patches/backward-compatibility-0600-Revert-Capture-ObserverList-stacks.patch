@@ -1,21 +1,23 @@
-From 55c8e06c6d8a48e80866e2372965e00c8b0e8d23 Mon Sep 17 00:00:00 2001
+From ec889809ec4118af0cb798922cebe985f2773184 Mon Sep 17 00:00:00 2001
 From: Grace Cham <hscham@chromium.org>
 Date: Thu, 26 Jan 2023 16:59:59 +0900
 Subject: [PATCH] Revert "Capture ObserverList stacks for all DCHECK builds"
 
-This reverts commit 698997ff6bbf258b34e66dbe447622233c321732.
+This reverts commit 698997ff6bbf258b34e66dbe447622233c321732 and commit
+f9ab58cc8d9d0f99fa702ccd6af8f04ba4153015.
 
 Change-Id: I476dfaa0aa5f658b505cbef38bd00b8bc7fa4279
 ---
- base/observer_list.h          |  7 ++++---
- base/observer_list_internal.h | 14 +++++++-------
- 2 files changed, 11 insertions(+), 10 deletions(-)
+ base/observer_list.h            |  7 ++++---
+ base/observer_list_internal.h   | 14 +++++++-------
+ base/observer_list_threadsafe.h |  8 ++++----
+ 3 files changed, 15 insertions(+), 14 deletions(-)
 
 diff --git a/base/observer_list.h b/base/observer_list.h
-index ae1acac007..c445f3a1b1 100644
+index 450ec23471..4f0728cc3c 100644
 --- a/base/observer_list.h
 +++ b/base/observer_list.h
-@@ -340,7 +340,7 @@ class ObserverList {
+@@ -349,7 +349,7 @@ class ObserverList {
    }
  
    std::string GetObserversCreationStackString() const {
@@ -24,7 +26,7 @@ index ae1acac007..c445f3a1b1 100644
      std::string result;
  #if BUILDFLAG(IS_IOS)
      result += "Use go/observer-list-empty to interpret.\n";
-@@ -351,8 +351,9 @@ class ObserverList {
+@@ -360,8 +360,9 @@ class ObserverList {
      }
      return result;
  #else
@@ -37,7 +39,7 @@ index ae1acac007..c445f3a1b1 100644
  
    std::vector<ObserverStorageType> observers_;
 diff --git a/base/observer_list_internal.h b/base/observer_list_internal.h
-index 5909cb1c18..0e7ed221cb 100644
+index fb903e8f9d..24463c864c 100644
 --- a/base/observer_list_internal.h
 +++ b/base/observer_list_internal.h
 @@ -16,7 +16,7 @@
@@ -49,13 +51,15 @@ index 5909cb1c18..0e7ed221cb 100644
  #include "base/debug/stack_trace.h"
  #endif
  
-@@ -47,15 +47,15 @@ class BASE_EXPORT UncheckedObserverAdapter {
+@@ -47,17 +47,17 @@ class BASE_EXPORT UncheckedObserverAdapter {
      return static_cast<ObserverType*>(adapter.ptr_);
    }
  
 -#if DCHECK_IS_ON()
 +#if EXPENSIVE_DCHECKS_ARE_ON()
-   std::string GetCreationStackString() const { return stack_.ToString(); }
+   std::string GetCreationStackString() const {
+     return "Observer created at:\n" + stack_.ToString();
+   }
 -#endif  // DCHECK_IS_ON()
 +#endif  // EXPENSIVE_DCHECKS_ARE_ON()
  
@@ -69,7 +73,7 @@ index 5909cb1c18..0e7ed221cb 100644
  };
  
  // Adapter for CheckedObserver types so that they can use the same syntax as a
-@@ -107,13 +107,13 @@ class BASE_EXPORT CheckedObserverAdapter {
+@@ -109,13 +109,13 @@ class BASE_EXPORT CheckedObserverAdapter {
      return static_cast<ObserverType*>(adapter.weak_ptr_.get());
    }
  
@@ -85,6 +89,46 @@ index 5909cb1c18..0e7ed221cb 100644
    base::debug::StackTrace stack_;
  #endif
  };
+diff --git a/base/observer_list_threadsafe.h b/base/observer_list_threadsafe.h
+index 790cddc294..f3630b02e4 100644
+--- a/base/observer_list_threadsafe.h
++++ b/base/observer_list_threadsafe.h
+@@ -139,7 +139,7 @@ class ObserverListThreadSafe : public internal::ObserverListThreadSafeBase {
+     // to avoid execution of pending posted-tasks over removed or released
+     // observers.
+     const size_t observer_id = ++observer_id_counter_;
+-#if DCHECK_IS_ON()
++#if EXPENSIVE_DCHECKS_ARE_ON()
+     ObserverTaskRunnerInfo task_info = {task_runner, base::debug::StackTrace(),
+                                         observer_id};
+ #else
+@@ -191,7 +191,7 @@ class ObserverListThreadSafe : public internal::ObserverListThreadSafeBase {
+ 
+   // Verifies that the list is currently empty (i.e. there are no observers).
+   void AssertEmpty() const {
+-#if DCHECK_IS_ON()
++#if EXPENSIVE_DCHECKS_ARE_ON()
+     AutoLock auto_lock(lock_);
+     bool observers_is_empty = observers_.empty();
+     DUMP_WILL_BE_CHECK(observers_is_empty)
+@@ -275,7 +275,7 @@ class ObserverListThreadSafe : public internal::ObserverListThreadSafeBase {
+   std::string GetObserversCreationStackStringLocked() const
+       EXCLUSIVE_LOCKS_REQUIRED(lock_) {
+     std::string result;
+-#if DCHECK_IS_ON()
++#if EXPENSIVE_DCHECKS_ARE_ON()
+     for (const auto& observer : observers_) {
+       StrAppend(&result,
+                 {observer.second.add_observer_stack_.ToString(), "\n"});
+@@ -292,7 +292,7 @@ class ObserverListThreadSafe : public internal::ObserverListThreadSafeBase {
+ 
+   struct ObserverTaskRunnerInfo {
+     scoped_refptr<SequencedTaskRunner> task_runner;
+-#if DCHECK_IS_ON()
++#if EXPENSIVE_DCHECKS_ARE_ON()
+     base::debug::StackTrace add_observer_stack_;
+ #endif
+     size_t observer_id = 0;
 -- 
-2.39.1.456.gfc5497dd1b-goog
+2.41.0.rc0.172.g3f132b7071-goog
 
