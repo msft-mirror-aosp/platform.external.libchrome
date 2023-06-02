@@ -1,4 +1,4 @@
-From a01eaf0b4151a04ba917d1ff66f2e1bbb275b5b3 Mon Sep 17 00:00:00 2001
+From 73ee2b471e3a8043be03e1a9a4e69e4870a32541 Mon Sep 17 00:00:00 2001
 From: Grace Cham <hscham@chromium.org>
 Date: Wed, 26 Oct 2022 13:45:16 +0900
 Subject: [PATCH] Revert "[base/allocator] Support max alloc size with
@@ -11,27 +11,23 @@ original patch will do.
 
 This reverts commit 324e03c9fba0fd78a721524032eeac43c80dd1db.
 ---
- ...llocator_shim_default_dispatch_to_glibc.cc | 39 +------------------
- 1 file changed, 1 insertion(+), 38 deletions(-)
+ ...llocator_shim_default_dispatch_to_glibc.cc | 38 +------------------
+ 1 file changed, 1 insertion(+), 37 deletions(-)
 
 diff --git a/base/allocator/partition_allocator/shim/allocator_shim_default_dispatch_to_glibc.cc b/base/allocator/partition_allocator/shim/allocator_shim_default_dispatch_to_glibc.cc
-index d38d03d866..97bbd43e1a 100644
+index 4f95a3c70c..75fbf696a0 100644
 --- a/base/allocator/partition_allocator/shim/allocator_shim_default_dispatch_to_glibc.cc
 +++ b/base/allocator/partition_allocator/shim/allocator_shim_default_dispatch_to_glibc.cc
-@@ -2,12 +2,9 @@
+@@ -2,8 +2,6 @@
  // Use of this source code is governed by a BSD-style license that can be
  // found in the LICENSE file.
  
 -#include <limits>
 -
+ #include "base/allocator/partition_allocator/oom.h"
  #include "base/allocator/partition_allocator/partition_alloc_base/compiler_specific.h"
  #include "base/allocator/partition_allocator/partition_alloc_base/numerics/checked_math.h"
- #include "base/allocator/partition_allocator/shim/allocator_shim.h"
--#include "base/process/memory.h"
- 
- #include <dlfcn.h>
- #include <malloc.h>
-@@ -28,28 +25,7 @@ namespace {
+@@ -28,28 +26,7 @@ namespace {
  
  using allocator_shim::AllocatorDispatch;
  
@@ -44,7 +40,7 @@ index d38d03d866..97bbd43e1a 100644
 -  // Cannot force glibc's malloc() to crash when a large size is requested, do
 -  // it in the shim instead.
 -  if (PA_UNLIKELY(size >= kMaxAllowedSize)) {
--    base::TerminateBecauseOutOfMemory(size);
+-    partition_alloc::TerminateBecauseOutOfMemory(size);
 -  }
 -
 -  return __libc_malloc(size);
@@ -60,41 +56,41 @@ index d38d03d866..97bbd43e1a 100644
    return __libc_malloc(size);
  }
  
-@@ -57,11 +33,6 @@ void* GlibcCalloc(const AllocatorDispatch*,
+@@ -57,11 +34,6 @@ void* GlibcCalloc(const AllocatorDispatch*,
                    size_t n,
                    size_t size,
                    void* context) {
 -  const auto total = partition_alloc::internal::base::CheckMul(n, size);
 -  if (PA_UNLIKELY(!total.IsValid() || total.ValueOrDie() >= kMaxAllowedSize)) {
--    base::TerminateBecauseOutOfMemory(size * n);
+-    partition_alloc::TerminateBecauseOutOfMemory(size * n);
 -  }
 -
    return __libc_calloc(n, size);
  }
  
-@@ -69,10 +40,6 @@ void* GlibcRealloc(const AllocatorDispatch*,
+@@ -69,10 +41,6 @@ void* GlibcRealloc(const AllocatorDispatch*,
                     void* address,
                     size_t size,
                     void* context) {
 -  if (PA_UNLIKELY(size >= kMaxAllowedSize)) {
--    base::TerminateBecauseOutOfMemory(size);
+-    partition_alloc::TerminateBecauseOutOfMemory(size);
 -  }
 -
    return __libc_realloc(address, size);
  }
  
-@@ -80,10 +47,6 @@ void* GlibcMemalign(const AllocatorDispatch*,
+@@ -80,10 +48,6 @@ void* GlibcMemalign(const AllocatorDispatch*,
                      size_t alignment,
                      size_t size,
                      void* context) {
 -  if (PA_UNLIKELY(size >= kMaxAllowedSize)) {
--    base::TerminateBecauseOutOfMemory(size);
+-    partition_alloc::TerminateBecauseOutOfMemory(size);
 -  }
 -
    return __libc_memalign(alignment, size);
  }
  
-@@ -111,7 +74,7 @@ size_t GlibcGetSizeEstimate(const AllocatorDispatch*,
+@@ -111,7 +75,7 @@ size_t GlibcGetSizeEstimate(const AllocatorDispatch*,
  
  const AllocatorDispatch AllocatorDispatch::default_dispatch = {
      &GlibcMalloc,          /* alloc_function */
@@ -104,5 +100,5 @@ index d38d03d866..97bbd43e1a 100644
      &GlibcMemalign,        /* alloc_aligned_function */
      &GlibcRealloc,         /* realloc_function */
 -- 
-2.39.2
+2.41.0.rc0.172.g3f132b7071-goog
 
