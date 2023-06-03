@@ -213,9 +213,7 @@ buildflag_header("partition_allocator_chromecast_buildflags") {
 
 buildflag_header("partition_allocator_chromeos_buildflags") {
   header = "base/allocator/partition_allocator/chromeos_buildflags.h"
-  flags = [
-    "PA_IS_CHROMEOS_ASH=false",
-  ]
+  flags = [ "PA_IS_CHROMEOS_ASH=false" ]
 }
 
 buildflag_header("allocator_debugging_buildflags") {
@@ -230,10 +228,7 @@ buildflag_header("allocator_debugging_buildflags") {
 buildflag_header("blink_buildflags") {
   header = "build/blink_buildflags.h"
 
-  # Set to `true` because of BUILDFLAG define within crrev/c/4505733.
-  flags = [
-    "USE_BLINK=true",
-  ]
+  flags = [ "USE_BLINK=false" ]
 }
 
 buildflag_header("branding_buildflags") {
@@ -333,9 +328,7 @@ buildflag_header("message_pump_buildflags") {
 
 buildflag_header("mojo_buildflags") {
   header = "mojo/buildflags.h"
-  flags = [
-    "MOJO_USE_APPLE_CHANNEL=false",
-  ]
+  flags = [ "MOJO_USE_APPLE_CHANNEL=false" ]
 }
 
 buildflag_header("mojo_cpp_bindings_buildflags") {
@@ -403,6 +396,7 @@ libbase_sublibs = [
       "base/allocator/partition_allocator/partition_alloc_base/check.cc",
       "base/allocator/partition_allocator/partition_alloc_base/debug/alias.cc",
       "base/allocator/partition_allocator/partition_alloc_base/logging.cc",
+      "base/allocator/partition_allocator/partition_alloc_base/memory/page_size_posix.cc",
       "base/allocator/partition_allocator/partition_alloc_base/posix/safe_strerror.cc",
       "base/allocator/partition_allocator/partition_alloc_base/strings/stringprintf.cc",
       "base/at_exit.cc",
@@ -1218,8 +1212,8 @@ if (use.mojo) {
           "mojo/public/cpp/platform/platform_channel.cc",
           "mojo/public/cpp/platform/platform_channel_endpoint.cc",
           "mojo/public/cpp/platform/platform_channel_server.cc",
-          "mojo/public/cpp/platform/platform_channel_server_posix.cc",
           "mojo/public/cpp/platform/platform_channel_server_endpoint.cc",
+          "mojo/public/cpp/platform/platform_channel_server_posix.cc",
           "mojo/public/cpp/platform/platform_handle.cc",
           "mojo/public/cpp/platform/socket_utils_posix.cc",
           "mojo/public/cpp/system/handle_signal_tracker.cc",
