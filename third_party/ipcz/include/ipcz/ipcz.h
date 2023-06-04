@@ -310,7 +310,6 @@ struct IPCZ_ALIGN(8) IpczAPI {
                               const void* options);  // in
 
   IpczResult(IPCZ_API* CreateNode)(const struct IpczDriver* driver,  // in
-                                   IpczDriverHandle driver_node,     // in
                                    IpczCreateNodeFlags flags,        // in
                                    const void* options,              // in
                                    IpczHandle* node);                // out
