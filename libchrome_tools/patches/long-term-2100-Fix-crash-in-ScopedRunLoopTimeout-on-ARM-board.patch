@@ -1,0 +1,32 @@
+From 272f3317812e770c5b2856d8cb045f3e19531bd8 Mon Sep 17 00:00:00 2001
+From: Yi Xie <yixie@chromium.org>
+Date: Tue, 13 Jun 2023 15:21:33 +0900
+Subject: [PATCH] [PATCH] Fix crash in ScopedRunLoopTimeout on ARM boards
+
+crrev.com/c/4602520 introduced a null pointer dereference bug that
+somehow only happens on ARM boards.
+
+Change-Id: Ied71133b8bda81e494ac147212706a56050801ec
+---
+ base/test/scoped_run_loop_timeout.cc | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/base/test/scoped_run_loop_timeout.cc b/base/test/scoped_run_loop_timeout.cc
+index 9afcd0f412..5a21668d63 100644
+--- a/base/test/scoped_run_loop_timeout.cc
++++ b/base/test/scoped_run_loop_timeout.cc
+@@ -64,7 +64,10 @@ ScopedRunLoopTimeout::ScopedRunLoopTimeout(
+     : nested_timeout_(RunLoop::GetTimeoutForCurrentThread()) {
+   CHECK(timeout.has_value() || nested_timeout_)
+       << "Cannot use default timeout if no default is set.";
+-  run_timeout_.timeout = timeout.value_or(nested_timeout_->timeout);
++  if (timeout.has_value())
++    run_timeout_.timeout = timeout.value();
++  else
++    run_timeout_.timeout = nested_timeout_->timeout;
+   CHECK_GT(run_timeout_.timeout, TimeDelta());
+ 
+   run_timeout_.on_timeout = BindRepeating(
+-- 
+2.39.2
+
