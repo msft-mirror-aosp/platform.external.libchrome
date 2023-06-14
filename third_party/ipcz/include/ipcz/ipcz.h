@@ -55,6 +55,8 @@ typedef uintptr_t IpczDriverHandle;
 
 #define IPCZ_INVALID_DRIVER_HANDLE ((IpczDriverHandle)0)
 
+typedef uintptr_t IpczTransaction;
+
 typedef uint32_t IpczTransportActivityFlags;
 
 #define IPCZ_TRANSPORT_ACTIVITY_ERROR IPCZ_FLAG_BIT(0)
@@ -138,6 +140,8 @@ typedef uint32_t IpczGetFlags;
 
 #define IPCZ_GET_PARTIAL IPCZ_FLAG_BIT(0)
 #define IPCZ_GET_PARCEL_ONLY IPCZ_FLAG_BIT(1)
+
+typedef uint32_t IpczBeginGetFlags;
 
 typedef uint32_t IpczEndGetFlags;
 
@@ -364,19 +368,20 @@ struct IPCZ_ALIGN(8) IpczAPI {
                             size_t* num_handles,     // in/out
                             IpczHandle* validator);  // out
 
-  IpczResult(IPCZ_API* BeginGet)(IpczHandle portal,     // in
-                                 uint32_t flags,        // in
-                                 const void* options,   // in
-                                 const void** data,     // out
-                                 size_t* num_bytes,     // out
-                                 size_t* num_handles);  // out
+  IpczResult(IPCZ_API* BeginGet)(IpczHandle source,              // in
+                                 IpczBeginGetFlags flags,        // in
+                                 const void* options,            // in
+                                 const void** data,              // out
+                                 size_t* num_bytes,              // out
+                                 IpczHandle* handles,            // out
+                                 size_t* num_handles,            // in/out
+                                 IpczTransaction* transaction);  // out
 
-  IpczResult(IPCZ_API* EndGet)(IpczHandle portal,          // in
-                               size_t num_bytes_consumed,  // in
-                               size_t num_handles,         // in
-                               IpczEndGetFlags flags,      // in
-                               const void* options,        // in
-                               IpczHandle* handles);       // out
+  IpczResult(IPCZ_API* EndGet)(IpczHandle source,
+                               IpczTransaction transaction,  // in
+                               IpczEndGetFlags flags,        // in
+                               const void* options,          // in
+                               IpczHandle* parcel);          // in
 
   IpczResult(IPCZ_API* MergePortals)(IpczHandle first,      // in
                                      IpczHandle second,     // in
