@@ -1,4 +1,4 @@
-From cd7d238313aa50878d4828d8396d22461ea6c156 Mon Sep 17 00:00:00 2001
+From 9a508bf5f12ceecf93da39d118eca2983336aefa Mon Sep 17 00:00:00 2001
 From: Grace Cham <hscham@chromium.org>
 Date: Mon, 26 Sep 2022 16:05:08 +0900
 Subject: [PATCH] Revert "Reland "Initial implementation of ChromeOS X86_64
@@ -41,7 +41,7 @@ index da959ce8e6..6127f99c68 100644
  namespace {
 diff --git a/base/profiler/native_unwinder.h b/base/profiler/native_unwinder.h
 new file mode 100644
-index 0000000000..f26c5ad2b6
+index 0000000000..7edf4af830
 --- /dev/null
 +++ b/base/profiler/native_unwinder.h
 @@ -0,0 +1,20 @@
@@ -66,7 +66,7 @@ index 0000000000..f26c5ad2b6
 +
 +#endif  // BASE_PROFILER_NATIVE_UNWINDER_H_
 diff --git a/base/profiler/native_unwinder_android.cc b/base/profiler/native_unwinder_android.cc
-index 866fbed078..0b66910cd0 100644
+index e398ecb8e4..6ea0514d8d 100644
 --- a/base/profiler/native_unwinder_android.cc
 +++ b/base/profiler/native_unwinder_android.cc
 @@ -21,6 +21,9 @@
@@ -83,7 +83,7 @@ diff --git a/base/profiler/frame_pointer_unwinder.cc b/base/profiler/native_unwi
 similarity index 86%
 rename from base/profiler/frame_pointer_unwinder.cc
 rename to base/profiler/native_unwinder_apple.cc
-index 767ebd2abd..be9f91252e 100644
+index c33994f649..4c909e2bb8 100644
 --- a/base/profiler/frame_pointer_unwinder.cc
 +++ b/base/profiler/native_unwinder_apple.cc
 @@ -2,18 +2,17 @@
@@ -109,18 +109,19 @@ index 767ebd2abd..be9f91252e 100644
  namespace {
  
  // Given a frame pointer, returns the frame pointer of the calling stack
-@@ -23,10 +22,8 @@ namespace {
+@@ -23,11 +22,9 @@ namespace {
  // NB: The caller *must* ensure that there are 2+ uintptr_t's worth of memory at
  // `frame_pointer`.
  uintptr_t DecodeFrame(uintptr_t frame_pointer, uintptr_t* return_address) {
 -#if BUILDFLAG(IS_APPLE)
-   if (__builtin_available(macOS 10.14, iOS 12, *))
+   if (__builtin_available(iOS 12, *)) {
      return pthread_stack_frame_decode_np(frame_pointer, return_address);
+   }
 -#endif
    const uintptr_t* fp = reinterpret_cast<uintptr_t*>(frame_pointer);
    uintptr_t next_frame = *fp;
    *return_address = *(fp + 1);
-@@ -37,15 +34,15 @@ uintptr_t DecodeFrame(uintptr_t frame_pointer, uintptr_t* return_address) {
+@@ -38,15 +35,15 @@ uintptr_t DecodeFrame(uintptr_t frame_pointer, uintptr_t* return_address) {
  
  namespace base {
  
@@ -141,7 +142,7 @@ index 767ebd2abd..be9f91252e 100644
    // We expect the frame corresponding to the |thread_context| register state to
    // exist within |stack|.
    DCHECK_GT(stack->size(), 0u);
-@@ -104,4 +101,8 @@ UnwindResult FramePointerUnwinder::TryUnwind(RegisterContext* thread_context,
+@@ -105,4 +102,8 @@ UnwindResult FramePointerUnwinder::TryUnwind(RegisterContext* thread_context,
    return UnwindResult::kCompleted;
  }
  
@@ -152,7 +153,7 @@ index 767ebd2abd..be9f91252e 100644
  }  // namespace base
 diff --git a/base/profiler/native_unwinder_apple.h b/base/profiler/native_unwinder_apple.h
 new file mode 100644
-index 0000000000..97a2ed44f3
+index 0000000000..1ca049e6eb
 --- /dev/null
 +++ b/base/profiler/native_unwinder_apple.h
 @@ -0,0 +1,34 @@
@@ -368,7 +369,7 @@ index 2df66efa3b..6a0e626798 100644
  
  size_t StackSampler::GetStackBufferSize() {
 diff --git a/base/profiler/stack_sampling_profiler_unittest.cc b/base/profiler/stack_sampling_profiler_unittest.cc
-index 9d164fd1da..7f3907ff6d 100644
+index 10556682a6..93d8ed06e2 100644
 --- a/base/profiler/stack_sampling_profiler_unittest.cc
 +++ b/base/profiler/stack_sampling_profiler_unittest.cc
 @@ -46,16 +46,11 @@
@@ -393,7 +394,7 @@ index 9d164fd1da..7f3907ff6d 100644
  #define STACK_SAMPLING_PROFILER_SUPPORTED 1
  #endif
  
-@@ -195,7 +190,7 @@ void SynchronousUnloadNativeLibrary(NativeLibrary library) {
+@@ -207,7 +202,7 @@ void SynchronousUnloadNativeLibrary(NativeLibrary library) {
           ::GetLastError() != ERROR_MOD_NOT_FOUND) {
      PlatformThread::Sleep(Milliseconds(1));
    }
@@ -402,7 +403,7 @@ index 9d164fd1da..7f3907ff6d 100644
  // Unloading a library on Mac and Android is synchronous.
  #else
    NOTIMPLEMENTED();
-@@ -438,13 +433,8 @@ class StackSamplingProfilerTest : public testing::Test {
+@@ -450,13 +445,8 @@ class StackSamplingProfilerTest : public testing::Test {
  //
  // TODO(https://crbug.com/1100175): Enable this test again for Android with
  // ASAN. This is now disabled because the android-asan bot fails.
@@ -418,7 +419,7 @@ index 9d164fd1da..7f3907ff6d 100644
  #define MAYBE_Basic DISABLED_Basic
  #else
  #define MAYBE_Basic Basic
-@@ -498,12 +488,7 @@ class TestAuxUnwinder : public Unwinder {
+@@ -510,12 +500,7 @@ class TestAuxUnwinder : public Unwinder {
  // macOS ASAN is not yet supported - crbug.com/718628.
  // Android is not supported since Chrome unwind tables don't support dynamic
  // frames.
@@ -432,7 +433,7 @@ index 9d164fd1da..7f3907ff6d 100644
  #define MAYBE_Alloca DISABLED_Alloca
  #else
  #define MAYBE_Alloca Alloca
-@@ -526,14 +511,10 @@ PROFILER_TEST_F(StackSamplingProfilerTest, MAYBE_Alloca) {
+@@ -538,14 +523,10 @@ PROFILER_TEST_F(StackSamplingProfilerTest, MAYBE_Alloca) {
  // have unwind tables.
  // TODO(https://crbug.com/1100175): Enable this test again for Android with
  // ASAN. This is now disabled because the android-asan bot fails.
@@ -448,7 +449,7 @@ index 9d164fd1da..7f3907ff6d 100644
  #define MAYBE_OtherLibrary DISABLED_OtherLibrary
  #else
  #define MAYBE_OtherLibrary OtherLibrary
-@@ -557,13 +538,9 @@ PROFILER_TEST_F(StackSamplingProfilerTest, MAYBE_OtherLibrary) {
+@@ -569,13 +550,9 @@ PROFILER_TEST_F(StackSamplingProfilerTest, MAYBE_OtherLibrary) {
  // have unwind tables.
  // TODO(https://crbug.com/1100175): Enable this test again for Android with
  // ASAN. This is now disabled because the android-asan bot fails.
@@ -463,7 +464,7 @@ index 9d164fd1da..7f3907ff6d 100644
  #define MAYBE_UnloadingLibrary DISABLED_UnloadingLibrary
  #else
  #define MAYBE_UnloadingLibrary UnloadingLibrary
-@@ -576,12 +553,8 @@ PROFILER_TEST_F(StackSamplingProfilerTest, MAYBE_UnloadingLibrary) {
+@@ -588,12 +565,8 @@ PROFILER_TEST_F(StackSamplingProfilerTest, MAYBE_UnloadingLibrary) {
  // produces a stack, and doesn't crash.
  // macOS ASAN is not yet supported - crbug.com/718628.
  // Android is not supported since modules are found before unwinding.
@@ -478,5 +479,5 @@ index 9d164fd1da..7f3907ff6d 100644
  #else
  #define MAYBE_UnloadedLibrary UnloadedLibrary
 -- 
-2.39.1
+2.41.0.255.g8b1d071c50-goog
 

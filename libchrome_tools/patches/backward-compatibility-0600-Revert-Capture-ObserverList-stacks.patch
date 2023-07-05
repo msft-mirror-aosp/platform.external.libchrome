@@ -1,4 +1,4 @@
-From ec889809ec4118af0cb798922cebe985f2773184 Mon Sep 17 00:00:00 2001
+From 907da395a5d66b2ef6d995910bcfba32d3733fbb Mon Sep 17 00:00:00 2001
 From: Grace Cham <hscham@chromium.org>
 Date: Thu, 26 Jan 2023 16:59:59 +0900
 Subject: [PATCH] Revert "Capture ObserverList stacks for all DCHECK builds"
@@ -39,7 +39,7 @@ index 450ec23471..4f0728cc3c 100644
  
    std::vector<ObserverStorageType> observers_;
 diff --git a/base/observer_list_internal.h b/base/observer_list_internal.h
-index fb903e8f9d..24463c864c 100644
+index e17c3114ab..76d733a32d 100644
 --- a/base/observer_list_internal.h
 +++ b/base/observer_list_internal.h
 @@ -16,7 +16,7 @@
@@ -64,7 +64,7 @@ index fb903e8f9d..24463c864c 100644
 +#endif  // EXPENSIVE_DCHECKS_ARE_ON()
  
   private:
-   raw_ptr<void, DanglingUntriaged> ptr_;
+   raw_ptr<void, DanglingAcrossTasks> ptr_;
 -#if DCHECK_IS_ON()
 +#if EXPENSIVE_DCHECKS_ARE_ON()
    base::debug::StackTrace stack_;
@@ -130,5 +130,5 @@ index 790cddc294..f3630b02e4 100644
  #endif
      size_t observer_id = 0;
 -- 
-2.41.0.rc0.172.g3f132b7071-goog
+2.41.0.255.g8b1d071c50-goog
 
