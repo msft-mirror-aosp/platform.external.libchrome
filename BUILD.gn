@@ -738,7 +738,6 @@ libbase_sublibs = [
     configs = [ ":policy_export_config" ]
     sources = [
       "components/policy/core/common/json_schema_constants.cc",
-      "components/policy/core/common/policy_load_status.cc",
       "components/policy/core/common/registry_dict.cc",
       "components/policy/core/common/schema.cc",
     ]

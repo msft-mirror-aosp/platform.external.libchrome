@@ -1,0 +1,1116 @@
+From f282189abc1aa5d2d4f7798423fa5997138f09df Mon Sep 17 00:00:00 2001
+From: Georg Neis <neis@chromium.org>
+Date: Wed, 12 Jul 2023 06:36:02 +0000
+Subject: [PATCH 1/2] Revert "Get rid of Error out param from
+ SendWithReplyAndBlock."
+
+This reverts commit 3d43ff6c1fb419645a5341c76549e80f8bbdf9f0.
+---
+ dbus/bus.cc              | 38 +++++++++++++++++++-------------------
+ dbus/bus.h               | 10 ++++------
+ dbus/mock_bus.h          |  9 ++++-----
+ dbus/object_proxy.cc     | 15 +++++++++------
+ dbus/scoped_dbus_error.h |  4 ++--
+ 5 files changed, 38 insertions(+), 38 deletions(-)
+
+diff --git a/dbus/bus.cc b/dbus/bus.cc
+index 2f24e01d4a..31d7f04d0b 100644
+--- a/dbus/bus.cc
++++ b/dbus/bus.cc
+@@ -148,11 +148,6 @@ class Timeout {
+   base::WeakPtrFactory<Timeout> weak_ptr_factory_{this};
+ };
+ 
+-// Converts DBusError into dbus::Error.
+-Error ToError(const internal::ScopedDBusError& error) {
+-  return error.is_set() ? Error(error.name(), error.message()) : Error();
+-}
+-
+ }  // namespace
+ 
+ Bus::Options::Options()
+@@ -635,10 +630,11 @@ bool Bus::SetUpAsyncOperations() {
+   return true;
+ }
+ 
+-base::expected<std::unique_ptr<Response>, Error> Bus::SendWithReplyAndBlock(
+-    DBusMessage* request,
+-    int timeout_ms) {
++DBusMessage* Bus::SendWithReplyAndBlock(DBusMessage* request,
++                                        int timeout_ms,
++                                        Error* error) {
+   DCHECK(connection_);
++  DCHECK(error);
+   AssertOnDBusThread();
+ 
+   base::ElapsedTimer elapsed;
+@@ -648,6 +644,9 @@ base::expected<std::unique_ptr<Response>, Error> Bus::SendWithReplyAndBlock(
+   internal::ScopedDBusError dbus_error;
+   DBusMessage* reply = dbus_connection_send_with_reply_and_block(
+       connection_, request, timeout_ms, dbus_error.get());
++  if (dbus_error.is_set()) {
++    *error = Error(dbus_error.name(), dbus_error.message());
++  }
+   constexpr base::TimeDelta kLongCall = base::Seconds(1);
+   LOG_IF(WARNING, elapsed.Elapsed() >= kLongCall)
+       << "Bus::SendWithReplyAndBlock took "
+@@ -657,11 +656,7 @@ base::expected<std::unique_ptr<Response>, Error> Bus::SendWithReplyAndBlock(
+       << ", interface=" << dbus_message_get_interface(request)
+       << ", member=" << dbus_message_get_member(request);
+ 
+-  if (!reply) {
+-    return base::unexpected(ToError(dbus_error));
+-  }
+-
+-  return base::ok(Response::FromRawMessage(reply));
++  return reply;
+ }
+ 
+ void Bus::SendWithReply(DBusMessage* request,
+@@ -926,17 +921,22 @@ std::string Bus::GetServiceOwnerAndBlock(const std::string& service_name,
+     return "";
+   }
+ 
+-  auto result = SendWithReplyAndBlock(get_name_owner_call.raw_message(),
+-                                      ObjectProxy::TIMEOUT_USE_DEFAULT);
+-  if (!result.has_value()) {
++  Error error;
++  DBusMessage* response_message =
++      SendWithReplyAndBlock(get_name_owner_call.raw_message(),
++                            ObjectProxy::TIMEOUT_USE_DEFAULT, &error);
++  if (!response_message) {
+     if (options == REPORT_ERRORS) {
+-      LOG(ERROR) << "Failed to get name owner. Got " << result.error().name()
+-                 << ": " << result.error().message();
++      LOG(ERROR) << "Failed to get name owner. Got " << error.name() << ": "
++                 << error.message();
+     }
+     return "";
+   }
+ 
+-  MessageReader reader(result->get());
++  std::unique_ptr<Response> response(
++      Response::FromRawMessage(response_message));
++  MessageReader reader(response.get());
++
+   std::string service_owner;
+   if (!reader.PopString(&service_owner))
+     service_owner.clear();
+diff --git a/dbus/bus.h b/dbus/bus.h
+index 539a02f67a..015b6622c5 100644
+--- a/dbus/bus.h
++++ b/dbus/bus.h
+@@ -9,7 +9,6 @@
+ #include <stdint.h>
+ 
+ #include <map>
+-#include <memory>
+ #include <set>
+ #include <string>
+ #include <utility>
+@@ -20,9 +19,7 @@
+ #include "base/memory/ref_counted.h"
+ #include "base/synchronization/waitable_event.h"
+ #include "base/threading/platform_thread.h"
+-#include "base/types/expected.h"
+ #include "dbus/dbus_export.h"
+-#include "dbus/error.h"
+ #include "dbus/object_path.h"
+ 
+ namespace base {
+@@ -31,10 +28,10 @@ class SequencedTaskRunner;
+ 
+ namespace dbus {
+ 
++class Error;
+ class ExportedObject;
+ class ObjectManager;
+ class ObjectProxy;
+-class Response;
+ 
+ // Bus is used to establish a connection with D-Bus, create object
+ // proxies, and export objects.
+@@ -452,8 +449,9 @@ class CHROME_DBUS_EXPORT Bus : public base::RefCountedThreadSafe<Bus> {
+   // TODO(crbug.com/1459945): Use base::expected<void, Error> to return error.
+   //
+   // BLOCKING CALL.
+-  virtual base::expected<std::unique_ptr<Response>, Error>
+-  SendWithReplyAndBlock(DBusMessage* request, int timeout_ms);
++  virtual DBusMessage* SendWithReplyAndBlock(DBusMessage* request,
++                                             int timeout_ms,
++                                             Error* error);
+ 
+   // Requests to send a message to the bus. The reply is handled with
+   // |pending_call| at a later time.
+diff --git a/dbus/mock_bus.h b/dbus/mock_bus.h
+index 55d088a54f..0f203935d7 100644
+--- a/dbus/mock_bus.h
++++ b/dbus/mock_bus.h
+@@ -9,7 +9,6 @@
+ 
+ #include "base/task/sequenced_task_runner.h"
+ #include "dbus/bus.h"
+-#include "dbus/message.h"
+ #include "dbus/object_path.h"
+ #include "testing/gmock/include/gmock/gmock.h"
+ 
+@@ -43,10 +42,10 @@ class MockBus : public Bus {
+                                               ServiceOwnershipOptions options));
+   MOCK_METHOD1(ReleaseOwnership, bool(const std::string& service_name));
+   MOCK_METHOD0(SetUpAsyncOperations, bool());
+-  MOCK_METHOD2(
+-      SendWithReplyAndBlock,
+-      base::expected<std::unique_ptr<Response>, Error>(DBusMessage* request,
+-                                                       int timeout_ms));
++  MOCK_METHOD3(SendWithReplyAndBlock,
++               DBusMessage*(DBusMessage* request,
++                            int timeout_ms,
++                            Error* error));
+   MOCK_METHOD3(SendWithReply, void(DBusMessage* request,
+                                    DBusPendingCall** pending_call,
+                                    int timeout_ms));
+diff --git a/dbus/object_proxy.cc b/dbus/object_proxy.cc
+index 9296cb2fd6..93183ddfb6 100644
+--- a/dbus/object_proxy.cc
++++ b/dbus/object_proxy.cc
+@@ -139,19 +139,22 @@ std::unique_ptr<Response> ObjectProxy::CallMethodAndBlockWithErrorDetails(
+     return nullptr;
+   }
+ 
++  DBusMessage* request_message = method_call->raw_message();
++
+   // Send the message synchronously.
+-  auto result =
+-      bus_->SendWithReplyAndBlock(method_call->raw_message(), timeout_ms);
++  DBusMessage* response_message =
++      bus_->SendWithReplyAndBlock(request_message, timeout_ms, error);
++
+   statistics::AddBlockingSentMethodCall(
+       service_name_, method_call->GetInterface(), method_call->GetMember());
+-  if (!result.has_value()) {
++
++  if (!response_message) {
+     LogMethodCallFailure(method_call->GetInterface(), method_call->GetMember(),
+-                         result.error().name(), result.error().message());
+-    *error = std::move(result.error());
++                         error->name(), error->message());
+     return nullptr;
+   }
+ 
+-  return std::move(result.value());
++  return Response::FromRawMessage(response_message);
+ }
+ 
+ std::unique_ptr<Response> ObjectProxy::CallMethodAndBlock(
+diff --git a/dbus/scoped_dbus_error.h b/dbus/scoped_dbus_error.h
+index 258bf606bd..8b04182135 100644
+--- a/dbus/scoped_dbus_error.h
++++ b/dbus/scoped_dbus_error.h
+@@ -19,8 +19,8 @@ class ScopedDBusError {
+ 
+   DBusError* get() { return &error_; }
+   bool is_set() const;
+-  const char* name() const { return error_.name; }
+-  const char* message() const { return error_.message; }
++  const char* name() { return error_.name; }
++  const char* message() { return error_.message; }
+ 
+  private:
+   DBusError error_;
+-- 
+2.41.0.255.g8b1d071c50-goog
+
+
+From 3871eed6a787faf872deb07c32778cd7d1f4d9bd Mon Sep 17 00:00:00 2001
+From: Georg Neis <neis@chromium.org>
+Date: Wed, 12 Jul 2023 06:36:10 +0000
+Subject: [PATCH 2/2] Revert "Introduce dbus::Error."
+
+This reverts commit 405a8c60f661888995923ced0b1aae4f356bacfc.
+---
+ dbus/bus.cc               | 93 +++++++++++++++------------------------
+ dbus/bus.h                | 27 +++---------
+ dbus/bus_unittest.cc      | 31 +++++++------
+ dbus/error.cc             | 22 ---------
+ dbus/error.h              | 49 ---------------------
+ dbus/exported_object.cc   | 11 ++---
+ dbus/mock_bus.h           | 24 +++++-----
+ dbus/mock_object_proxy.h  |  2 +-
+ dbus/mock_unittest.cc     | 15 +++----
+ dbus/object_manager.cc    | 16 +++----
+ dbus/object_proxy.cc      | 36 +++++++--------
+ dbus/object_proxy.h       |  4 +-
+ dbus/scoped_dbus_error.cc |  4 +-
+ dbus/scoped_dbus_error.h  |  8 ++--
+ 14 files changed, 120 insertions(+), 222 deletions(-)
+ delete mode 100644 dbus/error.cc
+ delete mode 100644 dbus/error.h
+
+diff --git a/dbus/bus.cc b/dbus/bus.cc
+index 31d7f04d0b..0bd29c0b6b 100644
+--- a/dbus/bus.cc
++++ b/dbus/bus.cc
+@@ -21,7 +21,6 @@
+ #include "base/threading/thread_restrictions.h"
+ #include "base/time/time.h"
+ #include "base/timer/elapsed_timer.h"
+-#include "dbus/error.h"
+ #include "dbus/exported_object.h"
+ #include "dbus/message.h"
+ #include "dbus/object_manager.h"
+@@ -381,25 +380,24 @@ bool Bus::Connect() {
+   if (connection_)
+     return true;
+ 
+-  internal::ScopedDBusError dbus_error;
++  ScopedDBusError error;
+   if (bus_type_ == CUSTOM_ADDRESS) {
+     if (connection_type_ == PRIVATE) {
+-      connection_ =
+-          dbus_connection_open_private(address_.c_str(), dbus_error.get());
++      connection_ = dbus_connection_open_private(address_.c_str(), error.get());
+     } else {
+-      connection_ = dbus_connection_open(address_.c_str(), dbus_error.get());
++      connection_ = dbus_connection_open(address_.c_str(), error.get());
+     }
+   } else {
+     const DBusBusType dbus_bus_type = static_cast<DBusBusType>(bus_type_);
+     if (connection_type_ == PRIVATE) {
+-      connection_ = dbus_bus_get_private(dbus_bus_type, dbus_error.get());
++      connection_ = dbus_bus_get_private(dbus_bus_type, error.get());
+     } else {
+-      connection_ = dbus_bus_get(dbus_bus_type, dbus_error.get());
++      connection_ = dbus_bus_get(dbus_bus_type, error.get());
+     }
+   }
+   if (!connection_) {
+     LOG(ERROR) << "Failed to connect to the bus: "
+-               << (dbus_error.is_set() ? dbus_error.message() : "");
++               << (error.is_set() ? error.message() : "");
+     return false;
+   }
+ 
+@@ -409,9 +407,9 @@ bool Bus::Connect() {
+     // org.freedesktop.DBus.Hello method at the beging of bus connection to
+     // acquire unique name. In the case of dbus_bus_get, dbus_bus_register is
+     // called internally.
+-    if (!dbus_bus_register(connection_, dbus_error.get())) {
++    if (!dbus_bus_register(connection_, error.get())) {
+       LOG(ERROR) << "Failed to register the bus component: "
+-                 << (dbus_error.is_set() ? dbus_error.message() : "");
++                 << (error.is_set() ? error.message() : "");
+       return false;
+     }
+   }
+@@ -420,8 +418,7 @@ bool Bus::Connect() {
+ 
+   // Watch Disconnected signal.
+   AddFilterFunction(Bus::OnConnectionDisconnectedFilter, this);
+-  Error error;
+-  AddMatch(kDisconnectedMatchRule, &error);
++  AddMatch(kDisconnectedMatchRule, error.get());
+ 
+   return true;
+ }
+@@ -485,9 +482,9 @@ void Bus::ShutdownAndBlock() {
+         FROM_HERE, base::BlockingType::MAY_BLOCK);
+ 
+     // Remove Disconnected watcher.
+-    Error error;
++    ScopedDBusError error;
+     RemoveFilterFunction(Bus::OnConnectionDisconnectedFilter, this);
+-    RemoveMatch(kDisconnectedMatchRule, &error);
++    RemoveMatch(kDisconnectedMatchRule, error.get());
+ 
+     if (connection_type_ == PRIVATE)
+       ClosePrivateConnection();
+@@ -556,7 +553,7 @@ bool Bus::RequestOwnershipAndBlock(const std::string& service_name,
+ 
+   base::ScopedBlockingCall scoped_blocking_call(FROM_HERE,
+                                                 base::BlockingType::MAY_BLOCK);
+-  internal::ScopedDBusError error;
++  ScopedDBusError error;
+   const int result = dbus_bus_request_name(connection_,
+                                            service_name.c_str(),
+                                            options,
+@@ -585,7 +582,7 @@ bool Bus::ReleaseOwnership(const std::string& service_name) {
+ 
+   base::ScopedBlockingCall scoped_blocking_call(FROM_HERE,
+                                                 base::BlockingType::MAY_BLOCK);
+-  internal::ScopedDBusError error;
++  ScopedDBusError error;
+   const int result = dbus_bus_release_name(connection_, service_name.c_str(),
+                                            error.get());
+   if (result == DBUS_RELEASE_NAME_REPLY_RELEASED) {
+@@ -632,21 +629,17 @@ bool Bus::SetUpAsyncOperations() {
+ 
+ DBusMessage* Bus::SendWithReplyAndBlock(DBusMessage* request,
+                                         int timeout_ms,
+-                                        Error* error) {
++                                        DBusError* error) {
+   DCHECK(connection_);
+-  DCHECK(error);
+   AssertOnDBusThread();
+ 
+   base::ElapsedTimer elapsed;
+ 
+   base::ScopedBlockingCall scoped_blocking_call(FROM_HERE,
+                                                 base::BlockingType::MAY_BLOCK);
+-  internal::ScopedDBusError dbus_error;
+   DBusMessage* reply = dbus_connection_send_with_reply_and_block(
+-      connection_, request, timeout_ms, dbus_error.get());
+-  if (dbus_error.is_set()) {
+-    *error = Error(dbus_error.name(), dbus_error.message());
+-  }
++      connection_, request, timeout_ms, error);
++
+   constexpr base::TimeDelta kLongCall = base::Seconds(1);
+   LOG_IF(WARNING, elapsed.Elapsed() >= kLongCall)
+       << "Bus::SendWithReplyAndBlock took "
+@@ -725,9 +718,8 @@ void Bus::RemoveFilterFunction(DBusHandleMessageFunction filter_function,
+   filter_functions_added_.erase(filter_data_pair);
+ }
+ 
+-void Bus::AddMatch(const std::string& match_rule, Error* error) {
++void Bus::AddMatch(const std::string& match_rule, DBusError* error) {
+   DCHECK(connection_);
+-  DCHECK(error);
+   AssertOnDBusThread();
+ 
+   std::map<std::string, int>::iterator iter =
+@@ -742,17 +734,12 @@ void Bus::AddMatch(const std::string& match_rule, Error* error) {
+ 
+   base::ScopedBlockingCall scoped_blocking_call(FROM_HERE,
+                                                 base::BlockingType::MAY_BLOCK);
+-  internal::ScopedDBusError dbus_error;
+-  dbus_bus_add_match(connection_, match_rule.c_str(), dbus_error.get());
+-  if (dbus_error.is_set()) {
+-    *error = Error(dbus_error.name(), dbus_error.message());
+-  }
++  dbus_bus_add_match(connection_, match_rule.c_str(), error);
+   match_rules_added_[match_rule] = 1;
+ }
+ 
+-bool Bus::RemoveMatch(const std::string& match_rule, Error* error) {
++bool Bus::RemoveMatch(const std::string& match_rule, DBusError* error) {
+   DCHECK(connection_);
+-  DCHECK(error);
+   AssertOnDBusThread();
+ 
+   std::map<std::string, int>::iterator iter =
+@@ -767,11 +754,7 @@ bool Bus::RemoveMatch(const std::string& match_rule, Error* error) {
+   // The rule's counter is decremented and the rule is deleted when reachs 0.
+   iter->second--;
+   if (iter->second == 0) {
+-    internal::ScopedDBusError dbus_error;
+-    dbus_bus_remove_match(connection_, match_rule.c_str(), dbus_error.get());
+-    if (dbus_error.is_set()) {
+-      *error = Error(dbus_error.name(), dbus_error.message());
+-    }
++    dbus_bus_remove_match(connection_, match_rule.c_str(), error);
+     match_rules_added_.erase(match_rule);
+   }
+   return true;
+@@ -780,7 +763,7 @@ bool Bus::RemoveMatch(const std::string& match_rule, Error* error) {
+ bool Bus::TryRegisterObjectPath(const ObjectPath& object_path,
+                                 const DBusObjectPathVTable* vtable,
+                                 void* user_data,
+-                                Error* error) {
++                                DBusError* error) {
+   return TryRegisterObjectPathInternal(
+       object_path, vtable, user_data, error,
+       dbus_connection_try_register_object_path);
+@@ -789,8 +772,7 @@ bool Bus::TryRegisterObjectPath(const ObjectPath& object_path,
+ bool Bus::TryRegisterFallback(const ObjectPath& object_path,
+                               const DBusObjectPathVTable* vtable,
+                               void* user_data,
+-                              Error* error) {
+-  DCHECK(error);
++                              DBusError* error) {
+   return TryRegisterObjectPathInternal(object_path, vtable, user_data, error,
+                                        dbus_connection_try_register_fallback);
+ }
+@@ -799,10 +781,9 @@ bool Bus::TryRegisterObjectPathInternal(
+     const ObjectPath& object_path,
+     const DBusObjectPathVTable* vtable,
+     void* user_data,
+-    Error* error,
++    DBusError* error,
+     TryRegisterObjectPathFunction* register_function) {
+   DCHECK(connection_);
+-  DCHECK(error);
+   AssertOnDBusThread();
+   base::ScopedBlockingCall scoped_blocking_call(FROM_HERE,
+                                                 base::BlockingType::MAY_BLOCK);
+@@ -813,15 +794,10 @@ bool Bus::TryRegisterObjectPathInternal(
+     return false;
+   }
+ 
+-  internal::ScopedDBusError dbus_error;
+-  const bool success =
+-      register_function(connection_, object_path.value().c_str(), vtable,
+-                        user_data, dbus_error.get());
+-  if (success) {
++  const bool success = register_function(
++      connection_, object_path.value().c_str(), vtable, user_data, error);
++  if (success)
+     registered_object_paths_.insert(object_path);
+-  } else if (dbus_error.is_set()) {
+-    *error = Error(dbus_error.name(), dbus_error.message());
+-  }
+   return success;
+ }
+ 
+@@ -921,10 +897,11 @@ std::string Bus::GetServiceOwnerAndBlock(const std::string& service_name,
+     return "";
+   }
+ 
+-  Error error;
++  ScopedDBusError error;
+   DBusMessage* response_message =
+       SendWithReplyAndBlock(get_name_owner_call.raw_message(),
+-                            ObjectProxy::TIMEOUT_USE_DEFAULT, &error);
++                            ObjectProxy::TIMEOUT_USE_DEFAULT,
++                            error.get());
+   if (!response_message) {
+     if (options == REPORT_ERRORS) {
+       LOG(ERROR) << "Failed to get name owner. Got " << error.name() << ": "
+@@ -995,9 +972,9 @@ void Bus::ListenForServiceOwnerChangeInternal(
+     const std::string name_owner_changed_match_rule =
+         base::StringPrintf(kServiceNameOwnerChangeMatchRule,
+                            service_name.c_str());
+-    dbus::Error error;
+-    AddMatch(name_owner_changed_match_rule, &error);
+-    if (error.IsValid()) {
++    ScopedDBusError error;
++    AddMatch(name_owner_changed_match_rule, error.get());
++    if (error.is_set()) {
+       LOG(ERROR) << "Failed to add match rule for " << service_name
+                  << ". Got " << error.name() << ": " << error.message();
+       return;
+@@ -1054,9 +1031,9 @@ void Bus::UnlistenForServiceOwnerChangeInternal(
+   const std::string name_owner_changed_match_rule =
+       base::StringPrintf(kServiceNameOwnerChangeMatchRule,
+                          service_name.c_str());
+-  Error error;
+-  RemoveMatch(name_owner_changed_match_rule, &error);
+-  // And remove |service_owner_changed_lister_map_| entry.
++  ScopedDBusError error;
++  RemoveMatch(name_owner_changed_match_rule, error.get());
++  // And remove |service_owner_changed_listener_map_| entry.
+   service_owner_changed_listener_map_.erase(it);
+ 
+   if (service_owner_changed_listener_map_.empty())
+diff --git a/dbus/bus.h b/dbus/bus.h
+index 015b6622c5..c4278eef53 100644
+--- a/dbus/bus.h
++++ b/dbus/bus.h
+@@ -28,7 +28,6 @@ class SequencedTaskRunner;
+ 
+ namespace dbus {
+ 
+-class Error;
+ class ExportedObject;
+ class ObjectManager;
+ class ObjectProxy;
+@@ -445,13 +444,10 @@ class CHROME_DBUS_EXPORT Bus : public base::RefCountedThreadSafe<Bus> {
+   // Sends a message to the bus and blocks until the response is
+   // received. Used to implement synchronous method calls.
+   //
+-  // The |error| must not be nullptr.
+-  // TODO(crbug.com/1459945): Use base::expected<void, Error> to return error.
+-  //
+   // BLOCKING CALL.
+   virtual DBusMessage* SendWithReplyAndBlock(DBusMessage* request,
+                                              int timeout_ms,
+-                                             Error* error);
++                                             DBusError* error);
+ 
+   // Requests to send a message to the bus. The reply is handled with
+   // |pending_call| at a later time.
+@@ -497,10 +493,6 @@ class CHROME_DBUS_EXPORT Bus : public base::RefCountedThreadSafe<Bus> {
+   // The same match rule can be added more than once and should be removed
+   // as many times as it was added.
+   //
+-  // The |error| must not be nullptr.
+-  // TODO(crbug.com/1459945): 1) Use base::expected<void, Error> to return
+-  // error, and 2) handle error in safer manner.
+-  //
+   // The match rule looks like:
+   // "type='signal', interface='org.chromium.SomeInterface'".
+   //
+@@ -509,18 +501,14 @@ class CHROME_DBUS_EXPORT Bus : public base::RefCountedThreadSafe<Bus> {
+   // http://dbus.freedesktop.org/doc/dbus-specification.html#message-bus-routing
+   //
+   // BLOCKING CALL.
+-  virtual void AddMatch(const std::string& match_rule, Error* error);
++  virtual void AddMatch(const std::string& match_rule, DBusError* error);
+ 
+   // Removes the match rule previously added by AddMatch().
+   // Returns false if the requested match rule is unknown or has already been
+   // removed. Otherwise, returns true and sets |error| accordingly.
+   //
+-  // The |error| must not be nullptr.
+-  // TODO(crbug.com/1459945): 1) Use base::expected<void, Error> to return
+-  // error, and 2) handle error in safer manner.
+-  //
+   // BLOCKING CALL.
+-  virtual bool RemoveMatch(const std::string& match_rule, Error* error);
++  virtual bool RemoveMatch(const std::string& match_rule, DBusError* error);
+ 
+   // Tries to register the object path. Returns true on success.
+   // Returns false if the object path is already registered.
+@@ -530,9 +518,6 @@ class CHROME_DBUS_EXPORT Bus : public base::RefCountedThreadSafe<Bus> {
+   //
+   // The same object path must not be added more than once.
+   //
+-  // The |error| must not be nullptr.
+-  // TODO(crbug.com/1459945): Use base::expected<void, Error> to return error.
+-  //
+   // See also documentation of |dbus_connection_try_register_object_path| at
+   // http://dbus.freedesktop.org/doc/api/html/group__DBusConnection.html
+   //
+@@ -540,7 +525,7 @@ class CHROME_DBUS_EXPORT Bus : public base::RefCountedThreadSafe<Bus> {
+   virtual bool TryRegisterObjectPath(const ObjectPath& object_path,
+                                      const DBusObjectPathVTable* vtable,
+                                      void* user_data,
+-                                     Error* error);
++                                     DBusError* error);
+ 
+   // Tries to register the object path and its sub paths.
+   // Returns true on success.
+@@ -558,7 +543,7 @@ class CHROME_DBUS_EXPORT Bus : public base::RefCountedThreadSafe<Bus> {
+   virtual bool TryRegisterFallback(const ObjectPath& object_path,
+                                    const DBusObjectPathVTable* vtable,
+                                    void* user_data,
+-                                   Error* error);
++                                   DBusError* error);
+ 
+   // Unregister the object path.
+   //
+@@ -643,7 +628,7 @@ class CHROME_DBUS_EXPORT Bus : public base::RefCountedThreadSafe<Bus> {
+       const ObjectPath& object_path,
+       const DBusObjectPathVTable* vtable,
+       void* user_data,
+-      Error* error,
++      DBusError* error,
+       TryRegisterObjectPathFunction* register_function);
+ 
+   // Helper function used for RemoveObjectProxy().
+diff --git a/dbus/bus_unittest.cc b/dbus/bus_unittest.cc
+index 9e143c980c..6ef46e5a2b 100644
+--- a/dbus/bus_unittest.cc
++++ b/dbus/bus_unittest.cc
+@@ -14,10 +14,10 @@
+ #include "base/run_loop.h"
+ #include "base/test/task_environment.h"
+ #include "base/threading/thread.h"
+-#include "dbus/error.h"
+ #include "dbus/exported_object.h"
+ #include "dbus/object_path.h"
+ #include "dbus/object_proxy.h"
++#include "dbus/scoped_dbus_error.h"
+ #include "dbus/test_service.h"
+ 
+ #include "testing/gtest/include/gtest/gtest.h"
+@@ -284,33 +284,38 @@ TEST(BusTest, ShutdownAndBlockWithDBusThread) {
+ TEST(BusTest, DoubleAddAndRemoveMatch) {
+   Bus::Options options;
+   scoped_refptr<Bus> bus = new Bus(options);
+-  dbus::Error error;
++  ScopedDBusError error;
+ 
+   bus->Connect();
+ 
+   // Adds the same rule twice.
+-  bus->AddMatch("type='signal',interface='org.chromium.TestService',path='/'",
+-                &error);
+-  ASSERT_FALSE(error.IsValid());
++  bus->AddMatch(
++      "type='signal',interface='org.chromium.TestService',path='/'",
++      error.get());
++  ASSERT_FALSE(error.is_set());
+ 
+-  bus->AddMatch("type='signal',interface='org.chromium.TestService',path='/'",
+-                &error);
+-  ASSERT_FALSE(error.IsValid());
++  bus->AddMatch(
++      "type='signal',interface='org.chromium.TestService',path='/'",
++      error.get());
++  ASSERT_FALSE(error.is_set());
+ 
+   // Removes the same rule twice.
+   ASSERT_TRUE(bus->RemoveMatch(
+-      "type='signal',interface='org.chromium.TestService',path='/'", &error));
+-  ASSERT_FALSE(error.IsValid());
++      "type='signal',interface='org.chromium.TestService',path='/'",
++      error.get()));
++  ASSERT_FALSE(error.is_set());
+ 
+   // The rule should be still in the bus since it was removed only once.
+   // A second removal shouldn't give an error.
+   ASSERT_TRUE(bus->RemoveMatch(
+-      "type='signal',interface='org.chromium.TestService',path='/'", &error));
+-  ASSERT_FALSE(error.IsValid());
++      "type='signal',interface='org.chromium.TestService',path='/'",
++      error.get()));
++  ASSERT_FALSE(error.is_set());
+ 
+   // A third attemp to remove the same rule should fail.
+   ASSERT_FALSE(bus->RemoveMatch(
+-      "type='signal',interface='org.chromium.TestService',path='/'", &error));
++      "type='signal',interface='org.chromium.TestService',path='/'",
++      error.get()));
+ 
+   bus->ShutdownAndBlock();
+ }
+diff --git a/dbus/error.cc b/dbus/error.cc
+deleted file mode 100644
+index f180997b66..0000000000
+--- a/dbus/error.cc
++++ /dev/null
+@@ -1,22 +0,0 @@
+-// Copyright 2023 The Chromium Authors
+-// Use of this source code is governed by a BSD-style license that can be
+-// found in the LICENSE file.
+-
+-#include "dbus/error.h"
+-
+-#include <utility>
+-
+-namespace dbus {
+-
+-Error::Error() = default;
+-
+-Error::Error(std::string name, std::string message)
+-    : name_(std::move(name)), message_(std::move(message)) {}
+-
+-Error::Error(Error&& other) = default;
+-
+-Error& Error::operator=(Error&& other) = default;
+-
+-Error::~Error() = default;
+-
+-}  // namespace dbus
+diff --git a/dbus/error.h b/dbus/error.h
+deleted file mode 100644
+index 1a5338bb2b..0000000000
+--- a/dbus/error.h
++++ /dev/null
+@@ -1,49 +0,0 @@
+-// Copyright 2023 The Chromium Authors
+-// Use of this source code is governed by a BSD-style license that can be
+-// found in the LICENSE file.
+-
+-#ifndef DBUS_ERROR_H_
+-#define DBUS_ERROR_H_
+-
+-#include <string>
+-
+-#include "dbus/dbus_export.h"
+-
+-namespace dbus {
+-
+-// Represents D-Bus related errors.
+-// This carries error info retrieved from libdbus. Some APIs under dbus/
+-// may return empty Error instance to represent the API failed, but not
+-// from libdbus.
+-class CHROME_DBUS_EXPORT Error {
+- public:
+-  // Creates an invalid error.
+-  Error();
+-
+-  // Creates an error instance with the given name and the message.
+-  Error(std::string name, std::string message);
+-  Error(Error&& other);
+-  Error& operator=(Error&& other);
+-  ~Error();
+-
+-  // Returns true if the error is valid one.
+-  bool IsValid() const { return !name_.empty(); }
+-
+-  // Returns the name of the D-Bus error.
+-  // Please see also "Error names" in
+-  // https://dbus.freedesktop.org/doc/dbus-specification.html#message-protocol-names
+-  // Specifically, valid name must have two components connected by '.', so this
+-  // class uses empty name to represent invalid error instance.
+-  const std::string& name() const { return name_; }
+-
+-  // Returns (human readable) error message attached to D-Bus error.
+-  const std::string& message() const { return message_; }
+-
+- private:
+-  std::string name_;
+-  std::string message_;
+-};
+-
+-}  // namespace dbus
+-
+-#endif  // DBUS_ERROR_H_
+diff --git a/dbus/exported_object.cc b/dbus/exported_object.cc
+index 68e18b4790..d7b3a29474 100644
+--- a/dbus/exported_object.cc
++++ b/dbus/exported_object.cc
+@@ -14,7 +14,6 @@
+ #include "base/task/task_runner.h"
+ #include "base/threading/thread_restrictions.h"
+ #include "dbus/bus.h"
+-#include "dbus/error.h"
+ #include "dbus/message.h"
+ #include "dbus/object_path.h"
+ #include "dbus/scoped_dbus_error.h"
+@@ -197,16 +196,18 @@ bool ExportedObject::Register() {
+   if (object_is_registered_)
+     return true;
+ 
+-  Error error;
++  ScopedDBusError error;
+ 
+   DBusObjectPathVTable vtable = {};
+   vtable.message_function = &ExportedObject::HandleMessageThunk;
+   vtable.unregister_function = &ExportedObject::OnUnregisteredThunk;
+-  const bool success =
+-      bus_->TryRegisterObjectPath(object_path_, &vtable, this, &error);
++  const bool success = bus_->TryRegisterObjectPath(object_path_,
++                                                   &vtable,
++                                                   this,
++                                                   error.get());
+   if (!success) {
+     LOG(ERROR) << "Failed to register the object: " << object_path_.value()
+-               << ": " << error.message();
++               << ": " << (error.is_set() ? error.message() : "");
+     return false;
+   }
+ 
+diff --git a/dbus/mock_bus.h b/dbus/mock_bus.h
+index 0f203935d7..9e9e443542 100644
+--- a/dbus/mock_bus.h
++++ b/dbus/mock_bus.h
+@@ -42,10 +42,9 @@ class MockBus : public Bus {
+                                               ServiceOwnershipOptions options));
+   MOCK_METHOD1(ReleaseOwnership, bool(const std::string& service_name));
+   MOCK_METHOD0(SetUpAsyncOperations, bool());
+-  MOCK_METHOD3(SendWithReplyAndBlock,
+-               DBusMessage*(DBusMessage* request,
+-                            int timeout_ms,
+-                            Error* error));
++  MOCK_METHOD3(SendWithReplyAndBlock, DBusMessage*(DBusMessage* request,
++                                                   int timeout_ms,
++                                                   DBusError* error));
+   MOCK_METHOD3(SendWithReply, void(DBusMessage* request,
+                                    DBusPendingCall** pending_call,
+                                    int timeout_ms));
+@@ -56,18 +55,19 @@ class MockBus : public Bus {
+   MOCK_METHOD2(RemoveFilterFunction,
+                void(DBusHandleMessageFunction filter_function,
+                     void* user_data));
+-  MOCK_METHOD2(AddMatch, void(const std::string& match_rule, Error* error));
+-  MOCK_METHOD2(RemoveMatch, bool(const std::string& match_rule, Error* error));
+-  MOCK_METHOD4(TryRegisterObjectPath,
+-               bool(const ObjectPath& object_path,
+-                    const DBusObjectPathVTable* vtable,
+-                    void* user_data,
+-                    Error* error));
++  MOCK_METHOD2(AddMatch, void(const std::string& match_rule,
++                              DBusError* error));
++  MOCK_METHOD2(RemoveMatch, bool(const std::string& match_rule,
++                                 DBusError* error));
++  MOCK_METHOD4(TryRegisterObjectPath, bool(const ObjectPath& object_path,
++                                           const DBusObjectPathVTable* vtable,
++                                           void* user_data,
++                                           DBusError* error));
+   MOCK_METHOD4(TryRegisterFallback,
+                bool(const ObjectPath& object_path,
+                     const DBusObjectPathVTable* vtable,
+                     void* user_data,
+-                    Error* error));
++                    DBusError* error));
+   MOCK_METHOD1(UnregisterObjectPath, void(const ObjectPath& object_path));
+   MOCK_METHOD0(GetDBusTaskRunner, base::SequencedTaskRunner*());
+   MOCK_METHOD0(GetOriginTaskRunner, base::SequencedTaskRunner*());
+diff --git a/dbus/mock_object_proxy.h b/dbus/mock_object_proxy.h
+index 8b846dbba5..9ab89ed7d1 100644
+--- a/dbus/mock_object_proxy.h
++++ b/dbus/mock_object_proxy.h
+@@ -25,7 +25,7 @@ class MockObjectProxy : public ObjectProxy {
+   MOCK_METHOD3(CallMethodAndBlockWithErrorDetails,
+                std::unique_ptr<Response>(MethodCall* method_call,
+                                          int timeout_ms,
+-                                         Error* error));
++                                         ScopedDBusError* error));
+   MOCK_METHOD2(CallMethodAndBlock,
+                std::unique_ptr<Response>(MethodCall* method_call,
+                                          int timeout_ms));
+diff --git a/dbus/mock_unittest.cc b/dbus/mock_unittest.cc
+index 29141fc855..5adbe0602d 100644
+--- a/dbus/mock_unittest.cc
++++ b/dbus/mock_unittest.cc
+@@ -10,12 +10,12 @@
+ #include "base/run_loop.h"
+ #include "base/task/single_thread_task_runner.h"
+ #include "base/test/task_environment.h"
+-#include "dbus/error.h"
+ #include "dbus/message.h"
+ #include "dbus/mock_bus.h"
+ #include "dbus/mock_exported_object.h"
+ #include "dbus/mock_object_proxy.h"
+ #include "dbus/object_path.h"
++#include "dbus/scoped_dbus_error.h"
+ #include "testing/gmock/include/gmock/gmock.h"
+ #include "testing/gtest/include/gtest/gtest.h"
+ 
+@@ -110,10 +110,8 @@ class MockTest : public testing::Test {
+   }
+ 
+   std::unique_ptr<Response> CreateMockProxyResponseWithErrorDetails(
+-      MethodCall* method_call,
+-      int timeout_ms,
+-      Error* error) {
+-    *error = Error(DBUS_ERROR_NOT_SUPPORTED, "Not implemented");
++      MethodCall* method_call, int timeout_ms, ScopedDBusError* error) {
++    dbus_set_error(error->get(), DBUS_ERROR_NOT_SUPPORTED, "Not implemented");
+     return nullptr;
+   }
+ 
+@@ -175,15 +173,16 @@ TEST_F(MockTest, CallMethodAndBlockWithErrorDetails) {
+   // Create a method call.
+   MethodCall method_call("org.chromium.TestInterface", "Echo");
+ 
+-  Error error;
++  ScopedDBusError error;
+   // Call the method.
+   std::unique_ptr<Response> response(proxy->CallMethodAndBlockWithErrorDetails(
+       &method_call, ObjectProxy::TIMEOUT_USE_DEFAULT, &error));
+ 
+   // Check the response.
+   ASSERT_FALSE(response.get());
+-  EXPECT_EQ(DBUS_ERROR_NOT_SUPPORTED, error.name());
+-  EXPECT_EQ("Not implemented", error.message());
++  ASSERT_TRUE(error.is_set());
++  EXPECT_STREQ(DBUS_ERROR_NOT_SUPPORTED, error.name());
++  EXPECT_STREQ("Not implemented", error.message());
+ }
+ 
+ // This test demonstrates how to mock an asynchronous method call using the
+diff --git a/dbus/object_manager.cc b/dbus/object_manager.cc
+index 9feaaf9d63..cc3104ce8d 100644
+--- a/dbus/object_manager.cc
++++ b/dbus/object_manager.cc
+@@ -14,10 +14,10 @@
+ #include "base/strings/stringprintf.h"
+ #include "dbus/bus.h"
+ #include "dbus/dbus_statistics.h"
+-#include "dbus/error.h"
+ #include "dbus/message.h"
+ #include "dbus/object_proxy.h"
+ #include "dbus/property.h"
++#include "dbus/scoped_dbus_error.h"
+ #include "dbus/util.h"
+ 
+ namespace dbus {
+@@ -168,11 +168,11 @@ void ObjectManager::CleanUp() {
+     return;
+ 
+   bus_->RemoveFilterFunction(&ObjectManager::HandleMessageThunk, this);
+-  Error error;
+-  bus_->RemoveMatch(match_rule_, &error);
+-  if (error.IsValid()) {
++
++  ScopedDBusError error;
++  bus_->RemoveMatch(match_rule_, error.get());
++  if (error.is_set())
+     LOG(ERROR) << "Failed to remove match rule: " << match_rule_;
+-  }
+ 
+   match_rule_.clear();
+ }
+@@ -204,9 +204,9 @@ bool ObjectManager::SetupMatchRuleAndFilter() {
+ 
+   bus_->AddFilterFunction(&ObjectManager::HandleMessageThunk, this);
+ 
+-  Error error;
+-  bus_->AddMatch(match_rule, &error);
+-  if (error.IsValid()) {
++  ScopedDBusError error;
++  bus_->AddMatch(match_rule, error.get());
++  if (error.is_set()) {
+     LOG(ERROR) << "ObjectManager failed to add match rule \"" << match_rule
+                << "\". Got " << error.name() << ": " << error.message();
+     bus_->RemoveFilterFunction(&ObjectManager::HandleMessageThunk, this);
+diff --git a/dbus/object_proxy.cc b/dbus/object_proxy.cc
+index 93183ddfb6..ac6cf89c4c 100644
+--- a/dbus/object_proxy.cc
++++ b/dbus/object_proxy.cc
+@@ -20,7 +20,6 @@
+ #include "base/threading/thread_restrictions.h"
+ #include "dbus/bus.h"
+ #include "dbus/dbus_statistics.h"
+-#include "dbus/error.h"
+ #include "dbus/message.h"
+ #include "dbus/object_path.h"
+ #include "dbus/scoped_dbus_error.h"
+@@ -131,7 +130,7 @@ ObjectProxy::~ObjectProxy() {
+ std::unique_ptr<Response> ObjectProxy::CallMethodAndBlockWithErrorDetails(
+     MethodCall* method_call,
+     int timeout_ms,
+-    Error* error) {
++    ScopedDBusError* error) {
+   bus_->AssertOnDBusThread();
+ 
+   if (!bus_->Connect() || !method_call->SetDestination(service_name_) ||
+@@ -143,14 +142,15 @@ std::unique_ptr<Response> ObjectProxy::CallMethodAndBlockWithErrorDetails(
+ 
+   // Send the message synchronously.
+   DBusMessage* response_message =
+-      bus_->SendWithReplyAndBlock(request_message, timeout_ms, error);
++      bus_->SendWithReplyAndBlock(request_message, timeout_ms, error->get());
+ 
+   statistics::AddBlockingSentMethodCall(
+       service_name_, method_call->GetInterface(), method_call->GetMember());
+ 
+   if (!response_message) {
+     LogMethodCallFailure(method_call->GetInterface(), method_call->GetMember(),
+-                         error->name(), error->message());
++                         error->is_set() ? error->name() : "unknown error type",
++                         error->is_set() ? error->message() : "");
+     return nullptr;
+   }
+ 
+@@ -160,7 +160,7 @@ std::unique_ptr<Response> ObjectProxy::CallMethodAndBlockWithErrorDetails(
+ std::unique_ptr<Response> ObjectProxy::CallMethodAndBlock(
+     MethodCall* method_call,
+     int timeout_ms) {
+-  Error error;
++  ScopedDBusError error;
+   return CallMethodAndBlockWithErrorDetails(method_call, timeout_ms, &error);
+ }
+ 
+@@ -301,9 +301,9 @@ void ObjectProxy::Detach() {
+     bus_->RemoveFilterFunction(&ObjectProxy::HandleMessageThunk, this);
+ 
+   for (const auto& match_rule : match_rules_) {
+-    Error error;
+-    bus_->RemoveMatch(match_rule, &error);
+-    if (error.IsValid()) {
++    ScopedDBusError error;
++    bus_->RemoveMatch(match_rule, error.get());
++    if (error.is_set()) {
+       // There is nothing we can do to recover, so just print the error.
+       LOG(ERROR) << "Failed to remove match rule: " << match_rule;
+     }
+@@ -625,9 +625,9 @@ bool ObjectProxy::AddMatchRuleWithCallback(
+   bus_->AssertOnDBusThread();
+ 
+   if (match_rules_.find(match_rule) == match_rules_.end()) {
+-    dbus::Error error;
+-    bus_->AddMatch(match_rule, &error);
+-    if (error.IsValid()) {
++    ScopedDBusError error;
++    bus_->AddMatch(match_rule, error.get());
++    if (error.is_set()) {
+       LOG(ERROR) << "Failed to add match rule \"" << match_rule << "\". Got "
+                  << error.name() << ": " << error.message();
+       return false;
+@@ -638,11 +638,11 @@ bool ObjectProxy::AddMatchRuleWithCallback(
+       method_table_[absolute_signal_name].push_back(signal_callback);
+       return true;
+     }
++  } else {
++    // We already have the match rule.
++    method_table_[absolute_signal_name].push_back(signal_callback);
++    return true;
+   }
+-
+-  // We already have the match rule.
+-  method_table_[absolute_signal_name].push_back(signal_callback);
+-  return true;
+ }
+ 
+ bool ObjectProxy::AddMatchRuleWithoutCallback(
+@@ -655,9 +655,9 @@ bool ObjectProxy::AddMatchRuleWithoutCallback(
+   if (match_rules_.find(match_rule) != match_rules_.end())
+     return true;
+ 
+-  Error error;
+-  bus_->AddMatch(match_rule, &error);
+-  if (error.IsValid()) {
++  ScopedDBusError error;
++  bus_->AddMatch(match_rule, error.get());
++  if (error.is_set()) {
+     LOG(ERROR) << "Failed to add match rule \"" << match_rule << "\". Got "
+                << error.name() << ": " << error.message();
+     return false;
+diff --git a/dbus/object_proxy.h b/dbus/object_proxy.h
+index d837293f0a..bcbda28726 100644
+--- a/dbus/object_proxy.h
++++ b/dbus/object_proxy.h
+@@ -24,10 +24,10 @@
+ namespace dbus {
+ 
+ class Bus;
+-class Error;
+ class ErrorResponse;
+ class MethodCall;
+ class Response;
++class ScopedDBusError;
+ class Signal;
+ 
+ // ObjectProxy is used to communicate with remote objects, mainly for
+@@ -112,7 +112,7 @@ class CHROME_DBUS_EXPORT ObjectProxy
+   virtual std::unique_ptr<Response> CallMethodAndBlockWithErrorDetails(
+       MethodCall* method_call,
+       int timeout_ms,
+-      Error* error);
++      ScopedDBusError* error);
+ 
+   // Calls the method of the remote object and blocks until the response
+   // is returned. Returns NULL on error.
+diff --git a/dbus/scoped_dbus_error.cc b/dbus/scoped_dbus_error.cc
+index e4736024ee..afd0e1d85d 100644
+--- a/dbus/scoped_dbus_error.cc
++++ b/dbus/scoped_dbus_error.cc
+@@ -4,7 +4,7 @@
+ 
+ #include "dbus/scoped_dbus_error.h"
+ 
+-namespace dbus::internal {
++namespace dbus {
+ 
+ ScopedDBusError::ScopedDBusError() {
+   dbus_error_init(&error_);
+@@ -18,4 +18,4 @@ bool ScopedDBusError::is_set() const {
+   return dbus_error_is_set(&error_);
+ }
+ 
+-}  // namespace dbus::internal
++}  // namespace dbus
+diff --git a/dbus/scoped_dbus_error.h b/dbus/scoped_dbus_error.h
+index 8b04182135..6a5e2f2787 100644
+--- a/dbus/scoped_dbus_error.h
++++ b/dbus/scoped_dbus_error.h
+@@ -7,10 +7,12 @@
+ 
+ #include <dbus/dbus.h>
+ 
+-namespace dbus::internal {
++#include "dbus/dbus_export.h"
++
++namespace dbus {
+ 
+ // Utility class to ensure that DBusError is freed.
+-class ScopedDBusError {
++class CHROME_DBUS_EXPORT ScopedDBusError {
+  public:
+   // Do not inline methods that call dbus_error_xxx() functions.
+   // See http://crbug.com/416628
+@@ -26,6 +28,6 @@ class ScopedDBusError {
+   DBusError error_;
+ };
+ 
+-}  // namespace dbus::internal
++}  // namespace dbus
+ 
+ #endif  // DBUS_SCOPED_DBUS_ERROR_H_
+-- 
+2.41.0.255.g8b1d071c50-goog
+

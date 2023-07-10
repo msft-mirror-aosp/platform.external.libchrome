@@ -82,8 +82,9 @@ class BASE_EXPORT TaskAnnotator {
         "toplevel", event_name,
         [&](perfetto::EventContext& ctx) {
           EmitTaskLocation(ctx, pending_task);
+          MaybeEmitDelayAndPolicy(ctx, pending_task);
           MaybeEmitIncomingTaskFlow(ctx, pending_task);
-          MaybeEmitIPCHashAndDelay(ctx, pending_task);
+          MaybeEmitIPCHash(ctx, pending_task);
         },
         std::forward<Args>(args)...);
     RunTaskImpl(pending_task);
@@ -106,14 +107,16 @@ class BASE_EXPORT TaskAnnotator {
   // EventContext.
   static void EmitTaskLocation(perfetto::EventContext& ctx,
                                const PendingTask& task);
+  static void MaybeEmitDelayAndPolicy(perfetto::EventContext& ctx,
+                                      const PendingTask& task);
 
   // TRACE_EVENT argument helper, writing the incoming task flow information
   // into EventContext if toplevel.flow category is enabled.
   void MaybeEmitIncomingTaskFlow(perfetto::EventContext& ctx,
                                  const PendingTask& task) const;
 
-  void MaybeEmitIPCHashAndDelay(perfetto::EventContext& ctx,
-                                const PendingTask& task) const;
+  void MaybeEmitIPCHash(perfetto::EventContext& ctx,
+                        const PendingTask& task) const;
 #endif  //  BUILDFLAG(ENABLE_BASE_TRACING)
 };
 

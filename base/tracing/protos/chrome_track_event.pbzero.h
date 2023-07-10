@@ -80,8 +80,15 @@ public:
 
 class ChromeTaskAnnotator : public ::protozero::Message {
 public:
+  enum DelayPolicy {
+    FLEXIBLE_NO_SOONER = 0,
+    FLEXIBLE_PREFER_EARLY = 1,
+    PRECISE = 2,
+  };
+
   void set_ipc_hash(uint32_t) {}
   void set_task_delay_us(uint64_t) {}
+  void set_delay_policy(DelayPolicy) {}
 };
 
 class ChromeMemoryPressureNotification : public ::protozero::Message {
