@@ -47,6 +47,7 @@ enum ProcessType : int32_t {
   PROCESS_SERVICE_RECORDING = 38,
   PROCESS_SERVICE_SHAPEDETECTION = 39,
   PROCESS_RENDERER_EXTENSION = 40,
+  PROCESS_SERVICE_MEDIA_FOUNDATION = 41,
 };
 inline const char* ProcessType_Name(ProcessType process_type) {
   return "";

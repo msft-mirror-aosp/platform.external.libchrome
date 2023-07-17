@@ -1,0 +1,371 @@
+From 89442120f7286352b16c130149c6f4b3a178886f Mon Sep 17 00:00:00 2001
+From: Ren-Pei Zeng <kamesan@chromium.org>
+Date: Mon, 17 Jul 2023 15:44:06 +0000
+Subject: [PATCH] Revert "Merge
+ ObjectProxy::CallMethodAndBlock{,WithErrorDetails}."
+
+This reverts commit b0186670b7c3a450ed3f00170c6d62db4aa72716.
+---
+ dbus/bus.h                       |  3 ++
+ dbus/end_to_end_sync_unittest.cc | 27 ++++++++++--------
+ dbus/mock_object_proxy.h         | 13 +++++----
+ dbus/mock_unittest.cc            | 47 +++++++++++++++++++-------------
+ dbus/object_proxy.cc             | 21 ++++++++++----
+ dbus/object_proxy.h              | 22 +++++++++------
+ dbus/property.cc                 | 16 ++++++-----
+ 7 files changed, 92 insertions(+), 57 deletions(-)
+
+diff --git a/dbus/bus.h b/dbus/bus.h
+index 189389d2b4..539a02f67a 100644
+--- a/dbus/bus.h
++++ b/dbus/bus.h
+@@ -448,6 +448,9 @@ class CHROME_DBUS_EXPORT Bus : public base::RefCountedThreadSafe<Bus> {
+   // Sends a message to the bus and blocks until the response is
+   // received. Used to implement synchronous method calls.
+   //
++  // The |error| must not be nullptr.
++  // TODO(crbug.com/1459945): Use base::expected<void, Error> to return error.
++  //
+   // BLOCKING CALL.
+   virtual base::expected<std::unique_ptr<Response>, Error>
+   SendWithReplyAndBlock(DBusMessage* request, int timeout_ms);
+diff --git a/dbus/end_to_end_sync_unittest.cc b/dbus/end_to_end_sync_unittest.cc
+index 30cce043af..8312a65fea 100644
+--- a/dbus/end_to_end_sync_unittest.cc
++++ b/dbus/end_to_end_sync_unittest.cc
+@@ -67,11 +67,12 @@ TEST_F(EndToEndSyncTest, Echo) {
+ 
+   // Call the method.
+   const int timeout_ms = ObjectProxy::TIMEOUT_USE_DEFAULT;
+-  auto result = object_proxy_->CallMethodAndBlock(&method_call, timeout_ms);
+-  ASSERT_TRUE(result.has_value());
++  std::unique_ptr<Response> response(
++      object_proxy_->CallMethodAndBlock(&method_call, timeout_ms));
++  ASSERT_TRUE(response.get());
+ 
+   // Check the response. kHello should be echoed back.
+-  MessageReader reader(result->get());
++  MessageReader reader(response.get());
+   std::string returned_message;
+   ASSERT_TRUE(reader.PopString(&returned_message));
+   EXPECT_EQ(kHello, returned_message);
+@@ -87,25 +88,28 @@ TEST_F(EndToEndSyncTest, Timeout) {
+ 
+   // Call the method with timeout of 0ms.
+   const int timeout_ms = 0;
+-  auto result = object_proxy_->CallMethodAndBlock(&method_call, timeout_ms);
++  std::unique_ptr<Response> response(
++      object_proxy_->CallMethodAndBlock(&method_call, timeout_ms));
+   // Should fail because of timeout.
+-  ASSERT_FALSE(result.has_value());
++  ASSERT_FALSE(response.get());
+ }
+ 
+ TEST_F(EndToEndSyncTest, NonexistentMethod) {
+   MethodCall method_call("org.chromium.TestInterface", "Nonexistent");
+ 
+   const int timeout_ms = ObjectProxy::TIMEOUT_USE_DEFAULT;
+-  auto result = object_proxy_->CallMethodAndBlock(&method_call, timeout_ms);
+-  ASSERT_FALSE(result.has_value());
++  std::unique_ptr<Response> response(
++      object_proxy_->CallMethodAndBlock(&method_call, timeout_ms));
++  ASSERT_FALSE(response.get());
+ }
+ 
+ TEST_F(EndToEndSyncTest, BrokenMethod) {
+   MethodCall method_call("org.chromium.TestInterface", "BrokenMethod");
+ 
+   const int timeout_ms = ObjectProxy::TIMEOUT_USE_DEFAULT;
+-  auto result = object_proxy_->CallMethodAndBlock(&method_call, timeout_ms);
+-  ASSERT_FALSE(result.has_value());
++  std::unique_ptr<Response> response(
++      object_proxy_->CallMethodAndBlock(&method_call, timeout_ms));
++  ASSERT_FALSE(response.get());
+ }
+ 
+ TEST_F(EndToEndSyncTest, InvalidServiceName) {
+@@ -119,8 +123,9 @@ TEST_F(EndToEndSyncTest, InvalidServiceName) {
+   MethodCall method_call("org.chromium.TestInterface", "Echo");
+ 
+   const int timeout_ms = ObjectProxy::TIMEOUT_USE_DEFAULT;
+-  auto result = object_proxy_->CallMethodAndBlock(&method_call, timeout_ms);
+-  ASSERT_FALSE(result.has_value());
++  std::unique_ptr<Response> response(
++      object_proxy_->CallMethodAndBlock(&method_call, timeout_ms));
++  ASSERT_FALSE(response.get());
+ }
+ 
+ TEST_F(EndToEndSyncTest, ConnectToSignalAndBlock) {
+diff --git a/dbus/mock_object_proxy.h b/dbus/mock_object_proxy.h
+index 9731ee502e..8b846dbba5 100644
+--- a/dbus/mock_object_proxy.h
++++ b/dbus/mock_object_proxy.h
+@@ -8,8 +8,6 @@
+ #include <memory>
+ #include <string>
+ 
+-#include "base/types/expected.h"
+-#include "dbus/error.h"
+ #include "dbus/message.h"
+ #include "dbus/object_path.h"
+ #include "dbus/object_proxy.h"
+@@ -24,10 +22,13 @@ class MockObjectProxy : public ObjectProxy {
+                   const std::string& service_name,
+                   const ObjectPath& object_path);
+ 
+-  MOCK_METHOD2(
+-      CallMethodAndBlock,
+-      base::expected<std::unique_ptr<Response>, Error>(MethodCall* method_call,
+-                                                       int timeout_ms));
++  MOCK_METHOD3(CallMethodAndBlockWithErrorDetails,
++               std::unique_ptr<Response>(MethodCall* method_call,
++                                         int timeout_ms,
++                                         Error* error));
++  MOCK_METHOD2(CallMethodAndBlock,
++               std::unique_ptr<Response>(MethodCall* method_call,
++                                         int timeout_ms));
+ 
+   // This method is not mockable because it takes a move-only argument. To work
+   // around this, CallMethod() implementation here calls DoCallMethod() which is
+diff --git a/dbus/mock_unittest.cc b/dbus/mock_unittest.cc
+index 9d71935c3c..29141fc855 100644
+--- a/dbus/mock_unittest.cc
++++ b/dbus/mock_unittest.cc
+@@ -46,6 +46,10 @@ class MockTest : public testing::Test {
+     // CreateMockProxyResponse() to return responses.
+     EXPECT_CALL(*mock_proxy_.get(), CallMethodAndBlock(_, _))
+         .WillRepeatedly(Invoke(this, &MockTest::CreateMockProxyResponse));
++    EXPECT_CALL(*mock_proxy_.get(),
++                CallMethodAndBlockWithErrorDetails(_, _, _))
++        .WillRepeatedly(
++            Invoke(this, &MockTest::CreateMockProxyResponseWithErrorDetails));
+ 
+     // Set an expectation so mock_proxy's CallMethod() will use
+     // HandleMockProxyResponseWithMessageLoop() to return responses.
+@@ -87,9 +91,8 @@ class MockTest : public testing::Test {
+  private:
+   // Returns a response for the given method call. Used to implement
+   // CallMethodAndBlock() for |mock_proxy_|.
+-  base::expected<std::unique_ptr<Response>, Error> CreateMockProxyResponse(
+-      MethodCall* method_call,
+-      int timeout_ms) {
++  std::unique_ptr<Response> CreateMockProxyResponse(MethodCall* method_call,
++                                                    int timeout_ms) {
+     if (method_call->GetInterface() == "org.chromium.TestInterface" &&
+         method_call->GetMember() == "Echo") {
+       MessageReader reader(method_call);
+@@ -98,14 +101,20 @@ class MockTest : public testing::Test {
+         std::unique_ptr<Response> response = Response::CreateEmpty();
+         MessageWriter writer(response.get());
+         writer.AppendString(text_message);
+-        return base::ok(std::move(response));
++        return response;
+       }
+-
+-      LOG(ERROR) << "Unexpected method call: " << method_call->ToString();
+-      return base::unexpected(Error());
+     }
+ 
+-    return base::unexpected(Error(DBUS_ERROR_NOT_SUPPORTED, "Not implemented"));
++    LOG(ERROR) << "Unexpected method call: " << method_call->ToString();
++    return nullptr;
++  }
++
++  std::unique_ptr<Response> CreateMockProxyResponseWithErrorDetails(
++      MethodCall* method_call,
++      int timeout_ms,
++      Error* error) {
++    *error = Error(DBUS_ERROR_NOT_SUPPORTED, "Not implemented");
++    return nullptr;
+   }
+ 
+   // Creates a response and posts the given response callback with the
+@@ -115,7 +124,7 @@ class MockTest : public testing::Test {
+       int timeout_ms,
+       ObjectProxy::ResponseCallback* response_callback) {
+     std::unique_ptr<Response> response =
+-        CreateMockProxyResponse(method_call, timeout_ms).value_or(nullptr);
++        CreateMockProxyResponse(method_call, timeout_ms);
+     task_environment_.GetMainThreadTaskRunner()->PostTask(
+         FROM_HERE,
+         base::BindOnce(&MockTest::RunResponseCallback, base::Unretained(this),
+@@ -145,34 +154,34 @@ TEST_F(MockTest, CallMethodAndBlock) {
+   writer.AppendString(kHello);
+ 
+   // Call the method.
+-  auto result =
+-      proxy->CallMethodAndBlock(&method_call, ObjectProxy::TIMEOUT_USE_DEFAULT);
++  std::unique_ptr<Response> response(proxy->CallMethodAndBlock(
++      &method_call, ObjectProxy::TIMEOUT_USE_DEFAULT));
+ 
+   // Check the response.
+-  ASSERT_TRUE(result.has_value());
+-  MessageReader reader(result->get());
++  ASSERT_TRUE(response.get());
++  MessageReader reader(response.get());
+   std::string text_message;
+   ASSERT_TRUE(reader.PopString(&text_message));
+   // The text message should be echo'ed back.
+   EXPECT_EQ(kHello, text_message);
+ }
+ 
+-TEST_F(MockTest, CallMethodAndBlockOnError) {
++TEST_F(MockTest, CallMethodAndBlockWithErrorDetails) {
+   // Get an object proxy from the mock bus.
+   ObjectProxy* proxy = mock_bus_->GetObjectProxy(
+       "org.chromium.TestService",
+       ObjectPath("/org/chromium/TestObject"));
+ 
+   // Create a method call.
+-  MethodCall method_call("org.chromium.TestInterface", "MissingMethod");
++  MethodCall method_call("org.chromium.TestInterface", "Echo");
+ 
++  Error error;
+   // Call the method.
+-  auto result =
+-      proxy->CallMethodAndBlock(&method_call, ObjectProxy::TIMEOUT_USE_DEFAULT);
++  std::unique_ptr<Response> response(proxy->CallMethodAndBlockWithErrorDetails(
++      &method_call, ObjectProxy::TIMEOUT_USE_DEFAULT, &error));
+ 
+   // Check the response.
+-  ASSERT_FALSE(result.has_value());
+-  const Error& error = result.error();
++  ASSERT_FALSE(response.get());
+   EXPECT_EQ(DBUS_ERROR_NOT_SUPPORTED, error.name());
+   EXPECT_EQ("Not implemented", error.message());
+ }
+diff --git a/dbus/object_proxy.cc b/dbus/object_proxy.cc
+index 2e6798f0a2..9296cb2fd6 100644
+--- a/dbus/object_proxy.cc
++++ b/dbus/object_proxy.cc
+@@ -128,14 +128,15 @@ ObjectProxy::~ObjectProxy() {
+ // Originally we tried to make |method_call| a const reference, but we
+ // gave up as dbus_connection_send_with_reply_and_block() takes a
+ // non-const pointer of DBusMessage as the second parameter.
+-base::expected<std::unique_ptr<Response>, Error>
+-ObjectProxy::CallMethodAndBlock(MethodCall* method_call, int timeout_ms) {
++std::unique_ptr<Response> ObjectProxy::CallMethodAndBlockWithErrorDetails(
++    MethodCall* method_call,
++    int timeout_ms,
++    Error* error) {
+   bus_->AssertOnDBusThread();
+ 
+   if (!bus_->Connect() || !method_call->SetDestination(service_name_) ||
+       !method_call->SetPath(object_path_)) {
+-    // Not an error from libdbus, so returns invalid error.
+-    return base::unexpected(Error());
++    return nullptr;
+   }
+ 
+   // Send the message synchronously.
+@@ -146,8 +147,18 @@ ObjectProxy::CallMethodAndBlock(MethodCall* method_call, int timeout_ms) {
+   if (!result.has_value()) {
+     LogMethodCallFailure(method_call->GetInterface(), method_call->GetMember(),
+                          result.error().name(), result.error().message());
++    *error = std::move(result.error());
++    return nullptr;
+   }
+-  return result;
++
++  return std::move(result.value());
++}
++
++std::unique_ptr<Response> ObjectProxy::CallMethodAndBlock(
++    MethodCall* method_call,
++    int timeout_ms) {
++  Error error;
++  return CallMethodAndBlockWithErrorDetails(method_call, timeout_ms, &error);
+ }
+ 
+ void ObjectProxy::CallMethod(MethodCall* method_call,
+diff --git a/dbus/object_proxy.h b/dbus/object_proxy.h
+index 10d384fe5a..d837293f0a 100644
+--- a/dbus/object_proxy.h
++++ b/dbus/object_proxy.h
+@@ -18,14 +18,13 @@
+ #include "base/strings/string_piece.h"
+ #include "base/task/sequenced_task_runner.h"
+ #include "base/time/time.h"
+-#include "base/types/expected.h"
+ #include "dbus/dbus_export.h"
+-#include "dbus/error.h"
+ #include "dbus/object_path.h"
+ 
+ namespace dbus {
+ 
+ class Bus;
++class Error;
+ class ErrorResponse;
+ class MethodCall;
+ class Response;
+@@ -106,16 +105,21 @@ class CHROME_DBUS_EXPORT ObjectProxy
+       base::OnceCallback<void(const std::string&, const std::string&, bool)>;
+ 
+   // Calls the method of the remote object and blocks until the response
+-  // is returned.
+-  //
+-  // If this is failing due to the reason outside of libdbus, this may return
+-  // an invalid error to indicate the situation.
+-  // This must be called on D-Bus thread.
++  // is returned. Returns NULL on error with the error details specified
++  // in the |error| object.
+   //
+   // BLOCKING CALL.
+-  virtual base::expected<std::unique_ptr<Response>, Error> CallMethodAndBlock(
++  virtual std::unique_ptr<Response> CallMethodAndBlockWithErrorDetails(
+       MethodCall* method_call,
+-      int timeout_ms);
++      int timeout_ms,
++      Error* error);
++
++  // Calls the method of the remote object and blocks until the response
++  // is returned. Returns NULL on error.
++  //
++  // BLOCKING CALL.
++  virtual std::unique_ptr<Response> CallMethodAndBlock(MethodCall* method_call,
++                                                       int timeout_ms);
+ 
+   // Requests to call the method of the remote object.
+   //
+diff --git a/dbus/property.cc b/dbus/property.cc
+index 0635473323..37f5e06cad 100644
+--- a/dbus/property.cc
++++ b/dbus/property.cc
+@@ -137,15 +137,15 @@ bool PropertySet::GetAndBlock(PropertyBase* property) {
+   writer.AppendString(property->name());
+ 
+   DCHECK(object_proxy_);
+-  auto result = object_proxy_->CallMethodAndBlock(
+-      &method_call, ObjectProxy::TIMEOUT_USE_DEFAULT);
++  std::unique_ptr<dbus::Response> response(object_proxy_->CallMethodAndBlock(
++      &method_call, ObjectProxy::TIMEOUT_USE_DEFAULT));
+ 
+-  if (!result.has_value()) {
++  if (!response.get()) {
+     LOG(WARNING) << property->name() << ": GetAndBlock: failed.";
+     return false;
+   }
+ 
+-  MessageReader reader(result->get());
++  MessageReader reader(response.get());
+   if (property->PopValueFromReader(&reader)) {
+     property->set_valid(true);
+     NotifyPropertyChanged(property->name());
+@@ -203,9 +203,11 @@ bool PropertySet::SetAndBlock(PropertyBase* property) {
+   property->AppendSetValueToWriter(&writer);
+ 
+   DCHECK(object_proxy_);
+-  return object_proxy_
+-      ->CallMethodAndBlock(&method_call, ObjectProxy::TIMEOUT_USE_DEFAULT)
+-      .has_value();
++  std::unique_ptr<dbus::Response> response(object_proxy_->CallMethodAndBlock(
++      &method_call, ObjectProxy::TIMEOUT_USE_DEFAULT));
++  if (response.get())
++    return true;
++  return false;
+ }
+ 
+ void PropertySet::OnSet(PropertyBase* property,
+-- 
+2.41.0.255.g8b1d071c50-goog
+
