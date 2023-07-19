@@ -827,6 +827,7 @@ if (use.dbus) {
       sources = [
         "dbus/bus.cc",
         "dbus/dbus_statistics.cc",
+        "dbus/error.cc",
         "dbus/exported_object.cc",
         "dbus/message.cc",
         "dbus/object_manager.cc",
