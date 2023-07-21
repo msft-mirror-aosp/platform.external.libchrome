@@ -1,22 +1,26 @@
-From 89442120f7286352b16c130149c6f4b3a178886f Mon Sep 17 00:00:00 2001
+From 625fd88e12ed00142bdc6d24ea29132ab569b315 Mon Sep 17 00:00:00 2001
 From: Ren-Pei Zeng <kamesan@chromium.org>
 Date: Mon, 17 Jul 2023 15:44:06 +0000
 Subject: [PATCH] Revert "Merge
  ObjectProxy::CallMethodAndBlock{,WithErrorDetails}."
 
-This reverts commit b0186670b7c3a450ed3f00170c6d62db4aa72716.
+This reverts commit b0186670b7c3a450ed3f00170c6d62db4aa72716 and
+introduces a temporary function to aid in migrating clients to the new
+API.
+
+Change-Id: Ib7153f683faba60e119d5966fb41853300d0049c
 ---
  dbus/bus.h                       |  3 ++
  dbus/end_to_end_sync_unittest.cc | 27 ++++++++++--------
  dbus/mock_object_proxy.h         | 13 +++++----
  dbus/mock_unittest.cc            | 47 +++++++++++++++++++-------------
- dbus/object_proxy.cc             | 21 ++++++++++----
- dbus/object_proxy.h              | 22 +++++++++------
+ dbus/object_proxy.cc             | 28 +++++++++++++++----
+ dbus/object_proxy.h              | 24 ++++++++++------
  dbus/property.cc                 | 16 ++++++-----
- 7 files changed, 92 insertions(+), 57 deletions(-)
+ 7 files changed, 101 insertions(+), 57 deletions(-)
 
 diff --git a/dbus/bus.h b/dbus/bus.h
-index 189389d2b4..539a02f67a 100644
+index 81bc0e5d6b..081a0108dc 100644
 --- a/dbus/bus.h
 +++ b/dbus/bus.h
 @@ -448,6 +448,9 @@ class CHROME_DBUS_EXPORT Bus : public base::RefCountedThreadSafe<Bus> {
@@ -235,7 +239,7 @@ index 9d71935c3c..29141fc855 100644
    EXPECT_EQ("Not implemented", error.message());
  }
 diff --git a/dbus/object_proxy.cc b/dbus/object_proxy.cc
-index 2e6798f0a2..9296cb2fd6 100644
+index 2e6798f0a2..b80d843448 100644
 --- a/dbus/object_proxy.cc
 +++ b/dbus/object_proxy.cc
 @@ -128,14 +128,15 @@ ObjectProxy::~ObjectProxy() {
@@ -258,7 +262,7 @@ index 2e6798f0a2..9296cb2fd6 100644
    }
  
    // Send the message synchronously.
-@@ -146,8 +147,18 @@ ObjectProxy::CallMethodAndBlock(MethodCall* method_call, int timeout_ms) {
+@@ -146,8 +147,25 @@ ObjectProxy::CallMethodAndBlock(MethodCall* method_call, int timeout_ms) {
    if (!result.has_value()) {
      LogMethodCallFailure(method_call->GetInterface(), method_call->GetMember(),
                           result.error().name(), result.error().message());
@@ -275,11 +279,18 @@ index 2e6798f0a2..9296cb2fd6 100644
 +    int timeout_ms) {
 +  Error error;
 +  return CallMethodAndBlockWithErrorDetails(method_call, timeout_ms, &error);
++}
++
++std::unique_ptr<Response> ObjectProxy::CallMethodAndBlockDeprecated(
++    MethodCall* method_call,
++    int timeout_ms) {
++  Error error;
++  return CallMethodAndBlockWithErrorDetails(method_call, timeout_ms, &error);
  }
  
  void ObjectProxy::CallMethod(MethodCall* method_call,
 diff --git a/dbus/object_proxy.h b/dbus/object_proxy.h
-index 10d384fe5a..d837293f0a 100644
+index 10d384fe5a..b9700ba1f9 100644
 --- a/dbus/object_proxy.h
 +++ b/dbus/object_proxy.h
 @@ -18,14 +18,13 @@
@@ -298,7 +309,7 @@ index 10d384fe5a..d837293f0a 100644
  class ErrorResponse;
  class MethodCall;
  class Response;
-@@ -106,16 +105,21 @@ class CHROME_DBUS_EXPORT ObjectProxy
+@@ -106,16 +105,23 @@ class CHROME_DBUS_EXPORT ObjectProxy
        base::OnceCallback<void(const std::string&, const std::string&, bool)>;
  
    // Calls the method of the remote object and blocks until the response
@@ -324,6 +335,8 @@ index 10d384fe5a..d837293f0a 100644
 +  // BLOCKING CALL.
 +  virtual std::unique_ptr<Response> CallMethodAndBlock(MethodCall* method_call,
 +                                                       int timeout_ms);
++  virtual std::unique_ptr<Response> CallMethodAndBlockDeprecated(
++      MethodCall* method_call, int timeout_ms);
  
    // Requests to call the method of the remote object.
    //
@@ -367,5 +380,5 @@ index 0635473323..37f5e06cad 100644
  
  void PropertySet::OnSet(PropertyBase* property,
 -- 
-2.41.0.255.g8b1d071c50-goog
+2.41.0.487.g6d72f3e995-goog
 
