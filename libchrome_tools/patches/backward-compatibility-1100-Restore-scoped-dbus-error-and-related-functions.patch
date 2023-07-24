@@ -33,7 +33,7 @@ index 2f24e01d4a..a9b2dcccb3 100644
 +    CHECK(e.IsValid());
 +    if (error) {
 +      dbus_error_init(error);
-+      dbus_set_error_const(error, e.name().c_str(), e.message().c_str());
++      dbus_set_error(error, e.name().c_str(), "%s", e.message().c_str());
 +    }
 +    return nullptr;
 +  }
@@ -52,7 +52,7 @@ index 2f24e01d4a..a9b2dcccb3 100644
 +  AddMatch(match_rule, &e);
 +  if (error && e.IsValid()) {
 +    dbus_error_init(error);
-+    dbus_set_error_const(error, e.name().c_str(), e.message().c_str());
++    dbus_set_error(error, e.name().c_str(), "%s", e.message().c_str());
 +  }
 +}
 +
@@ -68,7 +68,7 @@ index 2f24e01d4a..a9b2dcccb3 100644
 +  bool result = RemoveMatch(match_rule, &e);
 +  if (error && e.IsValid()) {
 +    dbus_error_init(error);
-+    dbus_set_error_const(error, e.name().c_str(), e.message().c_str());
++    dbus_set_error(error, e.name().c_str(), "%s", e.message().c_str());
 +  }
 +  return result;
 +}
@@ -152,8 +152,8 @@ index 9296cb2fd6..0281a992ab 100644
 +  auto response = CallMethodAndBlockWithErrorDetails(method_call, timeout_ms, &error);
 +  if (error.IsValid()) {
 +    dbus_error_init(scoped_error->get());
-+    dbus_set_error_const(scoped_error->get(), error.name().c_str(),
-+                         error.message().c_str());
++    dbus_set_error(scoped_error->get(), error.name().c_str(),
++                         "%s", error.message().c_str());
 +  }
 +  return response;
 +}
