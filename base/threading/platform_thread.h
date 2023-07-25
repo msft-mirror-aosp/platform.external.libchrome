@@ -293,6 +293,8 @@ class ThreadTypeDelegate;
 
 class BASE_EXPORT PlatformThreadLinux : public PlatformThreadBase {
  public:
+  static constexpr struct sched_param kRealTimePrio = {8};
+
   // Sets a delegate which handles thread type changes for this process. This
   // must be externally synchronized with any call to SetCurrentThreadType.
   static void SetThreadTypeDelegate(ThreadTypeDelegate* delegate);
@@ -309,6 +311,11 @@ class BASE_EXPORT PlatformThreadLinux : public PlatformThreadBase {
   static void SetThreadType(PlatformThreadId process_id,
                             PlatformThreadId thread_id,
                             ThreadType thread_type);
+
+  // For a given thread id and thread type, setup the cpuset and schedtune
+  // CGroups for the thread.
+  static void SetThreadCgroupsForThreadType(PlatformThreadId thread_id,
+                                            ThreadType thread_type);
 };
 #endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
 
@@ -318,6 +325,13 @@ class BASE_EXPORT PlatformThreadChromeOS : public PlatformThreadLinux {
   // Signals that the feature list has been initialized. Used for preventing
   // race conditions and crashes, see comments in PlatformThreadApple.
   static void InitFeaturesPostFieldTrial();
+
+  // Toggles a specific thread's type at runtime. This is the ChromeOS-specific
+  // version and includes Linux's functionality but does slightly more. See
+  // PlatformThreadLinux's SetThreadType() header comment for Linux details.
+  static void SetThreadType(PlatformThreadId process_id,
+                            PlatformThreadId thread_id,
+                            ThreadType thread_type);
 };
 #endif  // BUILDFLAG(IS_CHROMEOS)
 

@@ -4,29 +4,17 @@
 
 package org.chromium.base.test;
 
-import androidx.test.core.app.ApplicationProvider;
-
 import org.junit.runners.model.FrameworkMethod;
 import org.junit.runners.model.InitializationError;
+import org.junit.runners.model.Statement;
 import org.robolectric.DefaultTestLifecycle;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.TestLifecycle;
+import org.robolectric.internal.SandboxTestRunner;
 import org.robolectric.internal.bytecode.InstrumentationConfiguration;
 import org.robolectric.internal.bytecode.Sandbox;
 
-import org.chromium.base.ApplicationStatus;
-import org.chromium.base.BundleUtils;
-import org.chromium.base.ContextUtils;
-import org.chromium.base.Flag;
-import org.chromium.base.LifetimeAssert;
-import org.chromium.base.PathUtils;
 import org.chromium.base.ResettersForTesting;
-import org.chromium.base.ThreadUtils;
-import org.chromium.base.library_loader.LibraryLoader;
-import org.chromium.base.library_loader.LibraryProcessType;
-import org.chromium.base.metrics.UmaRecorderHolder;
-import org.chromium.base.task.PostTask;
-import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.TimeoutTimer;
 
@@ -39,50 +27,62 @@ import java.lang.reflect.Method;
  */
 public class BaseRobolectricTestRunner extends RobolectricTestRunner {
     /**
-     * Enables a per-test setUp / tearDown hook.
+     * Tracks whether tests pass / fail for use in BaseTestLifecycle.
+     */
+    protected static class HelperTestRunner extends RobolectricTestRunner.HelperTestRunner {
+        public static boolean sTestFailed;
+        public HelperTestRunner(Class bootstrappedTestClass) throws InitializationError {
+            super(bootstrappedTestClass);
+        }
+
+        @Override
+        protected Statement methodBlock(final FrameworkMethod method) {
+            Statement orig = super.methodBlock(method);
+            return new Statement() {
+                // Does not run the sandbox classloader.
+                // Called after Lifecycle.beforeTest(), and before Lifecycle.afterTest().
+                @Override
+                public void evaluate() throws Throwable {
+                    try {
+                        orig.evaluate();
+                    } catch (Throwable t) {
+                        sTestFailed = true;
+                        throw t;
+                    }
+                    sTestFailed = false;
+                }
+            };
+        }
+    }
+
+    /**
+     * Before / after hooks that run in the context of the sandbox classloader.
      */
     public static class BaseTestLifecycle extends DefaultTestLifecycle {
         @Override
         public void beforeTest(Method method) {
-            UmaRecorderHolder.setUpNativeUmaRecorder(false);
-            LibraryLoader.getInstance().setLibraryProcessType(LibraryProcessType.PROCESS_BROWSER);
-            ContextUtils.initApplicationContextForTests(
-                    ApplicationProvider.getApplicationContext());
-            ApplicationStatus.initialize(ApplicationProvider.getApplicationContext());
-            UmaRecorderHolder.resetForTesting();
-            CommandLineFlags.setUpClass(method.getDeclaringClass());
-            CommandLineFlags.setUpMethod(method);
-            BundleUtils.resetForTesting();
-            Flag.resetAllInMemoryCachedValuesForTesting();
+            BaseRobolectricTestRule.setUp(method);
             super.beforeTest(method);
         }
 
         @Override
         public void afterTest(Method method) {
-            try {
-                LifetimeAssert.assertAllInstancesDestroyedForTesting();
-            } finally {
-                try {
-                    // https://crbug.com/1392817 for context as to why we do this.
-                    PostTask.flushJobsAndResetForTesting();
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                } finally {
-                    CommandLineFlags.tearDownMethod();
-                    CommandLineFlags.tearDownClass();
-                    ResettersForTesting.onAfterMethod();
-                    ApplicationStatus.destroyForJUnitTests();
-                    ContextUtils.clearApplicationContextForTests();
-                    PathUtils.resetForTesting();
-                    ThreadUtils.clearUiThreadForTesting();
-                    super.afterTest(method);
-                }
-            }
+            super.afterTest(method);
+            BaseRobolectricTestRule.tearDown(HelperTestRunner.sTestFailed);
         }
     }
 
     public BaseRobolectricTestRunner(Class<?> testClass) throws InitializationError {
         super(testClass);
+    }
+
+    @Override
+    protected SandboxTestRunner.HelperTestRunner getHelperTestRunner(Class bootstrappedTestClass) {
+        try {
+            return new HelperTestRunner(bootstrappedTestClass);
+        } catch (InitializationError initializationError) {
+            throw new RuntimeException(initializationError);
+        }
     }
 
     @Override
@@ -115,6 +115,7 @@ public class BaseRobolectricTestRunner extends RobolectricTestRunner {
     @Override
     protected InstrumentationConfiguration createClassLoaderConfig(final FrameworkMethod method) {
         return new InstrumentationConfiguration.Builder(super.createClassLoaderConfig(method))
+                .doNotAcquireClass(HelperTestRunner.class)
                 .doNotAcquireClass(TimeoutTimer.class) // Requires access to non-fake SystemClock.
                 .doNotAcquireClass(ResettersForTesting.class)
                 .build();
