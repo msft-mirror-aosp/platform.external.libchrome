@@ -29,6 +29,9 @@ BAD_KEYWORDS = {
     # removal of deprecated base::ThreadLocal(Pointer|Boolean) APIs
     r'base::(ThreadLocalBoolean|ThreadLocalPointer)':
     'Use `thread_local bool|T*` instead. See https://chromium.googlesource.com/chromium/src/+/main/styleguide/c++/c++.md#thread_local-variables for discussion. (b/274724518)',
+    # base::StringPiece will be deprecated and replaced by std:string_view.
+    r'base::StringPiece':
+    'Use the now equivalent std::string_view (crrev.com/c/4294483). See upstream bug crbug.com/691162 for details.'
 }
 
 LINE_NUMBER_RE=re.compile(r'^@@ [0-9\,\+\-]+ \+([0-9]+)[ \,][0-9 ]*@@')
