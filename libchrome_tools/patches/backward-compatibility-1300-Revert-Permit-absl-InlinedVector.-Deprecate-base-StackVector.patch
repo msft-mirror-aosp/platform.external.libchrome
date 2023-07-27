@@ -1,0 +1,803 @@
+From 51f0a1613d9633d9c9e42daa21261f14da2f85ed Mon Sep 17 00:00:00 2001
+From: Jeff Lin <jeffulin@google.com>
+Date: Wed, 26 Jul 2023 17:36:11 +0800
+Subject: [PATCH] Revert "Permit absl::InlinedVector. Deprecate
+ base::StackVector"
+
+This reverts the following commits:
+
+34010d39a3 Use InlinedVector in /mojo
+a49e8a9368 Use InlinedVector in /base
+5b65ab3189 Use InlinedVector in /base/containers
+7aa45acd4b Use InlinedVector in /mojo/core
+0b1cfd7b6f Use InlinedVector in /base/task/sequence_manager
+6cec1ba17a Use InlinedVector in /base/memory
+c1385d378b Permit absl::InlinedVector. Deprecate base::StackVector
+
+See also discussion thread in cxx@chromium.org:
+https://groups.google.com/a/chromium.org/g/cxx/c/jTfqVfU-Ka0/m/caaal90NCgAJ
+
+Change-Id: Ie7b6f4f19a137a00b86f73bcef0b4b24afe25e4e
+---
+ base/containers/intrusive_heap.h              | 11 +++---
+ base/containers/stack_container.h             |  7 ----
+ base/memory/raw_ptr_asan_bound_arg_tracker.cc |  2 +-
+ base/memory/raw_ptr_asan_bound_arg_tracker.h  |  4 +-
+ base/message_loop/message_pump_epoll.cc       | 14 +++----
+ base/message_loop/message_pump_epoll.h        |  4 +-
+ base/task/sequence_manager/task_queue_impl.cc | 14 +++----
+ base/task/sequence_manager/work_queue.cc      | 10 ++---
+ mojo/core/core.cc                             |  1 +
+ mojo/core/ipcz_driver/driver.cc               |  1 +
+ mojo/core/ipcz_driver/invitation.h            |  1 +
+ mojo/core/ipcz_driver/mojo_message.cc         | 12 +++---
+ mojo/core/ipcz_driver/mojo_trap.cc            |  6 +--
+ mojo/core/ipcz_driver/mojo_trap.h             |  4 +-
+ mojo/core/ipcz_driver/transport.cc            | 14 +++----
+ mojo/core/ports/node.cc                       | 15 ++++----
+ mojo/core/request_context.cc                  | 14 ++++---
+ mojo/core/request_context.h                   |  6 +--
+ .../cpp/bindings/lib/sync_event_watcher.cc    | 12 +++---
+ mojo/public/cpp/system/wait_set.cc            | 37 ++++++++++---------
+ 20 files changed, 94 insertions(+), 95 deletions(-)
+
+diff --git a/base/containers/intrusive_heap.h b/base/containers/intrusive_heap.h
+index acda39b594..d8ed3a2bf8 100644
+--- a/base/containers/intrusive_heap.h
++++ b/base/containers/intrusive_heap.h
+@@ -140,9 +140,9 @@
+ #include "base/base_export.h"
+ #include "base/check.h"
+ #include "base/check_op.h"
++#include "base/containers/stack_container.h"
+ #include "base/memory/ptr_util.h"
+ #include "base/ranges/algorithm.h"
+-#include "third_party/abseil-cpp/absl/container/inlined_vector.h"
+ 
+ namespace base {
+ 
+@@ -431,16 +431,15 @@ class IntrusiveHeap {
+     // elements to be erased into a temporary container before deleting them.
+     // This is to avoid changing the underlying container during the erase()
+     // call.
+-    absl::InlinedVector<value_type, 8> elements_to_delete;
++    StackVector<value_type, 8> elements_to_delete;
+     std::move(erase_start, impl_.heap_.end(),
+-              std::back_inserter(elements_to_delete));
++              std::back_inserter(elements_to_delete.container()));
+ 
+     impl_.heap_.erase(erase_start, impl_.heap_.end());
+ 
+     // If no elements were removed, then the heap is still intact.
+-    if (elements_to_delete.empty()) {
++    if (elements_to_delete->empty())
+       return;
+-    }
+ 
+     // Repair the heap and ensure handles are pointing to the right index.
+     ranges::make_heap(impl_.heap_, value_comp());
+@@ -448,7 +447,7 @@ class IntrusiveHeap {
+       SetHeapHandle(i);
+ 
+     // Explicitly delete elements last.
+-    elements_to_delete.clear();
++    elements_to_delete->clear();
+   }
+ 
+   //////////////////////////////////////////////////////////////////////////////
+diff --git a/base/containers/stack_container.h b/base/containers/stack_container.h
+index ba3842a28d..8c68b6247a 100644
+--- a/base/containers/stack_container.h
++++ b/base/containers/stack_container.h
+@@ -5,11 +5,6 @@
+ #ifndef BASE_CONTAINERS_STACK_CONTAINER_H_
+ #define BASE_CONTAINERS_STACK_CONTAINER_H_
+ 
+-// ================== DEPRECATION NOTICE ==================
+-// These classes are deprecated and will be removed soon. Use
+-// absl::InlinedVector instead. If absl::InlinedVector doesn't fit your use
+-// case, please email cxx@chromium.org with details.
+-
+ #include <stddef.h>
+ #include <memory>
+ #include <vector>
+@@ -217,8 +212,6 @@ auto end(const StackContainer<TContainerType, stack_capacity>& stack_container)
+ 
+ // StackVector -----------------------------------------------------------------
+ 
+-// THIS CLASS IS DEPRECATED. Use absl::InlinedVector instead.
+-
+ // Example:
+ //   StackVector<int, 16> foo;
+ //   foo->push_back(22);  // we have overloaded operator->
+diff --git a/base/memory/raw_ptr_asan_bound_arg_tracker.cc b/base/memory/raw_ptr_asan_bound_arg_tracker.cc
+index a8cd5e2a5a..670ac8cfaf 100644
+--- a/base/memory/raw_ptr_asan_bound_arg_tracker.cc
++++ b/base/memory/raw_ptr_asan_bound_arg_tracker.cc
+@@ -61,7 +61,7 @@ RawPtrAsanBoundArgTracker::~RawPtrAsanBoundArgTracker() {
+ 
+ void RawPtrAsanBoundArgTracker::Add(uintptr_t ptr) {
+   if (ptr) {
+-    protected_args_.push_back(ptr);
++    protected_args_->push_back(ptr);
+   }
+ }
+ 
+diff --git a/base/memory/raw_ptr_asan_bound_arg_tracker.h b/base/memory/raw_ptr_asan_bound_arg_tracker.h
+index ab8d1cbe4b..6841a6dabe 100644
+--- a/base/memory/raw_ptr_asan_bound_arg_tracker.h
++++ b/base/memory/raw_ptr_asan_bound_arg_tracker.h
+@@ -14,8 +14,8 @@
+ #include <vector>
+ 
+ #include "base/base_export.h"
++#include "base/containers/stack_container.h"
+ #include "base/memory/raw_ptr.h"
+-#include "third_party/abseil-cpp/absl/container/inlined_vector.h"
+ 
+ namespace base {
+ namespace internal {
+@@ -47,7 +47,7 @@ class UnretainedRefWrapper;
+ class BASE_EXPORT RawPtrAsanBoundArgTracker {
+  public:
+   static constexpr size_t kInlineArgsCount = 3;
+-  using ProtectedArgsVector = absl::InlinedVector<uintptr_t, kInlineArgsCount>;
++  using ProtectedArgsVector = base::StackVector<uintptr_t, kInlineArgsCount>;
+ 
+   // Check whether ptr is an address inside an allocation pointed to by one of
+   // the currently protected callback arguments. If it is, then this function
+diff --git a/base/message_loop/message_pump_epoll.cc b/base/message_loop/message_pump_epoll.cc
+index 4389691578..e021f27389 100644
+--- a/base/message_loop/message_pump_epoll.cc
++++ b/base/message_loop/message_pump_epoll.cc
+@@ -66,7 +66,7 @@ bool MessagePumpEpoll::WatchFileDescriptor(int fd,
+     // non-persistent) Interest.
+     existing_interest->set_active(true);
+   } else {
+-    entry.interests.push_back(controller->AssignEpollInterest(params));
++    entry.interests->push_back(controller->AssignEpollInterest(params));
+     if (existing_interest) {
+       UnregisterInterest(existing_interest);
+     }
+@@ -181,8 +181,8 @@ void MessagePumpEpoll::UnregisterInterest(
+   DCHECK(entry_it != entries_.end());
+ 
+   EpollEventEntry& entry = entry_it->second;
+-  auto& interests = entry.interests;
+-  auto* it = ranges::find(interests, interest);
++  auto& interests = entry.interests.container();
++  auto it = ranges::find(interests, interest);
+   DCHECK(it != interests.end());
+   interests.erase(it);
+ 
+@@ -267,11 +267,11 @@ void MessagePumpEpoll::OnEpollEvent(EpollEventEntry& entry, uint32_t events) {
+   // Any of these interests' event handlers may destroy any of the others'
+   // controllers. Start all of them watching for destruction before we actually
+   // dispatch any events.
+-  for (const auto& interest : interests) {
++  for (const auto& interest : interests.container()) {
+     interest->WatchForControllerDestruction();
+   }
+ 
+-  for (const auto& interest : interests) {
++  for (const auto& interest : interests.container()) {
+     if (!interest->active()) {
+       continue;
+     }
+@@ -299,7 +299,7 @@ void MessagePumpEpoll::OnEpollEvent(EpollEventEntry& entry, uint32_t events) {
+     }
+   }
+ 
+-  for (const auto& interest : interests) {
++  for (const auto& interest : interests.container()) {
+     interest->StopWatchingForControllerDestruction();
+   }
+ }
+@@ -364,7 +364,7 @@ MessagePumpEpoll::EpollEventEntry::~EpollEventEntry() {
+ uint32_t MessagePumpEpoll::EpollEventEntry::ComputeActiveEvents() {
+   uint32_t events = 0;
+   bool one_shot = true;
+-  for (const auto& interest : interests) {
++  for (const auto& interest : interests.container()) {
+     if (!interest->active()) {
+       continue;
+     }
+diff --git a/base/message_loop/message_pump_epoll.h b/base/message_loop/message_pump_epoll.h
+index daa47a8e0d..150a4aa141 100644
+--- a/base/message_loop/message_pump_epoll.h
++++ b/base/message_loop/message_pump_epoll.h
+@@ -11,6 +11,7 @@
+ #include <map>
+ 
+ #include "base/base_export.h"
++#include "base/containers/stack_container.h"
+ #include "base/files/scoped_file.h"
+ #include "base/memory/raw_ptr.h"
+ #include "base/memory/raw_ptr_exclusion.h"
+@@ -21,7 +22,6 @@
+ #include "base/message_loop/watchable_io_message_pump_posix.h"
+ #include "base/threading/thread_checker.h"
+ #include "base/time/time.h"
+-#include "third_party/abseil-cpp/absl/container/inlined_vector.h"
+ 
+ namespace base {
+ 
+@@ -95,7 +95,7 @@ class BASE_EXPORT MessagePumpEpoll : public MessagePump,
+     // all real scenarios, since there's little practical value in having more
+     // than two controllers (e.g. one reader and one writer) watch the same
+     // descriptor on the same thread.
+-    absl::InlinedVector<scoped_refptr<Interest>, 2> interests;
++    StackVector<scoped_refptr<Interest>, 2> interests;
+ 
+     // Temporary pointer to an active epoll_event structure which refers to
+     // this entry. This is set immediately upon returning from epoll_wait() and
+diff --git a/base/task/sequence_manager/task_queue_impl.cc b/base/task/sequence_manager/task_queue_impl.cc
+index 3ea4604d1b..d882f8cb98 100644
+--- a/base/task/sequence_manager/task_queue_impl.cc
++++ b/base/task/sequence_manager/task_queue_impl.cc
+@@ -11,6 +11,7 @@
+ 
+ #include "base/check.h"
+ #include "base/compiler_specific.h"
++#include "base/containers/stack_container.h"
+ #include "base/feature_list.h"
+ #include "base/logging.h"
+ #include "base/memory/scoped_refptr.h"
+@@ -35,7 +36,6 @@
+ #include "base/trace_event/base_tracing.h"
+ #include "base/types/pass_key.h"
+ #include "build/build_config.h"
+-#include "third_party/abseil-cpp/absl/container/inlined_vector.h"
+ #include "third_party/abseil-cpp/absl/types/optional.h"
+ 
+ namespace base {
+@@ -663,7 +663,7 @@ bool TaskQueueImpl::RemoveAllCanceledDelayedTasksFromFront(LazyNow* lazy_now) {
+   // Because task destructors could have a side-effect of posting new tasks, we
+   // move all the cancelled tasks into a temporary container before deleting
+   // them. This is to avoid the queue from changing while iterating over it.
+-  absl::InlinedVector<Task, 8> tasks_to_delete;
++  StackVector<Task, 8> tasks_to_delete;
+ 
+   while (!main_thread_only().delayed_incoming_queue.empty()) {
+     const Task& task = main_thread_only().delayed_incoming_queue.top();
+@@ -671,11 +671,11 @@ bool TaskQueueImpl::RemoveAllCanceledDelayedTasksFromFront(LazyNow* lazy_now) {
+     if (!task.task.IsCancelled())
+       break;
+ 
+-    tasks_to_delete.push_back(
++    tasks_to_delete->push_back(
+         main_thread_only().delayed_incoming_queue.take_top());
+   }
+ 
+-  if (!tasks_to_delete.empty()) {
++  if (!tasks_to_delete->empty()) {
+     UpdateWakeUp(lazy_now);
+     return true;
+   }
+@@ -694,7 +694,7 @@ void TaskQueueImpl::MoveReadyDelayedTasksToWorkQueue(
+   // Because task destructors could have a side-effect of posting new tasks, we
+   // move all the cancelled tasks into a temporary container before deleting
+   // them. This is to avoid the queue from changing while iterating over it.
+-  absl::InlinedVector<Task, 8> tasks_to_delete;
++  StackVector<Task, 8> tasks_to_delete;
+ 
+   while (!main_thread_only().delayed_incoming_queue.empty()) {
+     const Task& task = main_thread_only().delayed_incoming_queue.top();
+@@ -707,7 +707,7 @@ void TaskQueueImpl::MoveReadyDelayedTasksToWorkQueue(
+ 
+     Task ready_task = main_thread_only().delayed_incoming_queue.take_top();
+     if (is_cancelled) {
+-      tasks_to_delete.push_back(std::move(ready_task));
++      tasks_to_delete->push_back(std::move(ready_task));
+       continue;
+     }
+ 
+@@ -726,7 +726,7 @@ void TaskQueueImpl::MoveReadyDelayedTasksToWorkQueue(
+   }
+ 
+   // Explicitly delete tasks last.
+-  tasks_to_delete.clear();
++  tasks_to_delete->clear();
+ 
+   UpdateWakeUp(lazy_now);
+ }
+diff --git a/base/task/sequence_manager/work_queue.cc b/base/task/sequence_manager/work_queue.cc
+index 11e44bb6d9..53d5aa2a37 100644
+--- a/base/task/sequence_manager/work_queue.cc
++++ b/base/task/sequence_manager/work_queue.cc
+@@ -4,13 +4,13 @@
+ 
+ #include "base/task/sequence_manager/work_queue.h"
+ 
++#include "base/containers/stack_container.h"
+ #include "base/debug/alias.h"
+ #include "base/task/sequence_manager/fence.h"
+ #include "base/task/sequence_manager/sequence_manager_impl.h"
+ #include "base/task/sequence_manager/task_order.h"
+ #include "base/task/sequence_manager/work_queue_sets.h"
+ #include "build/build_config.h"
+-#include "third_party/abseil-cpp/absl/container/inlined_vector.h"
+ #include "third_party/abseil-cpp/absl/types/optional.h"
+ 
+ namespace base {
+@@ -227,16 +227,16 @@ bool WorkQueue::RemoveAllCanceledTasksFromFront() {
+   // Since task destructors could have a side-effect of deleting this task queue
+   // we move cancelled tasks into a temporary container which can be emptied
+   // without accessing |this|.
+-  absl::InlinedVector<Task, 8> tasks_to_delete;
++  StackVector<Task, 8> tasks_to_delete;
+ 
+   while (!tasks_.empty()) {
+     const auto& pending_task = tasks_.front();
+     if (pending_task.task && !pending_task.IsCanceled())
+       break;
+-    tasks_to_delete.push_back(std::move(tasks_.front()));
++    tasks_to_delete->push_back(std::move(tasks_.front()));
+     tasks_.pop_front();
+   }
+-  if (!tasks_to_delete.empty()) {
++  if (!tasks_to_delete->empty()) {
+     if (tasks_.empty()) {
+       // NB delayed tasks are inserted via Push, no don't need to reload those.
+       if (queue_type_ == QueueType::kImmediate) {
+@@ -254,7 +254,7 @@ bool WorkQueue::RemoveAllCanceledTasksFromFront() {
+       work_queue_sets_->OnQueuesFrontTaskChanged(this);
+     task_queue_->TraceQueueSize();
+   }
+-  return !tasks_to_delete.empty();
++  return !tasks_to_delete->empty();
+ }
+ 
+ void WorkQueue::AssignToWorkQueueSets(WorkQueueSets* work_queue_sets) {
+diff --git a/mojo/core/core.cc b/mojo/core/core.cc
+index f1ec7b9b8c..40027e0b81 100644
+--- a/mojo/core/core.cc
++++ b/mojo/core/core.cc
+@@ -10,6 +10,7 @@
+ #include <memory>
+ #include <utility>
+ 
++#include "base/containers/stack_container.h"
+ #include "base/functional/bind.h"
+ #include "base/location.h"
+ #include "base/logging.h"
+diff --git a/mojo/core/ipcz_driver/driver.cc b/mojo/core/ipcz_driver/driver.cc
+index 2c8989f43c..a46754ef39 100644
+--- a/mojo/core/ipcz_driver/driver.cc
++++ b/mojo/core/ipcz_driver/driver.cc
+@@ -10,6 +10,7 @@
+ #include <utility>
+ 
+ #include "base/containers/span.h"
++#include "base/containers/stack_container.h"
+ #include "base/memory/unsafe_shared_memory_region.h"
+ #include "base/rand_util.h"
+ #include "mojo/core/ipcz_driver/object.h"
+diff --git a/mojo/core/ipcz_driver/invitation.h b/mojo/core/ipcz_driver/invitation.h
+index 0e7c08f78c..3be60bfba7 100644
+--- a/mojo/core/ipcz_driver/invitation.h
++++ b/mojo/core/ipcz_driver/invitation.h
+@@ -9,6 +9,7 @@
+ #include <string>
+ 
+ #include "base/containers/span.h"
++#include "base/containers/stack_container.h"
+ #include "mojo/core/ipcz_driver/object.h"
+ #include "mojo/core/scoped_ipcz_handle.h"
+ #include "mojo/public/c/system/invitation.h"
+diff --git a/mojo/core/ipcz_driver/mojo_message.cc b/mojo/core/ipcz_driver/mojo_message.cc
+index 82736a1212..7f6342aaa4 100644
+--- a/mojo/core/ipcz_driver/mojo_message.cc
++++ b/mojo/core/ipcz_driver/mojo_message.cc
+@@ -9,12 +9,12 @@
+ #include <utility>
+ 
+ #include "base/containers/span.h"
++#include "base/containers/stack_container.h"
+ #include "base/numerics/safe_conversions.h"
+ #include "base/ranges/algorithm.h"
+ #include "mojo/core/ipcz_api.h"
+ #include "mojo/core/ipcz_driver/data_pipe.h"
+ #include "mojo/core/scoped_ipcz_handle.h"
+-#include "third_party/abseil-cpp/absl/container/inlined_vector.h"
+ #include "third_party/ipcz/include/ipcz/ipcz.h"
+ 
+ namespace mojo::core::ipcz_driver {
+@@ -44,22 +44,22 @@ namespace {
+ // DataPipe can be migrated out of the driver and we can avoid this whole
+ // serialization hack.
+ bool FixUpDataPipeHandles(std::vector<IpczHandle>& handles) {
+-  absl::InlinedVector<DataPipe*, 2> data_pipes;
++  base::StackVector<DataPipe*, 2> data_pipes;
+   for (IpczHandle handle : handles) {
+     if (auto* data_pipe = DataPipe::FromBox(handle)) {
+-      data_pipes.push_back(data_pipe);
++      data_pipes->push_back(data_pipe);
+     }
+   }
+ 
+-  if (handles.size() < data_pipes.size() * 2) {
++  if (handles.size() < data_pipes->size() * 2) {
+     // Not enough handles.
+     return false;
+   }
+ 
+   // The last N handles must be portals for the pipes in `data_pipes`, in order.
+   // Remove them from the message's handles and give them to their data pipes.
+-  const size_t first_data_pipe_portal = handles.size() - data_pipes.size();
+-  for (size_t i = 0; i < data_pipes.size(); ++i) {
++  const size_t first_data_pipe_portal = handles.size() - data_pipes->size();
++  for (size_t i = 0; i < data_pipes->size(); ++i) {
+     const IpczHandle handle = handles[first_data_pipe_portal + i];
+     if (!data_pipes[i]->AdoptPortal(ScopedIpczHandle(handle))) {
+       // Not a portal, so not a valid MojoMessage parcel.
+diff --git a/mojo/core/ipcz_driver/mojo_trap.cc b/mojo/core/ipcz_driver/mojo_trap.cc
+index 7a5765a74a..da8eeb5c52 100644
+--- a/mojo/core/ipcz_driver/mojo_trap.cc
++++ b/mojo/core/ipcz_driver/mojo_trap.cc
+@@ -531,7 +531,7 @@ void MojoTrap::DispatchOrQueueEvent(Trigger& trigger,
+   if (dispatching_thread_ == base::PlatformThread::CurrentRef()) {
+     // This thread is already dispatching an event, so queue this one. It will
+     // be dispatched before the thread fully unwinds from its current dispatch.
+-    pending_mojo_events_.emplace_back(base::WrapRefCounted(&trigger), event);
++    pending_mojo_events_->emplace_back(base::WrapRefCounted(&trigger), event);
+     return;
+   }
+ 
+@@ -548,13 +548,13 @@ void MojoTrap::DispatchOrQueueEvent(Trigger& trigger,
+ 
+   // NOTE: This vector is only shrunk by the clear() below, but it may
+   // accumulate more events during each iteration. Hence we iterate by index.
+-  for (size_t i = 0; i < pending_mojo_events_.size(); ++i) {
++  for (size_t i = 0; i < pending_mojo_events_->size(); ++i) {
+     if (!pending_mojo_events_[i].trigger->removed ||
+         pending_mojo_events_[i].event.result == MOJO_RESULT_CANCELLED) {
+       DispatchEvent(pending_mojo_events_[i].event);
+     }
+   }
+-  pending_mojo_events_.clear();
++  pending_mojo_events_->clear();
+ 
+   // We're done. Give other threads a chance.
+   dispatching_thread_.reset();
+diff --git a/mojo/core/ipcz_driver/mojo_trap.h b/mojo/core/ipcz_driver/mojo_trap.h
+index c800fecf93..2e228b2fcd 100644
+--- a/mojo/core/ipcz_driver/mojo_trap.h
++++ b/mojo/core/ipcz_driver/mojo_trap.h
+@@ -9,6 +9,7 @@
+ 
+ #include "base/containers/flat_map.h"
+ #include "base/containers/span.h"
++#include "base/containers/stack_container.h"
+ #include "base/memory/scoped_refptr.h"
+ #include "base/synchronization/condition_variable.h"
+ #include "base/synchronization/lock.h"
+@@ -16,7 +17,6 @@
+ #include "mojo/core/ipcz_driver/object.h"
+ #include "mojo/public/c/system/trap.h"
+ #include "mojo/public/c/system/types.h"
+-#include "third_party/abseil-cpp/absl/container/inlined_vector.h"
+ #include "third_party/abseil-cpp/absl/types/optional.h"
+ #include "third_party/ipcz/include/ipcz/ipcz.h"
+ 
+@@ -116,7 +116,7 @@ class MojoTrap : public Object<MojoTrap> {
+     scoped_refptr<Trigger> trigger;
+     MojoTrapEvent event;
+   };
+-  absl::InlinedVector<PendingEvent, 4> pending_mojo_events_ GUARDED_BY(lock_);
++  base::StackVector<PendingEvent, 4> pending_mojo_events_ GUARDED_BY(lock_);
+ 
+   bool armed_ GUARDED_BY(lock_) = false;
+ };
+diff --git a/mojo/core/ipcz_driver/transport.cc b/mojo/core/ipcz_driver/transport.cc
+index 8aded2d3ff..631f8e3bed 100644
+--- a/mojo/core/ipcz_driver/transport.cc
++++ b/mojo/core/ipcz_driver/transport.cc
+@@ -8,6 +8,7 @@
+ #include <vector>
+ 
+ #include "base/check_op.h"
++#include "base/containers/stack_container.h"
+ #include "base/functional/overloaded.h"
+ #include "base/memory/scoped_refptr.h"
+ #include "base/no_destructor.h"
+@@ -25,7 +26,6 @@
+ #include "mojo/public/cpp/platform/platform_channel.h"
+ #include "mojo/public/cpp/platform/platform_channel_endpoint.h"
+ #include "mojo/public/cpp/platform/platform_handle.h"
+-#include "third_party/abseil-cpp/absl/container/inlined_vector.h"
+ #include "third_party/ipcz/include/ipcz/ipcz.h"
+ 
+ #if BUILDFLAG(IS_WIN)
+@@ -443,10 +443,10 @@ IpczResult Transport::SerializeObject(ObjectBase& object,
+ 
+   // A small amount of stack storage is reserved to avoid heap allocation in the
+   // most common cases.
+-  absl::InlinedVector<PlatformHandle, 2> platform_handles;
+-  platform_handles.resize(object_num_handles);
++  base::StackVector<PlatformHandle, 2> platform_handles;
++  platform_handles->resize(object_num_handles);
+   if (!object.Serialize(*this, object_data,
+-                        base::make_span(platform_handles))) {
++                        base::make_span(platform_handles.container()))) {
+     return IPCZ_RESULT_INVALID_ARGUMENT;
+   }
+ 
+@@ -501,8 +501,8 @@ IpczResult Transport::DeserializeObject(
+ 
+   // A small amount of stack storage is reserved to avoid heap allocation in the
+   // most common cases.
+-  absl::InlinedVector<PlatformHandle, 2> platform_handles;
+-  platform_handles.resize(num_handles);
++  base::StackVector<PlatformHandle, 2> platform_handles;
++  platform_handles->resize(num_handles);
+   for (size_t i = 0; i < num_handles; ++i) {
+ #if BUILDFLAG(IS_WIN)
+     platform_handles[i] =
+@@ -516,7 +516,7 @@ IpczResult Transport::DeserializeObject(
+     }
+   }
+ 
+-  auto object_handles = base::make_span(platform_handles);
++  auto object_handles = base::make_span(platform_handles.container());
+   switch (header.type) {
+     case ObjectBase::kTransport: {
+       object = Deserialize(*this, object_data, object_handles);
+diff --git a/mojo/core/ports/node.cc b/mojo/core/ports/node.cc
+index 224cdfe95c..e15f1d124c 100644
+--- a/mojo/core/ports/node.cc
++++ b/mojo/core/ports/node.cc
+@@ -12,6 +12,7 @@
+ #include <utility>
+ #include <vector>
+ 
++#include "base/containers/stack_container.h"
+ #include "base/lazy_instance.h"
+ #include "base/logging.h"
+ #include "base/memory/ref_counted.h"
+@@ -22,7 +23,6 @@
+ #include "mojo/core/ports/event.h"
+ #include "mojo/core/ports/node_delegate.h"
+ #include "mojo/core/ports/port_locker.h"
+-#include "third_party/abseil-cpp/absl/container/inlined_vector.h"
+ #include "third_party/abseil-cpp/absl/types/optional.h"
+ 
+ #if !BUILDFLAG(IS_NACL)
+@@ -1543,10 +1543,10 @@ int Node::PrepareToForwardUserMessage(const PortRef& forwarding_port_ref,
+     base::AutoLock ports_locker(ports_lock_);
+ 
+     // Simultaneously lock the forwarding port as well as all attached ports.
+-    absl::InlinedVector<PortRef, 4> attached_port_refs;
+-    absl::InlinedVector<const PortRef*, 5> ports_to_lock;
+-    attached_port_refs.resize(message->num_ports());
+-    ports_to_lock.resize(message->num_ports() + 1);
++    base::StackVector<PortRef, 4> attached_port_refs;
++    base::StackVector<const PortRef*, 5> ports_to_lock;
++    attached_port_refs.container().resize(message->num_ports());
++    ports_to_lock.container().resize(message->num_ports() + 1);
+     ports_to_lock[0] = &forwarding_port_ref;
+     for (size_t i = 0; i < message->num_ports(); ++i) {
+       const PortName& attached_port_name = message->ports()[i];
+@@ -1555,7 +1555,8 @@ int Node::PrepareToForwardUserMessage(const PortRef& forwarding_port_ref,
+       attached_port_refs[i] = PortRef(attached_port_name, iter->second);
+       ports_to_lock[i + 1] = &attached_port_refs[i];
+     }
+-    PortLocker locker(ports_to_lock.data(), ports_to_lock.size());
++    PortLocker locker(ports_to_lock.container().data(),
++                      ports_to_lock.container().size());
+     auto* forwarding_port = locker.GetPort(forwarding_port_ref);
+ 
+     if (forwarding_port->peer_node_name != target_node_name) {
+@@ -1592,7 +1593,7 @@ int Node::PrepareToForwardUserMessage(const PortRef& forwarding_port_ref,
+       // Sanity check to make sure we can actually send all the attached ports.
+       // They must all be in the |kReceiving| state and must not be the sender's
+       // own peer.
+-      DCHECK_EQ(message->num_ports(), attached_port_refs.size());
++      DCHECK_EQ(message->num_ports(), attached_port_refs.container().size());
+       for (size_t i = 0; i < message->num_ports(); ++i) {
+         auto* attached_port = locker.GetPort(attached_port_refs[i]);
+         int error = OK;
+diff --git a/mojo/core/request_context.cc b/mojo/core/request_context.cc
+index 582ae47b32..dcfc926115 100644
+--- a/mojo/core/request_context.cc
++++ b/mojo/core/request_context.cc
+@@ -48,7 +48,8 @@ RequestContext::~RequestContext() {
+     // fire. Because notifications on a single Watch are mutually exclusive,
+     // this is sufficient to guarantee that MOJO_RESULT_CANCELLED is the last
+     // notification received; which is the guarantee the API makes.
+-    for (const scoped_refptr<Watch>& watch : watch_cancel_finalizers_) {
++    for (const scoped_refptr<Watch>& watch :
++         watch_cancel_finalizers_.container()) {
+       static const HandleSignalsState closed_state = {0, 0};
+ 
+       // Establish a new RequestContext to capture and run any new notifications
+@@ -63,14 +64,15 @@ RequestContext::~RequestContext() {
+       watch->InvokeCallback(MOJO_RESULT_CANCELLED, closed_state, flags);
+     }
+ 
+-    for (const WatchNotifyFinalizer& watch : watch_notify_finalizers_) {
++    for (const WatchNotifyFinalizer& watch :
++         watch_notify_finalizers_.container()) {
+       RequestContext inner_context(source_);
+       watch.watch->InvokeCallback(watch.result, watch.state, flags);
+     }
+   } else {
+     // It should be impossible for nested contexts to have finalizers.
+-    DCHECK(watch_notify_finalizers_.empty());
+-    DCHECK(watch_cancel_finalizers_.empty());
++    DCHECK(watch_notify_finalizers_.container().empty());
++    DCHECK(watch_cancel_finalizers_.container().empty());
+   }
+ }
+ 
+@@ -84,13 +86,13 @@ void RequestContext::AddWatchNotifyFinalizer(scoped_refptr<Watch> watch,
+                                              MojoResult result,
+                                              const HandleSignalsState& state) {
+   DCHECK(IsCurrent());
+-  watch_notify_finalizers_.push_back(
++  watch_notify_finalizers_->push_back(
+       WatchNotifyFinalizer(std::move(watch), result, state));
+ }
+ 
+ void RequestContext::AddWatchCancelFinalizer(scoped_refptr<Watch> watch) {
+   DCHECK(IsCurrent());
+-  watch_cancel_finalizers_.push_back(std::move(watch));
++  watch_cancel_finalizers_->push_back(std::move(watch));
+ }
+ 
+ bool RequestContext::IsCurrent() const {
+diff --git a/mojo/core/request_context.h b/mojo/core/request_context.h
+index 21088e0860..683622b20a 100644
+--- a/mojo/core/request_context.h
++++ b/mojo/core/request_context.h
+@@ -5,10 +5,10 @@
+ #ifndef MOJO_CORE_REQUEST_CONTEXT_H_
+ #define MOJO_CORE_REQUEST_CONTEXT_H_
+ 
++#include "base/containers/stack_container.h"
+ #include "mojo/core/handle_signals_state.h"
+ #include "mojo/core/system_impl_export.h"
+ #include "mojo/core/watch.h"
+-#include "third_party/abseil-cpp/absl/container/inlined_vector.h"
+ 
+ namespace mojo {
+ namespace core {
+@@ -83,9 +83,9 @@ class MOJO_SYSTEM_IMPL_EXPORT RequestContext {
+   static const size_t kStaticWatchFinalizersCapacity = 8;
+ 
+   using WatchNotifyFinalizerList =
+-      absl::InlinedVector<WatchNotifyFinalizer, kStaticWatchFinalizersCapacity>;
++      base::StackVector<WatchNotifyFinalizer, kStaticWatchFinalizersCapacity>;
+   using WatchCancelFinalizerList =
+-      absl::InlinedVector<scoped_refptr<Watch>, kStaticWatchFinalizersCapacity>;
++      base::StackVector<scoped_refptr<Watch>, kStaticWatchFinalizersCapacity>;
+ 
+   const Source source_;
+ 
+diff --git a/mojo/public/cpp/bindings/lib/sync_event_watcher.cc b/mojo/public/cpp/bindings/lib/sync_event_watcher.cc
+index 22190a54ea..c35a3ee05d 100644
+--- a/mojo/public/cpp/bindings/lib/sync_event_watcher.cc
++++ b/mojo/public/cpp/bindings/lib/sync_event_watcher.cc
+@@ -8,9 +8,9 @@
+ #include <utility>
+ 
+ #include "base/check_op.h"
++#include "base/containers/stack_container.h"
+ #include "base/memory/scoped_refptr.h"
+ #include "base/synchronization/waitable_event.h"
+-#include "third_party/abseil-cpp/absl/container/inlined_vector.h"
+ 
+ namespace mojo {
+ 
+@@ -41,12 +41,12 @@ bool SyncEventWatcher::SyncWatch(const bool** stop_flags,
+   auto destroyed = destroyed_;
+ 
+   constexpr size_t kFlagStackCapacity = 4;
+-  absl::InlinedVector<const bool*, kFlagStackCapacity> should_stop_array;
+-  should_stop_array.push_back(&destroyed->data);
++  base::StackVector<const bool*, kFlagStackCapacity> should_stop_array;
++  should_stop_array.container().push_back(&destroyed->data);
+   std::copy(stop_flags, stop_flags + num_stop_flags,
+-            std::back_inserter(should_stop_array));
+-  bool result =
+-      registry_->Wait(should_stop_array.data(), should_stop_array.size());
++            std::back_inserter(should_stop_array.container()));
++  bool result = registry_->Wait(should_stop_array.container().data(),
++                                should_stop_array.container().size());
+ 
+   // This object has been destroyed.
+   if (destroyed->data)
+diff --git a/mojo/public/cpp/system/wait_set.cc b/mojo/public/cpp/system/wait_set.cc
+index 3372a5ae10..60b568f348 100644
+--- a/mojo/public/cpp/system/wait_set.cc
++++ b/mojo/public/cpp/system/wait_set.cc
+@@ -11,12 +11,12 @@
+ #include <vector>
+ 
+ #include "base/check_op.h"
++#include "base/containers/stack_container.h"
+ #include "base/memory/ptr_util.h"
+ #include "base/memory/ref_counted.h"
+ #include "base/synchronization/lock.h"
+ #include "base/synchronization/waitable_event.h"
+ #include "mojo/public/cpp/system/trap.h"
+-#include "third_party/abseil-cpp/absl/container/inlined_vector.h"
+ 
+ namespace mojo {
+ 
+@@ -151,14 +151,15 @@ class WaitSet::State : public base::RefCountedThreadSafe<State> {
+         uint32_t num_blocking_events =
+             static_cast<uint32_t>(*num_ready_handles);
+ 
+-        absl::InlinedVector<MojoTrapEvent, 4> blocking_events;
+-        blocking_events.resize(num_blocking_events);
++        base::StackVector<MojoTrapEvent, 4> blocking_events;
++        blocking_events.container().resize(num_blocking_events);
+         for (size_t i = 0; i < num_blocking_events; ++i) {
+-          blocking_events[i].struct_size = sizeof(blocking_events[i]);
++          blocking_events.container()[i].struct_size =
++              sizeof(blocking_events.container()[i]);
+         }
+-        MojoResult rv =
+-            MojoArmTrap(trap_handle_.get().value(), nullptr,
+-                        &num_blocking_events, blocking_events.data());
++        MojoResult rv = MojoArmTrap(trap_handle_.get().value(), nullptr,
++                                    &num_blocking_events,
++                                    blocking_events.container().data());
+ 
+         if (rv == MOJO_RESULT_FAILED_PRECONDITION) {
+           // Simulate the handles becoming ready. We do this in lieu of
+@@ -167,7 +168,7 @@ class WaitSet::State : public base::RefCountedThreadSafe<State> {
+           // below.
+           handle_event_.Signal();
+           for (size_t i = 0; i < num_blocking_events; ++i) {
+-            const auto& event = blocking_events[i];
++            const auto& event = blocking_events.container()[i];
+             auto it = contexts_.find(event.trigger_context);
+             DCHECK(it != contexts_.end());
+             ready_handles_[it->second->handle()] = {event.result,
+@@ -190,19 +191,20 @@ class WaitSet::State : public base::RefCountedThreadSafe<State> {
+     // WaitMany guarantees left-to-right priority when multiple events are
+     // signaled.
+ 
+-    absl::InlinedVector<base::WaitableEvent*, 4> events;
+-    events.resize(user_events_.size() + 1);
++    base::StackVector<base::WaitableEvent*, 4> events;
++    events.container().resize(user_events_.size() + 1);
+     if (waitable_index_shift_ > user_events_.size())
+       waitable_index_shift_ = 0;
+ 
+     size_t dest_index = waitable_index_shift_++;
+-    events[dest_index] = &handle_event_;
++    events.container()[dest_index] = &handle_event_;
+     for (auto* e : user_events_) {
+-      dest_index = (dest_index + 1) % events.size();
+-      events[dest_index] = e;
++      dest_index = (dest_index + 1) % events.container().size();
++      events.container()[dest_index] = e;
+     }
+ 
+-    size_t index = base::WaitableEvent::WaitMany(events.data(), events.size());
++    size_t index = base::WaitableEvent::WaitMany(events.container().data(),
++                                                 events.container().size());
+     base::AutoLock lock(lock_);
+ 
+     // Pop as many handles as we can out of the ready set and return them. Note
+@@ -220,11 +222,10 @@ class WaitSet::State : public base::RefCountedThreadSafe<State> {
+ 
+     // If the caller cares, let them know which user event unblocked us, if any.
+     if (ready_event) {
+-      if (events[index] == &handle_event_) {
++      if (events.container()[index] == &handle_event_)
+         *ready_event = nullptr;
+-      } else {
+-        *ready_event = events[index];
+-      }
++      else
++        *ready_event = events.container()[index];
+     }
+   }
+ 
+-- 
+2.41.0.487.g6d72f3e995-goog
+

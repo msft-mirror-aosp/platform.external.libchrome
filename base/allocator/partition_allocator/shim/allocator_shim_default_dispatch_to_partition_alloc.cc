@@ -324,7 +324,7 @@ void* PartitionAlignedRealloc(const AllocatorDispatch* dispatch,
   } else {
     // size == 0 and address != null means just "free(address)".
     if (address) {
-      partition_alloc::PartitionRoot::FreeNoHooks(address);
+      partition_alloc::PartitionRoot::FreeNoHooksInUnknownRoot(address);
     }
   }
   // The original memory block (specified by address) is unchanged if ENOMEM.
@@ -338,7 +338,7 @@ void* PartitionAlignedRealloc(const AllocatorDispatch* dispatch,
     size_t copy_size = usage > size ? size : usage;
     memcpy(new_ptr, address, copy_size);
 
-    partition_alloc::PartitionRoot::FreeNoHooks(address);
+    partition_alloc::PartitionRoot::FreeNoHooksInUnknownRoot(address);
   }
   return new_ptr;
 }
@@ -398,7 +398,7 @@ void PartitionFree(const AllocatorDispatch*, void* object, void* context) {
   }
 #endif  // BUILDFLAG(PA_IS_CAST_ANDROID)
 
-  partition_alloc::PartitionRoot::FreeNoHooks(object);
+  partition_alloc::PartitionRoot::FreeNoHooksInUnknownRoot(object);
 }
 
 #if BUILDFLAG(IS_APPLE)
@@ -415,7 +415,7 @@ void PartitionFreeDefiniteSize(const AllocatorDispatch*,
   partition_alloc::ScopedDisallowAllocations guard{};
   // TODO(lizeb): Optimize PartitionAlloc to use the size information. This is
   // still useful though, as we avoid double-checking that the address is owned.
-  partition_alloc::PartitionRoot::FreeNoHooks(address);
+  partition_alloc::PartitionRoot::FreeNoHooksInUnknownRoot(address);
 }
 #endif  // BUILDFLAG(IS_APPLE)
 
@@ -500,7 +500,7 @@ void PartitionTryFreeDefault(const AllocatorDispatch*,
     return allocator_shim::TryFreeDefaultFallbackToFindZoneAndFree(address);
   }
 
-  partition_alloc::PartitionRoot::FreeNoHooks(address);
+  partition_alloc::PartitionRoot::FreeNoHooksInUnknownRoot(address);
 }
 #endif  // BUILDFLAG(IS_APPLE)
 
@@ -552,7 +552,7 @@ void ConfigurePartitions(
     SplitMainPartition split_main_partition,
     UseDedicatedAlignedPartition use_dedicated_aligned_partition,
     size_t ref_count_size,
-    AlternateBucketDistribution use_alternate_bucket_distribution) {
+    BucketDistribution distribution) {
   // BRP cannot be enabled without splitting the main partition. Furthermore, in
   // the "before allocation" mode, it can't be enabled without further splitting
   // out the aligned partition.
@@ -571,11 +571,11 @@ void ConfigurePartitions(
   PA_DCHECK(current_root == current_aligned_root);
 
   if (!split_main_partition) {
-    switch (use_alternate_bucket_distribution) {
-      case AlternateBucketDistribution::kDefault:
+    switch (distribution) {
+      case BucketDistribution::kNeutral:
         // We start in the 'default' case.
         break;
-      case AlternateBucketDistribution::kDenser:
+      case BucketDistribution::kDenser:
         current_root->SwitchToDenserBucketDistribution();
         break;
     }
@@ -651,11 +651,11 @@ void ConfigurePartitions(
       partition_alloc::PurgeFlags::kDecommitEmptySlotSpans |
       partition_alloc::PurgeFlags::kDiscardUnusedSystemPages);
 
-  switch (use_alternate_bucket_distribution) {
-    case AlternateBucketDistribution::kDefault:
+  switch (distribution) {
+    case BucketDistribution::kNeutral:
       // We start in the 'default' case.
       break;
-    case AlternateBucketDistribution::kDenser:
+    case BucketDistribution::kDenser:
       new_root->SwitchToDenserBucketDistribution();
       if (new_aligned_root != new_root) {
         new_aligned_root->SwitchToDenserBucketDistribution();
