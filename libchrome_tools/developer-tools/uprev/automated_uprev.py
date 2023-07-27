@@ -662,11 +662,12 @@ def CreateUprevCommit(
     return True, message
 
 
-def PushOptions(emerge_success, recipe: bool) -> str:
+def PushOptions(git_merge_success, emerge_success, recipe: bool) -> str:
     """
     Returns options to be used with `git push`.
 
     Args:
+      git_merge_success: bool
       emerge_success: bool or None (not run)
       recipe: in recipe mode
     """
@@ -679,19 +680,22 @@ def PushOptions(emerge_success, recipe: bool) -> str:
         # Set topic for easy searching of commits on gerrit
         "topic=libchrome-automated-uprev,"
     )
-    # Auto bot-commit (triggers CQ) if emerge libchrome succeeded in recipe mode
-    if recipe:
-        if emerge_success:
-            push_options += "l=Commit-Queue+2,l=Bot-Commit+1,"
-    # Add verified label according to 'sudo emerge libchrome' result, not set if
-    # emerge is not run, in manual mode
-    else:
-        if emerge_success:
-            push_options += "l=Verified+1,"
-        elif emerge_success == False:
-            push_options += "l=Verified-1,"
-        # Submit CL to CQ automatically after approval
+    # Add votes according to `sudo emerge libchrome` result.
+    # If in recipe mode, trigger CQ directly by auto bot-commit, otherwise
+    # simply mark as Verified+1.
+    if emerge_success:
+      if recipe:
+        push_options += "l=Commit-Queue+2,l=Bot-Commit+1,"
+      else:
+        push_options += "l=Verified+1,"
+    # Flag git merge and emerge failure by Verified-1 in both modes.
+    elif not git_merge_success or emerge_success == False:
+        push_options += "l=Verified-1,"
+
+    # Submit CL to CQ automatically after approval
+    if not recipe:
         push_options += "l=Auto-Submit+1,"
+
     return push_options
 
 
@@ -843,7 +847,7 @@ def main():
         check=True,
     )
 
-    push_options = PushOptions(emerge_success, args.recipe)
+    push_options = PushOptions(merge_success, emerge_success, args.recipe)
     if args.recipe:
         print(push_options)
         return
