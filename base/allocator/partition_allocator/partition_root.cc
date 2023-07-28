@@ -876,7 +876,7 @@ void PartitionRoot::Init(PartitionOptions opts) {
     settings.allow_aligned_alloc =
         opts.aligned_alloc == PartitionOptions::AlignedAlloc::kAllowed;
 #if BUILDFLAG(PA_DCHECK_IS_ON)
-    settings.use_cookie = opts.cookie == PartitionOptions::Cookie::kAllowed;
+    settings.use_cookie = true;
 #else
     static_assert(!Settings::use_cookie);
 #endif  // BUILDFLAG(PA_DCHECK_IS_ON)
@@ -963,7 +963,8 @@ void PartitionRoot::Init(PartitionOptions opts) {
 
     settings.quarantine_mode =
 #if BUILDFLAG(USE_STARSCAN)
-        (opts.quarantine == PartitionOptions::Quarantine::kDisallowed
+        (opts.star_scan_quarantine ==
+                 PartitionOptions::StarScanQuarantine::kDisallowed
              ? QuarantineMode::kAlwaysDisabled
              : QuarantineMode::kDisabledByDefault);
 #else
