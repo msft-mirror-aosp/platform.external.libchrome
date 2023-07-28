@@ -366,6 +366,7 @@ buildflag_header("tracing_buildflags") {
   flags = [
     "ENABLE_BASE_TRACING=true",
     "USE_PERFETTO_CLIENT_LIBRARY=false",
+    "USE_PERFETTO_TRACE_PROCESSOR=false",
 
     # "OPTIONAL_TRACE_EVENTS_ENABLED=",
   ]
