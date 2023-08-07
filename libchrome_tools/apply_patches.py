@@ -44,14 +44,12 @@ def main() -> None:
         ):
             logging.info("Applying %s...", patch)
             if patch.endswith(".patch"):
+                # "-C1" to be compatible with `patch` and to be more robust
+                # against upstream changes.
                 cmd_args = [
-                    "patch",
-                    "--strip=1",
-                    "--force",
-                    "--get=0",
-                    "--no-backup-if-mismatch",
-                    "--quiet",
-                    "--input",
+                    "git",
+                    "apply",
+                    "-C1",
                     patch,
                 ]
             elif os.stat(patch).st_mode & stat.S_IXUSR != 0:
