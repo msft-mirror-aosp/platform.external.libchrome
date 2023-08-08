@@ -11,9 +11,36 @@ import argparse
 import glob
 import logging
 import os
+from pathlib import Path
 import stat
 import subprocess
-import sys
+
+PREFIXES = [
+    "long-term",
+    "cherry-pick",
+    "backward-compatibility",
+    "forward-compatibility",
+]
+
+
+def apply_patch(patch: str, ebuild: bool):
+    """Applying given patch."""
+    if patch.endswith(".patch"):
+        # "-C1" to be compatible with `patch` and to be more robust against
+        # upstream changes.
+        try:
+            subprocess.check_call(
+                [ "git", "apply", "-C1", patch ])
+        except subprocess.CalledProcessError as err:
+            if not ebuild:
+                # Rerun (expected failure) to leave a 3-way merge marker.
+                subprocess.check_call([ "git", "apply", "-C1", patch, "--3way"])
+            else:
+                raise RuntimeError(f"Failed to apply patch {patch}.") from err
+    elif os.stat(patch).st_mode & stat.S_IXUSR != 0:
+        subprocess.check_call([patch])
+    else:
+        raise RuntimeError(f"Invalid patch file {patch}.")
 
 
 def main() -> None:
@@ -21,43 +48,36 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(description="Apply libchrome patches.")
     parser.add_argument(
-        "--libchrome-checkout-path",
-        default=os.getcwd(),
+        "--libchrome-path",
+        default=Path(__file__).resolve().parent.parent,
         required=False,
-        help="Path of the libchrome checkout. Defaults to the current directory.",
+        help=("Path of libchrome to apply patches. "
+              "Defaults to parent of this file's directory."),
     )
+    parser.add_argument(
+        "--ebuild",
+        default=False,
+        required=False,
+        action="store_true",
+        help=("Run from ebuild where the libchrome directory is not a git "
+              "repository. Defaults to False."))
     args = parser.parse_args()
 
-    # Apply all patches in directory, ordered by type then patch number.
-    PREFIXES = [
-        "long-term",
-        "cherry-pick",
-        "backward-compatibility",
-        "forward-compatibility",
-    ]
-    for prefix in PREFIXES:
-        for patch in sorted(
-            glob.glob(
-                "%s/libchrome_tools/patches/%s-*"
-                % (args.libchrome_checkout_path, prefix)
-            )
-        ):
-            logging.info("Applying %s...", patch)
-            if patch.endswith(".patch"):
-                # "-C1" to be compatible with `patch` and to be more robust
-                # against upstream changes.
-                cmd_args = [
-                    "git",
-                    "apply",
-                    "-C1",
-                    patch,
-                ]
-            elif os.stat(patch).st_mode & stat.S_IXUSR != 0:
-                cmd_args = [patch]
-            else:
-                raise RuntimeError("Invalid patch file %s" % patch)
+    # In non-ebuild mode, change to libchrome directory which should be a git
+    # repository for git commands like am and commit at the right repository.
+    if not args.ebuild:
+        if not os.path.exists(os.path.join(args.libchrome_path, '.git')):
+            raise AttributeError(
+                f"Libchrome path {args.libchrome_path} is not a git repository "
+                "but not running in --ebuild mode.")
 
-            subprocess.check_call(cmd_args)
+    os.chdir(args.libchrome_path)
+
+    # Apply all patches in directory, ordered by type then patch number.
+    for prefix in PREFIXES:
+        for patch in sorted(glob.glob(f"libchrome_tools/patches/{prefix}-*")):
+            logging.info("Applying %s...", patch)
+            apply_patch(patch, args.ebuild)
 
 
 if __name__ == "__main__":
