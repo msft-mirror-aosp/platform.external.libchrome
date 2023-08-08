@@ -23,47 +23,95 @@ PREFIXES = [
     "forward-compatibility",
 ]
 
-def _run_or_log_cmd(cmd: Sequence[str], dry_run: bool) -> None:
-    if dry_run:
-        logging.info("$ %s", " ".join(cmd))
-    else:
-        subprocess.check_call(cmd)
+
+def _run_or_log_cmd(cmd: Sequence[str], fatal: bool, dry_run: bool) -> int:
+    logging.debug("$ %s", " ".join(cmd))
+    if not dry_run:
+        if fatal:
+            subprocess.check_call(cmd)
+        else:
+            return subprocess.call(cmd)
+    # Return success retcode if dry run or fatal call (would crash if failed).
+    return 0
 
 
-def _git_apply_patch(patch: str, threeway: bool, dry_run: bool) -> None:
+def _commit_script_patch(patch: str, dry_run: bool) -> None:
+    _run_or_log_cmd(["git", "add", "."], True, dry_run)
+    _run_or_log_cmd(
+        [
+            "git",
+            "commit",
+            "-m",
+            "Temporary commit for script-based patch",
+            "-m",
+            f"patch-name: {os.path.basename(patch)}",
+        ],
+        True,
+        dry_run,
+    )
+
+
+def _git_apply_patch(patch: str, use_git_apply: bool, threeway: bool,
+                     fatal: bool, dry_run: bool) -> int:
     # "-C1" to be compatible with `patch` and to be more robust against upstream
     # changes.
-    git_apply_cmd = [ "git", "apply", "-C1", patch ]
+    git_apply_cmd = ["git", "apply" if use_git_apply else "am", "-C1", patch]
     if threeway:
         git_apply_cmd.append("--3way")
-    _run_or_log_cmd(git_apply_cmd, dry_run)
+    return _run_or_log_cmd(git_apply_cmd, fatal, dry_run)
 
 
-def apply_patch(patch: str, ebuild: bool, dry_run: bool) -> None:
+def apply_patch(patch: str, ebuild: bool, use_git_apply: bool,
+                dry_run: bool) -> None:
     """Applying given patch."""
+    assert not ebuild or use_git_apply, (
+        "--ebuild mode must be run with no_commit = True.")
     if patch.endswith(".patch"):
-        try:
-            _git_apply_patch(patch, False, dry_run)
-        except subprocess.CalledProcessError as err:
-            if not ebuild:
-                # Rerun (expected failure) to leave a 3-way merge marker.
-                _git_apply_patch(patch, True, dry_run)
-            else:
-                raise RuntimeError(f"Failed to apply patch {patch}.") from err
+        # git apply/ am is fatal (exit immediately if fail) if in ebuild mode.
+        # Otherwise, if fail (return code is non-zero), rerun to leave a 3-way
+        # merge marker.
+        if _git_apply_patch(patch,
+                            use_git_apply,
+                            threeway=False,
+                            fatal=ebuild,
+                            dry_run=dry_run):
+            # Failed `git am` will leave rebase directory even without --3way.
+            if not use_git_apply:
+                _run_or_log_cmd(['git', 'am', '--abort'], True, dry_run)
+            if _git_apply_patch(patch,
+                                use_git_apply,
+                                threeway=True,
+                                fatal=False,
+                                dry_run=dry_run):
+                raise RuntimeError(
+                    f"Failed to git {'apply' if use_git_apply else 'am'} patch "
+                    f"{patch}; please check 3-way merge markers and resolve "
+                    "conflicts.")
     elif os.stat(patch).st_mode & stat.S_IXUSR != 0:
-        _run_or_log_cmd([patch], dry_run)
+        if _run_or_log_cmd([patch], ebuild, dry_run):
+            raise RuntimeError(f"Patch script {patch} failed. Please fix.")
+        # Commit local changes made by script as a temporary commit unless in
+        # no-commit mode.
+        if not use_git_apply:
+            _commit_script_patch(patch, dry_run)
     else:
         raise RuntimeError(f"Invalid patch file {patch}.")
 
 
-def apply_patches(libchrome_path: str, ebuild: bool, dry_run: bool) -> None:
+def apply_patches(libchrome_path: str, ebuild: bool, no_commit: bool,
+                  dry_run: bool) -> None:
     os.chdir(libchrome_path)
+    # Abort if git repository is dirty (in non-ebuild mode).
+    if not ebuild and subprocess.call(["git", "diff", "--quiet"]):
+        raise RuntimeError(
+            "Git working directory is dirty. Abort applying patches."
+        )
 
     # Apply all patches in directory, ordered by type then patch number.
     for prefix in PREFIXES:
         for patch in sorted(glob.glob(f"libchrome_tools/patches/{prefix}-*")):
             logging.info("Applying %s...", patch)
-            apply_patch(patch, ebuild, dry_run)
+            apply_patch(patch, ebuild, no_commit, dry_run)
 
 
 def main() -> None:
@@ -81,14 +129,25 @@ def main() -> None:
         required=False,
         action="store_true",
         help=("Run from ebuild where the libchrome directory is not a git "
-              "repository. Defaults to False."))
+              "repository. Defaults to False."),
+    )
+    parser.add_argument(
+        "--no-commit",
+        default=False,
+        required=False,
+        action="store_true",
+        help=("Do not commit changes made by each patch."
+              "Defaults to False except in --ebuild mode (always True)."),
+    )
     parser.add_argument(
         "--dry-run",
         default=False,
         required=False,
         action="store_true",
-        help=("dry run mode where patches are not really applied. Log as debug "
-              "statements instead. Defaults to False."))
+        help=(
+            "dry run mode where patches are not really applied. Log as debug "
+            "statements instead. Defaults to False."),
+    )
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO)
@@ -96,12 +155,17 @@ def main() -> None:
     # In non-ebuild mode, change to libchrome directory which should be a git
     # repository for git commands like am and commit at the right repository.
     if not args.ebuild:
-        if not os.path.exists(os.path.join(args.libchrome_path, '.git')):
+        if not os.path.exists(os.path.join(args.libchrome_path, ".git")):
             raise AttributeError(
                 f"Libchrome path {args.libchrome_path} is not a git repository "
                 "but not running in --ebuild mode.")
+    # Never commit changes from patches in ebuild mode.
+    else:
+        logging.info('In --ebuild mode, --no_commit is always set to True.')
+        args.no_commit = True
 
-    apply_patches(args.libchrome_path, args.ebuild, args.dry_run)
+    apply_patches(args.libchrome_path, args.ebuild, args.no_commit,
+                  args.dry_run)
 
 
 if __name__ == "__main__":
