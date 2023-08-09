@@ -100,6 +100,66 @@ class TestCommandNotRun(unittest.TestCase):
         self.assertEqual(self.read_init_file(), "dirty git repo\n")
 
 
+class TestSanitizePatchArgs(unittest.TestCase):
+    def setUp(self):
+        """Create temporary git directory to be act as the libchrome directory.
+
+        Containing a target file to be modified (init_file.txt) and patches to
+        be applied.
+        """
+        logging.basicConfig(level=logging.DEBUG)
+        self.repo_dir = init_git_repo_with_patches(True)
+        self.repo_dir_path = self.repo_dir.name
+
+    def tearDown(self):
+        self.repo_dir.cleanup()
+
+    def first_patch_not_found(self):
+        wrong_patch_name = 'wrong_patch_name.patch'
+        with self.assertRaisesRegex(
+                ValueError, "--first ({wrong_patch_name})) does not exist"):
+            apply_patches.apply_patches(self.repo_dir_path,
+                                        ebuild=False,
+                                        no_commit=False,
+                                        first=wrong_patch_name)
+
+    def last_patch_not_found(self):
+        wrong_patch_name = 'wrong_patch_name.patch'
+        with self.assertRaisesRegex(
+                ValueError, "--last ({wrong_patch_name})) does not exist"):
+            apply_patches.apply_patches(self.repo_dir_path,
+                                        ebuild=False,
+                                        no_commit=False,
+                                        last=wrong_patch_name)
+
+    def patch_arg_in_wrong_dir(self):
+        patch_path_with_wrong_dir = 'foo/wrong_patch_name.patch'
+        with self.assertRaisesRegex(
+                ValueError,
+                f"--first ({patch_path_with_wrong_dir})) is given as a path "
+                "but its parent directory is not"):
+            apply_patches.apply_patches(self.repo_dir_path,
+                                        ebuild=False,
+                                        no_commit=False,
+                                        first=patch_path_with_wrong_dir)
+
+    def invalid_file_as_patch_arg(self):
+        # Add file without correct patch prefix to patches directory.
+        invalid_file = "invalid_patch_name.patch"
+        with open(invalid_file, "w") as f:
+            f.write("testing\n")
+        subprocess.check_call(["git", "commit", "-a", "--amend", "--no-edit"])
+
+        with self.assertRaisesRegex(
+                ValueError,
+                f"{invalid_file} is not a valid patch: patch name must start "
+                "with prefixes"):
+            apply_patches.apply_patches(self.repo_dir_path,
+                                        ebuild=False,
+                                        no_commit=False,
+                                        first=invalid_file)
+
+
 class TestApplyPatchesSucceed(unittest.TestCase):
     def setUp(self):
         """Create temporary git directory to be act as the libchrome directory.
@@ -130,8 +190,7 @@ class TestApplyPatchesSucceed(unittest.TestCase):
     def test_default_apply(self):
         apply_patches.apply_patches(self.repo_dir_path,
                                     ebuild=False,
-                                    no_commit=False,
-                                    dry_run=False)
+                                    no_commit=False)
         self.assertEqual(self.read_init_file(), "bar\nbaz\nfoo\n")
         # Initial commit and 3 commits from patches.
         self.assertEqual(git_log_length(), 4)
@@ -183,11 +242,38 @@ class TestApplyPatchesSucceed(unittest.TestCase):
         self.assertEqual(len(patch_name_trailers), 1)
         self.assertEqual(patch_name_trailers[0], patch_file_name)
 
+    def test_apply_with_first_and_last_args(self):
+        apply_patches.apply_patches(
+            self.repo_dir_path,
+            ebuild=False,
+            no_commit=False,
+            last='long-term-0000-add-bar-and-baz.patch')
+        self.assertEqual(self.read_init_file(), "foo\nbar\nbaz\n")
+        # Initial commit and 1 commit from the first patch.
+        self.assertEqual(git_log_length(), 2)
+
+        apply_patches.apply_patches(self.repo_dir_path,
+                                    ebuild=False,
+                                    no_commit=False,
+                                    first='long-term-0100-remove-foo.patch',
+                                    last='long-term-0100-remove-foo.patch')
+        self.assertEqual(self.read_init_file(), "bar\nbaz\n")
+        # Initial commit and 2 commits (applied in two different runs).
+        self.assertEqual(git_log_length(), 3)
+
+        apply_patches.apply_patches(
+            self.repo_dir_path,
+            ebuild=False,
+            no_commit=False,
+            first='backward-compatibility-0500-add-foo-to-end-of-file.patch')
+        self.assertEqual(self.read_init_file(), "bar\nbaz\nfoo\n")
+        # Initial commit and 2 commits (applied in three different runs).
+        self.assertEqual(git_log_length(), 4)
+
     def test_no_commit_apply(self):
         apply_patches.apply_patches(self.repo_dir_path,
                                     ebuild=False,
-                                    no_commit=True,
-                                    dry_run=False)
+                                    no_commit=True)
         self.assertEqual(self.read_init_file(), "bar\nbaz\nfoo\n")
         # Initial commit only.
         self.assertEqual(git_log_length(), 1)
@@ -195,8 +281,7 @@ class TestApplyPatchesSucceed(unittest.TestCase):
     def test_ebuild_apply(self):
         apply_patches.apply_patches(self.repo_dir_path,
                                     ebuild=True,
-                                    no_commit=True,
-                                    dry_run=False)
+                                    no_commit=True)
         self.assertEqual(self.read_init_file(), "bar\nbaz\nfoo\n")
 
 
@@ -224,8 +309,7 @@ class TestApplyPatchesFail(unittest.TestCase):
         ):
             apply_patches.apply_patches(self.repo_dir_path,
                                         ebuild=False,
-                                        no_commit=False,
-                                        dry_run=False)
+                                        no_commit=False)
         # Initial commit only with 3-way merge markers.
         self.assertEqual(git_log_length(), 1)
         self.assertEqual(
@@ -245,8 +329,7 @@ class TestApplyPatchesFail(unittest.TestCase):
         ):
             apply_patches.apply_patches(self.repo_dir_path,
                                         ebuild=False,
-                                        no_commit=True,
-                                        dry_run=False)
+                                        no_commit=True)
 
         # Initial commit only and file now contains 3-way merge markers.
         self.assertEqual(git_log_length(), 1)
@@ -267,8 +350,7 @@ class TestApplyPatchesFail(unittest.TestCase):
                 r"'\]"):
             apply_patches.apply_patches(self.repo_dir_path,
                                         ebuild=True,
-                                        no_commit=True,
-                                        dry_run=False)
+                                        no_commit=True)
 
         # Initial commit only and file is not modified.
         self.assertEqual(git_log_length(), 1)
