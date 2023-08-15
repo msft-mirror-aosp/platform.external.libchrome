@@ -56,6 +56,16 @@ def apply_patch(patch: str, ebuild: bool, dry_run: bool) -> None:
         raise RuntimeError(f"Invalid patch file {patch}.")
 
 
+def apply_patches(libchrome_path: str, ebuild: bool, dry_run: bool) -> None:
+    os.chdir(libchrome_path)
+
+    # Apply all patches in directory, ordered by type then patch number.
+    for prefix in PREFIXES:
+        for patch in sorted(glob.glob(f"libchrome_tools/patches/{prefix}-*")):
+            logging.info("Applying %s...", patch)
+            apply_patch(patch, ebuild, dry_run)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Apply libchrome patches.")
     parser.add_argument(
@@ -91,13 +101,7 @@ def main() -> None:
                 f"Libchrome path {args.libchrome_path} is not a git repository "
                 "but not running in --ebuild mode.")
 
-    os.chdir(args.libchrome_path)
-
-    # Apply all patches in directory, ordered by type then patch number.
-    for prefix in PREFIXES:
-        for patch in sorted(glob.glob(f"libchrome_tools/patches/{prefix}-*")):
-            logging.info("Applying %s...", patch)
-            apply_patch(patch, args.ebuild, args.dry_run)
+    apply_patches(args.libchrome_path, args.ebuild, args.dry_run)
 
 
 if __name__ == "__main__":
