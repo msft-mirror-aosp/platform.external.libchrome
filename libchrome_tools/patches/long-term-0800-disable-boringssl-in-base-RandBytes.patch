@@ -1,76 +1,48 @@
-From afafc6638fa4ac71415b8f478e659b2bc374e76a Mon Sep 17 00:00:00 2001
-From: Grace Cham <hscham@chromium.org>
-Date: Tue, 18 Oct 2022 14:30:08 +0900
-Subject: [PATCH] disable boringssl in base::RandBytes
+From 5b2d83a30966a7409e8bc69ff92a0994224f0249 Mon Sep 17 00:00:00 2001
+From: Brett Brotherton <bbrotherton@google.com>
+Date: Thu, 10 Aug 2023 18:16:56 -0600
+Subject: [PATCH] [PATCH] disable boringssl in base::RandBytes
 
-Introduced in r1045239 (crrev.com/c/3880863).
+-Introduced in r1045239 (crrev.com/c/3880863)
+-original patch by hscham, updated by bbrotherton in r1181877
 
-Change-Id: I03b1ad34f9b4b9bd20b8cfb9f3d77d06ddc8b43a
+Change-Id: Ifeb1d7a0629580966e904e84386eac40c92a3b96
 ---
- base/feature_list.cc    | 2 +-
- base/rand_util.h        | 2 +-
- base/rand_util_posix.cc | 6 +++---
- 3 files changed, 5 insertions(+), 5 deletions(-)
+ base/rand_util_posix.cc | 9 +++++++--
+ 1 file changed, 7 insertions(+), 2 deletions(-)
 
-diff --git a/base/feature_list.cc b/base/feature_list.cc
-index 056a608dbfd9..5f842ff768c1 100644
---- a/base/feature_list.cc
-+++ b/base/feature_list.cc
-@@ -529,7 +529,7 @@ void FeatureList::SetInstance(std::unique_ptr<FeatureList> instance) {
- 
-   EarlyFeatureAccessTracker::GetInstance()->AssertNoAccess();
- 
--#if !BUILDFLAG(IS_NACL)
-+#if !BUILDFLAG(IS_NACL) && 0
-   // Configured first because it takes precedence over the getrandom() trial.
-   internal::ConfigureBoringSSLBackedRandBytesFieldTrial();
- #endif
-diff --git a/base/rand_util.h b/base/rand_util.h
-index a70169856e97..685011c1f656 100644
---- a/base/rand_util.h
-+++ b/base/rand_util.h
-@@ -26,7 +26,7 @@ namespace internal {
- void ConfigureRandBytesFieldTrial();
- #endif
- 
--#if !BUILDFLAG(IS_NACL)
-+#if !BUILDFLAG(IS_NACL) && 0
- void ConfigureBoringSSLBackedRandBytesFieldTrial();
- #endif
- 
 diff --git a/base/rand_util_posix.cc b/base/rand_util_posix.cc
-index ac0ca9af4fdd..acc49fc36465 100644
+index 24a11a1f9c..c64c41f3af 100644
 --- a/base/rand_util_posix.cc
 +++ b/base/rand_util_posix.cc
-@@ -30,7 +30,7 @@
- #include <sys/random.h>
- #endif
+@@ -11,7 +11,7 @@
+ #include "base/posix/eintr_wrapper.h"
+ #include "build/build_config.h"
  
 -#if !BUILDFLAG(IS_NACL)
 +#if !BUILDFLAG(IS_NACL) && 0
  #include "third_party/boringssl/src/include/openssl/crypto.h"
  #include "third_party/boringssl/src/include/openssl/rand.h"
  #endif
-@@ -148,9 +148,9 @@ void ConfigureRandBytesFieldTrial() {
- }
+@@ -49,12 +49,17 @@ double RandDoubleAvoidAllocation() {
+ }  // namespace internal
+ 
+ void RandBytes(void* output, size_t output_length) {
+-#if !BUILDFLAG(IS_NACL)
++#if !BUILDFLAG(IS_NACL) && 0
+   // Ensure BoringSSL is initialized so it can use things like RDRAND.
+   CRYPTO_library_init();
+   // BoringSSL's RAND_bytes always returns 1. Any error aborts the program.
+   (void)RAND_bytes(static_cast<uint8_t*>(output), output_length);
  #endif
++  // ChromeOS does not use BoringSSL so just use /dev/urandom
++  const int urandom_fd = GetUrandomFD();
++  const bool success =
++      ReadFromFD(urandom_fd, static_cast<char*>(output), output_length);
++  CHECK(success);
+ }
  
-+#if !BUILDFLAG(IS_NACL) && 0
- namespace {
- 
--#if !BUILDFLAG(IS_NACL)
- // The BoringSSl helpers are duplicated in rand_util_fuchsia.cc and
- // rand_util_win.cc.
- std::atomic<bool> g_use_boringssl;
-@@ -176,7 +176,7 @@ bool UseBoringSSLForRandBytes() {
- namespace {
- 
- void RandBytes(void* output, size_t output_length, bool avoid_allocation) {
--#if !BUILDFLAG(IS_NACL)
-+#if !BUILDFLAG(IS_NACL) && 0
-   // The BoringSSL experiment takes priority over everything else.
-   if (!avoid_allocation && internal::UseBoringSSLForRandBytes()) {
-     // Ensure BoringSSL is initialized so it can use things like RDRAND.
+ int GetUrandomFD() {
 -- 
-2.38.0.135.g90850a2211-goog
+2.41.0.640.ga95def55d0-goog
 
