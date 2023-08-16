@@ -1,4 +1,4 @@
-From 625fd88e12ed00142bdc6d24ea29132ab569b315 Mon Sep 17 00:00:00 2001
+From 7e0a77b4609e7bc8d49a3e5c40e101733ad31d76 Mon Sep 17 00:00:00 2001
 From: Ren-Pei Zeng <kamesan@chromium.org>
 Date: Mon, 17 Jul 2023 15:44:06 +0000
 Subject: [PATCH] Revert "Merge
@@ -7,14 +7,15 @@ Subject: [PATCH] Revert "Merge
 This introduces a temporary function to aid in migrating clients to the
 new API.
 
+Change-Id: I6a655b9357ba15d42f499179a21571a5cf2103e4
 ---
  dbus/mock_object_proxy.h |  7 +++++++
- dbus/object_proxy.cc     | 33 +++++++++++++++++++++++++++++++++
+ dbus/object_proxy.cc     | 19 +++++++++++++++++++
  dbus/object_proxy.h      |  7 +++++++
- 3 files changed, 47 insertions(+)
+ 3 files changed, 33 insertions(+)
 
 diff --git a/dbus/mock_object_proxy.h b/dbus/mock_object_proxy.h
-index 9731ee5..ce762bf 100644
+index 9731ee502e..ce762bfc8e 100644
 --- a/dbus/mock_object_proxy.h
 +++ b/dbus/mock_object_proxy.h
 @@ -28,6 +28,13 @@ class MockObjectProxy : public ObjectProxy {
@@ -32,10 +33,10 @@ index 9731ee5..ce762bf 100644
    // This method is not mockable because it takes a move-only argument. To work
    // around this, CallMethod() implementation here calls DoCallMethod() which is
 diff --git a/dbus/object_proxy.cc b/dbus/object_proxy.cc
-index 2e6798f..64e89f1 100644
+index 2e6798f0a2..5db21ee2d6 100644
 --- a/dbus/object_proxy.cc
 +++ b/dbus/object_proxy.cc
-@@ -150,6 +150,39 @@ ObjectProxy::CallMethodAndBlock(MethodCall* method_call, int timeout_ms) {
+@@ -150,6 +150,25 @@ ObjectProxy::CallMethodAndBlock(MethodCall* method_call, int timeout_ms) {
    return result;
  }
  
@@ -43,40 +44,26 @@ index 2e6798f..64e89f1 100644
 +    MethodCall* method_call,
 +    int timeout_ms,
 +    Error* error) {
-+  bus_->AssertOnDBusThread();
-+
-+  if (!bus_->Connect() || !method_call->SetDestination(service_name_) ||
-+      !method_call->SetPath(object_path_)) {
-+    return nullptr;
-+  }
-+
-+  // Send the message synchronously.
-+  auto result =
-+      bus_->SendWithReplyAndBlock(method_call->raw_message(), timeout_ms);
-+  statistics::AddBlockingSentMethodCall(
-+      service_name_, method_call->GetInterface(), method_call->GetMember());
-+  if (!result.has_value()) {
-+    LogMethodCallFailure(method_call->GetInterface(), method_call->GetMember(),
-+                         result.error().name(), result.error().message());
++  auto result = CallMethodAndBlock(method_call, timeout_ms);
++  if (result.has_value()) {
++    return std::move(result.value());
++  } else {
 +    *error = std::move(result.error());
 +    return nullptr;
 +  }
-+
-+  return std::move(result.value());
 +}
 +
 +std::unique_ptr<Response> ObjectProxy::CallMethodAndBlockDeprecated(
 +    MethodCall* method_call,
 +    int timeout_ms) {
-+  Error error;
-+  return CallMethodAndBlockWithErrorDetails(method_call, timeout_ms, &error);
++  return CallMethodAndBlock(method_call, timeout_ms).value_or(nullptr);
 +}
 +
  void ObjectProxy::CallMethod(MethodCall* method_call,
                               int timeout_ms,
                               ResponseCallback callback) {
 diff --git a/dbus/object_proxy.h b/dbus/object_proxy.h
-index 10d384f..c49be9c 100644
+index 10d384fe5a..c49be9c1eb 100644
 --- a/dbus/object_proxy.h
 +++ b/dbus/object_proxy.h
 @@ -116,6 +116,13 @@ class CHROME_DBUS_EXPORT ObjectProxy
@@ -94,4 +81,5 @@ index 10d384f..c49be9c 100644
    // Requests to call the method of the remote object.
    //
 -- 
-2.41.0.585.gd2178a4bd4-goog
+2.41.0.694.ge786442a9b-goog
+
