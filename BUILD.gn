@@ -730,6 +730,9 @@ libbase_sublibs = [
       "base/values.cc",
       "base/version.cc",
       "base/vlog.cc",
+
+      # TODO(b/293252981): Remove this after a few days.
+      "platform_thread_backward_compat_hack.cc",
     ]
 
     # Enable //base/allocator shim for non-sanitizer builds.
