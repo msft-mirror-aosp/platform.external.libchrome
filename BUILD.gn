@@ -408,6 +408,7 @@ libbase_sublibs = [
       "base/allocator/partition_allocator/partition_alloc_base/memory/page_size_posix.cc",
       "base/allocator/partition_allocator/partition_alloc_base/posix/safe_strerror.cc",
       "base/allocator/partition_allocator/partition_alloc_base/strings/stringprintf.cc",
+      "base/allocator/partition_allocator/partition_alloc_base/strings/string_util.cc",
       "base/at_exit.cc",
       "base/barrier_closure.cc",
       "base/base64.cc",
