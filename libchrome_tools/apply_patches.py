@@ -14,7 +14,7 @@ import os
 from pathlib import Path
 import stat
 import subprocess
-from typing import Sequence
+from typing import NamedTuple, Optional, Sequence
 
 PREFIXES = [
     "long-term",
@@ -24,15 +24,23 @@ PREFIXES = [
 ]
 
 
-def _run_or_log_cmd(cmd: Sequence[str], fatal: bool, dry_run: bool) -> int:
+class CommandResult(NamedTuple):
+    retcode: int
+    stdout: str
+    stderr: str
+
+
+def _run_or_log_cmd(cmd: Sequence[str], fatal: bool,
+                    dry_run: bool) -> CommandResult:
     logging.debug("$ %s", " ".join(cmd))
-    if not dry_run:
-        if fatal:
-            subprocess.check_call(cmd)
-        else:
-            return subprocess.call(cmd)
-    # Return success retcode if dry run or fatal call (would crash if failed).
-    return 0
+    if dry_run:
+        return CommandResult(0, "", "")
+    completed_process = subprocess.run(cmd,
+                                       check=fatal,
+                                       capture_output=True,
+                                       universal_newlines=True)
+    return CommandResult(completed_process.returncode,
+                         completed_process.stdout, completed_process.stderr)
 
 
 def _commit_script_patch(patch: str, dry_run: bool) -> None:
@@ -58,7 +66,7 @@ def _git_apply_patch(patch: str, use_git_apply: bool, threeway: bool,
     git_apply_cmd = ["git", "apply" if use_git_apply else "am", "-C1", patch]
     if threeway:
         git_apply_cmd.append("--3way")
-    return _run_or_log_cmd(git_apply_cmd, fatal, dry_run)
+    return _run_or_log_cmd(git_apply_cmd, fatal, dry_run).retcode
 
 
 def apply_patch(patch: str, ebuild: bool, use_git_apply: bool,
@@ -88,7 +96,7 @@ def apply_patch(patch: str, ebuild: bool, use_git_apply: bool,
                     f"{patch}; please check 3-way merge markers and resolve "
                     "conflicts.")
     elif os.stat(patch).st_mode & stat.S_IXUSR != 0:
-        if _run_or_log_cmd([patch], ebuild, dry_run):
+        if _run_or_log_cmd([patch], ebuild, dry_run).retcode:
             raise RuntimeError(f"Patch script {patch} failed. Please fix.")
         # Commit local changes made by script as a temporary commit unless in
         # no-commit mode.
@@ -102,7 +110,8 @@ def apply_patches(libchrome_path: str, ebuild: bool, no_commit: bool,
                   dry_run: bool) -> None:
     os.chdir(libchrome_path)
     # Abort if git repository is dirty (in non-ebuild mode).
-    if not ebuild and subprocess.call(["git", "diff", "--quiet"]):
+    if (not ebuild and _run_or_log_cmd(["git", "diff", "--quiet"], False,
+                                       dry_run).retcode):
         raise RuntimeError(
             "Git working directory is dirty. Abort applying patches."
         )
