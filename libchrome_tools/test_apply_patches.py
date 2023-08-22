@@ -135,6 +135,53 @@ class TestApplyPatchesSucceed(unittest.TestCase):
         self.assertEqual(self.read_init_file(), "bar\nbaz\nfoo\n")
         # Initial commit and 3 commits from patches.
         self.assertEqual(git_log_length(), 4)
+        # Assert commit message contains trailer for patch name.
+        patch_name_trailers = subprocess.check_output(
+            [
+                'git', 'log', '--format=%(trailers:key=patch-name,valueonly)',
+                '-n3'
+            ],
+            universal_newlines=True,
+        ).strip().split('\n\n')
+        self.assertEqual(patch_name_trailers, [
+            'backward-compatibility-0500-add-foo-to-end-of-file.patch',
+            'long-term-0100-remove-foo.patch',
+            'long-term-0000-add-bar-and-baz.patch',
+        ])
+
+    def test_default_apply_patch_overwrite_trailer_with_new_name(self):
+        # Add trailer with a different patch-name than its file name to patch.
+        trailer_patch_name = "backward-compatibility-0500-old-patch-name.patch"
+        patch_file_name = "backward-compatibility-0500-add-foo-to-end-of-file.patch"
+        subprocess.check_call([
+            "git", "interpret-trailers", "--trailer",
+            f"patch-name: {trailer_patch_name}", "--in-place",
+            os.path.join("libchrome_tools", "patches", patch_file_name)
+        ])
+        subprocess.check_call(["git", "commit", "-a", "--amend", "--no-edit"])
+
+        # Assert warning-level message is logged for overwriting trailer value.
+        with self.assertLogs("root", level='WARNING') as cm:
+            apply_patches.apply_patches(self.repo_dir_path,
+                                        ebuild=False,
+                                        no_commit=False,
+                                        dry_run=False)
+        self.assertIn(
+            "WARNING:root:Applied patch contains patch-name trailers "
+            f"(['{trailer_patch_name}']) different from filename "
+            f"({patch_file_name}). Overwriting with filename.", cm.output)
+
+        # Assert last commit's message has only one patch-name trailer and value
+        # is its current filename.
+        patch_name_trailers = subprocess.check_output(
+            [
+                'git', 'log', '--format=%(trailers:key=patch-name,valueonly)',
+                '-n1'
+            ],
+            universal_newlines=True,
+        ).strip().split('\n\n')[0].split('\n')
+        self.assertEqual(len(patch_name_trailers), 1)
+        self.assertEqual(patch_name_trailers[0], patch_file_name)
 
     def test_no_commit_apply(self):
         apply_patches.apply_patches(self.repo_dir_path,

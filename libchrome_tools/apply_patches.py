@@ -95,6 +95,23 @@ def apply_patch(patch: str, ebuild: bool, use_git_apply: bool,
                     f"Failed to git {'apply' if use_git_apply else 'am'} patch "
                     f"{patch}; please check 3-way merge markers and resolve "
                     "conflicts.")
+        # Record patch name in created commit for future formatting patches.
+        if not use_git_apply:
+            basename = os.path.basename(patch)
+            patch_name_trailers = _run_or_log_cmd([
+                "git", "log", "-n1",
+                '--format=%(trailers:key=patch-name,valueonly)'
+            ], True, dry_run).stdout.strip().splitlines()
+            if patch_name_trailers and basename not in patch_name_trailers:
+                logging.warning(
+                    "Applied patch contains patch-name trailers (%s) different "
+                    "from filename (%s). Overwriting with filename.",
+                    patch_name_trailers, basename)
+            _run_or_log_cmd([
+                "git", "-c", "trailer.ifexists=replace", "commit", "--amend",
+                "--no-edit", "--trailer",
+                f"patch-name: {os.path.basename(patch)}"
+            ], True, dry_run)
     elif os.stat(patch).st_mode & stat.S_IXUSR != 0:
         if _run_or_log_cmd([patch], ebuild, dry_run).retcode:
             raise RuntimeError(f"Patch script {patch} failed. Please fix.")
