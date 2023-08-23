@@ -6,13 +6,13 @@ Subject: [PATCH] Revert "Land intentional C++20 use in base/."
 This reverts commit c5acc58e7bebe5de213668909a9414b97c58c9c7.
 ---
  base/check_op.h                               |  8 ++--
- base/strings/to_string.h                      | 30 ++++++++------
+ base/strings/to_string.h                      | 34 +++++++++-------
  base/strings/to_string_unittest.cc            | 16 ++------
  base/types/strong_alias.h                     |  2 +-
  base/types/strong_alias_unittest.cc           |  4 +-
  base/types/supports_ostream_operator.h        | 10 +++--
  .../supports_ostream_operator_unittest.cc     | 39 ++++++++++---------
- 7 files changed, 58 insertions(+), 51 deletions(-)
+ 7 files changed, 60 insertions(+), 53 deletions(-)
 
 diff --git a/base/check_op.h b/base/check_op.h
 index 1fba78d42b..f1c7735ad3 100644
@@ -51,15 +51,7 @@ diff --git a/base/strings/to_string.h b/base/strings/to_string.h
 index 288f1af5d8..39aabfb720 100644
 --- a/base/strings/to_string.h
 +++ b/base/strings/to_string.h
-@@ -10,6 +10,7 @@
- #include <sstream>
- #include <string>
- #include <type_traits>
-+#include <utility>
- 
- #include "base/template_util.h"
- #include "base/types/supports_ostream_operator.h"
-@@ -18,8 +19,11 @@ namespace base {
+@@ -23,8 +23,11 @@ std::string ToString(const Ts&... values);
  
  namespace internal {
  
@@ -72,7 +64,7 @@ index 288f1af5d8..39aabfb720 100644
  
  // I/O manipulators are function pointers, but should be sent directly to the
  // `ostream` instead of being cast to `const void*` like other function
-@@ -51,17 +55,19 @@ struct ToStringHelper {
+@@ -56,17 +59,19 @@ struct ToStringHelper {
  
  // Most streamables.
  template <typename T>
@@ -98,7 +90,7 @@ index 288f1af5d8..39aabfb720 100644
    static void Stringify(const T& v, std::ostringstream& ss) {
      ToStringHelper<const void*>::Stringify(reinterpret_cast<const void*>(v),
                                             ss);
-@@ -70,9 +76,10 @@ struct ToStringHelper<T,
+@@ -75,9 +80,10 @@ struct ToStringHelper<T,
  
  // Non-streamables that have a `ToString` member.
  template <typename T>
@@ -112,7 +104,7 @@ index 288f1af5d8..39aabfb720 100644
    static void Stringify(const T& v, std::ostringstream& ss) {
      // .ToString() may not return a std::string, e.g. blink::WTF::String.
      ToStringHelper<decltype(v.ToString())>::Stringify(v.ToString(), ss);
-@@ -84,7 +91,8 @@ struct ToStringHelper<T,
+@@ -89,7 +95,8 @@ struct ToStringHelper<T,
  template <typename T>
  struct ToStringHelper<
      T,
@@ -122,6 +114,18 @@ index 288f1af5d8..39aabfb720 100644
    static void Stringify(const T& v, std::ostringstream& ss) {
      using UT = typename std::underlying_type_t<T>;
      ToStringHelper<UT>::Stringify(static_cast<UT>(v), ss);
+@@ -120,8 +127,9 @@ struct ToStringHelper<std::tuple<T...>> {
+ template <typename... Ts>
+ std::string ToString(const Ts&... values) {
+   std::ostringstream ss;
+-  (..., internal::ToStringHelper<remove_cvref_t<decltype(values)>>::Stringify(
+-            values, ss));
++  (internal::ToStringHelper<remove_cvref_t<decltype(values)>>::Stringify(values,
++                                                                         ss),
++   ...);
+   return ss.str();
+ }
+ 
 diff --git a/base/strings/to_string_unittest.cc b/base/strings/to_string_unittest.cc
 index e047effd41..065ba2b901 100644
 --- a/base/strings/to_string_unittest.cc
