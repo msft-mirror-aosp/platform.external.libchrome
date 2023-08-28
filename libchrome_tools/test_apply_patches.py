@@ -5,11 +5,14 @@
 
 import logging
 import os
+import re
 import subprocess
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 from shutil import copy
+from typing import Optional
 
 import apply_patches
 
@@ -55,8 +58,13 @@ def init_git_repo_with_patches(inject_error: bool = False):
 
 
 def git_log_length() -> int:
-    git_log = subprocess.check_output(["git", "log", "--oneline"])
+    git_log = subprocess.check_output(["git", "log", "--oneline"]).strip()
     return len(git_log.splitlines())
+
+
+def get_HEAD_commit_oneline() -> str:
+    return subprocess.check_output(["git", "log", "HEAD", "-1", "--oneline"],
+                                   universal_newlines=True).strip()
 
 
 def read_file(file_path: str) -> str:
@@ -73,7 +81,7 @@ class TestCommandNotRun(unittest.TestCase):
         """
         logging.basicConfig(level=logging.DEBUG)
         logging.info("Running test: %s", self.id)
-        self.repo_dir = init_git_repo_with_patches(True)
+        self.repo_dir = init_git_repo_with_patches()
         self.repo_dir_path = self.repo_dir.name
 
     def tearDown(self):
@@ -100,6 +108,21 @@ class TestCommandNotRun(unittest.TestCase):
 
         self.assertEqual(self.read_init_file(), "dirty git repo\n")
 
+    def test_git_repo_no_branch(self):
+        # Go to 'detached HEAD' state.
+        head_hash = subprocess.check_output(["git", "log", "--oneline", "-1"],
+                                            universal_newlines=True).split()[0]
+        subprocess.check_call(["git", "checkout", head_hash])
+
+        with self.assertRaisesRegex(
+                RuntimeError, 'Not on a branch. Abort applying patches.'):
+            apply_patches.apply_patches(self.repo_dir_path,
+                                        ebuild=False,
+                                        no_commit=False,
+                                        dry_run=False)
+
+        self.assertEqual(self.read_init_file(), "foo\n")
+
 
 class TestSanitizePatchArgs(unittest.TestCase):
     def setUp(self):
@@ -120,19 +143,15 @@ class TestSanitizePatchArgs(unittest.TestCase):
         wrong_patch_name = 'wrong_patch_name.patch'
         with self.assertRaisesRegex(
                 ValueError, "--first ({wrong_patch_name})) does not exist"):
-            apply_patches.apply_patches(self.repo_dir_path,
-                                        ebuild=False,
-                                        no_commit=False,
-                                        first=wrong_patch_name)
+            apply_patches.sanitize_patch_args(
+                'first', wrong_patch_name, self.repo_dir_path)
 
     def last_patch_not_found(self):
         wrong_patch_name = 'wrong_patch_name.patch'
         with self.assertRaisesRegex(
                 ValueError, "--last ({wrong_patch_name})) does not exist"):
-            apply_patches.apply_patches(self.repo_dir_path,
-                                        ebuild=False,
-                                        no_commit=False,
-                                        last=wrong_patch_name)
+            apply_patches.sanitize_patch_args(
+                'last', wrong_patch_name, self.repo_dir_path)
 
     def patch_arg_in_wrong_dir(self):
         patch_path_with_wrong_dir = 'foo/wrong_patch_name.patch'
@@ -140,10 +159,8 @@ class TestSanitizePatchArgs(unittest.TestCase):
                 ValueError,
                 f"--first ({patch_path_with_wrong_dir})) is given as a path "
                 "but its parent directory is not"):
-            apply_patches.apply_patches(self.repo_dir_path,
-                                        ebuild=False,
-                                        no_commit=False,
-                                        first=patch_path_with_wrong_dir)
+            apply_patches.apply_patches(
+                'first', patch_path_with_wrong_dir, self.repo_dir_path)
 
     def invalid_file_as_patch_arg(self):
         # Add file without correct patch prefix to patches directory.
@@ -156,10 +173,95 @@ class TestSanitizePatchArgs(unittest.TestCase):
                 ValueError,
                 f"{invalid_file} is not a valid patch: patch name must start "
                 "with prefixes"):
-            apply_patches.apply_patches(self.repo_dir_path,
-                                        ebuild=False,
-                                        no_commit=False,
-                                        first=invalid_file)
+            apply_patches.apply_patches(
+                'first', invalid_file, self.repo_dir_path)
+
+
+class TestApplyPatchGetPatchCommitsSinceTag(unittest.TestCase):
+    def setUp(self) -> None:
+        """Create temporary git directory to be act as the libchrome directory.
+
+        Containing a target file to be modified (init_file.txt) and patches to
+        be applied.
+        """
+        logging.basicConfig(level=logging.INFO)
+        logging.info(self._testMethodName)
+        self.repo_dir = init_git_repo_with_patches()
+        self.repo_dir_path = self.repo_dir.name
+
+    def tearDown(self):
+        self.repo_dir.cleanup()
+
+    def test_no_patch_head_tag(self):
+        """Tag HEAD commit when there is no HEAD-before-patching tag."""
+        head_commit = get_HEAD_commit_oneline()
+        with self.assertLogs("root", level='INFO') as context:
+            patch_commits = apply_patches.get_patch_commits_since_tag("new-branch")
+        self.assertIn("INFO:root:Tagged current HEAD as HEAD-before-patching.",
+                      context.output)
+        self.assertEqual(patch_commits, [])
+
+        patch_head = apply_patches.get_patch_head_commit()
+        self.assertIsNotNone(patch_head)
+        self.assertEqual(
+            patch_head.split(maxsplit=1)[0],
+            head_commit.split(maxsplit=1)[0])
+
+    def test_keep_existing_valid_patch_head_tag(self):
+        """Skip tagging automatically if current tag is valid."""
+        old_patch_head = get_HEAD_commit_oneline()
+        old_patch_head_hash = old_patch_head.split(maxsplit=1)[0]
+        subprocess.check_call(['git', 'tag', apply_patches.TAG])
+        # Run apply_patches to get patch commits (only) in git log.
+        apply_patches.apply_patches(self.repo_dir_path,
+                                    ebuild=False,
+                                    no_commit=False)
+
+        with self.assertLogs("root", level='INFO') as context:
+            patch_commits = apply_patches.get_patch_commits_since_tag("new-branch")
+        self.assertIn(
+            f"INFO:root:Tag {apply_patches.TAG} already exists: {old_patch_head}.",
+            context.output)
+        self.assertIn(
+            "INFO:root:Only patch commits from HEAD-before-patching to HEAD, "
+            f"keeping {old_patch_head_hash} as HEAD-before-patching.",
+            context.output)
+        # Applied patch commits since HEAD-before-patching should be the same
+        # as all patches in the patches directory.
+        self.assertEqual([c.patch_name for c in patch_commits], [
+            os.path.basename(p)
+            for p in apply_patches.get_all_patches(self.repo_dir_path)
+        ])
+
+        # Commit tagged as HEAD-before-patching should remain the same.
+        patch_head = apply_patches.get_patch_head_commit()
+        self.assertIsNotNone(patch_head)
+        self.assertEqual(patch_head.split(maxsplit=1)[0], old_patch_head_hash)
+
+    def test_abort_patch_head_tag_with_non_patch_commits_in_history(self):
+        """Abort when there is any non-patch commits."""
+        # Tag HEAD as HEAD-before-patching and add commit without patch-name
+        # trailer (i.e. non-patch commit).
+        head_commit = get_HEAD_commit_oneline()
+        subprocess.check_call(['git', 'tag', apply_patches.TAG])
+        subprocess.check_call(
+            ['git', 'commit', '-m', "empty non-patch commit", "--allow-empty"])
+        empty_commit_hash = get_HEAD_commit_oneline().split(maxsplit=1)[0]
+
+        with self.assertRaisesRegex(
+                RuntimeError,
+                re.compile(
+                    fr"There is non-patch commit from {apply_patches.TAG} to HEAD:\n"
+                    fr"{empty_commit_hash}.*: 0 patch-name trailer\(s\).",
+                    re.MULTILINE)):
+            apply_patches.get_patch_commits_since_tag("new-branch")
+
+        # Commit tagged as HEAD-before-patching should remain the same.
+        patch_head = apply_patches.get_patch_head_commit()
+        self.assertIsNotNone(patch_head)
+        self.assertEqual(
+            patch_head.split(maxsplit=1)[0],
+            head_commit.split(maxsplit=1)[0])
 
 
 class TestApplyPatchesSucceed(unittest.TestCase):
@@ -191,6 +293,7 @@ class TestApplyPatchesSucceed(unittest.TestCase):
         self.assertEqual(self.read_init_file(), "foo\n")
 
     def test_default_apply(self):
+        head_commit = get_HEAD_commit_oneline()
         apply_patches.apply_patches(self.repo_dir_path,
                                     ebuild=False,
                                     no_commit=False)
@@ -214,7 +317,8 @@ class TestApplyPatchesSucceed(unittest.TestCase):
     def test_default_apply_patch_overwrite_trailer_with_new_name(self):
         # Add trailer with a different patch-name than its file name to patch.
         trailer_patch_name = "backward-compatibility-0500-old-patch-name.patch"
-        patch_file_name = "backward-compatibility-0500-add-foo-to-end-of-file.patch"
+        patch_file_name = (
+            "backward-compatibility-0500-add-foo-to-end-of-file.patch")
         subprocess.check_call([
             "git", "interpret-trailers", "--trailer",
             f"patch-name: {trailer_patch_name}", "--in-place",
@@ -223,7 +327,7 @@ class TestApplyPatchesSucceed(unittest.TestCase):
         subprocess.check_call(["git", "commit", "-a", "--amend", "--no-edit"])
 
         # Assert warning-level message is logged for overwriting trailer value.
-        with self.assertLogs("root", level='WARNING') as cm:
+        with self.assertLogs("root", level='WARNING') as context:
             apply_patches.apply_patches(self.repo_dir_path,
                                         ebuild=False,
                                         no_commit=False,
@@ -231,7 +335,7 @@ class TestApplyPatchesSucceed(unittest.TestCase):
         self.assertIn(
             "WARNING:root:Applied patch contains patch-name trailers "
             f"(['{trailer_patch_name}']) different from filename "
-            f"({patch_file_name}). Overwriting with filename.", cm.output)
+            f"({patch_file_name}). Overwriting with filename.", context.output)
 
         # Assert last commit's message has only one patch-name trailer and value
         # is its current filename.
@@ -241,7 +345,7 @@ class TestApplyPatchesSucceed(unittest.TestCase):
                 '-n1'
             ],
             universal_newlines=True,
-        ).strip().split('\n\n')[0].split('\n')
+        ).strip().split('\n\n', maxsplit=1)[0].split('\n')
         self.assertEqual(len(patch_name_trailers), 1)
         self.assertEqual(patch_name_trailers[0], patch_file_name)
 
@@ -270,7 +374,7 @@ class TestApplyPatchesSucceed(unittest.TestCase):
             no_commit=False,
             first='backward-compatibility-0500-add-foo-to-end-of-file.patch')
         self.assertEqual(self.read_init_file(), "bar\nbaz\nfoo\n")
-        # Initial commit and 2 commits (applied in three different runs).
+        # Initial commit and 3 commits (applied in three different runs).
         self.assertEqual(git_log_length(), 4)
 
     def test_no_commit_apply(self):

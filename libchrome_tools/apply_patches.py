@@ -30,6 +30,8 @@ PATCH_BASENAME_RE = re.compile(_PATCH_BASENAME_PATTERN)
 # prefix group, (4) descriptive name of patch.
 PATCH_NAME_TRAILER_RE = re.compile(r"(\w+): " + _PATCH_BASENAME_PATTERN + r"$")
 
+TAG = "HEAD-before-patching"
+
 
 def apply_patch_order_key_fn(patch_name) -> (int, int):
     """Return key for sorting patches in apply order at build time.
@@ -43,14 +45,35 @@ def apply_patch_order_key_fn(patch_name) -> (int, int):
     return PREFIXES.index(m.group(1)), m.group(2)
 
 
+class PatchCommit(NamedTuple):
+    """Hash of a patch commit and the corresponding patch file basename."""
+    hash: str
+    patch_name: str
+
+
+class PotentialPatchCommit(NamedTuple):
+    """Commit that is potentially a patch commit."""
+    hash: str
+    patch_name_trailers: Sequence[str]
+
+    def is_patch_commit(self) -> bool:
+        return (len(self.patch_name_trailers) == 1
+                and PATCH_BASENAME_RE.match(self.patch_name_trailers[0]))
+
+    def to_patch_commit(self) -> PatchCommit:
+        assert self.is_patch_commit()
+        return PatchCommit(self.hash, self.patch_name_trailers[0])
+
+
 class CommandResult(NamedTuple):
     retcode: int
     stdout: str
     stderr: str
 
 
-def _run_or_log_cmd(cmd: Sequence[str], fatal: bool,
-                    dry_run: bool) -> CommandResult:
+def _run_or_log_cmd(cmd: Sequence[str],
+                    fatal: bool = True,
+                    dry_run: bool = False) -> CommandResult:
     logging.debug("$ %s", " ".join(cmd))
     if dry_run:
         return CommandResult(0, "", "")
@@ -162,7 +185,19 @@ def apply_patch(patch_name: str, libchrome_path: str, ebuild: bool,
         raise RuntimeError(f"Invalid patch file {patch_name}.")
 
 
-def _sanitize_patch_args(arg_name: str, arg_value: Optional[str],
+def _assert_git_repo_state_and_get_current_branch(dry_run: bool = False) -> str:
+    # Abort if git repository is dirty.
+    if _run_or_log_cmd(["git", "diff", "--quiet"], False, dry_run).retcode:
+        raise RuntimeError(
+            "Git working directory is dirty. Abort applying patches.")
+    current_branch = _run_or_log_cmd(["git", "branch", "--show-current"],
+                                     True, dry_run).stdout
+    if not dry_run and not current_branch:
+        raise RuntimeError("Not on a branch. Abort applying patches.")
+    return current_branch
+
+
+def sanitize_patch_args(arg_name: str, arg_value: Optional[str],
                          libchrome_path: str) -> Optional[str]:
     """Assert the patch argument is valid.
 
@@ -226,6 +261,119 @@ def _clamp_patches(patches: Sequence[str], first: Optional[str],
     return patches[first_index:last_index]
 
 
+def get_patch_head_commit(dry_run: bool = False) -> Optional[str]:
+    """Return oneline log of commit tagged HEAD-before-patching, if exists."""
+    _, tags, _ = _run_or_log_cmd(["git", "tag"], True, dry_run)
+    tags = tags.splitlines() if tags else []
+    if TAG in tags:
+        return _run_or_log_cmd(["git", "log", TAG, "-1", "--oneline"], True,
+                               dry_run).stdout
+    return None
+
+
+def _potential_patch_commits_since_hash(
+        commit_hash: str,
+        dry_run: bool = False) -> Sequence[PotentialPatchCommit]:
+    "Return the list of PotentialPatchCommit since given commit."
+    # Each line from output is "<hash>:" followed by a ","-separated list of
+    # values of the patch-name trailer, sorted from HEAD to given commit hash.
+    # It may contain empty line.
+    output = _run_or_log_cmd([
+        "git",
+        "log",
+        "--format=%H:%(trailers:key=patch-name,valueonly,separator=%x2C)",
+        f"{commit_hash}..",
+    ], True, dry_run).stdout.split('\n')
+    # Reverse output so that it is sorted from commit hash to HEAD.
+    output.reverse()
+    # Parse output by line so each entry is a tuple (hash: str, unparsed string
+    # of ','-separated trailers: str).
+    output = [line.split(':', maxsplit=2) for line in output if line]
+    return [
+        PotentialPatchCommit(
+            line[0],  # hash
+            line[1].split(',') if line[1] else []  # trailers: list of str
+        ) for line in output
+    ]
+
+
+def get_patch_commits_since_tag(current_branch: str,
+                                allow_tag_not_exist: bool = True,
+                                dry_run: bool = False) -> Sequence[PatchCommit]:
+    """Get list of patch commits since commit tagged as HEAD-before-patching.
+
+    This would assert that the tag is on current branch and patch commits are
+    in the right order.
+    If tag does not exist, abort or tag current HEAD depending on value of
+    allow_tag_not_exist flag.
+
+    Args:
+        current_branch: Name of branch currently on.
+        allow_tag_not_exist: If False, abort if tag does not exist; otherwise
+            tag current HEAD (and return an empty list).
+        dry_run: In dry run mode or not.
+
+    Returns:
+        List of patch commits applied since patch-head (sorted from
+        HEAD-before-patching to HEAD).
+    """
+    # Get one-line description of the current HEAD-before-patching commit, if
+    # exists.
+    patch_head = get_patch_head_commit(dry_run)
+    if patch_head:
+        logging.info("Tag %s already exists: %s.", TAG, patch_head)
+        patch_head_branches = _run_or_log_cmd(
+            ["git", "branch", "--contains", TAG, '--format=%(refname:short)'],
+            True,
+            dry_run,
+        ).stdout.splitlines()
+        if not dry_run and current_branch not in patch_head_branches:
+            raise RuntimeError(
+                f"Tag '{TAG}' is on branches "
+                f"({', '.join(patch_head_branches)}) which does not include "
+                f"current branch {current_branch}. "
+                "Please confirm you are on the right branch.")
+
+        # Assume the tag is still valid if all commits from HEAD-before-patching
+        # to HEAD is generated from a patch and skip re-tagging.
+        patch_head_commit_hash = patch_head.split(maxsplit=1)[0]
+        commits = _potential_patch_commits_since_hash(patch_head_commit_hash,
+                                                      dry_run)
+        if all(c.is_patch_commit() for c in commits):
+            logging.info(
+                "Only patch commits from %s to HEAD, keeping %s as %s.", TAG,
+                patch_head_commit_hash, TAG)
+            return [c.to_patch_commit() for c in commits]
+
+        # Abort if there is non-patch commit and suggest actions.
+        non_patch_commits_summary = "\n".join([
+            f"{commit.hash}: {len(commit.patch_name_trailers)} patch-name "
+            "trailer(s)." for commit in commits
+            if not commit.is_patch_commit()
+        ])
+        raise RuntimeError(
+            f"There is non-patch commit from {TAG} to HEAD:\n"
+            f"{non_patch_commits_summary}\n"
+            "If the tag is obsolete (you would like to return to current HEAD "
+            f"after modifying patches), run `git tag -d {TAG}` to remove the "
+            "tag and rerun the script.\n"
+            "Otherwise, run `git rebase -i` with (r)eword option to add or "
+            "remove patch-name trailer to/ from the commit message so that "
+            "there is exactly one per commit.", )
+
+    if allow_tag_not_exist:
+        # Tag current HEAD; no patch commit since then by definition.
+        _run_or_log_cmd(["git", "tag", TAG], True, dry_run)
+        logging.info("Tagged current HEAD as HEAD-before-patching.")
+        return []
+
+    raise RuntimeError(
+        f"Tag {TAG} does not exist. Please run `git tag <hash> "
+        "HEAD-before-patching` with hash being commit to reset to if you have "
+        "applied patches manually."
+    )
+
+
 def apply_patches(libchrome_path: str,
                   ebuild: bool,
                   no_commit: bool,
@@ -235,31 +383,35 @@ def apply_patches(libchrome_path: str,
     """Apply patches in libchrome_tools/patches/ to the target libchrome.
 
     Args:
-      libchrome_path: Path to the target libchrome.
-      ebuild: Flag to apply patches in ebuild mode (not a git repo).
-      no_commit: Flag to not commit changes made by each patch.
-      first: First patch to apply (basename or path).
-      last: Last patch to apply (basename or path).
-      dry_run: Flag for dry run mode (commands are logged without running).
+        libchrome_path: Absolute real path to the target libchrome.
+        ebuild: Flag to apply patches in ebuild mode (not a git repo).
+        no_commit: Flag to not commit changes made by each patch.
+        first: First patch to apply (basename), must be in patch directory.
+        last: Last patch to apply (basename), must be in patch directory.
+        dry_run: Flag for dry run mode (commands are logged without running).
     """
-    # Expand and resolve path as an absolute real path.
-    libchrome_path = Path(libchrome_path).expanduser().resolve()
-
-    # Assert first or last exists in <libchrome_path>/libchrome_tools/patches/,
-    # and is a valid patch.
-    # Crop to basename (the only relevant part) after passing the check.
-    first = _sanitize_patch_args('first', first, libchrome_path)
-    last = _sanitize_patch_args('last', last, libchrome_path)
-
     # Change to the target libchrome directory (after resolving paths above).
     os.chdir(libchrome_path)
 
-    # Abort if git repository is dirty (in non-ebuild mode).
-    if (not ebuild and _run_or_log_cmd(["git", "diff", "--quiet"], False,
-                                       dry_run).retcode):
-        raise RuntimeError(
-            "Git working directory is dirty. Abort applying patches."
-        )
+    # List of PatchCommit from HEAD-before-patching to HEAD. Note there might
+    # be non-patch commits in between.
+    patch_commits_since_patch_head = []
+    if not ebuild:
+        current_branch = _assert_git_repo_state_and_get_current_branch(
+            dry_run=dry_run)
+        patch_commits_since_patch_head = get_patch_commits_since_tag(
+            current_branch, dry_run=dry_run)
+
+    applied_patches = [c.patch_name for c in patch_commits_since_patch_head]
+    logging.info("%d commits since %s.", len(applied_patches), TAG)
+    applied_patches_sorted = sorted(applied_patches,
+                                    key=apply_patch_order_key_fn)
+    assert applied_patches_sorted == applied_patches, (
+        "Applied patches in git log are not in correct application order. "
+        "This may cause unexpected apply failure when `emerge libchrome` "
+        "with the generated patches. "
+        "Please resort them using `git rebase -i`, correct order:\n%s.",
+        ','.join(applied_patches_sorted))
 
     # Get the list of all patches in the libchrome_tools/patches/ directory and
     # clamp to range as specified.
@@ -330,8 +482,17 @@ def main() -> None:
         logging.info('In --ebuild mode, --no_commit is always set to True.')
         args.no_commit = True
 
-    apply_patches(args.libchrome_path, args.ebuild, args.no_commit, args.first,
-                  args.last, args.dry_run)
+    # Expand and resolve path as an absolute real path.
+    libchrome_path = Path(args.libchrome_path).expanduser().resolve()
+
+    # Assert first or last exists in <libchrome_path>/libchrome_tools/patches/,
+    # and is a valid patch.
+    # Crop to basename (the only relevant part) after passing the check.
+    first = sanitize_patch_args('first', args.first, libchrome_path)
+    last = sanitize_patch_args('last', args.last, libchrome_path)
+
+    apply_patches(libchrome_path, args.ebuild, args.no_commit, first, last,
+                  args.dry_run)
 
 
 if __name__ == "__main__":
