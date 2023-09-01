@@ -72,6 +72,7 @@ class TestCommandNotRun(unittest.TestCase):
         be applied.
         """
         logging.basicConfig(level=logging.DEBUG)
+        logging.info("Running test: %s", self.id)
         self.repo_dir = init_git_repo_with_patches(True)
         self.repo_dir_path = self.repo_dir.name
 
@@ -108,6 +109,7 @@ class TestSanitizePatchArgs(unittest.TestCase):
         be applied.
         """
         logging.basicConfig(level=logging.DEBUG)
+        logging.info("Running test: %s", self.id)
         self.repo_dir = init_git_repo_with_patches(True)
         self.repo_dir_path = self.repo_dir.name
 
@@ -168,6 +170,7 @@ class TestApplyPatchesSucceed(unittest.TestCase):
         be applied.
         """
         logging.basicConfig(level=logging.DEBUG)
+        logging.info("Running test: %s", self.id)
         self.repo_dir = init_git_repo_with_patches()
         self.repo_dir_path = self.repo_dir.name
 
@@ -293,6 +296,7 @@ class TestApplyPatchesFail(unittest.TestCase):
         be applied.
         """
         logging.basicConfig(level=logging.DEBUG)
+        logging.info("Running test: %s", self.id)
         self.repo_dir = init_git_repo_with_patches(inject_error=True)
         self.repo_dir_path = self.repo_dir.name
 
@@ -304,9 +308,8 @@ class TestApplyPatchesFail(unittest.TestCase):
 
     def test_default_apply(self):
         with self.assertRaisesRegex(
-                RuntimeError, 'Failed to git am patch '
-                'libchrome_tools/patches/long-term-0000-add-bar-and-baz.patch'
-        ):
+                RuntimeError,
+                'Failed to git am patch long-term-0000-add-bar-and-baz.patch'):
             apply_patches.apply_patches(self.repo_dir_path,
                                         ebuild=False,
                                         no_commit=False)
@@ -324,8 +327,8 @@ class TestApplyPatchesFail(unittest.TestCase):
     def test_no_commit_apply(self):
         # Assert the git apply command failed with --3way option.
         with self.assertRaisesRegex(
-                RuntimeError, 'Failed to git apply patch '
-                'libchrome_tools/patches/long-term-0000-add-bar-and-baz.patch'
+                RuntimeError,
+                'Failed to git apply patch long-term-0000-add-bar-and-baz.patch'
         ):
             apply_patches.apply_patches(self.repo_dir_path,
                                         ebuild=False,
@@ -346,8 +349,7 @@ class TestApplyPatchesFail(unittest.TestCase):
         # Assert the function failed with self-defined RuntimeError.
         with self.assertRaisesRegex(
                 subprocess.CalledProcessError, r"\['git', 'apply', '-C1', '"
-                r"libchrome_tools/patches/long-term-0000-add-bar-and-baz.patch"
-                r"'\]"):
+                r".*/long-term-0000-add-bar-and-baz.patch'\]"):
             apply_patches.apply_patches(self.repo_dir_path,
                                         ebuild=True,
                                         no_commit=True)

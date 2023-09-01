@@ -8,7 +8,6 @@ Tool to apply libchrome patches.
 """
 
 import argparse
-import glob
 import logging
 import os
 from pathlib import Path
@@ -23,7 +22,25 @@ PREFIXES = [
     "backward-compatibility",
     "forward-compatibility",
 ]
-PATCH_BASENAME_RE = re.compile(r"(" + "|".join(PREFIXES) + r")")
+_PATCH_BASENAME_PATTERN = r"(" + "|".join(PREFIXES) + r")-(\d{4})-(.+)\.patch"
+# A matched result has group (1) prefix, (2) number in the prefix group, (3)
+# descriptive name of patch.
+PATCH_BASENAME_RE = re.compile(_PATCH_BASENAME_PATTERN)
+# A matched result has group (1) commit hash, (2) prefix, (3) number in the
+# prefix group, (4) descriptive name of patch.
+PATCH_NAME_TRAILER_RE = re.compile(r"(\w+): " + _PATCH_BASENAME_PATTERN + r"$")
+
+
+def apply_patch_order_key_fn(patch_name) -> (int, int):
+    """Return key for sorting patches in apply order at build time.
+
+    First number is prefix order, e.g. "long-term" is 0 and "cherry-pick"
+    is 1 and so on.
+    Second is the 4-digit number for the patch within that patch group.
+    """
+    m = PATCH_BASENAME_RE.match(patch_name)
+    assert m, f"Patch name is invalid: should match {_PATCH_BASENAME_PATTERN}."
+    return PREFIXES.index(m.group(1)), m.group(2)
 
 
 class CommandResult(NamedTuple):
@@ -42,7 +59,8 @@ def _run_or_log_cmd(cmd: Sequence[str], fatal: bool,
                                        capture_output=True,
                                        universal_newlines=True)
     return CommandResult(completed_process.returncode,
-                         completed_process.stdout, completed_process.stderr)
+                         completed_process.stdout.strip(),
+                         completed_process.stderr.strip())
 
 
 def _commit_script_patch(patch: str, dry_run: bool) -> None:
@@ -61,6 +79,16 @@ def _commit_script_patch(patch: str, dry_run: bool) -> None:
     )
 
 
+def get_all_patches(libchrome_path: str) -> Sequence[str]:
+    """Return list of patches in given libchrome repo in correct apply order."""
+    patches = [
+        p for p in os.listdir(
+            os.path.join(libchrome_path, "libchrome_tools", "patches"))
+        if PATCH_BASENAME_RE.match(p)
+    ]
+    return sorted(patches, key=apply_patch_order_key_fn)
+
+
 def _git_apply_patch(patch: str, use_git_apply: bool, threeway: bool,
                      fatal: bool, dry_run: bool) -> int:
     # "-C1" to be compatible with `patch` and to be more robust against upstream
@@ -71,16 +99,26 @@ def _git_apply_patch(patch: str, use_git_apply: bool, threeway: bool,
     return _run_or_log_cmd(git_apply_cmd, fatal, dry_run).retcode
 
 
-def apply_patch(patch: str, ebuild: bool, use_git_apply: bool,
-                dry_run: bool) -> None:
-    """Applying given patch."""
+def apply_patch(patch_name: str, libchrome_path: str, ebuild: bool,
+                use_git_apply: bool, dry_run: bool) -> None:
+    """Apply given patch.
+
+    Args:
+        patch_name: Basename of patch to apply. Must exist in the patches directory.
+        libchrome_path: Absolute real path to libchrome repository.
+        ebuild: In ebuild mode (not a git repository).
+        use_git_apply: Use git apply (instead of git am).
+        dry_run: In dry run mode (commands are logged not run).
+    """
     assert not ebuild or use_git_apply, (
         "--ebuild mode must be run with no_commit = True.")
-    if patch.endswith(".patch"):
+    patch_path = os.path.join(libchrome_path, "libchrome_tools", "patches",
+                              patch_name)
+    if patch_path.endswith(".patch"):
         # git apply/ am is fatal (exit immediately if fail) if in ebuild mode.
         # Otherwise, if fail (return code is non-zero), rerun to leave a 3-way
         # merge marker.
-        if _git_apply_patch(patch,
+        if _git_apply_patch(patch_path,
                             use_git_apply,
                             threeway=False,
                             fatal=ebuild,
@@ -88,54 +126,56 @@ def apply_patch(patch: str, ebuild: bool, use_git_apply: bool,
             # Failed `git am` will leave rebase directory even without --3way.
             if not use_git_apply:
                 _run_or_log_cmd(['git', 'am', '--abort'], True, dry_run)
-            if _git_apply_patch(patch,
+            if _git_apply_patch(patch_path,
                                 use_git_apply,
                                 threeway=True,
                                 fatal=False,
                                 dry_run=dry_run):
                 raise RuntimeError(
                     f"Failed to git {'apply' if use_git_apply else 'am'} patch "
-                    f"{patch}; please check 3-way merge markers and resolve "
-                    "conflicts.")
+                    f"{patch_name}; please check 3-way merge markers and "
+                    "resolve conflicts.")
         # Record patch name in created commit for future formatting patches.
         if not use_git_apply:
-            basename = os.path.basename(patch)
             patch_name_trailers = _run_or_log_cmd([
                 "git", "log", "-n1",
                 '--format=%(trailers:key=patch-name,valueonly)'
-            ], True, dry_run).stdout.strip().splitlines()
-            if patch_name_trailers and basename not in patch_name_trailers:
+            ], True, dry_run).stdout.splitlines()
+            if patch_name_trailers and patch_name not in patch_name_trailers:
                 logging.warning(
                     "Applied patch contains patch-name trailers (%s) different "
                     "from filename (%s). Overwriting with filename.",
-                    patch_name_trailers, basename)
+                    patch_name_trailers, patch_name)
             _run_or_log_cmd([
                 "git", "-c", "trailer.ifexists=replace", "commit", "--amend",
-                "--no-edit", "--trailer",
-                f"patch-name: {os.path.basename(patch)}"
+                "--no-edit", "--trailer", f"patch-name: {patch_name}"
             ], True, dry_run)
-    elif os.stat(patch).st_mode & stat.S_IXUSR != 0:
-        if _run_or_log_cmd([patch], ebuild, dry_run).retcode:
-            raise RuntimeError(f"Patch script {patch} failed. Please fix.")
+    elif os.stat(patch_path).st_mode & stat.S_IXUSR != 0:
+        if _run_or_log_cmd([patch_path], ebuild, dry_run).retcode:
+            raise RuntimeError(
+                f"Patch script {patch_name} failed. Please fix.")
         # Commit local changes made by script as a temporary commit unless in
         # no-commit mode.
         if not use_git_apply:
-            _commit_script_patch(patch, dry_run)
+            _commit_script_patch(patch_path, dry_run)
     else:
-        raise RuntimeError(f"Invalid patch file {patch}.")
+        raise RuntimeError(f"Invalid patch file {patch_name}.")
 
 
 def _sanitize_patch_args(arg_name: str, arg_value: Optional[str],
                          libchrome_path: str) -> Optional[str]:
-    """Assert the patch argument is either not provided, basename-only, or a
-     path in the right directory (<libchrome_path>/libchrome_tools/patches/).
+    """Assert the patch argument is valid.
+
+    It should be either not provided, basename-only, or a path in the right
+    directory (<libchrome_path>/libchrome_tools/patches/).
 
     Args:
-      arg_name: name of argument sanitized ("first" or "last").
-      arg_value: value of the patch argument.
-      libchrome_path: absolute real path of the target libchrome directory.
+        arg_name: name of argument sanitized ("first" or "last").
+        arg_value: value of the patch argument.
+        libchrome_path: absolute real path of the target libchrome directory.
 
-    Returns: basename of patch, or None if not provided.
+    Returns:
+        Basename of patch, or None if not provided.
     """
     if not arg_value:
         return None
@@ -148,10 +188,9 @@ def _sanitize_patch_args(arg_name: str, arg_value: Optional[str],
         arg_value = Path(arg_value).expanduser().resolve()
         if os.path.dirname(arg_value) != patch_dir:
             raise ValueError(
-                f"--{arg_name} ({arg_value})) is given as a path but its parent "
-                f"directory is not {patch_dir}. "
-                "You can specify target libchrome repository with --libchrome_path."
-            )
+                f"--{arg_name} ({arg_value})) is given as a path but its "
+                f"parent directory is not {patch_dir}. You can specify target "
+                "libchrome repository with --libchrome_path.")
 
     basename = os.path.basename(arg_value)
     # Assert basename of patch has a valid patch name.
@@ -170,23 +209,20 @@ def _sanitize_patch_args(arg_name: str, arg_value: Optional[str],
 
 
 def _clamp_patches(patches: Sequence[str], first: Optional[str],
-                   last: Optional[str], libchrome_path: str) -> Sequence[str]:
+                   last: Optional[str]) -> Sequence[str]:
     """Return patches between first (or real first) and last (or real last).
 
     Args:
-      patches: Patches as relative path from libchrome_path, i.e. each is a
-        string "libchrome_tools/patches/<patch_name>", sorted in apply order.
-      first: Basename of first patch to apply. Must exist in patches if given.
-      last: Basename of last patch to apply. Must exist in patches if given.
-      libchrome_path: Absolute real path to the target libchrome directory.
+        patches: Basename of all patches in the patch directory, sorted in
+        apply order.
+        first: Basename of first patch to apply. Must exist in patches if given.
+        last: Basename of last patch to apply. Must exist in patches if given.
 
-    Returns: The clamped sequence of patches.
+    Returns:
+        The clamped sequence of patches.
     """
-    first_index = ((patches.index(
-        os.path.join('libchrome_tools/patches/', first))) if first else 0)
-    last_index = (
-        (patches.index(os.path.join('libchrome_tools/patches/', last)) +
-         1) if last else len(patches))
+    first_index = patches.index(first) if first else 0
+    last_index = (patches.index(last) + 1) if last else len(patches)
     return patches[first_index:last_index]
 
 
@@ -227,15 +263,11 @@ def apply_patches(libchrome_path: str,
 
     # Get the list of all patches in the libchrome_tools/patches/ directory and
     # clamp to range as specified.
-    patches = [
-        patch for prefix in PREFIXES
-        for patch in sorted(glob.glob(f"libchrome_tools/patches/{prefix}-*"))
-    ]
-    patches = _clamp_patches(patches, first, last, libchrome_path)
+    patches = _clamp_patches(get_all_patches(libchrome_path), first, last)
 
     for patch in patches:
         logging.info("Applying %s...", patch)
-        apply_patch(patch, ebuild, no_commit, dry_run)
+        apply_patch(patch, libchrome_path, ebuild, no_commit, dry_run)
 
 
 def main() -> None:
