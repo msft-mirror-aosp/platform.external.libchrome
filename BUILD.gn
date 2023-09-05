@@ -230,6 +230,7 @@ buildflag_header("allocator_debugging_buildflags") {
     "PA_DCHECK_IS_ON=false",
     "PA_EXPENSIVE_DCHECKS_ARE_ON=false",
     "PA_DCHECK_IS_CONFIGURABLE=false",
+    "PA_CAN_UNWIND_WITH_FRAME_POINTERS=false",
   ]
 }
 
@@ -404,6 +405,8 @@ libbase_sublibs = [
       "base/allocator/partition_allocator/oom_callback.cc",
       "base/allocator/partition_allocator/partition_alloc_base/check.cc",
       "base/allocator/partition_allocator/partition_alloc_base/debug/alias.cc",
+      "base/allocator/partition_allocator/partition_alloc_base/debug/stack_trace_linux.cc",
+      "base/allocator/partition_allocator/partition_alloc_base/debug/stack_trace_posix.cc",
       "base/allocator/partition_allocator/partition_alloc_base/logging.cc",
       "base/allocator/partition_allocator/partition_alloc_base/log_message.cc",
       "base/allocator/partition_allocator/partition_alloc_base/memory/page_size_posix.cc",
