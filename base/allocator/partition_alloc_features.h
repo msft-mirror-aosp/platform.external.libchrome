@@ -63,7 +63,13 @@ BASE_EXPORT BASE_DECLARE_FEATURE(kPartitionAllocPCScan);
 #if BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
 BASE_EXPORT BASE_DECLARE_FEATURE(kPartitionAllocPCScanBrowserOnly);
 BASE_EXPORT BASE_DECLARE_FEATURE(kPartitionAllocPCScanRendererOnly);
+
 BASE_EXPORT BASE_DECLARE_FEATURE(kPartitionAllocLargeThreadCacheSize);
+extern const BASE_EXPORT base::FeatureParam<int>
+    kPartitionAllocLargeThreadCacheSizeValue;
+extern const BASE_EXPORT base::FeatureParam<int>
+    kPartitionAllocLargeThreadCacheSizeValueFor32BitAndroid;
+
 BASE_EXPORT BASE_DECLARE_FEATURE(kPartitionAllocLargeEmptySlotSpanRing);
 #endif  // BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
 
@@ -148,6 +154,7 @@ extern const BASE_EXPORT base::FeatureParam<MemoryTaggingEnabledProcesses>
 // Kill switch for memory tagging. Skips any code related to memory tagging when
 // enabled.
 BASE_EXPORT BASE_DECLARE_FEATURE(kKillPartitionAllocMemoryTagging);
+BASE_EXPORT BASE_DECLARE_FEATURE(kPartitionAllocPermissiveMte);
 extern const BASE_EXPORT base::FeatureParam<bool>
     kBackupRefPtrAsanEnableDereferenceCheckParam;
 extern const BASE_EXPORT base::FeatureParam<bool>

@@ -97,6 +97,17 @@ BASE_FEATURE(kPartitionAllocLargeThreadCacheSize,
 #endif
 );
 
+const base::FeatureParam<int> kPartitionAllocLargeThreadCacheSizeValue{
+    &kPartitionAllocLargeThreadCacheSize,
+    "PartitionAllocLargeThreadCacheSizeValue",
+    ::partition_alloc::ThreadCacheLimits::kLargeSizeThreshold};
+
+const base::FeatureParam<int>
+    kPartitionAllocLargeThreadCacheSizeValueFor32BitAndroid{
+        &kPartitionAllocLargeThreadCacheSize,
+        "PartitionAllocLargeThreadCacheSizeValueFor32BitAndroid",
+        ::partition_alloc::ThreadCacheLimits::kDefaultSizeThreshold};
+
 BASE_FEATURE(kPartitionAllocLargeEmptySlotSpanRing,
              "PartitionAllocLargeEmptySlotSpanRing",
              FEATURE_DISABLED_BY_DEFAULT);
@@ -194,6 +205,11 @@ const base::FeatureParam<MemoryTaggingEnabledProcesses>
 BASE_FEATURE(kKillPartitionAllocMemoryTagging,
              "KillPartitionAllocMemoryTagging",
              FEATURE_DISABLED_BY_DEFAULT);
+
+BASE_EXPORT BASE_DECLARE_FEATURE(kPartitionAllocPermissiveMte);
+BASE_FEATURE(kPartitionAllocPermissiveMte,
+             "PartitionAllocPermissiveMte",
+             FEATURE_ENABLED_BY_DEFAULT);
 
 const base::FeatureParam<bool> kBackupRefPtrAsanEnableDereferenceCheckParam{
     &kPartitionAllocBackupRefPtr, "asan-enable-dereference-check", true};

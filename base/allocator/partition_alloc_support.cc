@@ -1131,6 +1131,8 @@ void PartitionAllocSupport::ReconfigureAfterFeatureListInit(
                 partition_alloc::TagViolationReportingMode::kAsynchronous;
             break;
         }
+        partition_alloc::PermissiveMte::SetEnabled(base::FeatureList::IsEnabled(
+            base::features::kPartitionAllocPermissiveMte));
         partition_alloc::internal::
             ChangeMemoryTaggingModeForAllThreadsPerProcess(
                 memory_tagging_reporting_mode);
@@ -1314,14 +1316,15 @@ void PartitionAllocSupport::ReconfigureAfterTaskRunnerInit(
       base::FeatureList::IsEnabled(
           base::features::kPartitionAllocLargeThreadCacheSize)) {
     largest_cached_size_ =
-        ::partition_alloc::ThreadCacheLimits::kLargeSizeThreshold;
+        size_t(base::features::kPartitionAllocLargeThreadCacheSizeValue.Get());
 
 #if BUILDFLAG(IS_ANDROID) && defined(ARCH_CPU_32_BITS)
     // Devices almost always report less physical memory than what they actually
     // have, so anything above 3GiB will catch 4GiB and above.
     if (base::SysInfo::AmountOfPhysicalMemoryMB() <= 3500) {
-      largest_cached_size_ =
-          ::partition_alloc::ThreadCacheLimits::kDefaultSizeThreshold;
+      largest_cached_size_ = size_t(
+          base::features::
+              kPartitionAllocLargeThreadCacheSizeValueFor32BitAndroid.Get());
     }
 #endif  // BUILDFLAG(IS_ANDROID) && !defined(ARCH_CPU_64_BITS)
 
