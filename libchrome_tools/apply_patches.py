@@ -185,15 +185,15 @@ def apply_patch(patch_name: str, libchrome_path: str, ebuild: bool,
         raise RuntimeError(f"Invalid patch file {patch_name}.")
 
 
-def _assert_git_repo_state_and_get_current_branch(dry_run: bool = False) -> str:
+def assert_git_repo_state_and_get_current_branch(dry_run: bool = False) -> str:
+    """Assert git repo is in the right state (clean and at a branch)."""
     # Abort if git repository is dirty.
     if _run_or_log_cmd(["git", "diff", "--quiet"], False, dry_run).retcode:
-        raise RuntimeError(
-            "Git working directory is dirty. Abort applying patches.")
+        raise RuntimeError("Git working directory is dirty. Abort script.")
     current_branch = _run_or_log_cmd(["git", "branch", "--show-current"],
                                      True, dry_run).stdout
     if not dry_run and not current_branch:
-        raise RuntimeError("Not on a branch. Abort applying patches.")
+        raise RuntimeError("Not on a branch. Abort script.")
     return current_branch
 
 
@@ -332,7 +332,8 @@ def get_patch_commits_since_tag(current_branch: str,
                 f"Tag '{TAG}' is on branches "
                 f"({', '.join(patch_head_branches)}) which does not include "
                 f"current branch {current_branch}. "
-                "Please confirm you are on the right branch.")
+                "Please confirm you are on the right branch, or delete "
+                f"the obsolete tag by `git tag -d {TAG}`.")
 
         # Assume the tag is still valid if all commits from HEAD-before-patching
         # to HEAD is generated from a patch and skip re-tagging.
@@ -340,10 +341,22 @@ def get_patch_commits_since_tag(current_branch: str,
         commits = _potential_patch_commits_since_hash(patch_head_commit_hash,
                                                       dry_run)
         if all(c.is_patch_commit() for c in commits):
-            logging.info(
-                "Only patch commits from %s to HEAD, keeping %s as %s.", TAG,
-                patch_head_commit_hash, TAG)
-            return [c.to_patch_commit() for c in commits]
+            logging.info("Confirmed only patch commits from %s to HEAD.", TAG)
+
+            commits = [c.to_patch_commit() for c in commits]
+            applied_patches = [c.patch_name for c in commits]
+            logging.info("%d commits since %s.", len(applied_patches), TAG)
+            applied_patches_sorted = sorted(applied_patches,
+                                            key=apply_patch_order_key_fn)
+            if applied_patches_sorted != applied_patches:
+                raise RuntimeError(
+                    "Applied patches in git log are not in correct application "
+                    "order. This may cause unexpected apply failure when `emerge "
+                    "libchrome` with the generated patches. "
+                    "Please resort them using `git rebase -i`, correct order:\n",
+                    ','.join(applied_patches_sorted))
+
+            return commits
 
         # Abort if there is non-patch commit and suggest actions.
         non_patch_commits_summary = "\n".join([
@@ -368,10 +381,8 @@ def get_patch_commits_since_tag(current_branch: str,
         return []
 
     raise RuntimeError(
-        f"Tag {TAG} does not exist. Please run `git tag <hash> "
-        "HEAD-before-patching` with hash being commit to reset to if you have "
-        "applied patches manually."
-    )
+        f"Tag {TAG} does not exist. Please run `git tag <hash> {TAG}` with "
+        "hash being commit to reset to if you have applied patches manually.")
 
 
 def apply_patches(libchrome_path: str,
@@ -393,25 +404,16 @@ def apply_patches(libchrome_path: str,
     # Change to the target libchrome directory (after resolving paths above).
     os.chdir(libchrome_path)
 
-    # List of PatchCommit from HEAD-before-patching to HEAD. Note there might
-    # be non-patch commits in between.
-    patch_commits_since_patch_head = []
     if not ebuild:
-        current_branch = _assert_git_repo_state_and_get_current_branch(
+        # Make sure git repo is in good state.
+        current_branch = assert_git_repo_state_and_get_current_branch(
             dry_run=dry_run)
-        patch_commits_since_patch_head = get_patch_commits_since_tag(
-            current_branch, dry_run=dry_run)
-
-    applied_patches = [c.patch_name for c in patch_commits_since_patch_head]
-    logging.info("%d commits since %s.", len(applied_patches), TAG)
-    applied_patches_sorted = sorted(applied_patches,
-                                    key=apply_patch_order_key_fn)
-    assert applied_patches_sorted == applied_patches, (
-        "Applied patches in git log are not in correct application order. "
-        "This may cause unexpected apply failure when `emerge libchrome` "
-        "with the generated patches. "
-        "Please resort them using `git rebase -i`, correct order:\n%s.",
-        ','.join(applied_patches_sorted))
+        # Make sure either HEAD-before-patching tag does not exist (and tag
+        # HEAD), or all commits from the tagged commit to HEAD are patch
+        # commits sorted in application order.
+        _ = get_patch_commits_since_tag(current_branch,
+                                        allow_tag_not_exist=True,
+                                        dry_run=dry_run)
 
     # Get the list of all patches in the libchrome_tools/patches/ directory and
     # clamp to range as specified.
@@ -420,6 +422,50 @@ def apply_patches(libchrome_path: str,
     for patch in patches:
         logging.info("Applying %s...", patch)
         apply_patch(patch, libchrome_path, ebuild, no_commit, dry_run)
+
+
+def format_patches(libchrome_path: str, dry_run: bool = False) -> None:
+    """Format all commits from HEAD-before-patching to HEAD as patches.
+
+    Args:
+        libchrome_path: Absolute real path to libchrome repository.
+        dry_run: Flag in dry run mode.
+    """
+    # Change to the target libchrome directory (after resolving paths above).
+    os.chdir(libchrome_path)
+
+    # Make sure git repo is in good state.
+    current_branch = assert_git_repo_state_and_get_current_branch(
+        dry_run=dry_run)
+    # Make sure HEAD-before-patching tag exists, and all commits from the
+    # tagged commit to HEAD are patch commits sorted in application order.
+    commits = get_patch_commits_since_tag(current_branch,
+                                          allow_tag_not_exist=True,
+                                          dry_run=dry_run)
+
+    # Format commits as patches, without numbering (-N). Result is ordered in
+    # commit order (HEAD-before-patching to HEAD).
+    formatted_patches = _run_or_log_cmd(["git", "format-patch", TAG, "-N"],
+                                        dry_run=dry_run).stdout.splitlines()
+    logging.info("Formatted %d commits since %s as patches.",
+                 len(formatted_patches), TAG)
+
+    # Reset to tagged commit.
+    _run_or_log_cmd(["git", "reset", "--hard", TAG], dry_run=dry_run)
+    logging.info("Reset to %s.", TAG)
+
+    # Move and rename files to <libchrome>/libchrome_tools/patches/ with name
+    # specified by the patch-name trailer.
+    patch_dir = os.path.join(libchrome_path, "libchrome_tools", "patches")
+    for (formatted_patch_file,
+         patch_name) in zip(formatted_patches,
+                            [c.patch_name for c in commits]):
+        os.rename(formatted_patch_file, os.path.join(patch_dir, patch_name))
+    logging.info("Moved and renamed formatted patches, please check %s.",
+                 patch_dir)
+
+    # Delete tag.
+    _run_or_log_cmd(["git", "tag", "-d", TAG], dry_run=dry_run)
 
 
 def main() -> None:
@@ -458,6 +504,16 @@ def main() -> None:
         help=("The basename or path of the last patch to apply (inclusive)."
               "Defaults to apply til the last patch in directory."))
     parser.add_argument(
+        "--format-patches",
+        "-f",
+        default=False,
+        required=False,
+        action="store_true",
+        help=(
+            f"Format all commits from commit tagged {TAG} to HEAD as patches "
+            f"and reset to {TAG}."),
+    )
+    parser.add_argument(
         "--dry-run",
         default=False,
         required=False,
@@ -470,6 +526,13 @@ def main() -> None:
 
     logging.basicConfig(level=logging.INFO)
 
+    # In format patches mode, do not allow flags for applying patches.
+    if args.format_patches:
+        if args.ebuild or args.no_commit or args.first or args.last:
+            raise ValueError(
+                "In --format-patches mode, do not accept flags for applying "
+                "patches: --ebuild, --no-commit, --first, --last.")
+
     # In non-ebuild mode, change to libchrome directory which should be a git
     # repository for git commands like am and commit at the right repository.
     if not args.ebuild:
@@ -479,7 +542,7 @@ def main() -> None:
                 "but not running in --ebuild mode.")
     # Never commit changes from patches in ebuild mode.
     else:
-        logging.info('In --ebuild mode, --no_commit is always set to True.')
+        logging.info('In --ebuild mode, --no-commit is always set to True.')
         args.no_commit = True
 
     # Expand and resolve path as an absolute real path.
@@ -491,8 +554,11 @@ def main() -> None:
     first = sanitize_patch_args('first', args.first, libchrome_path)
     last = sanitize_patch_args('last', args.last, libchrome_path)
 
-    apply_patches(libchrome_path, args.ebuild, args.no_commit, first, last,
-                  args.dry_run)
+    if args.format_patches:
+        format_patches(libchrome_path, args.dry_run)
+    else:
+        apply_patches(libchrome_path, args.ebuild, args.no_commit, first, last,
+                      args.dry_run)
 
 
 if __name__ == "__main__":

@@ -98,13 +98,8 @@ class TestCommandNotRun(unittest.TestCase):
             f.write("dirty git repo\n")
 
         with self.assertRaisesRegex(
-                RuntimeError,
-                'Git working directory is dirty. Abort applying patches.'
-        ):
-            apply_patches.apply_patches(self.repo_dir_path,
-                                        ebuild=False,
-                                        no_commit=False,
-                                        dry_run=False)
+                RuntimeError, 'Git working directory is dirty. Abort script.'):
+            apply_patches.assert_git_repo_state_and_get_current_branch()
 
         self.assertEqual(self.read_init_file(), "dirty git repo\n")
 
@@ -114,12 +109,9 @@ class TestCommandNotRun(unittest.TestCase):
                                             universal_newlines=True).split()[0]
         subprocess.check_call(["git", "checkout", head_hash])
 
-        with self.assertRaisesRegex(
-                RuntimeError, 'Not on a branch. Abort applying patches.'):
-            apply_patches.apply_patches(self.repo_dir_path,
-                                        ebuild=False,
-                                        no_commit=False,
-                                        dry_run=False)
+        with self.assertRaisesRegex(RuntimeError,
+                                    'Not on a branch. Abort script.'):
+            apply_patches.assert_git_repo_state_and_get_current_branch()
 
         self.assertEqual(self.read_init_file(), "foo\n")
 
@@ -192,11 +184,12 @@ class TestApplyPatchGetPatchCommitsSinceTag(unittest.TestCase):
     def tearDown(self):
         self.repo_dir.cleanup()
 
-    def test_no_patch_head_tag(self):
+    def test_allow_no_patch_head_tag(self):
         """Tag HEAD commit when there is no HEAD-before-patching tag."""
         head_commit = get_HEAD_commit_oneline()
         with self.assertLogs("root", level='INFO') as context:
-            patch_commits = apply_patches.get_patch_commits_since_tag("new-branch")
+            patch_commits = apply_patches.get_patch_commits_since_tag(
+                "new-branch")
         self.assertIn("INFO:root:Tagged current HEAD as HEAD-before-patching.",
                       context.output)
         self.assertEqual(patch_commits, [])
@@ -206,6 +199,15 @@ class TestApplyPatchGetPatchCommitsSinceTag(unittest.TestCase):
         self.assertEqual(
             patch_head.split(maxsplit=1)[0],
             head_commit.split(maxsplit=1)[0])
+
+    def test_forbid_no_patch_head_tag(self):
+        """Abort when there is no HEAD-before-patching tag."""
+        with self.assertRaisesRegex(
+                RuntimeError,
+                rf"Tag {apply_patches.TAG} does not exist\. Please run `git "
+                rf"tag \<hash\> {apply_patches.TAG}` with hash being commit to "
+                r"reset to if you have applied patches manually\."):
+            apply_patches.get_patch_commits_since_tag("new-branch", False)
 
     def test_keep_existing_valid_patch_head_tag(self):
         """Skip tagging automatically if current tag is valid."""
@@ -218,14 +220,14 @@ class TestApplyPatchGetPatchCommitsSinceTag(unittest.TestCase):
                                     no_commit=False)
 
         with self.assertLogs("root", level='INFO') as context:
-            patch_commits = apply_patches.get_patch_commits_since_tag("new-branch")
+            patch_commits = apply_patches.get_patch_commits_since_tag(
+                "new-branch")
         self.assertIn(
-            f"INFO:root:Tag {apply_patches.TAG} already exists: {old_patch_head}.",
-            context.output)
+            f"INFO:root:Tag {apply_patches.TAG} already exists: "
+            f"{old_patch_head}.", context.output)
         self.assertIn(
-            "INFO:root:Only patch commits from HEAD-before-patching to HEAD, "
-            f"keeping {old_patch_head_hash} as HEAD-before-patching.",
-            context.output)
+            f"INFO:root:Confirmed only patch commits from {apply_patches.TAG} "
+            "to HEAD.", context.output)
         # Applied patch commits since HEAD-before-patching should be the same
         # as all patches in the patches directory.
         self.assertEqual([c.patch_name for c in patch_commits], [
@@ -251,9 +253,42 @@ class TestApplyPatchGetPatchCommitsSinceTag(unittest.TestCase):
         with self.assertRaisesRegex(
                 RuntimeError,
                 re.compile(
-                    fr"There is non-patch commit from {apply_patches.TAG} to HEAD:\n"
+                    fr"There is non-patch commit from {apply_patches.TAG} to "
+                    r"HEAD:\n"
                     fr"{empty_commit_hash}.*: 0 patch-name trailer\(s\).",
                     re.MULTILINE)):
+            apply_patches.get_patch_commits_since_tag("new-branch")
+
+        # Commit tagged as HEAD-before-patching should remain the same.
+        patch_head = apply_patches.get_patch_head_commit()
+        self.assertIsNotNone(patch_head)
+        self.assertEqual(
+            patch_head.split(maxsplit=1)[0],
+            head_commit.split(maxsplit=1)[0])
+
+    def test_abort_patch_head_tag_with_patch_commits_in_wrong_order(self):
+        """Abort if the commits are in a different order than at built time."""
+        # Tag HEAD as HEAD-before-patching and add empty commits with patch-name
+        # trailer such that they are in wrong order (backward compatibility
+        # patches before long term patches).
+        head_commit = get_HEAD_commit_oneline()
+        subprocess.check_call(['git', 'tag', apply_patches.TAG])
+        subprocess.check_call(
+            ['git', 'commit',  '--allow-empty',
+             '-m', "backward compatibility patch commit",
+             '-m', '',
+             '-m', 'patch-name: backward-compatibility-0001-empty.patch'])
+        subprocess.check_call(
+            ['git', 'commit',  '--allow-empty',
+             '-m', "long term patch commit",
+             '-m', '',
+             '-m', 'patch-name: long-term-0005-empty.patch'])
+
+        with self.assertRaisesRegex(
+                RuntimeError,
+                r"Applied patches in git log are not in correct application "
+                r"order. This may cause unexpected apply failure when `emerge "
+                r"libchrome` with the generated patches."):
             apply_patches.get_patch_commits_since_tag("new-branch")
 
         # Commit tagged as HEAD-before-patching should remain the same.
@@ -461,3 +496,99 @@ class TestApplyPatchesFail(unittest.TestCase):
         # Initial commit only and file is not modified.
         self.assertEqual(git_log_length(), 1)
         self.assertEqual(self.read_init_file(), "wrong line\n")
+
+
+class TestFormatPatchesSucceed(unittest.TestCase):
+    def setUp(self):
+        """Create temporary git directory to be act as the libchrome directory.
+
+        Containing a target file to be modified (init_file.txt) and patches to
+        be applied.
+
+        Apply all patches.
+        """
+        logging.basicConfig(level=logging.DEBUG)
+        logging.info("Running test: %s", self.id)
+        self.repo_dir = init_git_repo_with_patches()
+        self.repo_dir_path = self.repo_dir.name
+        self.HEAD_before_patching = get_HEAD_commit_oneline()
+        apply_patches.apply_patches(self.repo_dir_path,
+                                    ebuild=False,
+                                    no_commit=False)
+
+    def tearDown(self):
+        self.repo_dir.cleanup()
+
+    def read_init_file(self) -> str:
+        return read_file(os.path.join(self.repo_dir_path, "init_file.txt"))
+
+    def test_basic_run(self):
+        # Amend last patch to write two "foo"'s instead of one.
+        with open(os.path.join(self.repo_dir_path, "init_file.txt"),
+                  "a",
+                  encoding='utf-8') as f:
+            f.write("foo\n")
+        subprocess.check_call(["git", "commit", "-a", "--amend", "--no-edit"])
+
+        apply_patches.format_patches(self.repo_dir_path)
+
+        # Check git repo has been reset to original commit.
+        current_HEAD = get_HEAD_commit_oneline()
+        self.assertEqual(current_HEAD, self.HEAD_before_patching)
+        # File should contain original content.
+        self.assertEqual(self.read_init_file(), "foo\n")
+        # HEAD-before-patching tag no longer exists.
+        patch_head = apply_patches.get_patch_head_commit()
+        self.assertIsNone(patch_head)
+
+        os.chdir(os.path.join(self.repo_dir_path, "libchrome_tools",
+                              "patches"))
+        # Get summary of uncommitted changes.
+        git_status_short = subprocess.check_output(
+            ["git", "status", "--short"],
+            universal_newlines=True).splitlines()
+        self.assertEqual(len(git_status_short), 3)
+        # Each line is status of file (e.g. M for modified, D for deleted)
+        # followed by file name.
+        git_status_short = [line.split() for line in git_status_short]
+        # All files are modified (hash of patch file changes although no change
+        # to patch content).
+        self.assertSetEqual(set(s for (s, _) in git_status_short), set("M"))
+        self.assertSetEqual(set(f for (_, f) in git_status_short),
+                            set(os.listdir(".")))
+
+        # Save changes of new patches and reapply them.
+        subprocess.check_call(["git", "commit", "-a", "--amend", "--no-edit"])
+        apply_patches.apply_patches(self.repo_dir_path,
+                                    ebuild=False,
+                                    no_commit=False)
+
+        # The file now contains two foo's.
+        self.assertEqual(self.read_init_file(), "bar\nbaz\nfoo\nfoo\n")
+
+    def test_with_renamed_patch(self):
+        old_patch_name = (
+            "backward-compatibility-0500-add-foo-to-end-of-file.patch")
+        new_patch_name = "backward-compatibility-0100-add-foo.patch"
+        # Change last patch's patch-name trailer value.
+        subprocess.check_call([
+            "git", "-c", "trailer.ifexists=replace", "commit", "--amend",
+            "--no-edit", "--trailer", f"patch-name: {new_patch_name}"
+        ])
+
+        apply_patches.format_patches(self.repo_dir_path)
+
+        os.chdir(os.path.join(self.repo_dir_path, "libchrome_tools",
+                              "patches"))
+        # Get summary of uncommitted changes.
+        git_status_short = subprocess.check_output(
+            ["git", "status", "--short"],
+            universal_newlines=True).splitlines()
+        self.assertEqual(len(git_status_short), 3)
+        # Each line is status of file (e.g. M for modified, D for deleted)
+        # followed by file name.
+        git_status_short = [line.split() for line in git_status_short]
+        # Local changes includes the new patch file as untracked file, and not
+        # the old patch file.
+        self.assertIn(["??", new_patch_name], git_status_short)
+        self.assertNotIn(old_patch_name, [f for (_, f) in git_status_short])
