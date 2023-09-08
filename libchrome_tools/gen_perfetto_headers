@@ -12,9 +12,19 @@ cd $(dirname $0)/..
 includes=$(find . -name '*.cc' -or -name '*.h' \
   | xargs sed -n 's,^#include "\(third_party/perfetto/.*\)".*,\1,p')
 
+# Other headers included by generated protozero (.pbzero.h) headers.
+protozero_includes="
+  third_party/perfetto/include/perfetto/protozero/field_writer.h
+  third_party/perfetto/include/perfetto/protozero/message.h
+  third_party/perfetto/include/perfetto/protozero/packed_repeated_fields.h
+  third_party/perfetto/include/perfetto/protozero/proto_decoder.h
+  third_party/perfetto/include/perfetto/protozero/proto_utils.h
+  third_party/perfetto/include/protos/perfetto/trace/track_event/debug_annotation.pbzero.h
+  third_party/perfetto/include/protos/perfetto/trace/track_event/track_event.pbzero.h"
+
 rm -rf third_party/perfetto
 
-for include in $includes; do
+for include in $includes $protozero_includes; do
   if [ -f "$include" ]; then continue; fi
   echo "Creating $include"
   guard=$(echo $include | tr a-z A-Z | tr /. _)_

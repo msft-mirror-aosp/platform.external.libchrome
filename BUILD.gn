@@ -8,6 +8,7 @@
 import("//common-mk/mojom_bindings_generator.gni")
 import("//common-mk/mojom_type_mappings_generator.gni")
 import("//common-mk/pkg_config.gni")
+import("//common-mk/proto_library.gni")
 import("//libchrome/build/buildflag_header.gni")
 
 libchrome_basever = read_file("BASE_VER", "trim string")
@@ -16,6 +17,7 @@ group("all") {
   deps = [
     ":install_basever",
     ":install_buildflag_header",
+    ":install_protozero_generated",
     ":install_header",
     ":libchrome",
     ":libchrome-test",
@@ -82,6 +84,7 @@ config("libchrome_config") {
   include_dirs = [
     ".",
     "${root_gen_dir}/libchrome",  # for generated buildflags headers
+    "third_party/perfetto/include",  # for generated protozero headers
   ]
   cflags = [
     "-Wno-deprecated-register",
@@ -381,9 +384,16 @@ buildflag_header("tracing_buildflags") {
   ]
 }
 
+protozero_library("tracing_protozero") {
+  proto_in_dir = "base/tracing/protos"
+  proto_out_dir = "include/base/tracing/protos"
+  sources = [ "base/tracing/protos/chrome_track_event.proto" ]
+}
+
 libbase_sublibs = [
   {
     name = "base-core"
+    deps = [ ":tracing_protozero" ]
     libs = [
       "dl",
       "double-conversion",
@@ -1300,7 +1310,6 @@ install_config("install_basever") {
 
 install_config("install_header") {
   sources = []
-  sources += [ "base/tracing/protos/chrome_track_event.pbzero.h" ]
   sources += [
     "base/*.h",
     "base/allocator/*.h",
@@ -1449,4 +1458,13 @@ install_config("install_buildflag_header") {
   install_path = "/usr/include/libchrome"
   glob = true
   tree_relative_to = "${root_gen_dir}/libchrome"
+}
+
+install_config("install_protozero_generated") {
+  sources = [
+    "${root_gen_dir}/include/base/tracing/protos/chrome_track_event.pbzero.h"
+  ]
+  deps = [ ":tracing_protozero" ]
+  tree_relative_to = "${root_gen_dir}/include"
+  install_path = "/usr/include/libchrome"
 }
