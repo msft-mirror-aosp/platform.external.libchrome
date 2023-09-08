@@ -12,7 +12,7 @@ import unittest
 import unittest.mock
 from pathlib import Path
 from shutil import copy
-from typing import Optional
+from typing import Sequence
 
 import apply_patches
 
@@ -70,6 +70,22 @@ def get_HEAD_commit_oneline() -> str:
 def read_file(file_path: str) -> str:
     with open(file_path, "r", encoding='utf-8') as f:
         return f.read()
+
+
+def assertRegexIn(pattern, sequence: Sequence[str]) -> re.Match:
+    """Assert that >=1 string in the sequence matches the regex pattern.
+
+    Returns:
+        The matched object of the first matched string in sequence.
+    """
+    regex = re.compile(pattern)
+    for s in sequence:
+        m = regex.search(s)
+        if m:
+            return m
+    raise AssertionError(
+        f'No item in sequence {",".join(sequence)} matches regex '
+        f'{pattern}.')
 
 
 class TestCommandNotRun(unittest.TestCase):
@@ -273,16 +289,15 @@ class TestApplyPatchGetPatchCommitsSinceTag(unittest.TestCase):
         # patches before long term patches).
         head_commit = get_HEAD_commit_oneline()
         subprocess.check_call(['git', 'tag', apply_patches.TAG])
-        subprocess.check_call(
-            ['git', 'commit',  '--allow-empty',
-             '-m', "backward compatibility patch commit",
-             '-m', '',
-             '-m', 'patch-name: backward-compatibility-0001-empty.patch'])
-        subprocess.check_call(
-            ['git', 'commit',  '--allow-empty',
-             '-m', "long term patch commit",
-             '-m', '',
-             '-m', 'patch-name: long-term-0005-empty.patch'])
+        subprocess.check_call([
+            'git', 'commit', '--allow-empty', '-m',
+            "backward compatibility patch commit", '-m', '', '-m',
+            'patch-name: backward-compatibility-0001-empty.patch'
+        ])
+        subprocess.check_call([
+            'git', 'commit', '--allow-empty', '-m', "long term patch commit",
+            '-m', '', '-m', 'patch-name: long-term-0005-empty.patch'
+        ])
 
         with self.assertRaisesRegex(
                 RuntimeError,
@@ -592,3 +607,36 @@ class TestFormatPatchesSucceed(unittest.TestCase):
         # the old patch file.
         self.assertIn(["??", new_patch_name], git_status_short)
         self.assertNotIn(old_patch_name, [f for (_, f) in git_status_short])
+
+    def test_backup_branch(self):
+        with self.assertLogs("root", level='INFO') as context:
+            apply_patches.format_patches(self.repo_dir_path,
+                                         backup_branch=True)
+        backup_branch = assertRegexIn(
+            r"Backed up git history to branch (apply-patch-backup-\d{14}).",
+            context.output).group(1)
+
+        # Check that the backup branch indeed exists.
+        branches = subprocess.check_output(
+            ["git", "branch", "--format=%(refname:short)"],
+            universal_newlines=True).splitlines()
+        self.assertIn(backup_branch, branches)
+
+        # Go to backup branch.
+        subprocess.check_call(["git", "checkout", backup_branch])
+        # Check that the initial commit and 3 patch commits are in history.
+        self.assertEqual(git_log_length(), 4)
+        patch_name_trailers = subprocess.check_output(
+            [
+                'git', 'log', '--format=%(trailers:key=patch-name,valueonly)',
+                '-n3'
+            ],
+            universal_newlines=True,
+        ).strip().split('\n\n')
+        self.assertEqual(patch_name_trailers, [
+            'backward-compatibility-0500-add-foo-to-end-of-file.patch',
+            'long-term-0100-remove-foo.patch',
+            'long-term-0000-add-bar-and-baz.patch',
+        ])
+        # Check that file content is the same as after applying the 3 patches.
+        self.assertEqual(self.read_init_file(), "bar\nbaz\nfoo\n")

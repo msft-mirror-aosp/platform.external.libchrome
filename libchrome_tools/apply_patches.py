@@ -8,6 +8,7 @@ Tool to apply libchrome patches.
 """
 
 import argparse
+import datetime
 import logging
 import os
 from pathlib import Path
@@ -323,7 +324,7 @@ def get_patch_commits_since_tag(current_branch: str,
     if patch_head:
         logging.info("Tag %s already exists: %s.", TAG, patch_head)
         patch_head_branches = _run_or_log_cmd(
-            ["git", "branch", "--contains", TAG, '--format=%(refname:short)'],
+            ["git", "branch", "--contains", TAG, "--format=%(refname:short)"],
             True,
             dry_run,
         ).stdout.splitlines()
@@ -424,11 +425,15 @@ def apply_patches(libchrome_path: str,
         apply_patch(patch, libchrome_path, ebuild, no_commit, dry_run)
 
 
-def format_patches(libchrome_path: str, dry_run: bool = False) -> None:
+def format_patches(libchrome_path: str,
+                   backup_branch: bool = False,
+                   dry_run: bool = False) -> None:
     """Format all commits from HEAD-before-patching to HEAD as patches.
 
     Args:
         libchrome_path: Absolute real path to libchrome repository.
+        backup_branch: Whether or not to back up current state with patch
+            commits as a branch before resetting.
         dry_run: Flag in dry run mode.
     """
     # Change to the target libchrome directory (after resolving paths above).
@@ -442,6 +447,22 @@ def format_patches(libchrome_path: str, dry_run: bool = False) -> None:
     commits = get_patch_commits_since_tag(current_branch,
                                           allow_tag_not_exist=True,
                                           dry_run=dry_run)
+
+    # If requested, checkout to a new branch now to save a copy of the current
+    # git history before resetting to HEAD-before-patching.
+    if backup_branch:
+        now_str = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+        branch_name = f"apply-patch-backup-{now_str}"
+        # Retry with a new branch name at a new time if branch name already in
+        # use (unlikely).
+        try:
+            _run_or_log_cmd(["git", "checkout", "-b", branch_name])
+        except subprocess.CalledProcessError:
+            now_str = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+            branch_name = f"apply-patch-backup-{now_str}"
+            _run_or_log_cmd(["git", "checkout", "-b", branch_name])
+        logging.info("Backed up git history to branch %s.", branch_name)
+        _run_or_log_cmd(["git", "checkout", current_branch])
 
     # Format commits as patches, without numbering (-N). Result is ordered in
     # commit order (HEAD-before-patching to HEAD).
@@ -514,6 +535,13 @@ def main() -> None:
             f"and reset to {TAG}."),
     )
     parser.add_argument(
+        "--backup-branch",
+        "-b",
+        required=False,
+        action="store_true",
+        help=("Back up the current state with patch commits as a new branch "
+              "before resetting. Only with --format-patches."))
+    parser.add_argument(
         "--dry-run",
         default=False,
         required=False,
@@ -532,6 +560,10 @@ def main() -> None:
             raise ValueError(
                 "In --format-patches mode, do not accept flags for applying "
                 "patches: --ebuild, --no-commit, --first, --last.")
+    else:
+        if args.backup_branch:
+            raise ValueError(
+                "--backup-branch only available in --format-patches mode.")
 
     # In non-ebuild mode, change to libchrome directory which should be a git
     # repository for git commands like am and commit at the right repository.
@@ -555,7 +587,7 @@ def main() -> None:
     last = sanitize_patch_args('last', args.last, libchrome_path)
 
     if args.format_patches:
-        format_patches(libchrome_path, args.dry_run)
+        format_patches(libchrome_path, args.backup_branch, args.dry_run)
     else:
         apply_patches(libchrome_path, args.ebuild, args.no_commit, first, last,
                       args.dry_run)
