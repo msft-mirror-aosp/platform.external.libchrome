@@ -314,6 +314,120 @@ class TestApplyPatchGetPatchCommitsSinceTag(unittest.TestCase):
             head_commit.split(maxsplit=1)[0])
 
 
+class TestClampPatchesNoAppliedPatchCommits(unittest.TestCase):
+    def setUp(self):
+        logging.basicConfig(level=logging.DEBUG)
+        logging.info("Running test: %s", self.id)
+        self.patches = [
+            "long-term-0000-foo.patch",
+            "long-term-0001-bar.patch",
+            "backward-compatibility-0001-baz.patch",
+        ]
+
+    def test_no_clamp(self):
+        clamped_patches = apply_patches.clamp_patches(self.patches, [], None,
+                                                      None)
+        self.assertEqual(clamped_patches, self.patches)
+
+    def test_clamp_only_first_specified(self):
+        clamped_patches = apply_patches.clamp_patches(self.patches, [],
+                                                      self.patches[-1], None)
+        self.assertEqual(clamped_patches, self.patches[-1:])
+
+    def test_clamp_only_last_specified(self):
+        clamped_patches = apply_patches.clamp_patches(self.patches, [], None,
+                                                      self.patches[1])
+        self.assertEqual(clamped_patches, self.patches[:2])
+
+    def test_clamp_first_last_specified(self):
+        clamped_patches = apply_patches.clamp_patches(self.patches, [],
+                                                      self.patches[1],
+                                                      self.patches[1])
+        self.assertEqual(clamped_patches, self.patches[1:2])
+
+    def test_clamp_first_after_last(self):
+        with self.assertRaises(
+                RuntimeError,
+                msg=
+                f"Invalid input --last {self.patches[0]}: last patch to apply "
+                "should not be applied before the first one "
+                f"({self.patches[1]})."):
+            apply_patches.clamp_patches(self.patches, [], self.patches[1],
+                                        self.patches[0])
+
+
+def _patch_name_to_patch_commit(patch_name: str) -> apply_patches.PatchCommit:
+    return apply_patches.PatchCommit('mockHash', patch_name)
+
+
+class TestClampPatchesWithAppliedPatchCommitsInHistory(unittest.TestCase):
+    def setUp(self):
+        logging.basicConfig(level=logging.DEBUG)
+        logging.info("Running test: %s", self.id)
+        self.patches = [
+            "long-term-0000-foo.patch",
+            "long-term-0001-bar.patch",
+            "backward-compatibility-0001-baz.patch",
+        ]
+
+    def test_no_clamp(self):
+        # Apply all patches after the first one which is already in history.
+        clamped_patches = apply_patches.clamp_patches(
+            self.patches,
+            [_patch_name_to_patch_commit(pn)
+             for pn in self.patches[:1]], None, None)
+        self.assertEqual(clamped_patches, self.patches[1:])
+
+    def test_clamp_only_first_specified(self):
+        # Apply all patches after the specified --first.
+        # Skipping (the second) patch is allowed as long as order is right.
+        clamped_patches = apply_patches.clamp_patches(
+            self.patches,
+            [_patch_name_to_patch_commit(pn)
+             for pn in self.patches[:1]], self.patches[2], None)
+        self.assertEqual(clamped_patches, self.patches[2:])
+
+    def test_clamp_only_last_specified(self):
+        # Apply the second patch only -- first is already in history and second
+        # is specified to be --last.
+        clamped_patches = apply_patches.clamp_patches(
+            self.patches,
+            [_patch_name_to_patch_commit(pn)
+             for pn in self.patches[:1]], None, self.patches[1])
+        self.assertEqual(clamped_patches, self.patches[1:2])
+
+    def test_clamp_first_last_specified(self):
+        # Apply all patches after the specified --first and until --last.
+        clamped_patches = apply_patches.clamp_patches(
+            self.patches,
+            [_patch_name_to_patch_commit(pn)
+             for pn in self.patches[:1]], self.patches[2], self.patches[2])
+        self.assertEqual(clamped_patches, self.patches[2:])
+
+    def test_clamp_first_not_after_last_applied_patch(self):
+        with self.assertRaises(
+                RuntimeError,
+                msg=f"Invalid input --first {self.patches[0]}: first patch to "
+                "apply should be applied after the last patch commit "
+                f"({self.patches[0]}) in history."):
+            apply_patches.clamp_patches(
+                self.patches,
+                [_patch_name_to_patch_commit(pn)
+                 for pn in self.patches[:1]], self.patches[0], None)
+
+    def test_clamp_last_not_after_last_applied_patch(self):
+        with self.assertRaises(
+                RuntimeError,
+                msg=
+                f"Invalid input --last {self.patches[0]}: last patch to apply "
+                "should not be applied before the first one "
+                f"({self.patches[1]})."):
+            apply_patches.clamp_patches(
+                self.patches,
+                [_patch_name_to_patch_commit(pn)
+                 for pn in self.patches[:2]], None, self.patches[0])
+
+
 class TestApplyPatchesSucceed(unittest.TestCase):
     def setUp(self):
         """Create temporary git directory to be act as the libchrome directory.

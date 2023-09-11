@@ -244,21 +244,61 @@ def sanitize_patch_args(arg_name: str, arg_value: Optional[str],
     return basename
 
 
-def _clamp_patches(patches: Sequence[str], first: Optional[str],
-                   last: Optional[str]) -> Sequence[str]:
+def clamp_patches(patches: Sequence[str],
+                  applied_patch_commits: Sequence[PatchCommit],
+                  first: Optional[str], last: Optional[str]) -> Sequence[str]:
     """Return patches between first (or real first) and last (or real last).
 
     Args:
         patches: Basename of all patches in the patch directory, sorted in
         apply order.
+        applied_patch_commits: Sequence of PatchCommit applied in the repo.
         first: Basename of first patch to apply. Must exist in patches if given.
         last: Basename of last patch to apply. Must exist in patches if given.
 
     Returns:
         The clamped sequence of patches.
     """
-    first_index = patches.index(first) if first else 0
-    last_index = (patches.index(last) + 1) if last else len(patches)
+    # Find the last patch commit applied from patch in libchrome_tools/patches/.
+    last_applied_index = -1
+    for commit in reversed(applied_patch_commits):
+        try:
+            last_applied_index = patches.index(commit.patch_name)
+            break
+        # User may have committed new patch commits so they do not need to
+        # exist in the directory.
+        except ValueError:
+            pass
+
+    if first:
+        first_index = patches.index(first)
+        # Abort if --first is given but comes before the last applied patch.
+        if first_index <= last_applied_index:
+            raise RuntimeError(
+                f"Invalid input --first {first}: first patch to apply should "
+                "be applied after the last patch commit ("
+                f"{patches[last_applied_index]}) in history.")
+    else: # Default to apply from the first patch that has not been applied yet.
+        first_index = last_applied_index + 1
+        logging.info(
+            "Last patch commit in git history also in libchrome_tools/patches/ "
+            "is %s. The first patch to apply was not given and determined "
+            "automatically to be %s.", patches[last_applied_index],
+            patches[first_index])
+
+    if last:
+        last_index = patches.index(last) + 1
+        # Abort if --last is given but comes before the first patch to be
+        # applied.
+        if last_index <= first_index:
+            raise RuntimeError(
+                f"Invalid input --last {last}: last patch to apply should not "
+                f"be applied before the first one ({patches[first_index]}).")
+    else:
+        last_index = len(patches)
+
+    logging.info("Apply patches %s to %s.", patches[first_index],
+                 patches[last_index - 1])
     return patches[first_index:last_index]
 
 
@@ -405,6 +445,7 @@ def apply_patches(libchrome_path: str,
     # Change to the target libchrome directory (after resolving paths above).
     os.chdir(libchrome_path)
 
+    patch_commits = []
     if not ebuild:
         # Make sure git repo is in good state.
         current_branch = assert_git_repo_state_and_get_current_branch(
@@ -412,13 +453,14 @@ def apply_patches(libchrome_path: str,
         # Make sure either HEAD-before-patching tag does not exist (and tag
         # HEAD), or all commits from the tagged commit to HEAD are patch
         # commits sorted in application order.
-        _ = get_patch_commits_since_tag(current_branch,
-                                        allow_tag_not_exist=True,
-                                        dry_run=dry_run)
+        patch_commits = get_patch_commits_since_tag(current_branch,
+                                                    allow_tag_not_exist=True,
+                                                    dry_run=dry_run)
 
     # Get the list of all patches in the libchrome_tools/patches/ directory and
     # clamp to range as specified.
-    patches = _clamp_patches(get_all_patches(libchrome_path), first, last)
+    patches = clamp_patches(get_all_patches(libchrome_path), patch_commits,
+                            first, last)
 
     for patch in patches:
         logging.info("Applying %s...", patch)
