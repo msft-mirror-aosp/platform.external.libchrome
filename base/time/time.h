@@ -77,10 +77,6 @@
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
 
-#if BUILDFLAG(IS_APPLE)
-#include "base/time/buildflags/buildflags.h"
-#endif
-
 #if BUILDFLAG(IS_FUCHSIA)
 #include <zircon/types.h>
 #endif
@@ -143,9 +139,7 @@ class BASE_EXPORT TimeDelta {
   static TimeDelta FromZxDuration(zx_duration_t nanos);
 #endif
 #if BUILDFLAG(IS_APPLE)
-#if BUILDFLAG(ENABLE_MACH_ABSOLUTE_TIME_TICKS)
   static TimeDelta FromMachTime(uint64_t mach_time);
-#endif  // BUILDFLAG(ENABLE_MACH_ABSOLUTE_TIME_TICKS)
 #endif  // BUILDFLAG(IS_APPLE)
 
   // Converts an integer value representing TimeDelta to a class. This is used
@@ -1198,14 +1192,12 @@ class BASE_EXPORT TimeTicks : public time_internal::TimeBase<TimeTicks> {
 #endif
 
 #if BUILDFLAG(IS_APPLE)
-#if BUILDFLAG(ENABLE_MACH_ABSOLUTE_TIME_TICKS)
   static TimeTicks FromMachAbsoluteTime(uint64_t mach_absolute_time);
 
   // Sets the current Mach timebase to `timebase`. Returns the old timebase.
   static mach_timebase_info_data_t SetMachTimebaseInfoForTesting(
       mach_timebase_info_data_t timebase);
 
-#endif  // BUILDFLAG(ENABLE_MACH_ABSOLUTE_TIME_TICKS)
 #endif  // BUILDFLAG(IS_APPLE)
 
 #if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_CHROMEOS_ASH)
@@ -1382,10 +1374,6 @@ class BASE_EXPORT ThreadTicks : public time_internal::TimeBase<ThreadTicks> {
 
 // For logging use only.
 BASE_EXPORT std::ostream& operator<<(std::ostream& os, ThreadTicks time_ticks);
-
-// Returns a string representation of the given time in the IMF-fixdate format
-// defined by RFC 7231 (satisfying its HTTP-date format).
-BASE_EXPORT std::string TimeFormatHTTP(base::Time time);
 
 }  // namespace base
 

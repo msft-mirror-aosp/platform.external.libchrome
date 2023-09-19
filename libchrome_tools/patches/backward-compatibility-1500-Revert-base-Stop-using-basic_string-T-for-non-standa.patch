@@ -1,0 +1,33 @@
+From 390c6c7766f7694954217619c0ebe3d0505bed0e Mon Sep 17 00:00:00 2001
+From: Georg Neis <neis@chromium.org>
+Date: Wed, 20 Sep 2023 03:14:09 +0000
+Subject: [PATCH] Revert "base: Stop using basic_string<T> for non-standard T"
+
+This reverts commit 48d1befbf0b5fb6088c261573a10bd0777c65abf.
+---
+ base/containers/contiguous_iterator.h | 9 ++-------
+ 1 file changed, 2 insertions(+), 7 deletions(-)
+
+diff --git a/base/containers/contiguous_iterator.h b/base/containers/contiguous_iterator.h
+index 7886fbb415..18bd0a8403 100644
+--- a/base/containers/contiguous_iterator.h
++++ b/base/containers/contiguous_iterator.h
+@@ -40,13 +40,8 @@ struct IsStringIterImpl
+ // `static_assert(is_trivial_v<value_type>)` inside libc++'s std::basic_string.
+ template <typename T>
+ struct IsStringIter
+-    : std::conjunction<
+-          std::disjunction<std::is_same<iter_value_t<T>, char>,
+-                           std::is_same<iter_value_t<T>, wchar_t>,
+-                           std::is_same<iter_value_t<T>, char8_t>,
+-                           std::is_same<iter_value_t<T>, char16_t>,
+-                           std::is_same<iter_value_t<T>, char32_t>>,
+-          IsStringIterImpl<T>> {};
++    : std::conjunction<std::is_trivial<iter_value_t<T>>, IsStringIterImpl<T>> {
++};
+ 
+ // An iterator to std::array is contiguous.
+ // Reference: https://wg21.link/array.overview#1
+-- 
+2.42.0.459.ge4e396fd5e-goog
+

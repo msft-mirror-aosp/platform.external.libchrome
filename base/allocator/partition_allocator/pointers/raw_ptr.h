@@ -577,12 +577,6 @@ class PA_TRIVIAL_ABI PA_GSL_POINTER raw_ptr {
     return GetForDereference();
   }
 
-  // Disables `(my_raw_ptr->*pmf)(...)` as a workaround for
-  // the ICE in GCC parsing the code, reported at
-  // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=103455
-  template <typename PMF>
-  void operator->*(PMF) const = delete;
-
   // Deliberately implicit, because raw_ptr is supposed to resemble raw ptr.
   // NOLINTNEXTLINE(google-explicit-constructor)
   PA_ALWAYS_INLINE constexpr operator T*() const { return GetForExtraction(); }
@@ -643,6 +637,15 @@ class PA_TRIVIAL_ABI PA_GSL_POINTER raw_ptr {
     wrapped_ptr_ = Impl::Retreat(wrapped_ptr_, delta_elems);
     return *this;
   }
+
+  template <typename Z,
+            typename U = T,
+            RawPtrTraits CopyTraits = Traits,
+            typename Unused = std::enable_if_t<
+                !raw_ptr_traits::IsPtrArithmeticAllowed(CopyTraits) &&
+                !std::is_void<typename std::remove_cv<U>::type>::value &&
+                partition_alloc::internal::is_offset_type<Z>>>
+  U& operator[](Z delta_elems) const = delete;
 
   // Do not disable operator+() and operator-().
   // They provide OOB checks, which prevent from assigning an arbitrary value to
