@@ -17,8 +17,8 @@ group("all") {
   deps = [
     ":install_basever",
     ":install_buildflag_header",
-    ":install_protozero_generated",
     ":install_header",
+    ":install_protozero_generated",
     ":libchrome",
     ":libchrome-test",
   ]
@@ -55,6 +55,7 @@ group("all_buildflags") {
     ":partition_allocator_buildflags",
     ":partition_allocator_chromecast_buildflags",
     ":partition_allocator_chromeos_buildflags",
+    ":partition_allocator_raw_ptr_buildflags",
     ":profiler_buildflags",
     ":rust_buildflags",
     ":synchronization_buildflags",
@@ -212,6 +213,16 @@ buildflag_header("partition_allocator_buildflags") {
     "ENABLE_THREAD_ISOLATION=false",
     "USE_FREESLOT_BITMAP=false",
     "ENABLE_POINTER_ARITHMETIC_TRAIT_CHECK=false",
+  ]
+}
+
+buildflag_header("partition_allocator_raw_ptr_buildflags") {
+  header = "base/allocator/partition_allocator/raw_ptr_buildflags.h"
+
+  flags = [
+    "RAW_PTR_ZERO_ON_CONSTRUCT=true",
+    "RAW_PTR_ZERO_ON_MOVE=true",
+    "RAW_PTR_ZERO_ON_DESTRUCT=false",
   ]
 }
 
@@ -380,6 +391,7 @@ buildflag_header("tracing_buildflags") {
     "ENABLE_BASE_TRACING=true",
     "USE_PERFETTO_CLIENT_LIBRARY=true",
     "USE_PERFETTO_TRACE_PROCESSOR=false",
+
     # "OPTIONAL_TRACE_EVENTS_ENABLED=",
   ]
 }
@@ -418,8 +430,8 @@ libbase_sublibs = [
       "base/allocator/partition_allocator/partition_alloc_base/debug/alias.cc",
       "base/allocator/partition_allocator/partition_alloc_base/debug/stack_trace_linux.cc",
       "base/allocator/partition_allocator/partition_alloc_base/debug/stack_trace_posix.cc",
-      "base/allocator/partition_allocator/partition_alloc_base/logging.cc",
       "base/allocator/partition_allocator/partition_alloc_base/log_message.cc",
+      "base/allocator/partition_allocator/partition_alloc_base/logging.cc",
       "base/allocator/partition_allocator/partition_alloc_base/memory/page_size_posix.cc",
       "base/allocator/partition_allocator/partition_alloc_base/posix/safe_strerror.cc",
       "base/allocator/partition_allocator/partition_alloc_base/strings/cstring_builder.cc",
@@ -1462,7 +1474,7 @@ install_config("install_buildflag_header") {
 
 install_config("install_protozero_generated") {
   sources = [
-    "${root_gen_dir}/include/base/tracing/protos/chrome_track_event.pbzero.h"
+    "${root_gen_dir}/include/base/tracing/protos/chrome_track_event.pbzero.h",
   ]
   deps = [ ":tracing_protozero" ]
   tree_relative_to = "${root_gen_dir}/include"
