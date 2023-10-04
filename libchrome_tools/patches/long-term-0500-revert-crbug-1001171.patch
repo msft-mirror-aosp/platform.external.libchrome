@@ -1,4 +1,4 @@
-From 48e6c74701777136f774a9f4a5f86f4910763886 Mon Sep 17 00:00:00 2001
+From e90e0bcb10f6104cdec621fef530b719d344d0c3 Mon Sep 17 00:00:00 2001
 From: Grace Cham <hscham@chromium.org>
 Date: Fri, 22 Jul 2022 17:51:23 +0900
 Subject: [PATCH] revert crbug/1001171
@@ -7,12 +7,13 @@ Diagnostic code for upsteram to investigate crbug/1001171.
 We don't need.
 
 Change-Id: If2e5a17b2f883c82883e24249924dcd945ec36c3
+patch-name: long-term-0500-revert-crbug-1001171.patch
 ---
  .../tools/bindings/mojom_bindings_generator.py      | 13 +------------
  1 file changed, 1 insertion(+), 12 deletions(-)
 
 diff --git a/mojo/public/tools/bindings/mojom_bindings_generator.py b/mojo/public/tools/bindings/mojom_bindings_generator.py
-index 5a5caceaa527..dbd038f5e089 100755
+index 98cac1492a..2a8e5bdbed 100755
 --- a/mojo/public/tools/bindings/mojom_bindings_generator.py
 +++ b/mojo/public/tools/bindings/mojom_bindings_generator.py
 @@ -44,10 +44,6 @@ from mojom.generate import template_expander
@@ -26,7 +27,7 @@ index 5a5caceaa527..dbd038f5e089 100755
  
  _BUILTIN_GENERATORS = {
      "c++": "mojom_cpp_generator",
-@@ -413,11 +409,4 @@ def main():
+@@ -414,11 +410,4 @@ def main():
  
  
  if __name__ == "__main__":
@@ -40,5 +41,5 @@ index 5a5caceaa527..dbd038f5e089 100755
 -    os._exit(ret)
 +  os._exit(main())
 -- 
-2.38.1.273.g43a17bfeac-goog
+2.42.0.582.g8ccd20d70d-goog
 

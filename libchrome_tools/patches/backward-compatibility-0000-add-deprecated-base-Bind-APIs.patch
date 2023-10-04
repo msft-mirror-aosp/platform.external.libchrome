@@ -1,4 +1,4 @@
-From 72f8d265cf05d1bfc4c89bbad69539dbc7c821ab Mon Sep 17 00:00:00 2001
+From fc587a45532f2c4984f3e27e30ccae7d43993a9f Mon Sep 17 00:00:00 2001
 From: Grace Cham <hscham@chromium.org>
 Date: Fri, 14 Oct 2022 15:46:20 +0900
 Subject: [PATCH] backward compatibility: add deprecated base::Bind APIs
@@ -9,6 +9,7 @@ TODO(b/272116782): remove when they are all migrated to
 Once/Repeating variants.
 
 Change-Id: I3a02c2624ed603d2afecbdd04fb589293565ab7a
+patch-name: backward-compatibility-0000-add-deprecated-base-Bind-APIs.patch
 ---
  base/callback_list.h               | 3 +++
  base/cancelable_callback.h         | 4 ++++
@@ -17,7 +18,7 @@ Change-Id: I3a02c2624ed603d2afecbdd04fb589293565ab7a
  4 files changed, 17 insertions(+)
 
 diff --git a/base/callback_list.h b/base/callback_list.h
-index 72b7d03dc470..ec2ee022aef4 100644
+index bf1c0c5f97..b4e42f66b3 100644
 --- a/base/callback_list.h
 +++ b/base/callback_list.h
 @@ -344,6 +344,9 @@ class RepeatingCallbackList
@@ -31,7 +32,7 @@ index 72b7d03dc470..ec2ee022aef4 100644
  
  #endif  // BASE_CALLBACK_LIST_H_
 diff --git a/base/cancelable_callback.h b/base/cancelable_callback.h
-index 51747bf4f326..d346dbca7065 100644
+index 73add8ffcc..09ff55bb70 100644
 --- a/base/cancelable_callback.h
 +++ b/base/cancelable_callback.h
 @@ -146,6 +146,10 @@ using CancelableRepeatingCallback =
@@ -46,10 +47,10 @@ index 51747bf4f326..d346dbca7065 100644
  
  #endif  // BASE_CANCELABLE_CALLBACK_H_
 diff --git a/base/functional/bind.h b/base/functional/bind.h
-index 8f14346b3050..d40f1ed53eb1 100644
+index 999c6d5d3f..d79996db5d 100644
 --- a/base/functional/bind.h
 +++ b/base/functional/bind.h
-@@ -116,6 +116,12 @@ struct BindFailedCheckPreviousErrors {};
+@@ -112,6 +112,12 @@ struct BindFailedCheckPreviousErrors {};
  BindFailedCheckPreviousErrors BindOnce(...);
  BindFailedCheckPreviousErrors BindRepeating(...);
  
@@ -63,7 +64,7 @@ index 8f14346b3050..d40f1ed53eb1 100644
  // non-refcounted class, and to disable refcounting on arguments that are
  // refcounted. The main difference is whether or not the raw pointers will be
 diff --git a/base/functional/callback_forward.h b/base/functional/callback_forward.h
-index 923fbef6e31c..9ed3bb644079 100644
+index 923fbef6e3..9ed3bb6440 100644
 --- a/base/functional/callback_forward.h
 +++ b/base/functional/callback_forward.h
 @@ -19,6 +19,10 @@ class RepeatingCallback;
@@ -78,5 +79,5 @@ index 923fbef6e31c..9ed3bb644079 100644
  
  #endif  // BASE_FUNCTIONAL_CALLBACK_FORWARD_H_
 -- 
-2.38.0.135.g90850a2211-goog
+2.42.0.582.g8ccd20d70d-goog
 

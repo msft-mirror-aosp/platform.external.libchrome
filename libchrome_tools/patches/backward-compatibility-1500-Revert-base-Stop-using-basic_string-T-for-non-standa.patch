@@ -1,9 +1,12 @@
-From 390c6c7766f7694954217619c0ebe3d0505bed0e Mon Sep 17 00:00:00 2001
+From 97c0c0e333cce86f53e7035a9d5f4b54212cd55f Mon Sep 17 00:00:00 2001
 From: Georg Neis <neis@chromium.org>
 Date: Wed, 20 Sep 2023 03:14:09 +0000
 Subject: [PATCH] Revert "base: Stop using basic_string<T> for non-standard T"
 
 This reverts commit 48d1befbf0b5fb6088c261573a10bd0777c65abf.
+
+patch-name: backward-compatibility-1500-Revert-base-Stop-using-basic_string-T-for-non-standa.patch
+Change-Id: I4097fd4b9e39566860367252a92afdc7a3cb9616
 ---
  base/containers/contiguous_iterator.h | 9 ++-------
  1 file changed, 2 insertions(+), 7 deletions(-)
@@ -29,5 +32,5 @@ index 7886fbb415..18bd0a8403 100644
  // An iterator to std::array is contiguous.
  // Reference: https://wg21.link/array.overview#1
 -- 
-2.42.0.459.ge4e396fd5e-goog
+2.42.0.582.g8ccd20d70d-goog
 

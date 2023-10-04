@@ -1,4 +1,4 @@
-From 20b516addee567c58c2f45e988c3598f3bd2cffe Mon Sep 17 00:00:00 2001
+From 299b149b7b47779f6f183605eb3ae14ba67cd709 Mon Sep 17 00:00:00 2001
 From: Grace Cham <hscham@chromium.org>
 Date: Wed, 5 Oct 2022 15:43:01 +0900
 Subject: [PATCH] Call `getrandom` from sys/random.h
@@ -7,12 +7,13 @@ TODO(b/190018559): third_party/lss/linux_syscall_support.h is not
 provided at current libchrome tree.
 
 Change-Id: Ifc96beb4987ff027ab32f885687e88dbd7c8dc34
+patch-name: long-term-0900-Call-getrandom-from-sys-random.h.patch
 ---
  base/rand_util_posix.cc | 4 ++--
  1 file changed, 2 insertions(+), 2 deletions(-)
 
 diff --git a/base/rand_util_posix.cc b/base/rand_util_posix.cc
-index 120eeb8d8d8d..109fbfc42a0c 100644
+index 16fa608cbc..eff504078c 100644
 --- a/base/rand_util_posix.cc
 +++ b/base/rand_util_posix.cc
 @@ -22,9 +22,9 @@
@@ -28,5 +29,5 @@ index 120eeb8d8d8d..109fbfc42a0c 100644
  // (See below.)
  #include <sys/random.h>
 -- 
-2.38.0.135.g90850a2211-goog
+2.42.0.582.g8ccd20d70d-goog
 

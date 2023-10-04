@@ -1,4 +1,4 @@
-From ae4fe707ba0d15e8c6b229f5f6bc1081a23efb9d Mon Sep 17 00:00:00 2001
+From a6ec4c929ed31bbb2efe383eff53021a09c8983b Mon Sep 17 00:00:00 2001
 From: Grace Cham <hscham@chromium.org>
 Date: Thu, 27 Oct 2022 10:35:46 +0900
 Subject: [PATCH] Solve name conflict with abseil in absl package
@@ -6,12 +6,13 @@ Subject: [PATCH] Solve name conflict with abseil in absl package
 When a program in Chromium OS depends on both abseil and libchrome.
 
 Change-Id: I2dbd833347a59fffa8888c817a1fccdc78e5ff0e
+patch-name: long-term-0400-absl-thread-annotation-conflict.patch
 ---
  base/thread_annotations.h | 6 +++++-
  1 file changed, 5 insertions(+), 1 deletion(-)
 
 diff --git a/base/thread_annotations.h b/base/thread_annotations.h
-index 654aea4ed9..89c1dce5e7 100644
+index 4fadaeecb6..c6b5533884 100644
 --- a/base/thread_annotations.h
 +++ b/base/thread_annotations.h
 @@ -225,8 +225,11 @@
@@ -36,5 +37,5 @@ index 654aea4ed9..89c1dce5e7 100644
  // The above is imported as-is from abseil-cpp. The following Chromium-specific
  // synonyms are added for Chromium concepts (SequenceChecker/ThreadChecker).
 -- 
-2.38.1.273.g43a17bfeac-goog
+2.42.0.582.g8ccd20d70d-goog
 

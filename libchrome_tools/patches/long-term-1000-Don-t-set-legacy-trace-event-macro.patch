@@ -1,15 +1,16 @@
-From 1b3615e833b6f9f62a124b14e7086d0a838718e0 Mon Sep 17 00:00:00 2001
+From cfca078f42e8546cb4e06745680e142d5cf6a718 Mon Sep 17 00:00:00 2001
 From: Sami Kyostila <skyostil@chromium.org>
 Date: Thu, 27 Jul 2023 09:49:14 +0000
 Subject: [PATCH] Don't set legacy trace event macro
 
 Change-Id: Iae43089b3456a335fb1d957f06b0762d1973d673
+patch-name: long-term-1000-Don-t-set-legacy-trace-event-macro.patch
 ---
  base/trace_event/common/trace_event_common.h | 3 ---
  1 file changed, 3 deletions(-)
 
 diff --git a/base/trace_event/common/trace_event_common.h b/base/trace_event/common/trace_event_common.h
-index f2ee4d36b3..574ca1d4a1 100644
+index c1bb2e2ef1..b98b35bbbd 100644
 --- a/base/trace_event/common/trace_event_common.h
 +++ b/base/trace_event/common/trace_event_common.h
 @@ -208,9 +208,6 @@
@@ -23,5 +24,5 @@ index f2ee4d36b3..574ca1d4a1 100644
  // overrides).
  #define TRACE_TIME_TICKS_NOW() ::base::subtle::TimeTicksNowIgnoringOverride()
 -- 
-2.41.0.487.g6d72f3e995-goog
+2.42.0.582.g8ccd20d70d-goog
 

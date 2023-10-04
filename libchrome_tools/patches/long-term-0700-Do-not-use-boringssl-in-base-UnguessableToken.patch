@@ -1,4 +1,4 @@
-From d5f186c5f69f6adf702c81df8d260fd71b9d990d Mon Sep 17 00:00:00 2001
+From a329f693e03a692cf56e8cd57498eb88783d2762 Mon Sep 17 00:00:00 2001
 From: hscham <hscham@google.com>
 Date: Wed, 15 Dec 2021 12:35:45 +0900
 Subject: [PATCH] Do not use boringssl in base::UnguessableToken
@@ -6,15 +6,16 @@ Subject: [PATCH] Do not use boringssl in base::UnguessableToken
 boringssl is not supported in libchrome.
 
 Change-Id: I89657abfebc86671af5e55ec6f89047fcd576652
+patch-name: long-term-0700-Do-not-use-boringssl-in-base-UnguessableToken.patch
 ---
  base/unguessable_token.cc | 18 +++++++++---------
  1 file changed, 9 insertions(+), 9 deletions(-)
 
 diff --git a/base/unguessable_token.cc b/base/unguessable_token.cc
-index d156be5597..9e94ffa0cb 100644
+index aa7423f88d..46b28b6e11 100644
 --- a/base/unguessable_token.cc
 +++ b/base/unguessable_token.cc
-@@ -10,9 +10,9 @@
+@@ -11,9 +11,9 @@
  #include "base/rand_util.h"
  #include "build/build_config.h"
  
@@ -27,7 +28,7 @@ index d156be5597..9e94ffa0cb 100644
  
  namespace base {
  
-@@ -41,14 +41,14 @@ UnguessableToken UnguessableToken::Deserialize(uint64_t high, uint64_t low) {
+@@ -46,14 +46,14 @@ absl::optional<UnguessableToken> UnguessableToken::Deserialize(uint64_t high,
  }
  
  bool UnguessableToken::operator==(const UnguessableToken& other) const {
@@ -49,5 +50,5 @@ index d156be5597..9e94ffa0cb 100644
  
  std::ostream& operator<<(std::ostream& out, const UnguessableToken& token) {
 -- 
-2.34.1.173.g76aa8bc2d0-goog
+2.42.0.582.g8ccd20d70d-goog
 

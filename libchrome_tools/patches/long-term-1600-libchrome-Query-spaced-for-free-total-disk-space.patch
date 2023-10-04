@@ -1,4 +1,4 @@
-From 2cd2578115e91fdbc481a832a27bf409f3ae404c Mon Sep 17 00:00:00 2001
+From 436f040301d046e92060272b6ef18f0bb0f8e525 Mon Sep 17 00:00:00 2001
 From: Sarthak Kukreti <sarthakkukreti@google.com>
 Date: Mon, 22 Nov 2021 08:55:31 +0000
 Subject: [PATCH] Reland "Query spaced for free/total disk space"
@@ -44,10 +44,11 @@ Conflicts: extra headers on ToT.
 Bug: b:177966496
 Change-Id: Ida266fffe48a4cb0bcacbe08e499c1f39d19d55b
 Reviewed-on:
-https://chromium-review.googlesource.com/c/chromium/src/+/3293987
+https: //chromium-review.googlesource.com/c/chromium/src/+/3293987
 Commit-Queue: Sarthak Kukreti <sarthakkukreti@chromium.org>
 Reviewed-by: Lei Zhang <thestig@chromium.org>
 Cr-Commit-Position: refs/heads/main@{#943984}
+patch-name: long-term-1600-libchrome-Query-spaced-for-free-total-disk-space.patch
 ---
  base/system/sys_info.h           | 24 ++++++++++++++++
  base/system/sys_info_chromeos.cc | 44 +++++++++++++++++++++++++++++
@@ -56,18 +57,18 @@ Cr-Commit-Position: refs/heads/main@{#943984}
  4 files changed, 129 insertions(+)
 
 diff --git a/base/system/sys_info.h b/base/system/sys_info.h
-index 6bf50b9bc3..dae7af4068 100644
+index a5cb70ff33..c19fc6f062 100644
 --- a/base/system/sys_info.h
 +++ b/base/system/sys_info.h
-@@ -34,6 +34,7 @@ namespace debug {
- FORWARD_DECLARE_TEST(SystemMetricsTest, ParseMeminfo);
+@@ -47,6 +47,7 @@ namespace test {
+ class ScopedAmountOfPhysicalMemoryOverride;
  }
  
 +class CommandLine;
  class FilePath;
  struct SystemMemoryInfoKB;
  
-@@ -82,6 +83,21 @@ class BASE_EXPORT SysInfo {
+@@ -102,6 +103,21 @@ class BASE_EXPORT SysInfo {
    // on failure.
    static int64_t AmountOfTotalDiskSpace(const FilePath& path);
  
@@ -89,7 +90,7 @@ index 6bf50b9bc3..dae7af4068 100644
  #if BUILDFLAG(IS_FUCHSIA)
    // Sets the total amount of disk space to report under the specified |path|.
    // If |bytes| is -ve then any existing entry for |path| is removed.
-@@ -183,6 +199,14 @@ class BASE_EXPORT SysInfo {
+@@ -240,6 +256,14 @@ class BASE_EXPORT SysInfo {
    // Undoes the function above.
    static void ResetChromeOSVersionInfoForTest();
  
@@ -105,7 +106,7 @@ index 6bf50b9bc3..dae7af4068 100644
    static std::string KernelVersion();
  
 diff --git a/base/system/sys_info_chromeos.cc b/base/system/sys_info_chromeos.cc
-index afef7f4d99..60f4213885 100644
+index a0e6f938a5..056c32c77f 100644
 --- a/base/system/sys_info_chromeos.cc
 +++ b/base/system/sys_info_chromeos.cc
 @@ -8,12 +8,15 @@
@@ -164,7 +165,7 @@ index afef7f4d99..60f4213885 100644
  // static
  std::string SysInfo::HardwareModelName() {
    std::string board = GetLsbReleaseBoard();
-@@ -247,6 +276,11 @@ void SysInfo::ResetChromeOSVersionInfoForTest() {
+@@ -250,6 +279,11 @@ void SysInfo::ResetChromeOSVersionInfoForTest() {
    g_chromeos_version_info_for_test = nullptr;
  }
  
@@ -176,7 +177,7 @@ index afef7f4d99..60f4213885 100644
  // static
  void SysInfo::CrashIfChromeOSNonTestImage() {
    if (!IsRunningOnChromeOS())
-@@ -264,6 +298,16 @@ void SysInfo::CrashIfChromeOSNonTestImage() {
+@@ -267,6 +301,16 @@ void SysInfo::CrashIfChromeOSNonTestImage() {
    CHECK_NE(track.find(kTestImageRelease), std::string::npos);
  }
  
@@ -194,10 +195,10 @@ index afef7f4d99..60f4213885 100644
    HardwareInfo info;
    // Manufacturer of ChromeOS device is always Google so hardcode it.
 diff --git a/base/system/sys_info_posix.cc b/base/system/sys_info_posix.cc
-index 6d2c4d7173..ddf9f9fb62 100644
+index 4e3226cb1a..133c9fab92 100644
 --- a/base/system/sys_info_posix.cc
 +++ b/base/system/sys_info_posix.cc
-@@ -173,10 +173,16 @@ uint64_t SysInfo::AmountOfVirtualMemory() {
+@@ -172,10 +172,16 @@ uint64_t SysInfo::AmountOfVirtualMemory() {
  int64_t SysInfo::AmountOfFreeDiskSpace(const FilePath& path) {
    base::ScopedBlockingCall scoped_blocking_call(FROM_HERE,
                                                  base::BlockingType::MAY_BLOCK);
@@ -214,7 +215,7 @@ index 6d2c4d7173..ddf9f9fb62 100644
    return available;
  }
  
-@@ -185,9 +191,16 @@ int64_t SysInfo::AmountOfTotalDiskSpace(const FilePath& path) {
+@@ -184,9 +190,16 @@ int64_t SysInfo::AmountOfTotalDiskSpace(const FilePath& path) {
    base::ScopedBlockingCall scoped_blocking_call(FROM_HERE,
                                                  base::BlockingType::MAY_BLOCK);
  
@@ -232,10 +233,10 @@ index 6d2c4d7173..ddf9f9fb62 100644
  }
  
 diff --git a/base/system/sys_info_unittest.cc b/base/system/sys_info_unittest.cc
-index d461e8f1a6..8e2a6b13d8 100644
+index 3d9e2f8c8e..81901581f1 100644
 --- a/base/system/sys_info_unittest.cc
 +++ b/base/system/sys_info_unittest.cc
-@@ -450,6 +450,54 @@ TEST_F(SysInfoTest, ScopedRunningOnChromeOS) {
+@@ -458,6 +458,54 @@ TEST_F(SysInfoTest, ScopedRunningOnChromeOS) {
    EXPECT_EQ(was_running, SysInfo::IsRunningOnChromeOS());
  }
  
@@ -291,5 +292,5 @@ index d461e8f1a6..8e2a6b13d8 100644
  
  }  // namespace base
 -- 
-2.30.2
+2.42.0.582.g8ccd20d70d-goog
 

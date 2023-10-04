@@ -1,4 +1,4 @@
-From 862ac204d5d09f6d53e9b495076401352abe1eef Mon Sep 17 00:00:00 2001
+From 637cbeaf49c64e9879dedcbfddb893c159ee4fd5 Mon Sep 17 00:00:00 2001
 From: Grace Cham <hscham@chromium.org>
 Date: Wed, 15 Jun 2022 23:23:05 +0900
 Subject: [PATCH] Remove ICU dependency for base::Time::Explode
@@ -7,15 +7,17 @@ ICU dependency was introduced for Explode implementation to tackle Y2038
 problem but it signigicantly increases binary size. Removed as Y2038
 boards will be EOL by then.
 
+patch-name: long-term-0100-Remove-ICU-dependency-for-base-Time-Explode.patch
+Change-Id: I644b97c1c47481eb6ddff6b7b109d10e4ff27a82
 ---
  base/time/time_exploded_posix.cc | 2 ++
  1 file changed, 2 insertions(+)
 
 diff --git a/base/time/time_exploded_posix.cc b/base/time/time_exploded_posix.cc
-index 45327a89b77c..650738d5bcec 100644
+index 8cc737611a..3cba1afd6b 100644
 --- a/base/time/time_exploded_posix.cc
 +++ b/base/time/time_exploded_posix.cc
-@@ -128,12 +128,14 @@ void Time::Explode(bool is_local, Exploded* exploded) const {
+@@ -126,12 +126,14 @@ void Time::Explode(bool is_local, Exploded* exploded) const {
  
    // For systems with a Y2038 problem, use ICU as the Explode() implementation.
    if (sizeof(SysTime) < 8) {
@@ -31,5 +33,5 @@ index 45327a89b77c..650738d5bcec 100644
  
    // Split the |millis_since_unix_epoch| into separate seconds and millisecond
 -- 
-2.37.1.359.gd136c6c3e2-goog
+2.42.0.582.g8ccd20d70d-goog
 

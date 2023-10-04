@@ -1,4 +1,4 @@
-From 73ee2b471e3a8043be03e1a9a4e69e4870a32541 Mon Sep 17 00:00:00 2001
+From b8b2a08cc1f93a0de9261dbcd147625ff6233ee8 Mon Sep 17 00:00:00 2001
 From: Grace Cham <hscham@chromium.org>
 Date: Wed, 26 Oct 2022 13:45:16 +0900
 Subject: [PATCH] Revert "[base/allocator] Support max alloc size with
@@ -10,23 +10,26 @@ return nullptr (and handled by caller) instead of crashing as the
 original patch will do.
 
 This reverts commit 324e03c9fba0fd78a721524032eeac43c80dd1db.
+
+patch-name: long-term-1100-Revert-base-allocator-Support-max-alloc-size-with-us.patch
+Change-Id: If83feeb40d469d4f91e5f13255b96d5a986a459a
 ---
  ...llocator_shim_default_dispatch_to_glibc.cc | 38 +------------------
  1 file changed, 1 insertion(+), 37 deletions(-)
 
-diff --git a/base/allocator/partition_allocator/shim/allocator_shim_default_dispatch_to_glibc.cc b/base/allocator/partition_allocator/shim/allocator_shim_default_dispatch_to_glibc.cc
-index 4f95a3c70c..75fbf696a0 100644
---- a/base/allocator/partition_allocator/shim/allocator_shim_default_dispatch_to_glibc.cc
-+++ b/base/allocator/partition_allocator/shim/allocator_shim_default_dispatch_to_glibc.cc
+diff --git a/base/allocator/partition_allocator/src/partition_alloc/shim/allocator_shim_default_dispatch_to_glibc.cc b/base/allocator/partition_allocator/src/partition_alloc/shim/allocator_shim_default_dispatch_to_glibc.cc
+index 9a7501d71e..5aca15030a 100644
+--- a/base/allocator/partition_allocator/src/partition_alloc/shim/allocator_shim_default_dispatch_to_glibc.cc
++++ b/base/allocator/partition_allocator/src/partition_alloc/shim/allocator_shim_default_dispatch_to_glibc.cc
 @@ -2,8 +2,6 @@
  // Use of this source code is governed by a BSD-style license that can be
  // found in the LICENSE file.
  
 -#include <limits>
 -
- #include "base/allocator/partition_allocator/oom.h"
- #include "base/allocator/partition_allocator/partition_alloc_base/compiler_specific.h"
- #include "base/allocator/partition_allocator/partition_alloc_base/numerics/checked_math.h"
+ #include "base/allocator/partition_allocator/src/partition_alloc/oom.h"
+ #include "base/allocator/partition_allocator/src/partition_alloc/partition_alloc_base/compiler_specific.h"
+ #include "base/allocator/partition_allocator/src/partition_alloc/partition_alloc_base/numerics/checked_math.h"
 @@ -28,28 +26,7 @@ namespace {
  
  using allocator_shim::AllocatorDispatch;
@@ -100,5 +103,5 @@ index 4f95a3c70c..75fbf696a0 100644
      &GlibcMemalign,        /* alloc_aligned_function */
      &GlibcRealloc,         /* realloc_function */
 -- 
-2.41.0.rc0.172.g3f132b7071-goog
+2.42.0.582.g8ccd20d70d-goog
 

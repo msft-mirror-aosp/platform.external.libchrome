@@ -1,4 +1,4 @@
-From afafc6638fa4ac71415b8f478e659b2bc374e76a Mon Sep 17 00:00:00 2001
+From 4eefac059423ef2ba57821cb440c6cedd3000176 Mon Sep 17 00:00:00 2001
 From: Grace Cham <hscham@chromium.org>
 Date: Tue, 18 Oct 2022 14:30:08 +0900
 Subject: [PATCH] disable boringssl in base::RandBytes
@@ -6,6 +6,7 @@ Subject: [PATCH] disable boringssl in base::RandBytes
 Introduced in r1045239 (crrev.com/c/3880863).
 
 Change-Id: I03b1ad34f9b4b9bd20b8cfb9f3d77d06ddc8b43a
+patch-name: long-term-0800-disable-boringssl-in-base-RandBytes.patch
 ---
  base/feature_list.cc    | 2 +-
  base/rand_util.h        | 2 +-
@@ -13,10 +14,10 @@ Change-Id: I03b1ad34f9b4b9bd20b8cfb9f3d77d06ddc8b43a
  3 files changed, 5 insertions(+), 5 deletions(-)
 
 diff --git a/base/feature_list.cc b/base/feature_list.cc
-index 056a608dbfd9..5f842ff768c1 100644
+index 6575c527ea..4b0b6b1add 100644
 --- a/base/feature_list.cc
 +++ b/base/feature_list.cc
-@@ -529,7 +529,7 @@ void FeatureList::SetInstance(std::unique_ptr<FeatureList> instance) {
+@@ -561,7 +561,7 @@ void FeatureList::SetInstance(std::unique_ptr<FeatureList> instance) {
  
    EarlyFeatureAccessTracker::GetInstance()->AssertNoAccess();
  
@@ -26,10 +27,10 @@ index 056a608dbfd9..5f842ff768c1 100644
    internal::ConfigureBoringSSLBackedRandBytesFieldTrial();
  #endif
 diff --git a/base/rand_util.h b/base/rand_util.h
-index a70169856e97..685011c1f656 100644
+index c9dd124966..74cabc6d43 100644
 --- a/base/rand_util.h
 +++ b/base/rand_util.h
-@@ -26,7 +26,7 @@ namespace internal {
+@@ -34,7 +34,7 @@ namespace internal {
  void ConfigureRandBytesFieldTrial();
  #endif
  
@@ -39,7 +40,7 @@ index a70169856e97..685011c1f656 100644
  #endif
  
 diff --git a/base/rand_util_posix.cc b/base/rand_util_posix.cc
-index ac0ca9af4fdd..acc49fc36465 100644
+index 4982a4556f..16fa608cbc 100644
 --- a/base/rand_util_posix.cc
 +++ b/base/rand_util_posix.cc
 @@ -30,7 +30,7 @@
@@ -72,5 +73,5 @@ index ac0ca9af4fdd..acc49fc36465 100644
    if (!avoid_allocation && internal::UseBoringSSLForRandBytes()) {
      // Ensure BoringSSL is initialized so it can use things like RDRAND.
 -- 
-2.38.0.135.g90850a2211-goog
+2.42.0.582.g8ccd20d70d-goog
 

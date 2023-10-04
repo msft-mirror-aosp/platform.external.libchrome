@@ -1,4 +1,4 @@
-From f54954ad59052885de0954ee39565acc4eb572e8 Mon Sep 17 00:00:00 2001
+From 812237934487ce10c2c7eee36842138970842648 Mon Sep 17 00:00:00 2001
 From: Sami Kyostila <skyostil@chromium.org>
 Date: Mon, 14 Aug 2023 04:50:32 +0000
 Subject: [PATCH] base/trace_event: Don't initialize Perfetto for testing
@@ -8,12 +8,13 @@ Disable the code for initializing Perfetto for testing. This saves
 in-process tracing service which isn't needed by production code.
 
 Change-Id: I99c002b6ee50fe237c2aa7dd4943949a4faad793
+patch-name: long-term-1050-Don-t-initialize-Perfetto-for-testing.patch
 ---
  base/trace_event/trace_log.cc | 3 +++
  1 file changed, 3 insertions(+)
 
 diff --git a/base/trace_event/trace_log.cc b/base/trace_event/trace_log.cc
-index 87cf11afd3..5265afe67d 100644
+index dd3b5dbe5e..eb1307e4d0 100644
 --- a/base/trace_event/trace_log.cc
 +++ b/base/trace_event/trace_log.cc
 @@ -953,6 +953,8 @@ perfetto::DataSourceConfig TraceLog::GetCurrentTrackEventDataSourceConfig()
@@ -25,7 +26,7 @@ index 87cf11afd3..5265afe67d 100644
    // When we're using the Perfetto client library, only tests should be
    // recording traces directly through TraceLog. Production code should instead
    // use perfetto::Tracing::NewTrace(). Let's make sure the tracing service
-@@ -974,6 +976,7 @@ void TraceLog::InitializePerfettoIfNeeded() {
+@@ -977,6 +979,7 @@ void TraceLog::InitializePerfettoIfNeeded() {
    init_args.disallow_merging_with_system_tracks = true;
    perfetto::Tracing::Initialize(init_args);
    TrackEvent::Register();
@@ -34,5 +35,5 @@ index 87cf11afd3..5265afe67d 100644
  
  bool TraceLog::IsPerfettoInitializedByTraceLog() const {
 -- 
-2.42.0.rc1.204.g551eb34607-goog
+2.42.0.582.g8ccd20d70d-goog
 

@@ -1,4 +1,4 @@
-From 6582eff1c87957a854a55afda2c35dc33b90a90f Mon Sep 17 00:00:00 2001
+From ddf9c2dd1a1e9e5b8f0382839e281c1d1c0dd491 Mon Sep 17 00:00:00 2001
 From: Grace Cham <hscham@chromium.org>
 Date: Tue, 1 Nov 2022 16:25:27 +0900
 Subject: [PATCH] disable boringssl used in
@@ -7,12 +7,13 @@ Subject: [PATCH] disable boringssl used in
 Introduced in crrev.com/1057955: libchrome does not support boringssl.
 
 Change-Id: I71b29173282129b5b61a93971ef5dd24ee6b60a9
+patch-name: long-term-2000-disable-boringssl-used-in-base-NonAllocatingRandomBitGenerator.patch
 ---
  base/rand_util.h | 4 ++--
  1 file changed, 2 insertions(+), 2 deletions(-)
 
 diff --git a/base/rand_util.h b/base/rand_util.h
-index 04024537ee69..3391fa232850 100644
+index 74cabc6d43..c25a73b80f 100644
 --- a/base/rand_util.h
 +++ b/base/rand_util.h
 @@ -16,7 +16,7 @@
@@ -24,7 +25,7 @@ index 04024537ee69..3391fa232850 100644
  #include "third_party/boringssl/src/include/openssl/rand.h"
  #endif
  
-@@ -93,7 +93,7 @@ class RandomBitGenerator {
+@@ -97,7 +97,7 @@ class RandomBitGenerator {
    ~RandomBitGenerator() = default;
  };
  
@@ -34,5 +35,5 @@ index 04024537ee69..3391fa232850 100644
   public:
    using result_type = uint64_t;
 -- 
-2.38.1.273.g43a17bfeac-goog
+2.42.0.582.g8ccd20d70d-goog
 

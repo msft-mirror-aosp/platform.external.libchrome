@@ -1,9 +1,12 @@
-From a4d9b8a387654db950ce78424ef36cd292da8c09 Mon Sep 17 00:00:00 2001
+From e909db7ba7e22ae3f72b04eeb063badba9f8e1f7 Mon Sep 17 00:00:00 2001
 From: Nathan Muggli <nmuggli@google.com>
 Date: Wed, 2 Aug 2023 10:26:12 -0600
 Subject: [PATCH] Revert "Land intentional C++20 use in base/."
 
 This reverts commit c5acc58e7bebe5de213668909a9414b97c58c9c7.
+
+patch-name: backward-compatibility-1400-Revert-Land-intentional-C-20-use-in-base.patch
+Change-Id: Iab4e3adeb005025fdecdfeef6786662692aa11c0
 ---
  base/check_op.h                               |  8 ++--
  base/strings/to_string.h                      | 34 +++++++++-------
@@ -48,7 +51,7 @@ index 1fba78d42b..f1c7735ad3 100644
      char*>::type
  CheckOpValueStr(const T& v) {
 diff --git a/base/strings/to_string.h b/base/strings/to_string.h
-index 288f1af5d8..39aabfb720 100644
+index eae7b944cd..911622db47 100644
 --- a/base/strings/to_string.h
 +++ b/base/strings/to_string.h
 @@ -23,8 +23,11 @@ std::string ToString(const Ts&... values);
@@ -127,7 +130,7 @@ index 288f1af5d8..39aabfb720 100644
  }
  
 diff --git a/base/strings/to_string_unittest.cc b/base/strings/to_string_unittest.cc
-index e047effd41..065ba2b901 100644
+index dca285ff52..3cb3c22356 100644
 --- a/base/strings/to_string_unittest.cc
 +++ b/base/strings/to_string_unittest.cc
 @@ -20,22 +20,14 @@ class HasToString {
@@ -284,5 +287,5 @@ index 31e2628962..0f8c3a09d9 100644
  }  // namespace
  }  // namespace base
 -- 
-2.41.0.585.gd2178a4bd4-goog
+2.42.0.582.g8ccd20d70d-goog
 

@@ -169,13 +169,13 @@ buildflag_header("allocator_buildflags") {
 }
 
 buildflag_header("allocator_logging_buildflags") {
-  header = "base/allocator/partition_allocator/logging_buildflags.h"
+  header = "base/allocator/partition_allocator/src/partition_alloc/logging_buildflags.h"
 
   flags = [ "PA_ENABLE_LOG_ERROR_NOT_REACHED=false" ]
 }
 
 buildflag_header("partition_allocator_buildflags") {
-  # Copied from base/allocator/partition_allocator/partition_alloc.gni without
+  # Copied from base/allocator/partition_allocator/src/partition_alloc/partition_alloc.gni without
   # using is_nacl.
   if (current_cpu == "x64" || current_cpu == "arm64") {
     has_64_bit_pointers = true
@@ -185,7 +185,7 @@ buildflag_header("partition_allocator_buildflags") {
     assert(false, "Unknown CPU: $current_cpu")
   }
 
-  header = "base/allocator/partition_allocator/partition_alloc_buildflags.h"
+  header = "base/allocator/partition_allocator/src/partition_alloc/partition_alloc_buildflags.h"
   flags = [
     "HAS_64_BIT_POINTERS=$has_64_bit_pointers",
     "USE_PARTITION_ALLOC=false",
@@ -217,7 +217,7 @@ buildflag_header("partition_allocator_buildflags") {
 }
 
 buildflag_header("partition_allocator_raw_ptr_buildflags") {
-  header = "base/allocator/partition_allocator/raw_ptr_buildflags.h"
+  header = "base/allocator/partition_allocator/src/partition_alloc/raw_ptr_buildflags.h"
 
   flags = [
     "RAW_PTR_ZERO_ON_CONSTRUCT=true",
@@ -227,7 +227,7 @@ buildflag_header("partition_allocator_raw_ptr_buildflags") {
 }
 
 buildflag_header("partition_allocator_chromecast_buildflags") {
-  header = "base/allocator/partition_allocator/chromecast_buildflags.h"
+  header = "base/allocator/partition_allocator/src/partition_alloc/chromecast_buildflags.h"
   flags = [
     "PA_IS_CAST_ANDROID=false",
     "PA_IS_CASTOS=false",
@@ -235,12 +235,12 @@ buildflag_header("partition_allocator_chromecast_buildflags") {
 }
 
 buildflag_header("partition_allocator_chromeos_buildflags") {
-  header = "base/allocator/partition_allocator/chromeos_buildflags.h"
+  header = "base/allocator/partition_allocator/src/partition_alloc/chromeos_buildflags.h"
   flags = [ "PA_IS_CHROMEOS_ASH=false" ]
 }
 
 buildflag_header("allocator_debugging_buildflags") {
-  header = "base/allocator/partition_allocator/partition_alloc_base/debug/debugging_buildflags.h"
+  header = "base/allocator/partition_allocator/src/partition_alloc/partition_alloc_base/debug/debugging_buildflags.h"
   flags = [
     "PA_DCHECK_IS_ON=false",
     "PA_EXPENSIVE_DCHECKS_ARE_ON=false",
@@ -424,20 +424,20 @@ libbase_sublibs = [
       ":base_export_config",
     ]
     sources = [
-      "base/allocator/partition_allocator/oom.cc",
-      "base/allocator/partition_allocator/oom_callback.cc",
-      "base/allocator/partition_allocator/partition_alloc_base/check.cc",
-      "base/allocator/partition_allocator/partition_alloc_base/debug/alias.cc",
-      "base/allocator/partition_allocator/partition_alloc_base/debug/stack_trace_linux.cc",
-      "base/allocator/partition_allocator/partition_alloc_base/debug/stack_trace_posix.cc",
-      "base/allocator/partition_allocator/partition_alloc_base/log_message.cc",
-      "base/allocator/partition_allocator/partition_alloc_base/logging.cc",
-      "base/allocator/partition_allocator/partition_alloc_base/memory/page_size_posix.cc",
-      "base/allocator/partition_allocator/partition_alloc_base/posix/safe_strerror.cc",
-      "base/allocator/partition_allocator/partition_alloc_base/strings/cstring_builder.cc",
-      "base/allocator/partition_allocator/partition_alloc_base/strings/safe_sprintf.cc",
-      "base/allocator/partition_allocator/partition_alloc_base/strings/string_util.cc",
-      "base/allocator/partition_allocator/partition_alloc_base/strings/stringprintf.cc",
+      "base/allocator/partition_allocator/src/partition_alloc/oom.cc",
+      "base/allocator/partition_allocator/src/partition_alloc/oom_callback.cc",
+      "base/allocator/partition_allocator/src/partition_alloc/partition_alloc_base/check.cc",
+      "base/allocator/partition_allocator/src/partition_alloc/partition_alloc_base/debug/alias.cc",
+      "base/allocator/partition_allocator/src/partition_alloc/partition_alloc_base/debug/stack_trace_linux.cc",
+      "base/allocator/partition_allocator/src/partition_alloc/partition_alloc_base/debug/stack_trace_posix.cc",
+      "base/allocator/partition_allocator/src/partition_alloc/partition_alloc_base/log_message.cc",
+      "base/allocator/partition_allocator/src/partition_alloc/partition_alloc_base/logging.cc",
+      "base/allocator/partition_allocator/src/partition_alloc/partition_alloc_base/memory/page_size_posix.cc",
+      "base/allocator/partition_allocator/src/partition_alloc/partition_alloc_base/posix/safe_strerror.cc",
+      "base/allocator/partition_allocator/src/partition_alloc/partition_alloc_base/strings/cstring_builder.cc",
+      "base/allocator/partition_allocator/src/partition_alloc/partition_alloc_base/strings/safe_sprintf.cc",
+      "base/allocator/partition_allocator/src/partition_alloc/partition_alloc_base/strings/string_util.cc",
+      "base/allocator/partition_allocator/src/partition_alloc/partition_alloc_base/strings/stringprintf.cc",
       "base/at_exit.cc",
       "base/barrier_closure.cc",
       "base/base64.cc",
@@ -767,8 +767,8 @@ libbase_sublibs = [
     if (!(use.asan || use.fuzzer || use.msan || use.ubsan)) {
       sources += [
         "base/allocator/allocator_extension.cc",
-        "base/allocator/partition_allocator/shim/allocator_shim.cc",
-        "base/allocator/partition_allocator/shim/allocator_shim_default_dispatch_to_glibc.cc",
+        "base/allocator/partition_allocator/src/partition_alloc/shim/allocator_shim.cc",
+        "base/allocator/partition_allocator/src/partition_alloc/shim/allocator_shim_default_dispatch_to_glibc.cc",
       ]
     }
   },
@@ -1325,11 +1325,11 @@ install_config("install_header") {
   sources += [
     "base/*.h",
     "base/allocator/*.h",
-    "base/allocator/partition_allocator/*.h",
-    "base/allocator/partition_allocator/partition_alloc_base/*.h",
-    "base/allocator/partition_allocator/partition_alloc_base/augmentations/*.h",
-    "base/allocator/partition_allocator/pointers/*.h",
-    "base/allocator/partition_allocator/starscan/*.h",
+    "base/allocator/partition_allocator/src/partition_alloc/*.h",
+    "base/allocator/partition_allocator/src/partition_alloc/partition_alloc_base/*.h",
+    "base/allocator/partition_allocator/src/partition_alloc/partition_alloc_base/augmentations/*.h",
+    "base/allocator/partition_allocator/src/partition_alloc/pointers/*.h",
+    "base/allocator/partition_allocator/src/partition_alloc/starscan/*.h",
     "base/containers/*.h",
     "base/debug/*.h",
     "base/files/*.h",
