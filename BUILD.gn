@@ -787,6 +787,7 @@ libbase_sublibs = [
 
   {
     name = "base-base_test_support"
+    deps = [ ":tracing_protozero" ]
     testonly = true
     sources = [
       "base/test/metrics/histogram_tester.cc",
