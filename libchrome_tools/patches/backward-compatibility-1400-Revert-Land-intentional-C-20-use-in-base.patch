@@ -1,4 +1,4 @@
-From e909db7ba7e22ae3f72b04eeb063badba9f8e1f7 Mon Sep 17 00:00:00 2001
+From 62bba06a487ff8ec300847d916705cddfdbc2719 Mon Sep 17 00:00:00 2001
 From: Nathan Muggli <nmuggli@google.com>
 Date: Wed, 2 Aug 2023 10:26:12 -0600
 Subject: [PATCH] Revert "Land intentional C++20 use in base/."
@@ -8,17 +8,17 @@ This reverts commit c5acc58e7bebe5de213668909a9414b97c58c9c7.
 patch-name: backward-compatibility-1400-Revert-Land-intentional-C-20-use-in-base.patch
 Change-Id: Iab4e3adeb005025fdecdfeef6786662692aa11c0
 ---
- base/check_op.h                               |  8 ++--
+ base/check_op.h                               |  9 +++--
  base/strings/to_string.h                      | 34 +++++++++-------
  base/strings/to_string_unittest.cc            | 16 ++------
  base/types/strong_alias.h                     |  2 +-
  base/types/strong_alias_unittest.cc           |  4 +-
  base/types/supports_ostream_operator.h        | 10 +++--
  .../supports_ostream_operator_unittest.cc     | 39 ++++++++++---------
- 7 files changed, 60 insertions(+), 53 deletions(-)
+ 7 files changed, 61 insertions(+), 53 deletions(-)
 
 diff --git a/base/check_op.h b/base/check_op.h
-index 1fba78d42b..f1c7735ad3 100644
+index 53eb17b67b..d4e3bf7f6d 100644
 --- a/base/check_op.h
 +++ b/base/check_op.h
 @@ -70,7 +70,7 @@ BASE_EXPORT char* StreamValToStr(const void* v,
@@ -27,7 +27,7 @@ index 1fba78d42b..f1c7735ad3 100644
  inline typename std::enable_if<
 -    base::internal::SupportsOstreamOperator<const T&> &&
 +    base::internal::SupportsOstreamOperator<const T&>::value &&
-         !std::is_function<typename std::remove_pointer<T>::type>::value,
+         !std::is_function_v<typename std::remove_pointer<T>::type>,
      char*>::type
  CheckOpValueStr(const T& v) {
 @@ -96,8 +96,8 @@ CheckOpValueStr(const T& v) {
@@ -41,15 +41,16 @@ index 1fba78d42b..f1c7735ad3 100644
      char*>::type
  CheckOpValueStr(const T& v) {
    // .ToString() may not return a std::string, e.g. blink::WTF::String.
-@@ -121,7 +121,7 @@ CheckOpValueStr(const T& v) {
+@@ -121,7 +121,8 @@ CheckOpValueStr(const T& v) {
  // (i.e. scoped enums where no operator<< overload was declared).
  template <typename T>
  inline typename std::enable_if<
--    !base::internal::SupportsOstreamOperator<const T&> &&
+-    !base::internal::SupportsOstreamOperator<const T&> && std::is_enum_v<T>,
 +    !base::internal::SupportsOstreamOperator<const T&>::value &&
-         std::is_enum<T>::value,
++        std::is_enum_v<T>,
      char*>::type
  CheckOpValueStr(const T& v) {
+   return CheckOpValueStr(
 diff --git a/base/strings/to_string.h b/base/strings/to_string.h
 index eae7b944cd..911622db47 100644
 --- a/base/strings/to_string.h
@@ -174,7 +175,7 @@ index 79d39808b0..7a4872a4a0 100644
                           const StrongAlias<TagType, UnderlyingType>& alias) {
    return stream << alias.value();
 diff --git a/base/types/strong_alias_unittest.cc b/base/types/strong_alias_unittest.cc
-index 328d345229..7ab1444d1a 100644
+index e69cf7b704..b211d3b474 100644
 --- a/base/types/strong_alias_unittest.cc
 +++ b/base/types/strong_alias_unittest.cc
 @@ -371,7 +371,7 @@ TEST(StrongAliasTest, EnsureConstexpr) {
@@ -287,5 +288,5 @@ index 31e2628962..0f8c3a09d9 100644
  }  // namespace
  }  // namespace base
 -- 
-2.42.0.582.g8ccd20d70d-goog
+2.42.0.758.gaed0368e0e-goog
 
