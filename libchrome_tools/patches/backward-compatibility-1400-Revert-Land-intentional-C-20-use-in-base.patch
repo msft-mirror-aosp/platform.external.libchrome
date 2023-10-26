@@ -1,0 +1,292 @@
+From 62bba06a487ff8ec300847d916705cddfdbc2719 Mon Sep 17 00:00:00 2001
+From: Nathan Muggli <nmuggli@google.com>
+Date: Wed, 2 Aug 2023 10:26:12 -0600
+Subject: [PATCH] Revert "Land intentional C++20 use in base/."
+
+This reverts commit c5acc58e7bebe5de213668909a9414b97c58c9c7.
+
+patch-name: backward-compatibility-1400-Revert-Land-intentional-C-20-use-in-base.patch
+Change-Id: Iab4e3adeb005025fdecdfeef6786662692aa11c0
+---
+ base/check_op.h                               |  9 +++--
+ base/strings/to_string.h                      | 34 +++++++++-------
+ base/strings/to_string_unittest.cc            | 16 ++------
+ base/types/strong_alias.h                     |  2 +-
+ base/types/strong_alias_unittest.cc           |  4 +-
+ base/types/supports_ostream_operator.h        | 10 +++--
+ .../supports_ostream_operator_unittest.cc     | 39 ++++++++++---------
+ 7 files changed, 61 insertions(+), 53 deletions(-)
+
+diff --git a/base/check_op.h b/base/check_op.h
+index 53eb17b67b..d4e3bf7f6d 100644
+--- a/base/check_op.h
++++ b/base/check_op.h
+@@ -70,7 +70,7 @@ BASE_EXPORT char* StreamValToStr(const void* v,
+ 
+ template <typename T>
+ inline typename std::enable_if<
+-    base::internal::SupportsOstreamOperator<const T&> &&
++    base::internal::SupportsOstreamOperator<const T&>::value &&
+         !std::is_function_v<typename std::remove_pointer<T>::type>,
+     char*>::type
+ CheckOpValueStr(const T& v) {
+@@ -96,8 +96,8 @@ CheckOpValueStr(const T& v) {
+ // Overload for types that have no operator<< but do have .ToString() defined.
+ template <typename T>
+ inline typename std::enable_if<
+-    !base::internal::SupportsOstreamOperator<const T&> &&
+-        base::internal::SupportsToString<const T&>,
++    !base::internal::SupportsOstreamOperator<const T&>::value &&
++        base::internal::SupportsToString<const T&>::value,
+     char*>::type
+ CheckOpValueStr(const T& v) {
+   // .ToString() may not return a std::string, e.g. blink::WTF::String.
+@@ -121,7 +121,8 @@ CheckOpValueStr(const T& v) {
+ // (i.e. scoped enums where no operator<< overload was declared).
+ template <typename T>
+ inline typename std::enable_if<
+-    !base::internal::SupportsOstreamOperator<const T&> && std::is_enum_v<T>,
++    !base::internal::SupportsOstreamOperator<const T&>::value &&
++        std::is_enum_v<T>,
+     char*>::type
+ CheckOpValueStr(const T& v) {
+   return CheckOpValueStr(
+diff --git a/base/strings/to_string.h b/base/strings/to_string.h
+index eae7b944cd..911622db47 100644
+--- a/base/strings/to_string.h
++++ b/base/strings/to_string.h
+@@ -23,8 +23,11 @@ std::string ToString(const Ts&... values);
+ 
+ namespace internal {
+ 
++template <typename T, typename = void>
++struct SupportsToString : std::false_type {};
+ template <typename T>
+-concept SupportsToString = requires(const T& t) { t.ToString(); };
++struct SupportsToString<T, decltype(void(std::declval<T>().ToString()))>
++    : std::true_type {};
+ 
+ // I/O manipulators are function pointers, but should be sent directly to the
+ // `ostream` instead of being cast to `const void*` like other function
+@@ -56,17 +59,19 @@ struct ToStringHelper {
+ 
+ // Most streamables.
+ template <typename T>
+-struct ToStringHelper<T,
+-                      std::enable_if_t<SupportsOstreamOperator<const T&> &&
+-                                       !WillBeIncorrectlyStreamedAsBool<T>>> {
++struct ToStringHelper<
++    T,
++    std::enable_if_t<SupportsOstreamOperator<const T&>::value &&
++                     !WillBeIncorrectlyStreamedAsBool<T>>> {
+   static void Stringify(const T& v, std::ostringstream& ss) { ss << v; }
+ };
+ 
+ // Functions and function pointers.
+ template <typename T>
+-struct ToStringHelper<T,
+-                      std::enable_if_t<SupportsOstreamOperator<const T&> &&
+-                                       WillBeIncorrectlyStreamedAsBool<T>>> {
++struct ToStringHelper<
++    T,
++    std::enable_if_t<SupportsOstreamOperator<const T&>::value &&
++                     WillBeIncorrectlyStreamedAsBool<T>>> {
+   static void Stringify(const T& v, std::ostringstream& ss) {
+     ToStringHelper<const void*>::Stringify(reinterpret_cast<const void*>(v),
+                                            ss);
+@@ -75,9 +80,10 @@ struct ToStringHelper<T,
+ 
+ // Non-streamables that have a `ToString` member.
+ template <typename T>
+-struct ToStringHelper<T,
+-                      std::enable_if_t<!SupportsOstreamOperator<const T&> &&
+-                                       SupportsToString<const T&>>> {
++struct ToStringHelper<
++    T,
++    std::enable_if_t<!SupportsOstreamOperator<const T&>::value &&
++                     SupportsToString<const T&>::value>> {
+   static void Stringify(const T& v, std::ostringstream& ss) {
+     // .ToString() may not return a std::string, e.g. blink::WTF::String.
+     ToStringHelper<decltype(v.ToString())>::Stringify(v.ToString(), ss);
+@@ -89,7 +95,8 @@ struct ToStringHelper<T,
+ template <typename T>
+ struct ToStringHelper<
+     T,
+-    std::enable_if_t<!SupportsOstreamOperator<const T&> && std::is_enum_v<T>>> {
++    std::enable_if_t<!SupportsOstreamOperator<const T&>::value &&
++                     std::is_enum_v<T>>> {
+   static void Stringify(const T& v, std::ostringstream& ss) {
+     using UT = typename std::underlying_type_t<T>;
+     ToStringHelper<UT>::Stringify(static_cast<UT>(v), ss);
+@@ -120,8 +127,9 @@ struct ToStringHelper<std::tuple<T...>> {
+ template <typename... Ts>
+ std::string ToString(const Ts&... values) {
+   std::ostringstream ss;
+-  (..., internal::ToStringHelper<remove_cvref_t<decltype(values)>>::Stringify(
+-            values, ss));
++  (internal::ToStringHelper<remove_cvref_t<decltype(values)>>::Stringify(values,
++                                                                         ss),
++   ...);
+   return ss.str();
+ }
+ 
+diff --git a/base/strings/to_string_unittest.cc b/base/strings/to_string_unittest.cc
+index dca285ff52..3cb3c22356 100644
+--- a/base/strings/to_string_unittest.cc
++++ b/base/strings/to_string_unittest.cc
+@@ -20,22 +20,14 @@ class HasToString {
+ };
+ 
+ // .ToString() support on structs.
+-static_assert(!internal::SupportsToString<NotStringifiable>,
++static_assert(!internal::SupportsToString<NotStringifiable>::value,
+               "value without ToString() shouldn't be marked SupportsToString");
+-static_assert(!internal::SupportsToString<NotStringifiable&>,
+-              "& without ToString() shouldn't be marked SupportsToString");
+-static_assert(!internal::SupportsToString<const NotStringifiable&>,
++static_assert(!internal::SupportsToString<const NotStringifiable&>::value,
+               "const& without ToString() shouldn't be marked SupportsToString");
+-static_assert(!internal::SupportsToString<NotStringifiable&&>,
+-              "&& without ToString() shouldn't be marked SupportsToString");
+-static_assert(internal::SupportsToString<HasToString>,
++static_assert(internal::SupportsToString<HasToString>::value,
+               "value with ToString() should be marked SupportsToString");
+-static_assert(internal::SupportsToString<HasToString&>,
+-              "& with ToString() should be marked SupportsToString");
+-static_assert(internal::SupportsToString<const HasToString&>,
++static_assert(internal::SupportsToString<const HasToString&>::value,
+               "const& with ToString() should be marked SupportsToString");
+-static_assert(internal::SupportsToString<HasToString&&>,
+-              "&& with ToString() should be marked SupportsToString");
+ 
+ TEST(ToStringTest, Streamable) {
+   // Types with built-in <<.
+diff --git a/base/types/strong_alias.h b/base/types/strong_alias.h
+index 79d39808b0..7a4872a4a0 100644
+--- a/base/types/strong_alias.h
++++ b/base/types/strong_alias.h
+@@ -154,7 +154,7 @@ class StrongAlias {
+ template <typename TagType,
+           typename UnderlyingType,
+           typename = std::enable_if_t<
+-              internal::SupportsOstreamOperator<UnderlyingType>>>
++              internal::SupportsOstreamOperator<UnderlyingType>::value>>
+ std::ostream& operator<<(std::ostream& stream,
+                          const StrongAlias<TagType, UnderlyingType>& alias) {
+   return stream << alias.value();
+diff --git a/base/types/strong_alias_unittest.cc b/base/types/strong_alias_unittest.cc
+index e69cf7b704..b211d3b474 100644
+--- a/base/types/strong_alias_unittest.cc
++++ b/base/types/strong_alias_unittest.cc
+@@ -371,7 +371,7 @@ TEST(StrongAliasTest, EnsureConstexpr) {
+ void StreamOperatorExists() {
+   // Aliases of ints should be streamable because ints are streamable.
+   using StreamableAlias = StrongAlias<class IntTag, int>;
+-  static_assert(internal::SupportsOstreamOperator<StreamableAlias>);
++  static_assert(internal::SupportsOstreamOperator<StreamableAlias>::value);
+ 
+   // Aliases of a class which does not expose a stream operator should
+   // themselves not be streamable.
+@@ -380,7 +380,7 @@ void StreamOperatorExists() {
+     Scope() = default;
+   };
+   using NonStreamableAlias = StrongAlias<class ScopeTag, Scope>;
+-  static_assert(!internal::SupportsOstreamOperator<NonStreamableAlias>);
++  static_assert(!internal::SupportsOstreamOperator<NonStreamableAlias>::value);
+ }
+ 
+ #if BUILDFLAG(ENABLE_BASE_TRACING)
+diff --git a/base/types/supports_ostream_operator.h b/base/types/supports_ostream_operator.h
+index 7e0100f970..0803db4862 100644
+--- a/base/types/supports_ostream_operator.h
++++ b/base/types/supports_ostream_operator.h
+@@ -11,13 +11,17 @@
+ 
+ namespace base::internal {
+ 
+-// Detects whether using operator<< would work.
++// Uses expression SFINAE to detect whether using operator<< would work.
+ //
+ // Note that the above #include of <ostream> is necessary to guarantee
+ // consistent results here for basic types.
++template <typename T, typename = void>
++struct SupportsOstreamOperator : std::false_type {};
+ template <typename T>
+-concept SupportsOstreamOperator =
+-    requires(const T& t, std::ostream& os) { os << t; };
++struct SupportsOstreamOperator<T,
++                               decltype(void(std::declval<std::ostream&>()
++                                             << std::declval<T>()))>
++    : std::true_type {};
+ 
+ }  // namespace base::internal
+ 
+diff --git a/base/types/supports_ostream_operator_unittest.cc b/base/types/supports_ostream_operator_unittest.cc
+index 31e2628962..0f8c3a09d9 100644
+--- a/base/types/supports_ostream_operator_unittest.cc
++++ b/base/types/supports_ostream_operator_unittest.cc
+@@ -26,40 +26,43 @@ std::ostream& operator<<(std::ostream& os, const StructWithOperator& v) {
+ }
+ 
+ // A few standard types that definitely support printing.
+-static_assert(internal::SupportsOstreamOperator<int>,
++static_assert(internal::SupportsOstreamOperator<int>::value,
+               "ints should be printable");
+-static_assert(internal::SupportsOstreamOperator<const char*>,
++static_assert(internal::SupportsOstreamOperator<const char*>::value,
+               "C strings should be printable");
+-static_assert(internal::SupportsOstreamOperator<std::string>,
++static_assert(internal::SupportsOstreamOperator<std::string>::value,
+               "std::string should be printable");
+ 
+ // Various kinds of enums operator<< support.
+-static_assert(internal::SupportsOstreamOperator<SimpleEnum>,
++static_assert(internal::SupportsOstreamOperator<SimpleEnum>::value,
+               "simple enum should be printable by value");
+-static_assert(internal::SupportsOstreamOperator<const SimpleEnum&>,
++static_assert(internal::SupportsOstreamOperator<const SimpleEnum&>::value,
+               "simple enum should be printable by const ref");
+-static_assert(internal::SupportsOstreamOperator<EnumWithExplicitType>,
++static_assert(internal::SupportsOstreamOperator<EnumWithExplicitType>::value,
+               "enum with explicit type should be printable by value");
+-static_assert(internal::SupportsOstreamOperator<const EnumWithExplicitType&>,
+-              "enum with explicit type should be printable by const ref");
+-static_assert(!internal::SupportsOstreamOperator<ScopedEnum>,
++static_assert(
++    internal::SupportsOstreamOperator<const EnumWithExplicitType&>::value,
++    "enum with explicit type should be printable by const ref");
++static_assert(!internal::SupportsOstreamOperator<ScopedEnum>::value,
+               "scoped enum should not be printable by value");
+-static_assert(!internal::SupportsOstreamOperator<const ScopedEnum&>,
++static_assert(!internal::SupportsOstreamOperator<const ScopedEnum&>::value,
+               "simple enum should not be printable by const ref");
+-static_assert(internal::SupportsOstreamOperator<ScopedEnumWithOperator>,
++static_assert(internal::SupportsOstreamOperator<ScopedEnumWithOperator>::value,
+               "scoped enum with operator<< should be printable by value");
+-static_assert(internal::SupportsOstreamOperator<const ScopedEnumWithOperator&>,
+-              "scoped enum with operator<< should be printable by const ref");
++static_assert(
++    internal::SupportsOstreamOperator<const ScopedEnumWithOperator&>::value,
++    "scoped enum with operator<< should be printable by const ref");
+ 
+ // operator<< support on structs.
+-static_assert(!internal::SupportsOstreamOperator<SimpleStruct>,
++static_assert(!internal::SupportsOstreamOperator<SimpleStruct>::value,
+               "simple struct should not be printable by value");
+-static_assert(!internal::SupportsOstreamOperator<const SimpleStruct&>,
++static_assert(!internal::SupportsOstreamOperator<const SimpleStruct&>::value,
+               "simple struct should not be printable by const ref");
+-static_assert(internal::SupportsOstreamOperator<StructWithOperator>,
++static_assert(internal::SupportsOstreamOperator<StructWithOperator>::value,
+               "struct with operator<< should be printable by value");
+-static_assert(internal::SupportsOstreamOperator<const StructWithOperator&>,
+-              "struct with operator<< should be printable by const ref");
++static_assert(
++    internal::SupportsOstreamOperator<const StructWithOperator&>::value,
++    "struct with operator<< should be printable by const ref");
+ 
+ }  // namespace
+ }  // namespace base
+-- 
+2.42.0.758.gaed0368e0e-goog
+
