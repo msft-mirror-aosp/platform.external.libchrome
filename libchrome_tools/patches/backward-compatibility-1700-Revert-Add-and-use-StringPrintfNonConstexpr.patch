@@ -1,0 +1,156 @@
+From a3a66c16cc4441d9c4d87d41e16213f29730dd86 Mon Sep 17 00:00:00 2001
+From: Cici Ruan <cuicuiruan@google.com>
+Date: Tue, 31 Oct 2023 16:31:20 -0700
+Subject: [PATCH] Revert "Add and use `StringPrintfNonConstexpr()`."
+
+This reverts commit 4a1031fd4ec5e922a8bd1f840d71c45898a65055.
+---
+ .../i18n/streaming_utf8_validator_perftest.cc | 10 ++--
+ base/strings/stringprintf.h                   | 54 +++----------------
+ base/strings/stringprintf_nocompile.nc        | 30 -----------
+ 3 files changed, 12 insertions(+), 82 deletions(-)
+ delete mode 100644 base/strings/stringprintf_nocompile.nc
+
+diff --git a/base/i18n/streaming_utf8_validator_perftest.cc b/base/i18n/streaming_utf8_validator_perftest.cc
+index 150e360c7a..ac6a6492ba 100644
+--- a/base/i18n/streaming_utf8_validator_perftest.cc
++++ b/base/i18n/streaming_utf8_validator_perftest.cc
+@@ -158,10 +158,12 @@ void RunSomeTests(
+     const int real_length = static_cast<int>(test_string.length());
+     const int times = (1 << 24) / real_length;
+     for (size_t test_index = 0; test_index < test_count; ++test_index) {
+-      EXPECT_TRUE(RunTest(StringPrintfNonConstexpr(
+-                              format, test_functions[test_index].function_name,
+-                              real_length, times),
+-                          test_functions[test_index].function, test_string,
++      EXPECT_TRUE(RunTest(StringPrintf(format,
++                                       test_functions[test_index].function_name,
++                                       real_length,
++                                       times),
++                          test_functions[test_index].function,
++                          test_string,
+                           times));
+     }
+   }
+diff --git a/base/strings/stringprintf.h b/base/strings/stringprintf.h
+index 5bd9474e5b..47eced2108 100644
+--- a/base/strings/stringprintf.h
++++ b/base/strings/stringprintf.h
+@@ -5,72 +5,30 @@
+ #ifndef BASE_STRINGS_STRINGPRINTF_H_
+ #define BASE_STRINGS_STRINGPRINTF_H_
+ 
+-#include <stdarg.h>  // va_list
++#include <stdarg.h>   // va_list
+ 
+ #include <string>
+-#include <string_view>
+ 
+ #include "base/base_export.h"
+ #include "base/compiler_specific.h"
+ 
+ namespace base {
+ 
+-// Returns a C++ string given `printf()`-like input. The format string should be
+-// a compile-time constant (like with `std::format()`).
+-// TODO(crbug.com/1371963): Implement in terms of `std::format()`,
+-// `absl::StrFormat()`, or similar.
++// Return a C++ string given printf-like input.
+ [[nodiscard]] BASE_EXPORT std::string StringPrintf(const char* format, ...)
+     PRINTF_FORMAT(1, 2);
+ 
+-// Returns a C++ string given `printf()`-like input. The format string must be a
+-// run-time value (like with `std::vformat()`), or this will not compile.
+-// Because this does not check arguments at compile-time, prefer
+-// `StringPrintf()` whenever possible.
+-template <typename... Args>
+-[[nodiscard]] std::string StringPrintfNonConstexpr(std::string_view format,
+-                                                   const Args&... args) {
+-  // TODO(crbug.com/1371963): Implement in terms of `std::vformat()`,
+-  // `absl::FormatUntyped()`, or similar.
+-  return StringPrintf(format.data(), args...);
+-}
+-
+-// If possible, guide users to use `StringPrintf()` instead of
+-// `StringPrintfNonConstexpr()` when the format string is constexpr.
+-//
+-// It would be nice to do this with `std::enable_if`, but I don't know of a way;
+-// whether a string constant's value is available at compile time is not
+-// something easily obtained from the type system, and trying to pass various
+-// forms of string constant to non-type template parameters produces a variety
+-// of compile errors.
+-#if HAS_ATTRIBUTE(enable_if)
+-// Disable calling with a constexpr `std::string_view`.
+-template <typename... Args>
+-[[nodiscard]] std::string StringPrintfNonConstexpr(std::string_view format,
+-                                                   const Args&... args)
+-    __attribute__((enable_if(
+-        [](std::string_view s) { return s.empty() || s[0] == s[0]; }(format),
+-        "Use StringPrintf() for constexpr format strings"))) = delete;
+-// Disable calling with a constexpr `char[]` or `char*`.
+-template <typename... Args>
+-[[nodiscard]] std::string StringPrintfNonConstexpr(const char* format,
+-                                                   const Args&... args)
+-    __attribute__((
+-        enable_if([](const char* s) { return !!s; }(format),
+-                  "Use StringPrintf() for constexpr format strings"))) = delete;
+-#endif
+-
+-// Returns a C++ string given `vprintf()`-like input.
++// Return a C++ string given vprintf-like input.
+ [[nodiscard]] BASE_EXPORT std::string StringPrintV(const char* format,
+                                                    va_list ap)
+     PRINTF_FORMAT(1, 0);
+ 
+-// Like `StringPrintf()`, but appends result to a supplied string.
+-// TODO(crbug.com/1371963): Implement in terms of `std::format_to()`,
+-// `absl::StrAppendFormat()`, or similar.
++// Append result to a supplied string.
+ BASE_EXPORT void StringAppendF(std::string* dst, const char* format, ...)
+     PRINTF_FORMAT(2, 3);
+ 
+-// Like `StringPrintV()`, but appends result to a supplied string.
++// Lower-level routine that takes a va_list and appends to a specified
++// string.  All other routines are just convenience wrappers around it.
+ BASE_EXPORT void StringAppendV(std::string* dst, const char* format, va_list ap)
+     PRINTF_FORMAT(2, 0);
+ 
+diff --git a/base/strings/stringprintf_nocompile.nc b/base/strings/stringprintf_nocompile.nc
+deleted file mode 100644
+index 03983fd064..0000000000
+--- a/base/strings/stringprintf_nocompile.nc
++++ /dev/null
+@@ -1,30 +0,0 @@
+-// Copyright 2023 The Chromium Authors
+-// Use of this source code is governed by a BSD-style license that can be
+-// found in the LICENSE file.
+-
+-// This is a "No Compile Test" suite.
+-// http://dev.chromium.org/developers/testing/no-compile-tests
+-
+-#include "base/strings/stringprintf.h"
+-
+-#include <string_view>
+-#include <tuple>
+-
+-namespace base {
+-
+-void ConstexprStringView() {
+-  static constexpr std::string_view kTest = "test %s";
+-  std::ignore = StringPrintfNonConstexpr(kTest, "123");  // expected-error {{call to deleted function 'StringPrintfNonConstexpr'}}
+-}
+-
+-void ConstexprCharArray() {
+-  static constexpr char kTest[] = "test %s";
+-  std::ignore = StringPrintfNonConstexpr(kTest, "123");  // expected-error {{call to deleted function 'StringPrintfNonConstexpr'}}
+-}
+-
+-void ConstexprCharPointer() {
+-  static constexpr const char* kTest = "test %s";
+-  std::ignore = StringPrintfNonConstexpr(kTest, "123");  // expected-error {{call to deleted function 'StringPrintfNonConstexpr'}}
+-}
+-
+-}  // namespace base
+-- 
+2.42.0.820.g83a721a137-goog
+

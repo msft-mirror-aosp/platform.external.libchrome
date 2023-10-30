@@ -1,0 +1,70 @@
+From 7da75d222df98be16f6ecc989a76b3bfdd735dfe Mon Sep 17 00:00:00 2001
+From: Cici Ruan <cuicuiruan@google.com>
+Date: Tue, 31 Oct 2023 19:47:30 -0700
+Subject: [PATCH] Add old names back to base time
+
+Change-Id: Iaef6293a59b13b045a22a4651a08a21196430ed0
+---
+ base/time/time.h | 39 +++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 39 insertions(+)
+
+diff --git a/base/time/time.h b/base/time/time.h
+index c891e4528d..0bf2a95223 100644
+--- a/base/time/time.h
++++ b/base/time/time.h
+@@ -683,6 +683,14 @@ class BASE_EXPORT Time : public time_internal::TimeBase<Time> {
+   static constexpr Time FromTimeSpec(const timespec& ts);
+ #endif
+ 
++  static constexpr Time FromDoubleT(double dt);
++  constexpr double ToDoubleT() const;
++  static constexpr Time FromJsTime(double ms_since_epoch);
++  constexpr double ToJsTime() const;
++  constexpr double ToJsTimeIgnoringNull() const;
++  static constexpr Time FromJavaTime(int64_t ms_since_epoch);
++  constexpr int64_t ToJavaTime() const;
++
+   // Converts to/from a number of milliseconds since the Unix epoch.
+   // TODO(crbug.com/1495554): Add ...PreservingNull() versions; see comments in
+   // the implementation of FromMillisecondsSinceUnixEpoch().
+@@ -1107,6 +1115,37 @@ constexpr time_t Time::ToTimeT() const {
+                    : std::numeric_limits<time_t>::max();
+ }
+ 
++// static
++constexpr Time Time::FromDoubleT(double dt) {
++  return FromSecondsSinceUnixEpoch(dt);
++}
++
++constexpr double Time::ToDoubleT() const {
++  return InSecondsFSinceUnixEpoch();
++}
++
++// static
++constexpr Time Time::FromJsTime(double ms_since_epoch) {
++  return FromMillisecondsSinceUnixEpoch(ms_since_epoch);
++}
++
++constexpr double Time::ToJsTime() const {
++  return InMillisecondsFSinceUnixEpoch();
++}
++
++constexpr double Time::ToJsTimeIgnoringNull() const {
++  return InMillisecondsFSinceUnixEpochIgnoringNull();
++}
++
++// static
++constexpr Time Time::FromJavaTime(int64_t ms_since_epoch) {
++  return FromMillisecondsSinceUnixEpoch(ms_since_epoch);
++}
++
++constexpr int64_t Time::ToJavaTime() const {
++  return InMillisecondsSinceUnixEpoch();
++}
++
+ // static
+ constexpr Time Time::FromSecondsSinceUnixEpoch(double dt) {
+   // Preserve 0.
+-- 
+2.42.0.820.g83a721a137-goog
+
