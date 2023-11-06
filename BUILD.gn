@@ -1256,6 +1256,7 @@ if (use.mojo) {
           "mojo/public/cpp/bindings/lib/validation_util.cc",
           "mojo/public/cpp/bindings/pending_flush.cc",
           "mojo/public/cpp/bindings/receiver_set.cc",
+          "mojo/public/cpp/bindings/urgent_message_scope.cc",
           "mojo/public/cpp/platform/platform_channel.cc",
           "mojo/public/cpp/platform/platform_channel_endpoint.cc",
           "mojo/public/cpp/platform/platform_channel_server.cc",

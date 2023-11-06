@@ -1,0 +1,39 @@
+From d9412d2148f4dadab815e0cacfcb61292f73e333 Mon Sep 17 00:00:00 2001
+From: Brett Brotherton <bbrotherton@google.com>
+Date: Tue, 7 Nov 2023 12:59:58 -0700
+Subject: [PATCH] Revert "Remove check_op.h from deprecated
+ base/strings/string_piece.h"
+
+This reverts commit ce475d53fa0d387fa9d4fa990026346b798a32c9.
+---
+ base/strings/string_piece.h           | 1 +
+ base/strings/utf_ostream_operators.cc | 1 -
+ 2 files changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/base/strings/string_piece.h b/base/strings/string_piece.h
+index 6a8cd3464c..8df6862eb5 100644
+--- a/base/strings/string_piece.h
++++ b/base/strings/string_piece.h
+@@ -14,6 +14,7 @@
+ // violations. Preserve the includes for now. As code is migrated away from this
+ // header, we can incrementally fix the IWYU violations.
+ #include "base/check.h"
++#include "base/check_op.h"
+ #include "base/strings/string_piece_forward.h"
+ 
+ #endif  // BASE_STRINGS_STRING_PIECE_H_
+diff --git a/base/strings/utf_ostream_operators.cc b/base/strings/utf_ostream_operators.cc
+index 39f93c4477..2e28c99ecc 100644
+--- a/base/strings/utf_ostream_operators.cc
++++ b/base/strings/utf_ostream_operators.cc
+@@ -5,7 +5,6 @@
+ #include "base/strings/utf_ostream_operators.h"
+ 
+ #include "base/strings/utf_string_conversions.h"
+-#include "base/types/supports_ostream_operator.h"
+ 
+ std::ostream& std::operator<<(std::ostream& out, const wchar_t* wstr) {
+   return out << (wstr ? std::wstring_view(wstr) : std::wstring_view());
+-- 
+2.42.0.869.gea05f2083d-goog
+
