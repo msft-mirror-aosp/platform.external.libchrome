@@ -538,15 +538,22 @@ def UpdateBuildGn(deleted_files: typing.List[str]) -> typing.List[str]:
     return build_gn_deleted_files
 
 
-def EmergeLibchrome() -> bool:
+def EmergeLibchrome() -> Optional[bool]:
     """Run `emerge libchrome` and returns whether or not it succeeded.
     """
-    subprocess.run(
-        ["sudo", "cros-workon", "--host", "start", "libchrome"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        check=True,
-    )
+    try:
+        process = subprocess.Popen(
+            ["sudo", "cros-workon", "--host", "start", "libchrome"],
+            universal_newlines=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+        process_output, _ = process.communicate()
+    except (OSError, subprocess.CalledProcessError) as e:
+        logging.warning('! `cros-workon --host start libchrome` failed, see log below:')
+        logging.warning(e.stderr)
+        return None
+
     logging.info("`sudo emerge libchrome` running...")
     try:
         process = subprocess.Popen(
@@ -822,12 +829,12 @@ def main():
 
     emerge_success = None
     if merge_success and IsInsideChroot():
-        if not EmergeLibchrome():
+        emerge_success = EmergeLibchrome()
+        if emerge_success == False:
             logging.warning(f"emerge libchrome failed.")
             commit_message.insert(2, "EMERGE LIBCHROME IS FAILING\n")
-            emerge_success = False
-        else:
-            emerge_success = True
+        elif emerge_success == None:
+            commit_message.insert(2, "DID NOT EMERGE LIBCHROME\n")
     else:
         reason = (
             "git merge failed" if not merge_success else "Not inside chroot"
