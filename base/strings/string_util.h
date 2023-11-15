@@ -7,12 +7,13 @@
 #ifndef BASE_STRINGS_STRING_UTIL_H_
 #define BASE_STRINGS_STRING_UTIL_H_
 
-#include <stdarg.h>   // va_list
+#include <stdarg.h>  // va_list
 #include <stddef.h>
 #include <stdint.h>
 
 #include <initializer_list>
 #include <string>
+#include <string_view>
 #include <type_traits>
 #include <vector>
 
@@ -96,7 +97,7 @@ constexpr BasicStringPiece<CharT> MakeBasicStringPiece(Iter begin, Iter end) {
 }
 
 // Explicit instantiations of MakeBasicStringPiece for the BasicStringPiece
-// aliases defined in base/strings/string_piece_forward.h
+// aliases defined in base/strings/string_piece.h
 template <typename Iter>
 constexpr StringPiece MakeStringPiece(Iter begin, Iter end) {
   return MakeBasicStringPiece<char>(begin, end);
@@ -108,7 +109,7 @@ constexpr StringPiece16 MakeStringPiece16(Iter begin, Iter end) {
 }
 
 template <typename Iter>
-constexpr WStringPiece MakeWStringPiece(Iter begin, Iter end) {
+constexpr std::wstring_view MakeWStringView(Iter begin, Iter end) {
   return MakeBasicStringPiece<wchar_t>(begin, end);
 }
 
@@ -344,8 +345,8 @@ BASE_EXPORT bool IsStringUTF8AllowingNoncharacters(StringPiece str);
 BASE_EXPORT bool IsStringASCII(StringPiece str);
 BASE_EXPORT bool IsStringASCII(StringPiece16 str);
 
-#if defined(WCHAR_T_IS_UTF32)
-BASE_EXPORT bool IsStringASCII(WStringPiece str);
+#if defined(WCHAR_T_IS_32_BIT)
+BASE_EXPORT bool IsStringASCII(std::wstring_view str);
 #endif
 
 // Performs a case-sensitive string compare of the given 16-bit string against

@@ -1,4 +1,4 @@
-From 590b3af2961768dab6cbd6f2d59a7e0b67a9a442 Mon Sep 17 00:00:00 2001
+From 18a22868fa02255a49dec4df0fce0136aea25bbd Mon Sep 17 00:00:00 2001
 From: Grace Cham <hscham@chromium.org>
 Date: Wed, 11 May 2022 13:44:41 +0900
 Subject: [PATCH] Revert "Make base::VerifyPathControlledByUser() Mac-only."
@@ -17,20 +17,20 @@ Change-Id: I3b4595ad4891dc1a67bfdcf03f934971ff93f4df
  3 files changed, 9 insertions(+), 11 deletions(-)
 
 diff --git a/base/files/file_util.h b/base/files/file_util.h
-index 0a9a27717e..eb70019e46 100644
+index 1d3fe9d1d7..020a9e316e 100644
 --- a/base/files/file_util.h
 +++ b/base/files/file_util.h
-@@ -640,9 +640,7 @@ BASE_EXPORT bool CreateLocalNonBlockingPipe(int fds[2]);
- // Returns true if it was able to set it in the close-on-exec mode, otherwise
+@@ -651,9 +651,7 @@ BASE_EXPORT bool SetCloseOnExec(int fd);
+ // Returns true if it was able to remove the close-on-exec flag, otherwise
  // false.
- BASE_EXPORT bool SetCloseOnExec(int fd);
+ BASE_EXPORT bool RemoveCloseOnExec(int fd);
 -#endif  // BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
  
 -#if BUILDFLAG(IS_MAC)
  // Test that |path| can only be changed by a given user and members of
  // a given set of groups.
  // Specifically, test that all parts of |path| under (and including) |base|:
-@@ -658,7 +656,9 @@ BASE_EXPORT bool VerifyPathControlledByUser(const base::FilePath& base,
+@@ -669,7 +667,9 @@ BASE_EXPORT bool VerifyPathControlledByUser(const base::FilePath& base,
                                              const base::FilePath& path,
                                              uid_t owner_uid,
                                              const std::set<gid_t>& group_gids);
@@ -41,7 +41,7 @@ index 0a9a27717e..eb70019e46 100644
  // This function uses Mac OS conventions.  The super user is assumed to have
  // uid 0, and the administrator group is assumed to be named "admin".
 diff --git a/base/files/file_util_posix.cc b/base/files/file_util_posix.cc
-index 81136bc82d..8243981350 100644
+index acb98a7e3e..705202e1ea 100644
 --- a/base/files/file_util_posix.cc
 +++ b/base/files/file_util_posix.cc
 @@ -77,7 +77,6 @@ namespace base {
@@ -60,7 +60,7 @@ index 81136bc82d..8243981350 100644
  
  base::FilePath GetTempTemplate() {
    return FormatTemporaryFileName("XXXXXX");
-@@ -1087,7 +1085,6 @@ bool SetCurrentDirectory(const FilePath& path) {
+@@ -1103,7 +1101,6 @@ bool SetCurrentDirectory(const FilePath& path) {
    return chdir(path.value().c_str()) == 0;
  }
  
@@ -68,7 +68,7 @@ index 81136bc82d..8243981350 100644
  bool VerifyPathControlledByUser(const FilePath& base,
                                  const FilePath& path,
                                  uid_t owner_uid,
-@@ -1123,6 +1120,7 @@ bool VerifyPathControlledByUser(const FilePath& base,
+@@ -1139,6 +1136,7 @@ bool VerifyPathControlledByUser(const FilePath& base,
    return true;
  }
  
@@ -77,10 +77,10 @@ index 81136bc82d..8243981350 100644
    const unsigned kRootUid = 0;
    const FilePath kFileSystemRoot("/");
 diff --git a/base/files/file_util_unittest.cc b/base/files/file_util_unittest.cc
-index c59c226c99..3fa5e3bca2 100644
+index ea3c7672aa..7a7d7a7e76 100644
 --- a/base/files/file_util_unittest.cc
 +++ b/base/files/file_util_unittest.cc
-@@ -219,7 +219,9 @@ class ReparsePoint {
+@@ -217,7 +217,9 @@ class ReparsePoint {
  
  #endif
  
@@ -91,7 +91,7 @@ index c59c226c99..3fa5e3bca2 100644
  // Provide a simple way to change the permissions bits on |path| in tests.
  // ASSERT failures will return, but not stop the test.  Caller should wrap
  // calls to this function in ASSERT_NO_FATAL_FAILURE().
-@@ -235,10 +237,8 @@ void ChangePosixFilePermissions(const FilePath& path,
+@@ -233,10 +235,8 @@ void ChangePosixFilePermissions(const FilePath& path,
    mode &= ~mode_bits_to_clear;
    ASSERT_TRUE(SetPosixFilePermissions(path, mode));
  }
@@ -103,7 +103,7 @@ index c59c226c99..3fa5e3bca2 100644
  // Sets the source file to read-only.
  void SetReadOnly(const FilePath& path, bool read_only) {
  #if BUILDFLAG(IS_WIN)
-@@ -4108,7 +4108,7 @@ TEST_F(FileUtilTest, SetCloseOnExec) {
+@@ -4115,7 +4115,7 @@ TEST_F(FileUtilTest, SetCloseOnExec) {
  
  #endif
  
@@ -112,7 +112,7 @@ index c59c226c99..3fa5e3bca2 100644
  
  // Testing VerifyPathControlledByAdmin() is hard, because there is no
  // way a test can make a file owned by root, or change file paths
-@@ -4392,7 +4392,7 @@ TEST_F(VerifyPathControlledByUserTest, WriteBitChecks) {
+@@ -4399,7 +4399,7 @@ TEST_F(VerifyPathControlledByUserTest, WriteBitChecks) {
    EXPECT_TRUE(VerifyPathControlledByUser(sub_dir_, text_file_, uid_, ok_gids_));
  }
  
@@ -122,5 +122,5 @@ index c59c226c99..3fa5e3bca2 100644
  // Flaky test: crbug/1054637
  #if BUILDFLAG(IS_ANDROID)
 -- 
-2.42.0.582.g8ccd20d70d-goog
+2.43.0.rc0.421.g78406f8d94-goog
 

@@ -3647,6 +3647,24 @@ TEST_P(PartitionAllocTest, SchedulerLoopQuarantine) {
   list.SetCapacityInBytesForTesting(original_capacity_in_bytes);
 }
 
+TEST_P(PartitionAllocTest, ZapOnFree) {
+  void* ptr = allocator.root()->Alloc(1, type_name);
+  EXPECT_TRUE(ptr);
+  memset(ptr, 'A', 1);
+  allocator.root()->Free<FreeFlags::kZap>(ptr);
+  EXPECT_NE('A', *static_cast<unsigned char*>(ptr));
+
+  constexpr size_t size = 1024;
+  ptr = allocator.root()->Alloc(size, type_name);
+  EXPECT_TRUE(ptr);
+  memset(ptr, 'A', size);
+  allocator.root()->Free<FreeFlags::kZap>(ptr);
+  EXPECT_NE('A', *static_cast<unsigned char*>(ptr));
+  EXPECT_EQ(kFreedByte,
+            *(static_cast<unsigned char*>(ptr) + 2 * sizeof(void*)));
+  EXPECT_EQ(kFreedByte, *(static_cast<unsigned char*>(ptr) + size - 1));
+}
+
 TEST_P(PartitionAllocTest, Bug_897585) {
   // Need sizes big enough to be direct mapped and a delta small enough to
   // allow re-use of the slot span when cookied. These numbers fall out of the
@@ -4880,10 +4898,14 @@ TEST_P(PartitionAllocTest, CheckReservationType) {
   // Freeing releases direct-map super pages.
   address_to_check =
       partition_alloc::internal::base::bits::AlignDown(address, kSuperPageSize);
-#if BUILDFLAG(PA_DCHECK_IS_ON)
+
+  // DCHECKs don't work with EXPECT_DEATH on official builds.
+#if BUILDFLAG(PA_DCHECK_IS_ON) && (!defined(OFFICIAL_BUILD) || !defined(NDEBUG))
   // Expect to DCHECK on unallocated region.
   EXPECT_DEATH_IF_SUPPORTED(IsReservationStart(address_to_check), "");
-#endif
+#endif  //  BUILDFLAG(PA_DCHECK_IS_ON) && (!defined(OFFICIAL_BUILD) ||
+        //  !defined(NDEBUG))
+
   EXPECT_FALSE(IsManagedByNormalBuckets(address_to_check));
   EXPECT_FALSE(IsManagedByDirectMap(address_to_check));
   EXPECT_FALSE(IsManagedByNormalBucketsOrDirectMap(address_to_check));
