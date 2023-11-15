@@ -538,7 +538,7 @@ def UpdateBuildGn(deleted_files: typing.List[str]) -> typing.List[str]:
     return build_gn_deleted_files
 
 
-def EmergeLibchrome() -> Optional[bool]:
+def EmergeLibchrome() -> typing.Optional[bool]:
     """Run `emerge libchrome` and returns whether or not it succeeded.
     """
     try:
