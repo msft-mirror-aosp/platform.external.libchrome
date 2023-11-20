@@ -13,6 +13,9 @@ import("//libchrome/build/buildflag_header.gni")
 
 libchrome_basever = read_file("BASE_VER", "trim string")
 
+# Enable //base/allocator shim for non-sanitizer builds.
+use_allocator_shim = !(use.asan || use.fuzzer || use.msan || use.ubsan)
+
 group("all") {
   deps = [
     ":install_basever",
@@ -159,7 +162,7 @@ source_set("buildflag_header_h") {
 buildflag_header("allocator_buildflags") {
   header = "base/allocator/buildflags.h"
   flags = [
-    "USE_ALLOCATOR_SHIM=false",
+    "USE_ALLOCATOR_SHIM=$use_allocator_shim",
     "USE_PARTITION_ALLOC=false",
     "USE_PARTITION_ALLOC_AS_MALLOC=false",
     "USE_BACKUP_REF_PTR=false",
@@ -192,7 +195,7 @@ buildflag_header("partition_allocator_buildflags") {
     "USE_PARTITION_ALLOC_AS_MALLOC=false",
     "USE_ASAN_BACKUP_REF_PTR=false",
     "USE_HOOKABLE_RAW_PTR=false",
-    "USE_ALLOCATOR_SHIM=false",
+    "USE_ALLOCATOR_SHIM=$use_allocator_shim",
     "BACKUP_REF_PTR_POISON_OOB_PTR=false",
     "ENABLE_PARTITION_ALLOC_AS_MALLOC_SUPPORT=false",
     "ENABLE_BACKUP_REF_PTR_SUPPORT=false",
@@ -764,8 +767,7 @@ libbase_sublibs = [
       "base/vlog.cc",
     ]
 
-    # Enable //base/allocator shim for non-sanitizer builds.
-    if (!(use.asan || use.fuzzer || use.msan || use.ubsan)) {
+    if (use_allocator_shim) {
       sources += [
         "base/allocator/allocator_extension.cc",
         "base/allocator/partition_allocator/src/partition_alloc/shim/allocator_shim.cc",
