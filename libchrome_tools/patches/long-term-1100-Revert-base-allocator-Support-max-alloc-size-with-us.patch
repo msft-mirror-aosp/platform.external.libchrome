@@ -1,4 +1,4 @@
-From b8b2a08cc1f93a0de9261dbcd147625ff6233ee8 Mon Sep 17 00:00:00 2001
+From 2533d11988fd4879f4912d54511c071b0a1691c5 Mon Sep 17 00:00:00 2001
 From: Grace Cham <hscham@chromium.org>
 Date: Wed, 26 Oct 2022 13:45:16 +0900
 Subject: [PATCH] Revert "[base/allocator] Support max alloc size with
@@ -18,7 +18,7 @@ Change-Id: If83feeb40d469d4f91e5f13255b96d5a986a459a
  1 file changed, 1 insertion(+), 37 deletions(-)
 
 diff --git a/base/allocator/partition_allocator/src/partition_alloc/shim/allocator_shim_default_dispatch_to_glibc.cc b/base/allocator/partition_allocator/src/partition_alloc/shim/allocator_shim_default_dispatch_to_glibc.cc
-index 9a7501d71e..5aca15030a 100644
+index e76cca6819..c8c6e2e965 100644
 --- a/base/allocator/partition_allocator/src/partition_alloc/shim/allocator_shim_default_dispatch_to_glibc.cc
 +++ b/base/allocator/partition_allocator/src/partition_alloc/shim/allocator_shim_default_dispatch_to_glibc.cc
 @@ -2,8 +2,6 @@
@@ -27,9 +27,9 @@ index 9a7501d71e..5aca15030a 100644
  
 -#include <limits>
 -
- #include "base/allocator/partition_allocator/src/partition_alloc/oom.h"
- #include "base/allocator/partition_allocator/src/partition_alloc/partition_alloc_base/compiler_specific.h"
- #include "base/allocator/partition_allocator/src/partition_alloc/partition_alloc_base/numerics/checked_math.h"
+ #include "partition_alloc/oom.h"
+ #include "partition_alloc/partition_alloc_base/compiler_specific.h"
+ #include "partition_alloc/partition_alloc_base/numerics/checked_math.h"
 @@ -28,28 +26,7 @@ namespace {
  
  using allocator_shim::AllocatorDispatch;
@@ -103,5 +103,5 @@ index 9a7501d71e..5aca15030a 100644
      &GlibcMemalign,        /* alloc_aligned_function */
      &GlibcRealloc,         /* realloc_function */
 -- 
-2.42.0.582.g8ccd20d70d-goog
+2.43.0.rc0.421.g78406f8d94-goog
 

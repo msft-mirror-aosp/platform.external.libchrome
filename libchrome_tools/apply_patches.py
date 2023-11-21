@@ -23,13 +23,10 @@ PREFIXES = [
     "backward-compatibility",
     "forward-compatibility",
 ]
-_PATCH_BASENAME_PATTERN = r"(" + "|".join(PREFIXES) + r")-(\d{4})-(.+)\.patch"
+_PATCH_BASENAME_PATTERN = r"(" + "|".join(PREFIXES) + r")-(\d{4})-(.+)\.[^.]+$"
 # A matched result has group (1) prefix, (2) number in the prefix group, (3)
 # descriptive name of patch.
 PATCH_BASENAME_RE = re.compile(_PATCH_BASENAME_PATTERN)
-# A matched result has group (1) commit hash, (2) prefix, (3) number in the
-# prefix group, (4) descriptive name of patch.
-PATCH_NAME_TRAILER_RE = re.compile(r"(\w+): " + _PATCH_BASENAME_PATTERN + r"$")
 
 TAG = "HEAD-before-patching"
 
