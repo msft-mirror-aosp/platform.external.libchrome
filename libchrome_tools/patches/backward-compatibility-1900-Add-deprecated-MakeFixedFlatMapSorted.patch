@@ -1,0 +1,46 @@
+From 70e0ab257a3714901cb676690ee4811d1aa81565 Mon Sep 17 00:00:00 2001
+From: Yi Xie <yixie@chromium.org>
+Date: Wed, 22 Nov 2023 16:37:19 +0900
+Subject: [PATCH] Add deprecated MakeFixedFlatMapSorted
+
+Change-Id: I5a8362a5d7bf861cf360344b8c5d4924035067b5
+---
+ base/containers/fixed_flat_map.h | 22 ++++++++++++++++++++++
+ 1 file changed, 22 insertions(+)
+
+diff --git a/base/containers/fixed_flat_map.h b/base/containers/fixed_flat_map.h
+index a8e5ad5169..87500bd053 100644
+--- a/base/containers/fixed_flat_map.h
++++ b/base/containers/fixed_flat_map.h
+@@ -112,6 +112,28 @@ constexpr fixed_flat_map<Key, Mapped, N, Compare> MakeFixedFlatMap(
+       comp);
+ }
+ 
++// Utility function to simplify constructing a fixed_flat_map from a fixed list
++// of keys and values. Requires that the passed in `data` contains unique keys
++// and be sorted by key. See `MakeFixedFlatMap` for a variant that sorts the
++// input automatically.
++//
++// Example usage:
++//   constexpr auto kMap = base::MakeFixedFlatMapSorted<std::string_view, int>(
++//       {{"bar", 2}, {"baz", 3}, {"foo", 1}});
++template <class Key, class Mapped, size_t N, class Compare = std::less<>>
++constexpr fixed_flat_map<Key, Mapped, N, Compare> MakeFixedFlatMapSorted(
++    std::pair<Key, Mapped> (&&data)[N],
++    const Compare& comp = Compare()) {
++  using FixedFlatMap = fixed_flat_map<Key, Mapped, N, Compare>;
++  typename FixedFlatMap::value_compare value_comp{comp};
++  CHECK(internal::is_sorted_and_unique(data, value_comp));
++  // Specify the value_type explicitly to ensure that the returned array has
++  // immutable keys.
++  return FixedFlatMap(
++      sorted_unique, internal::ToArray<typename FixedFlatMap::value_type>(data),
++      comp);
++}
++
+ // Utility function to simplify constructing a fixed_flat_map from a fixed list
+ // of keys and values. Requires that the passed in `data` contains unique keys.
+ //
+-- 
+2.43.0.rc1.413.gea7ed67945-goog
+
