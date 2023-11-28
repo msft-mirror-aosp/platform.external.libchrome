@@ -8,17 +8,20 @@ This reverts commit c5acc58e7bebe5de213668909a9414b97c58c9c7.
 patch-name: backward-compatibility-1400-Revert-Land-intentional-C-20-use-in-base.patch
 Change-Id: Iab4e3adeb005025fdecdfeef6786662692aa11c0
 ---
- base/check_op.h                               |  9 +++--
- base/strings/to_string.h                      | 34 +++++++++-------
- base/strings/to_string_unittest.cc            | 16 ++------
- base/types/strong_alias.h                     |  2 +-
- base/types/strong_alias_unittest.cc           |  4 +-
- base/types/supports_ostream_operator.h        | 10 +++--
- .../supports_ostream_operator_unittest.cc     | 39 ++++++++++---------
- 7 files changed, 61 insertions(+), 53 deletions(-)
+ base/check_op.h                               |  70 +++++------
+ base/containers/contiguous_iterator.h         | 113 ++++++++++++++++++
+ base/containers/span.h                        |   8 +-
+ base/strings/to_string.h                      |  34 ++++--
+ base/strings/to_string_unittest.cc            |  16 +--
+ base/types/strong_alias.h                     |   2 +-
+ base/types/strong_alias_unittest.cc           |   4 +-
+ base/types/supports_ostream_operator.h        |  10 +-
+ .../supports_ostream_operator_unittest.cc     |  39 +++---
+ 9 files changed, 209 insertions(+), 87 deletions(-)
+ create mode 100644 base/containers/contiguous_iterator.h
 
 diff --git a/base/check_op.h b/base/check_op.h
-index 53eb17b67b..d4e3bf7f6d 100644
+index 0c3aea6316..f1c7735ad3 100644
 --- a/base/check_op.h
 +++ b/base/check_op.h
 @@ -69,10 +69,10 @@ BASE_EXPORT char* StreamValToStr(const void* v,
@@ -126,8 +129,160 @@ index 53eb17b67b..d4e3bf7f6d 100644
    }
  
  // clang-format off
+diff --git a/base/containers/contiguous_iterator.h b/base/containers/contiguous_iterator.h
+new file mode 100644
+index 0000000000..7886fbb415
+--- /dev/null
++++ b/base/containers/contiguous_iterator.h
+@@ -0,0 +1,113 @@
++// Copyright 2020 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef BASE_CONTAINERS_CONTIGUOUS_ITERATOR_H_
++#define BASE_CONTAINERS_CONTIGUOUS_ITERATOR_H_
++
++#include <array>
++#include <iterator>
++#include <string>
++#include <type_traits>
++#include <vector>
++
++#include "base/containers/checked_iterators.h"
++
++namespace base {
++
++namespace internal {
++
++template <typename T>
++struct PointsToObject : std::true_type {};
++// std::iter_value_t is not defined for `T*` where T is not an object type.
++template <typename T>
++struct PointsToObject<T*> : std::is_object<T> {};
++
++// A pointer is a contiguous iterator.
++// Reference: https://wg21.link/iterator.traits#5
++template <typename T>
++struct IsPointer : std::is_pointer<T> {};
++
++template <typename T, typename StringT = std::basic_string<iter_value_t<T>>>
++struct IsStringIterImpl
++    : std::disjunction<std::is_same<T, typename StringT::const_iterator>,
++                       std::is_same<T, typename StringT::iterator>> {};
++
++// An iterator to std::basic_string is contiguous.
++// Reference: https://wg21.link/basic.string.general#2
++//
++// Note: Requires indirection via `IsStringIterImpl` to avoid triggering a
++// `static_assert(is_trivial_v<value_type>)` inside libc++'s std::basic_string.
++template <typename T>
++struct IsStringIter
++    : std::conjunction<
++          std::disjunction<std::is_same<iter_value_t<T>, char>,
++                           std::is_same<iter_value_t<T>, wchar_t>,
++                           std::is_same<iter_value_t<T>, char8_t>,
++                           std::is_same<iter_value_t<T>, char16_t>,
++                           std::is_same<iter_value_t<T>, char32_t>>,
++          IsStringIterImpl<T>> {};
++
++// An iterator to std::array is contiguous.
++// Reference: https://wg21.link/array.overview#1
++template <typename T, typename ArrayT = std::array<iter_value_t<T>, 1>>
++struct IsArrayIter
++    : std::disjunction<std::is_same<T, typename ArrayT::const_iterator>,
++                       std::is_same<T, typename ArrayT::iterator>> {};
++
++// An iterator to a non-bool std::vector is contiguous.
++// Reference: https://wg21.link/vector.overview#2
++template <typename T, typename VectorT = std::vector<iter_value_t<T>>>
++struct IsVectorIter
++    : std::conjunction<
++          std::negation<std::is_same<iter_value_t<T>, bool>>,
++          std::disjunction<std::is_same<T, typename VectorT::const_iterator>,
++                           std::is_same<T, typename VectorT::iterator>>> {};
++
++// The result of passing a std::valarray to std::begin is a contiguous iterator.
++// Note: Since all common standard library implementations (i.e. libc++,
++// stdlibc++ and MSVC's STL) just use a pointer here, we perform a similar
++// optimization. The corresponding unittest still ensures that this is working
++// as intended.
++// Reference: https://wg21.link/valarray.range#1
++template <typename T>
++struct IsValueArrayIter : std::is_pointer<T> {};
++
++// base's CheckedContiguousIterator is a contiguous iterator.
++template <typename T, typename ValueT = iter_value_t<T>>
++struct IsCheckedContiguousIter
++    : std::disjunction<
++          std::is_same<T, base::CheckedContiguousConstIterator<ValueT>>,
++          std::is_same<T, base::CheckedContiguousIterator<ValueT>>> {};
++
++// Check that the iterator points to an actual object, and is one of the
++// iterator types mentioned above.
++template <typename T, bool B = PointsToObject<T>::value>
++struct IsContiguousIteratorImpl : std::false_type {};
++template <typename T>
++struct IsContiguousIteratorImpl<T, true>
++    : std::disjunction<IsPointer<T>,
++                       IsStringIter<T>,
++                       IsArrayIter<T>,
++                       IsVectorIter<T>,
++                       IsValueArrayIter<T>,
++                       IsCheckedContiguousIter<T>> {};
++
++}  // namespace internal
++
++// IsContiguousIterator is a type trait that determines whether a given type is
++// a contiguous iterator. It is similar to C++20's contiguous_iterator concept,
++// but due to a lack of the corresponding contiguous_iterator_tag relies on
++// explicitly instantiating the type with iterators that are supposed to be
++// contiguous iterators.
++// References:
++// - https://wg21.link/iterator.concept.contiguous
++// - https://wg21.link/std.iterator.tags#lib:contiguous_iterator_tag
++// - https://wg21.link/n4284
++template <typename T>
++struct IsContiguousIterator
++    : internal::IsContiguousIteratorImpl<remove_cvref_t<T>> {};
++
++}  // namespace base
++
++#endif  // BASE_CONTAINERS_CONTIGUOUS_ITERATOR_H_
+diff --git a/base/containers/span.h b/base/containers/span.h
+index 0904fd2372..30c07190ba 100644
+--- a/base/containers/span.h
++++ b/base/containers/span.h
+@@ -9,7 +9,6 @@
+ #include <stdint.h>
+ 
+ #include <array>
+-#include <concepts>
+ #include <iterator>
+ #include <limits>
+ #include <memory>
+@@ -19,6 +18,7 @@
+ #include "base/check.h"
+ #include "base/compiler_specific.h"
+ #include "base/containers/checked_iterators.h"
++#include "base/containers/contiguous_iterator.h"
+ #include "base/numerics/safe_conversions.h"
+ #include "base/template_util.h"
+ 
+@@ -81,9 +81,9 @@ using IteratorHasConvertibleReferenceType =
+     IsLegalDataConversion<std::remove_reference_t<iter_reference_t<Iter>>, T>;
+ 
+ template <typename Iter, typename T>
+-using EnableIfCompatibleContiguousIterator =
+-    std::enable_if_t<std::contiguous_iterator<Iter> &&
+-                     IteratorHasConvertibleReferenceType<Iter, T>::value>;
++using EnableIfCompatibleContiguousIterator = std::enable_if_t<
++    std::conjunction_v<IsContiguousIterator<Iter>,
++                       IteratorHasConvertibleReferenceType<Iter, T>>>;
+ 
+ template <typename Container, typename T>
+ using ContainerHasConvertibleData = IsLegalDataConversion<
 diff --git a/base/strings/to_string.h b/base/strings/to_string.h
-index eae7b944cd..911622db47 100644
+index bfbc5ae578..eb402662b9 100644
 --- a/base/strings/to_string.h
 +++ b/base/strings/to_string.h
 @@ -23,8 +23,11 @@ std::string ToString(const Ts&... values);
@@ -363,5 +518,5 @@ index 31e2628962..0f8c3a09d9 100644
  }  // namespace
  }  // namespace base
 -- 
-2.42.0.758.gaed0368e0e-goog
+2.43.0.rc1.413.gea7ed67945-goog
 
