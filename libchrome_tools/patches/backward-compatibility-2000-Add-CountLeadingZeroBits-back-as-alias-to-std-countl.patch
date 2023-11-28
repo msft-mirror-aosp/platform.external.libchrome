@@ -1,0 +1,31 @@
+From f679a14c1f7e4ceb090d45a49ba08dfc45b76083 Mon Sep 17 00:00:00 2001
+From: Yi Xie <yixie@chromium.org>
+Date: Fri, 24 Nov 2023 14:08:18 +0900
+Subject: [PATCH] Add CountLeadingZeroBits back as alias to std::countl_zero
+
+CountLeadingZeroBits was removed in crrev.com/c/5028837
+
+Change-Id: Ie2bce4ee4970aa3e81dd3e3d6c10be3b593dbd44
+---
+ base/bits.h | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/base/bits.h b/base/bits.h
+index ecab9376af..94a411e33b 100644
+--- a/base/bits.h
++++ b/base/bits.h
+@@ -61,6 +61,11 @@ inline T* AlignUp(T* ptr, uintptr_t alignment) {
+       AlignUp(reinterpret_cast<uintptr_t>(ptr), alignment));
+ }
+ 
++template <typename T>
++ALWAYS_INLINE constexpr int CountLeadingZeroBits(T value) {
++  return std::countl_zero(value);
++}
++
+ // Returns the integer i such as 2^i <= n < 2^(i+1).
+ //
+ // There is a common `BitLength` function, which returns the number of bits
+-- 
+2.43.0.rc1.413.gea7ed67945-goog
+
