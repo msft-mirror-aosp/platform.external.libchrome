@@ -1,0 +1,119 @@
+From 069ab2464ce06d7deccdc440e57191dd5a6ac8f0 Mon Sep 17 00:00:00 2001
+From: Byron Lee <byronlee@google.com>
+Date: Thu, 30 Nov 2023 12:36:44 +0000
+Subject: [PATCH] Revert "[base] Remove base::Erase()/base::EraseIf() overloads
+
+This reverts commit d5887b0194e5e8bc39f948baef7c3a8c5eefd0bd.
+
+Change-Id: Ia65ba5d7700f442d5d33e08049b07947480d15ea
+---
+ base/containers/cxx20_erase.h      |  2 ++
+ base/containers/cxx20_erase_list.h | 38 ++++++++++++++++++++++++++++++
+ base/containers/cxx20_erase_set.h  | 36 ++++++++++++++++++++++++++++
+ 3 files changed, 76 insertions(+)
+ create mode 100644 base/containers/cxx20_erase_list.h
+ create mode 100644 base/containers/cxx20_erase_set.h
+
+diff --git a/base/containers/cxx20_erase.h b/base/containers/cxx20_erase.h
+index 1f874ec935..1b35b50cb0 100644
+--- a/base/containers/cxx20_erase.h
++++ b/base/containers/cxx20_erase.h
+@@ -5,7 +5,9 @@
+ #ifndef BASE_CONTAINERS_CXX20_ERASE_H_
+ #define BASE_CONTAINERS_CXX20_ERASE_H_
+ 
++#include "base/containers/cxx20_erase_list.h"
+ #include "base/containers/cxx20_erase_map.h"
++#include "base/containers/cxx20_erase_set.h"
+ #include "base/containers/cxx20_erase_vector.h"
+ 
+ // Erase/EraseIf are based on C++20's uniform container erasure API:
+diff --git a/base/containers/cxx20_erase_list.h b/base/containers/cxx20_erase_list.h
+new file mode 100644
+index 0000000000..74985ae511
+--- /dev/null
++++ b/base/containers/cxx20_erase_list.h
+@@ -0,0 +1,38 @@
++// Copyright 2021 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef BASE_CONTAINERS_CXX20_ERASE_LIST_H_
++#define BASE_CONTAINERS_CXX20_ERASE_LIST_H_
++
++#include <list>
++
++namespace base {
++
++// Erase/EraseIf are based on C++20's uniform container erasure API:
++// - https://eel.is/c++draft/libraryindex#:erase
++// - https://eel.is/c++draft/libraryindex#:erase_if
++// They provide a generic way to erase elements from a container.
++// The functions here implement these for the standard containers until those
++// functions are available in the C++ standard.
++// Note: there is no std::erase for standard associative containers so we don't
++// have it either.
++
++template <class T, class Allocator, class Predicate>
++size_t EraseIf(std::list<T, Allocator>& container, Predicate pred) {
++  size_t old_size = container.size();
++  container.remove_if(pred);
++  return old_size - container.size();
++}
++
++template <class T, class Allocator, class Value>
++size_t Erase(std::list<T, Allocator>& container, const Value& value) {
++  // Unlike std::list::remove, this function template accepts heterogeneous
++  // types and does not force a conversion to the container's value type before
++  // invoking the == operator.
++  return EraseIf(container, [&](const T& cur) { return cur == value; });
++}
++
++}  // namespace base
++
++#endif  // BASE_CONTAINERS_CXX20_ERASE_LIST_H_
+diff --git a/base/containers/cxx20_erase_set.h b/base/containers/cxx20_erase_set.h
+new file mode 100644
+index 0000000000..782a05b3cb
+--- /dev/null
++++ b/base/containers/cxx20_erase_set.h
+@@ -0,0 +1,36 @@
++// Copyright 2021 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef BASE_CONTAINERS_CXX20_ERASE_SET_H_
++#define BASE_CONTAINERS_CXX20_ERASE_SET_H_
++
++#include <set>
++
++#include "base/containers/cxx20_erase_internal.h"
++
++namespace base {
++
++// EraseIf is based on C++20's uniform container erasure API:
++// - https://eel.is/c++draft/libraryindex#:erase
++// - https://eel.is/c++draft/libraryindex#:erase_if
++// They provide a generic way to erase elements from a container.
++// The functions here implement these for the standard containers until those
++// functions are available in the C++ standard.
++// Note: there is no std::erase for standard associative containers so we don't
++// have it either.
++
++template <class Key, class Compare, class Allocator, class Predicate>
++size_t EraseIf(std::set<Key, Compare, Allocator>& container, Predicate pred) {
++  return internal::IterateAndEraseIf(container, pred);
++}
++
++template <class Key, class Compare, class Allocator, class Predicate>
++size_t EraseIf(std::multiset<Key, Compare, Allocator>& container,
++               Predicate pred) {
++  return internal::IterateAndEraseIf(container, pred);
++}
++
++}  // namespace base
++
++#endif  // BASE_CONTAINERS_CXX20_ERASE_SET_H_
+-- 
+2.43.0.rc1.413.gea7ed67945-goog
+
