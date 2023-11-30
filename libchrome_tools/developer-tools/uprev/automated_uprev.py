@@ -828,7 +828,9 @@ def main():
     )
 
     emerge_success = None
-    if merge_success and IsInsideChroot():
+    if args.recipe:
+        logging.info(f"In --recipe mode; emerge libchrome is not run.")
+    elif merge_success and IsInsideChroot():
         emerge_success = EmergeLibchrome()
         if emerge_success == False:
             logging.warning(f"emerge libchrome failed.")
