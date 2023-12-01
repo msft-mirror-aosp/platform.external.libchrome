@@ -95,6 +95,8 @@ config("libchrome_config") {
     "-Wno-narrowing",
     "-Wno-unreachable-code-return",
     "-Wno-unused-local-typedefs",
+    # TODO(b/314188050): Reenable Wvla-extension after Chrome cleans it up.
+    "-Wno-error=vla-cxx-extension",
     "-Xclang-only=-Wno-char-subscripts",
   ]
 
