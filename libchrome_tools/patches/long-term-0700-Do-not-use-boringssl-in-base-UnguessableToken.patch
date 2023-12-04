@@ -1,18 +1,16 @@
-From a329f693e03a692cf56e8cd57498eb88783d2762 Mon Sep 17 00:00:00 2001
-From: hscham <hscham@google.com>
-Date: Wed, 15 Dec 2021 12:35:45 +0900
-Subject: [PATCH] Do not use boringssl in base::UnguessableToken
+From a814532caa42a39ec09ad1928e1e11d81ccbb9a8 Mon Sep 17 00:00:00 2001
+From: Byron Lee <byronlee@google.com>
+Date: Thu, 30 Nov 2023 02:48:00 +0000
+Subject: [PATCH] tmp
 
-boringssl is not supported in libchrome.
-
-Change-Id: I89657abfebc86671af5e55ec6f89047fcd576652
-patch-name: long-term-0700-Do-not-use-boringssl-in-base-UnguessableToken.patch
+Change-Id: I5d9112960519089197bceb338f0f0724efd330b2
 ---
- base/unguessable_token.cc | 18 +++++++++---------
- 1 file changed, 9 insertions(+), 9 deletions(-)
+ base/unguessable_token.cc | 22 +++++++++++-----------
+ base/unguessable_token.h  | 17 ++++++++---------
+ 2 files changed, 19 insertions(+), 20 deletions(-)
 
 diff --git a/base/unguessable_token.cc b/base/unguessable_token.cc
-index aa7423f88d..46b28b6e11 100644
+index 44bfc3e262..46b28b6e11 100644
 --- a/base/unguessable_token.cc
 +++ b/base/unguessable_token.cc
 @@ -11,9 +11,9 @@
@@ -28,19 +26,22 @@ index aa7423f88d..46b28b6e11 100644
  
  namespace base {
  
-@@ -46,14 +46,14 @@ absl::optional<UnguessableToken> UnguessableToken::Deserialize(uint64_t high,
+@@ -45,15 +45,15 @@ absl::optional<UnguessableToken> UnguessableToken::Deserialize(uint64_t high,
+   return UnguessableToken(Token{high, low});
  }
  
- bool UnguessableToken::operator==(const UnguessableToken& other) const {
+-bool operator==(const UnguessableToken& lhs, const UnguessableToken& rhs) {
 -#if BUILDFLAG(IS_NACL)
++bool UnguessableToken::operator==(const UnguessableToken& other) const {
 +// #if BUILDFLAG(IS_NACL)
    // BoringSSL is unavailable for NaCl builds so it remains timing dependent.
-   return token_ == other.token_;
+-  return lhs.token_ == rhs.token_;
 -#else
--  auto bytes = token_.AsBytes();
--  auto other_bytes = other.token_.AsBytes();
+-  auto bytes = lhs.token_.AsBytes();
+-  auto other_bytes = rhs.token_.AsBytes();
 -  return CRYPTO_memcmp(bytes.data(), other_bytes.data(), bytes.size()) == 0;
 -#endif
++  return token_ == other.token_;
 +// #else
 +//   auto bytes = token_.AsBytes();
 +//   auto other_bytes = other.token_.AsBytes();
@@ -49,6 +50,49 @@ index aa7423f88d..46b28b6e11 100644
  }
  
  std::ostream& operator<<(std::ostream& out, const UnguessableToken& token) {
+diff --git a/base/unguessable_token.h b/base/unguessable_token.h
+index 4efef5abe1..8dd7705356 100644
+--- a/base/unguessable_token.h
++++ b/base/unguessable_token.h
+@@ -7,7 +7,6 @@
+ 
+ #include <stdint.h>
+ #include <string.h>
+-#include <compare>
+ #include <iosfwd>
+ #include <tuple>
+ 
+@@ -96,12 +95,15 @@ class BASE_EXPORT UnguessableToken {
+ 
+   span<const uint8_t, 16> AsBytes() const { return token_.AsBytes(); }
+ 
+-  friend constexpr auto operator<=>(const UnguessableToken& lhs,
+-                                    const UnguessableToken& rhs) = default;
++  constexpr bool operator<(const UnguessableToken& other) const {
++    return token_ < other.token_;
++  }
++
++  bool operator==(const UnguessableToken& other) const;
+ 
+-  // operator== uses constant-time comparison for security where available.
+-  friend BASE_EXPORT bool operator==(const UnguessableToken& lhs,
+-                                     const UnguessableToken& rhs);
++  bool operator!=(const UnguessableToken& other) const {
++    return !(*this == other);
++  }
+ 
+ #if defined(UNIT_TEST)
+   static UnguessableToken CreateForTesting(uint64_t high, uint64_t low) {
+@@ -118,9 +120,6 @@ class BASE_EXPORT UnguessableToken {
+   base::Token token_;
+ };
+ 
+-BASE_EXPORT bool operator==(const UnguessableToken& lhs,
+-                            const UnguessableToken& rhs);
+-
+ BASE_EXPORT std::ostream& operator<<(std::ostream& out,
+                                      const UnguessableToken& token);
+ 
 -- 
-2.42.0.582.g8ccd20d70d-goog
+2.43.0.rc1.413.gea7ed67945-goog
 

@@ -1,0 +1,190 @@
+From c826e2ac2018a475a43266d65686505d6124cb17 Mon Sep 17 00:00:00 2001
+From: Byron Lee <byronlee@google.com>
+Date: Thu, 30 Nov 2023 10:11:26 +0000
+Subject: [PATCH] Revert "Support for mojom RuntimeFeature on interfaces"
+
+Revert the template changes.
+
+This reverts commit fe5e5bbc7fd8bf38df114027ab7b963e7111cd5d
+
+Change-Id: I932a5b023a39b9d40630d541d5cc94d270d477c1
+---
+ .../cpp_templates/interface_declaration.tmpl  |  4 +-
+ .../cpp_templates/interface_definition.tmpl   | 64 +------------------
+ .../cpp_templates/module-features.h.tmpl      |  1 -
+ .../generators/cpp_templates/module.h.tmpl    | 10 ---
+ 4 files changed, 3 insertions(+), 76 deletions(-)
+
+diff --git a/mojo/public/tools/bindings/generators/cpp_templates/interface_declaration.tmpl b/mojo/public/tools/bindings/generators/cpp_templates/interface_declaration.tmpl
+index b3ef65f606..e7802f2afd 100644
+--- a/mojo/public/tools/bindings/generators/cpp_templates/interface_declaration.tmpl
++++ b/mojo/public/tools/bindings/generators/cpp_templates/interface_declaration.tmpl
+@@ -20,9 +20,7 @@ class {{export_attribute|append_space_if_nonempty}}{{interface.name}}
+   static const char Name_[];
+   static IPCStableHashFunction MessageToMethodInfo_(mojo::Message& message);
+   static const char* MessageToMethodName_(mojo::Message& message);
+-{%-  if interface.runtime_feature %}
+-  static bool RuntimeFeature_IsEnabled_(bool expected);
+-{%- endif %}
++
+ 
+ {%-  if interface.uuid %}
+   static constexpr base::Token Uuid_{ {{interface.uuid[0]}}ULL,
+diff --git a/mojo/public/tools/bindings/generators/cpp_templates/interface_definition.tmpl b/mojo/public/tools/bindings/generators/cpp_templates/interface_definition.tmpl
+index efca818ab0..5517badc4e 100644
+--- a/mojo/public/tools/bindings/generators/cpp_templates/interface_definition.tmpl
++++ b/mojo/public/tools/bindings/generators/cpp_templates/interface_definition.tmpl
+@@ -36,48 +36,6 @@ std::move(p_{{param.name}})
+ {%-   endfor %}
+ {%- endmacro %}
+ 
+-{%- macro feature_enabled_helper(iface) %}
+-{%- set feature=iface.runtime_feature|get_qualified_name_for_feature %}
+-// static
+-bool {{iface.name}}::RuntimeFeature_IsEnabled_(bool expected) {
+-  bool enabled = base::FeatureList::IsEnabled({{feature}});
+-#if DCHECK_IS_ON()
+-  if (expected) {
+-    DCHECK(enabled) << "RuntimeFeature {{feature}} for {{iface.name}} is not enabled";
+-  }
+-#endif
+-  return enabled;
+-}
+-{%- endmacro %}
+-
+-{%- macro check_feature_for_method(method) %}
+-{%-   if method.runtime_feature %}
+-{%-     set feature_cpp = method.runtime_feature|get_qualified_name_for_feature %}
+-CHECK(base::FeatureList::IsEnabled({{feature_cpp}}));
+-{%-   endif %}
+-{%- endmacro %}
+-
+-{#--- Function with signature of GenericValidationInfo.request_validator ---#}
+-{%- macro define_validate_with_runtime_feature(class_name, method) %}
+-{%-  set feature_cpp = method.runtime_feature|get_qualified_name_for_feature %}
+-bool ValidateWithRuntimeFeature_{{class_name}}_{{method.name}}(
+-  const void* data, mojo::internal::ValidationContext* validation_context) {
+-  if (!base::FeatureList::IsEnabled({{feature_cpp}})) {
+-    return false;
+-  }
+-  return internal::{{class_name}}_{{method.name}}_Params_Data::Validate(
+-    data, validation_context);
+-}
+-{%- endmacro %}
+-
+-{%- macro request_validator(class_name, method) %}
+-{%-   if method.runtime_feature -%}
+-&ValidateWithRuntimeFeature_{{class_name}}_{{method.name}}
+-{%-   else -%}
+-&internal::{{class_name}}_{{method.name}}_Params_Data::Validate
+-{%-   endif -%}
+-{%- endmacro -%}
+-
+ {#--- Begin #}
+ const char {{class_name}}::Name_[] = "{{module_namespace}}.{{class_name}}";
+ {%-  if interface.uuid %}
+@@ -158,10 +116,6 @@ uint32_t {{interface.name}}::{{method.name}}_Sym::IPCStableHash() {
+ {%-   endfor %}
+ # endif // !BUILDFLAG(IS_FUCHSIA)
+ 
+-{%-   if interface.runtime_feature %}
+-{{feature_enabled_helper(interface)}}
+-{%-   endif %}
+-
+ {%- for method in interface.methods %}
+ {%-   if method.sync %}
+ bool {{class_name}}::{{method.name}}({{interface_macros.declare_sync_method_params("", method)}}) {
+@@ -256,7 +210,6 @@ bool {{proxy_name}}::{{method.name}}(
+ {%-     set event_name = "%s::%s" % (class_name, method.name) %}
+   {{interface_macros.trace_event(method_name=event_name)}}
+ #endif
+-  {{check_feature_for_method(method)|indent(2)}}
+   const bool kExpectsResponse = true;
+   const bool kIsSync = true;
+   const bool kAllowInterrupt =
+@@ -318,7 +271,6 @@ void {{proxy_name}}::{{method.name}}(
+                                  method_name=event_name,
+                                  parameter_group="input_parameters")}}
+ #endif
+-{{check_feature_for_method(method)|indent(2)}}
+ {%- if method.response_parameters != None %}
+   const bool kExpectsResponse = true;
+ {%- else %}
+@@ -656,24 +608,12 @@ bool {{class_name}}StubDispatch::AcceptWithResponder(
+   return false;
+ }
+ 
+-{#--- Feature validators for methods with [RuntimeFeature=] ---#}
+-{%- if interface.methods|selectattr('runtime_feature') %}
+-namespace {
+-{%-   for method in interface.methods %}
+-{%-     if method.runtime_feature %}
+-{{ define_validate_with_runtime_feature(class_name, method)}}
+-{%-     endif %}
+-{%-   endfor %}
+-}  // namespace
+-{%- endif %}
+-
+-{#--- Table of validation functions (packed or sparse) ---#}
+ {% if interface.methods and (interface | has_packed_method_ordinals) %}
+ static const mojo::internal::GenericValidationInfo k{{class_name}}ValidationInfo[] = {
+ {%-   for i in range(interface.methods | map(attribute='ordinal') | max + 1) -%}
+ {%-     set method = (interface.methods | selectattr('ordinal', 'equalto', i) | list)[0] %}
+ {%-     if method %}
+-    { {{request_validator(class_name, method)}},
++    {&internal::{{class_name}}_{{method.name}}_Params_Data::Validate,
+ {%-       if method.response_parameters != None %}
+      &internal::{{class_name}}_{{method.name}}_ResponseParams_Data::Validate},
+ {%-       else %}
+@@ -688,7 +628,7 @@ static const mojo::internal::GenericValidationInfo k{{class_name}}ValidationInfo
+ static const std::pair<uint32_t, mojo::internal::GenericValidationInfo> k{{class_name}}ValidationInfo[] = {
+ {%-   for method in interface.methods %}
+     {internal::k{{class_name}}_{{method.name}}_Name,
+-     { {{request_validator(class_name, method)}},
++     {&internal::{{class_name}}_{{method.name}}_Params_Data::Validate,
+ {%-     if method.response_parameters != None %}
+       &internal::{{class_name}}_{{method.name}}_ResponseParams_Data::Validate}},
+ {%-     else %}
+diff --git a/mojo/public/tools/bindings/generators/cpp_templates/module-features.h.tmpl b/mojo/public/tools/bindings/generators/cpp_templates/module-features.h.tmpl
+index 9af4dea7c1..344ed0be14 100644
+--- a/mojo/public/tools/bindings/generators/cpp_templates/module-features.h.tmpl
++++ b/mojo/public/tools/bindings/generators/cpp_templates/module-features.h.tmpl
+@@ -17,7 +17,6 @@
+ #define {{header_guard}}
+ 
+ #include "base/feature_list.h"
+-#include "mojo/public/cpp/bindings/runtime_features.h"
+ 
+ {%- if export_header %}
+ #include "{{export_header}}"
+diff --git a/mojo/public/tools/bindings/generators/cpp_templates/module.h.tmpl b/mojo/public/tools/bindings/generators/cpp_templates/module.h.tmpl
+index e5afb00bcb..10d1248904 100644
+--- a/mojo/public/tools/bindings/generators/cpp_templates/module.h.tmpl
++++ b/mojo/public/tools/bindings/generators/cpp_templates/module.h.tmpl
+@@ -37,7 +37,6 @@
+ 
+ #include "third_party/perfetto/include/perfetto/tracing/traced_value_forward.h"
+ 
+-#include "{{module.path}}-features.h"
+ #include "{{module.path}}-shared.h"
+ #include "{{variant_path(module.path, variant)}}-forward.h"
+ 
+@@ -178,15 +177,6 @@ namespace mojo {
+ {%-   endfor %}
+ {%- endif %}
+ 
+-{#--- Feature helper template overrides -#}
+-{%- if interfaces|selectattr('runtime_feature')|list|length %}
+-namespace internal {
+-{%-   for interface in interfaces if interface.runtime_feature -%}
+-{%      include "interface_feature_declaration.tmpl" %}
+-{%-   endfor %}
+-}  // namespace internal
+-{%- endif %}
+-
+ }  // namespace mojo
+ 
+ #endif  // {{header_guard}}
+-- 
+2.43.0.rc2.451.g8631bc7472-goog
+
