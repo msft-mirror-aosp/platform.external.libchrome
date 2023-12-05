@@ -42,6 +42,7 @@
 #include "partition_alloc/partition_alloc_base/export_template.h"
 #include "partition_alloc/partition_alloc_base/rand_util.h"
 #include "partition_alloc/partition_alloc_base/thread_annotations.h"
+#include "partition_alloc/partition_alloc_forward.h"
 #include "partition_alloc/partition_lock.h"
 #include "partition_alloc/partition_stats.h"
 
@@ -63,8 +64,10 @@ class LightweightQuarantineRoot {
         capacity_in_bytes_(capacity_in_bytes) {}
 
   template <size_t QuarantineCapacityCount>
-  LightweightQuarantineBranch<QuarantineCapacityCount> CreateBranch() {
-    return LightweightQuarantineBranch<QuarantineCapacityCount>(*this);
+  LightweightQuarantineBranch<QuarantineCapacityCount> CreateBranch(
+      bool lock_required = true) {
+    return LightweightQuarantineBranch<QuarantineCapacityCount>(*this,
+                                                                lock_required);
   }
 
   void AccumulateStats(LightweightQuarantineStats& stats) const {
@@ -116,6 +119,7 @@ class LightweightQuarantineBranch {
   LightweightQuarantineBranch(const LightweightQuarantineBranch&) = delete;
   LightweightQuarantineBranch(LightweightQuarantineBranch&& b)
       : root_(b.root_),
+        lock_required_(b.lock_required_),
         slots_(std::move(b.slots_)),
         branch_count_(b.branch_count_),
         branch_size_in_bytes_(b.branch_size_in_bytes_) {}
@@ -125,20 +129,22 @@ class LightweightQuarantineBranch {
   // as much as possible.  If the object is too large, this may return
   // `false`, meaning that quarantine request has failed (and freed
   // immediately). Otherwise, returns `true`.
-  bool Quarantine(void* object);
+  bool Quarantine(void* object,
+                  SlotSpanMetadata* slot_span,
+                  uintptr_t slot_start);
 
   // Dequarantine all entries **held by this branch**.
   // It is possible that another branch with entries and it remains untouched.
   void Purge() {
-    ScopedGuard guard(lock_);
+    ConditionalScopedGuard guard(lock_required_, lock_);
     PurgeInternal(0, 0);
   }
 
   // Determines this list contains an object.
   bool IsQuarantinedForTesting(void* object) {
-    ScopedGuard guard(lock_);
+    ConditionalScopedGuard guard(lock_required_, lock_);
     for (size_t i = 0; i < branch_count_; i++) {
-      if (slots_[i] == object) {
+      if (slots_[i].object == object) {
         return true;
       }
     }
@@ -148,7 +154,8 @@ class LightweightQuarantineBranch {
   Root& GetRoot() { return root_; }
 
  private:
-  explicit LightweightQuarantineBranch(Root& root) : root_(root) {}
+  explicit LightweightQuarantineBranch(Root& root, bool lock_required)
+      : root_(root), lock_required_(lock_required) {}
 
   // Try to dequarantine entries to satisfy below:
   //   branch_count_ <= target_branch_count
@@ -159,8 +166,31 @@ class LightweightQuarantineBranch {
   void PurgeInternal(size_t target_branch_count, size_t target_size_in_bytes)
       PA_EXCLUSIVE_LOCKS_REQUIRED(lock_);
 
-  Lock lock_;
   Root& root_;
+
+  bool lock_required_;
+  Lock lock_;
+
+  // An utility to lock only if a condition is met.
+  class PA_SCOPED_LOCKABLE ConditionalScopedGuard {
+   public:
+    explicit ConditionalScopedGuard(bool condition, Lock& lock)
+        PA_EXCLUSIVE_LOCK_FUNCTION(lock)
+        : condition_(condition), lock_(lock) {
+      if (condition_) {
+        lock_.Acquire();
+      }
+    }
+    ~ConditionalScopedGuard() PA_UNLOCK_FUNCTION() {
+      if (condition_) {
+        lock_.Release();
+      }
+    }
+
+   private:
+    const bool condition_;
+    Lock& lock_;
+  };
 
   // Non-cryptographic random number generator.
   // Thread-unsafe so guarded by `lock_`.
@@ -169,7 +199,12 @@ class LightweightQuarantineBranch {
   // `slots_` hold an array of quarantined entries.
   // The contents of empty slots are undefined and reads should not occur.
   // First `branch_count_` slots are used and entries should be shuffled.
-  std::array<void*, kQuarantineCapacityCount> slots_ PA_GUARDED_BY(lock_);
+  struct QuarantineSlot {
+    void* object;
+    size_t usable_size;
+  };
+  std::array<QuarantineSlot, kQuarantineCapacityCount> slots_
+      PA_GUARDED_BY(lock_);
 
   // # of quarantined entries in this branch.
   size_t branch_count_ PA_GUARDED_BY(lock_) = 0;

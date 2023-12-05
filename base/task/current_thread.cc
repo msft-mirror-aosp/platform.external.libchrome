@@ -110,11 +110,7 @@ bool CurrentThread::ApplicationTasksAllowedInNativeNestedLoop() const {
   return current_->IsTaskExecutionAllowed();
 }
 
-bool CurrentThread::operator==(const CurrentThread& other) const {
-  return current_ == other.current_;
-}
-
-#if !BUILDFLAG(IS_NACL) && !BUILDFLAG(IS_ANDROID)
+#if !BUILDFLAG(IS_NACL)
 
 //------------------------------------------------------------------------------
 // CurrentUIThread
@@ -186,7 +182,7 @@ void CurrentUIThread::RemoveMessagePumpObserver(
 }
 #endif  // BUILDFLAG(IS_WIN)
 
-#endif  // !BUILDFLAG(IS_NACL) && !BUILDFLAG(IS_ANDROID)
+#endif  // !BUILDFLAG(IS_NACL)
 
 //------------------------------------------------------------------------------
 // CurrentIOThread

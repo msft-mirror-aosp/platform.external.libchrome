@@ -50,6 +50,7 @@ group("all_buildflags") {
     ":compiler_buildflags",
     ":debugging_buildflags",
     ":feature_list_buildflags",
+    ":fuzzing_buildflags",
     ":ios_cronet_buildflags",
     ":ipc_buildflags",
     ":message_pump_buildflags",
@@ -338,6 +339,11 @@ buildflag_header("debugging_buildflags") {
 buildflag_header("feature_list_buildflags") {
   header = "base/feature_list_buildflags.h"
   flags = [ "ENABLE_BANNED_BASE_FEATURE_PREFIX=false" ]
+}
+
+buildflag_header("fuzzing_buildflags") {
+  header = "base/fuzzing_buildflags.h"
+  flags = [ "USE_FUZZING_ENGINE=false" ]
 }
 
 buildflag_header("ios_cronet_buildflags") {
