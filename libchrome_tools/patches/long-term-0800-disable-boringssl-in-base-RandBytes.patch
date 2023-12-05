@@ -1,4 +1,4 @@
-From 4eefac059423ef2ba57821cb440c6cedd3000176 Mon Sep 17 00:00:00 2001
+From 08d66ecaf77df95b850483f31a3227fb0ff1ec39 Mon Sep 17 00:00:00 2001
 From: Grace Cham <hscham@chromium.org>
 Date: Tue, 18 Oct 2022 14:30:08 +0900
 Subject: [PATCH] disable boringssl in base::RandBytes
@@ -14,23 +14,23 @@ patch-name: long-term-0800-disable-boringssl-in-base-RandBytes.patch
  3 files changed, 5 insertions(+), 5 deletions(-)
 
 diff --git a/base/feature_list.cc b/base/feature_list.cc
-index 6575c527ea..4b0b6b1add 100644
+index b9c0ff7202..c4ba0f1542 100644
 --- a/base/feature_list.cc
 +++ b/base/feature_list.cc
-@@ -561,7 +561,7 @@ void FeatureList::SetInstance(std::unique_ptr<FeatureList> instance) {
- 
-   EarlyFeatureAccessTracker::GetInstance()->AssertNoAccess();
- 
+@@ -581,7 +581,7 @@ void FeatureList::SetInstance(std::unique_ptr<FeatureList> instance) {
+   // FeatureList instance, as the state of the involved Features might change
+   // with the final FeatureList for this process.
+   if (!g_feature_list_instance->IsEarlyAccessInstance()) {
 -#if !BUILDFLAG(IS_NACL)
 +#if !BUILDFLAG(IS_NACL) && 0
-   // Configured first because it takes precedence over the getrandom() trial.
-   internal::ConfigureBoringSSLBackedRandBytesFieldTrial();
+     // Configured first because it takes precedence over the getrandom() trial.
+     internal::ConfigureBoringSSLBackedRandBytesFieldTrial();
  #endif
 diff --git a/base/rand_util.h b/base/rand_util.h
-index c9dd124966..74cabc6d43 100644
+index 8387bc9596..545a63ed16 100644
 --- a/base/rand_util.h
 +++ b/base/rand_util.h
-@@ -34,7 +34,7 @@ namespace internal {
+@@ -37,7 +37,7 @@ namespace internal {
  void ConfigureRandBytesFieldTrial();
  #endif
  
@@ -73,5 +73,5 @@ index 4982a4556f..16fa608cbc 100644
    if (!avoid_allocation && internal::UseBoringSSLForRandBytes()) {
      // Ensure BoringSSL is initialized so it can use things like RDRAND.
 -- 
-2.42.0.582.g8ccd20d70d-goog
+2.43.0.rc2.451.g8631bc7472-goog
 
