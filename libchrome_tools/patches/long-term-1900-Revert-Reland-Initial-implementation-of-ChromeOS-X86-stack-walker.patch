@@ -1,4 +1,4 @@
-From 7cd3565a05afb615d2c63fae1f3f9d35ef4cbcc8 Mon Sep 17 00:00:00 2001
+From a43b1293dc6cfc7be20252fad7ed51661f07e90c Mon Sep 17 00:00:00 2001
 From: Grace Cham <hscham@chromium.org>
 Date: Mon, 26 Sep 2022 16:05:08 +0900
 Subject: [PATCH] Revert "Reland "Initial implementation of ChromeOS X86_64
@@ -24,7 +24,7 @@ Change-Id: I8d2f17408e83ac32b3540131dfb0caff866bafb8
  .../stack_sampling_profiler_unittest.cc       | 51 +++++--------------
  8 files changed, 99 insertions(+), 104 deletions(-)
  create mode 100644 base/profiler/native_unwinder.h
- rename base/profiler/{frame_pointer_unwinder.cc => native_unwinder_apple.cc} (86%)
+ rename base/profiler/{frame_pointer_unwinder.cc => native_unwinder_apple.cc} (87%)
  create mode 100644 base/profiler/native_unwinder_apple.h
  rename base/profiler/{frame_pointer_unwinder_unittest.cc => native_unwinder_apple_unittest.cc} (93%)
 
@@ -69,7 +69,7 @@ index 0000000000..7edf4af830
 +
 +#endif  // BASE_PROFILER_NATIVE_UNWINDER_H_
 diff --git a/base/profiler/native_unwinder_android.cc b/base/profiler/native_unwinder_android.cc
-index 38bf7731d2..08603c115f 100644
+index ceda24b03c..4cdabf3e03 100644
 --- a/base/profiler/native_unwinder_android.cc
 +++ b/base/profiler/native_unwinder_android.cc
 @@ -22,6 +22,9 @@
@@ -83,13 +83,13 @@ index 38bf7731d2..08603c115f 100644
  #if defined(ARCH_CPU_ARM_FAMILY) && defined(ARCH_CPU_32_BITS)
  #include "third_party/libunwindstack/src/libunwindstack/include/unwindstack/MachineArm.h"
 diff --git a/base/profiler/frame_pointer_unwinder.cc b/base/profiler/native_unwinder_apple.cc
-similarity index 86%
+similarity index 87%
 rename from base/profiler/frame_pointer_unwinder.cc
 rename to base/profiler/native_unwinder_apple.cc
-index c33994f649..4c909e2bb8 100644
+index 372e5eef97..cb6c56ce08 100644
 --- a/base/profiler/frame_pointer_unwinder.cc
 +++ b/base/profiler/native_unwinder_apple.cc
-@@ -2,18 +2,17 @@
+@@ -2,19 +2,18 @@
  // Use of this source code is governed by a BSD-style license that can be
  // found in the LICENSE file.
  
@@ -99,6 +99,7 @@ index c33994f649..4c909e2bb8 100644
 +#include <pthread/stack_np.h>
  
  #include "base/check_op.h"
+ #include "base/compiler_specific.h"
  #include "base/notreached.h"
  #include "base/numerics/clamped_math.h"
  #include "base/profiler/module_cache.h"
@@ -112,7 +113,7 @@ index c33994f649..4c909e2bb8 100644
  namespace {
  
  // Given a frame pointer, returns the frame pointer of the calling stack
-@@ -23,11 +22,9 @@ namespace {
+@@ -24,11 +23,9 @@ namespace {
  // NB: The caller *must* ensure that there are 2+ uintptr_t's worth of memory at
  // `frame_pointer`.
  uintptr_t DecodeFrame(uintptr_t frame_pointer, uintptr_t* return_address) {
@@ -122,9 +123,9 @@ index c33994f649..4c909e2bb8 100644
    }
 -#endif
    const uintptr_t* fp = reinterpret_cast<uintptr_t*>(frame_pointer);
-   uintptr_t next_frame = *fp;
-   *return_address = *(fp + 1);
-@@ -38,15 +35,15 @@ uintptr_t DecodeFrame(uintptr_t frame_pointer, uintptr_t* return_address) {
+ 
+   // MSAN does not consider the frame pointers and return addresses to have
+@@ -45,15 +42,15 @@ uintptr_t DecodeFrame(uintptr_t frame_pointer, uintptr_t* return_address) {
  
  namespace base {
  
@@ -145,7 +146,7 @@ index c33994f649..4c909e2bb8 100644
    // We expect the frame corresponding to the |thread_context| register state to
    // exist within |stack|.
    DCHECK_GT(stack->size(), 0u);
-@@ -105,4 +102,8 @@ UnwindResult FramePointerUnwinder::TryUnwind(RegisterContext* thread_context,
+@@ -112,4 +109,8 @@ UnwindResult FramePointerUnwinder::TryUnwind(RegisterContext* thread_context,
    return UnwindResult::kCompleted;
  }
  
@@ -482,5 +483,5 @@ index 10556682a6..93d8ed06e2 100644
  #else
  #define MAYBE_UnloadedLibrary UnloadedLibrary
 -- 
-2.42.0.582.g8ccd20d70d-goog
+2.43.0.472.g3155946c3a-goog
 
