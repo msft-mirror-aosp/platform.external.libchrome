@@ -1,0 +1,32 @@
+From b1a4e496498505c26a66c1c14b51d0ffbcb524c1 Mon Sep 17 00:00:00 2001
+From: Jae Hoon Kim <kimjae@google.com>
+Date: Wed, 13 Dec 2023 03:04:00 +0000
+Subject: [PATCH] Add MakeUnboundRunType definition
+
+.. chromium change crrev/c/5110744 removed this defintion.
+
+Change-Id: I0c29c0d1061efa73d7e33816ed4caa4611eb7f61
+---
+ base/functional/bind_internal.h | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/base/functional/bind_internal.h b/base/functional/bind_internal.h
+index 3218064784..bbfa04f41f 100644
+--- a/base/functional/bind_internal.h
++++ b/base/functional/bind_internal.h
+@@ -1295,6 +1295,12 @@ using MakeBindStateType =
+                           Functor,
+                           BoundArgs...>;
+ 
++// Returns a RunType of bound functor.
++// E.g. MakeUnboundRunType<R(A, B, C), A, B> is evaluated to R(C).
++template <typename Functor, typename... BoundArgs>
++using MakeUnboundRunType =
++    typename BindTypeHelper<Functor, BoundArgs...>::UnboundRunType;
++
+ // The implementation of TransformToUnwrappedType below.
+ template <bool is_once, typename T>
+ struct TransformToUnwrappedTypeImpl;
+-- 
+2.43.0.472.g3155946c3a-goog
+
