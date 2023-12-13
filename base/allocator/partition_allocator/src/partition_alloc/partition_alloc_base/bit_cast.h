@@ -2,12 +2,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef BASE_BIT_CAST_H_
-#define BASE_BIT_CAST_H_
+#ifndef BASE_ALLOCATOR_PARTITION_ALLOCATOR_SRC_PARTITION_ALLOC_PARTITION_ALLOC_BASE_BIT_CAST_H_
+#define BASE_ALLOCATOR_PARTITION_ALLOCATOR_SRC_PARTITION_ALLOC_PARTITION_ALLOC_BASE_BIT_CAST_H_
 
 #include <type_traits>
 
-namespace base {
+namespace partition_alloc::internal::base {
 
 // This is an equivalent to C++20's std::bit_cast<>(), but with additional
 // warnings. It morally does what `*reinterpret_cast<Dest*>(&source)` does, but
@@ -40,6 +40,6 @@ constexpr Dest bit_cast(const Source& source) {
   return __builtin_bit_cast(Dest, source);
 }
 
-}  // namespace base
+}  // namespace partition_alloc::internal::base
 
-#endif  // BASE_BIT_CAST_H_
+#endif  // BASE_ALLOCATOR_PARTITION_ALLOCATOR_SRC_PARTITION_ALLOC_PARTITION_ALLOC_BASE_BIT_CAST_H_
