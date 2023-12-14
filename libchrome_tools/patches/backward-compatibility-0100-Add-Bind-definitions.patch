@@ -1,0 +1,68 @@
+From 799540fe7c748840f710c1fa31152047ca14f84b Mon Sep 17 00:00:00 2001
+From: Jae Hoon Kim <kimjae@google.com>
+Date: Wed, 13 Dec 2023 03:04:00 +0000
+Subject: [PATCH] Add Bind definitions
+
+.. chromium change crrev/c/5110744 removed this definition of MakeUnboundRunType.
+.. chromium change crrev/c/5112833 removed this definition of BindTypeHelper.
+
+Change-Id: I0c29c0d1061efa73d7e33816ed4caa4611eb7f61
+---
+ base/functional/bind_internal.h | 34 +++++++++++++++++++++++++++++++++
+ 1 file changed, 34 insertions(+)
+
+diff --git a/base/functional/bind_internal.h b/base/functional/bind_internal.h
+index fa7a98c8d8..21effbc6bb 100644
+--- a/base/functional/bind_internal.h
++++ b/base/functional/bind_internal.h
+@@ -972,6 +972,34 @@ struct Invoker<StorageType, R(UnboundArgs...)> {
+   }
+ };
+ 
++// Extracts necessary type info from Functor and BoundArgs.
++template <typename Functor, typename... BoundArgs>
++struct BindTypeHelper {
++  static constexpr size_t num_bounds = sizeof...(BoundArgs);
++  using FunctorTraits = MakeFunctorTraits<Functor>;
++
++  // Example:
++  //   When Functor is `double (Foo::*)(int, const std::string&)`, and BoundArgs
++  //   is a template pack of `Foo*` and `int16_t`:
++  //    - RunType is `double(Foo*, int, const std::string&)`,
++  //    - ReturnType is `double`,
++  //    - RunParamsList is `TypeList<Foo*, int, const std::string&>`,
++  //    - BoundParamsList is `TypeList<Foo*, int>`,
++  //    - UnboundParamsList is `TypeList<const std::string&>`,
++  //    - BoundArgsList is `TypeList<Foo*, int16_t>`,
++  //    - UnboundRunType is `double(const std::string&)`.
++  using RunType = typename FunctorTraits::RunType;
++  using ReturnType = ExtractReturnType<RunType>;
++
++  using RunParamsList = ExtractArgs<RunType>;
++  using BoundParamsList = TakeTypeListItem<num_bounds, RunParamsList>;
++  using UnboundParamsList = DropTypeListItem<num_bounds, RunParamsList>;
++
++  using BoundArgsList = TypeList<BoundArgs...>;
++
++  using UnboundRunType = MakeFunctionType<ReturnType, UnboundParamsList>;
++};
++
+ template <typename Functor>
+   requires(FunctorTraits<Functor>::is_nullable)
+ constexpr bool IsNull(const Functor& functor) {
+@@ -1267,6 +1295,12 @@ using MakeBindStateType =
+                           Functor,
+                           BoundArgs...>;
+ 
++// Returns a RunType of bound functor.
++// E.g. MakeUnboundRunType<R(A, B, C), A, B> is evaluated to R(C).
++template <typename Functor, typename... BoundArgs>
++using MakeUnboundRunType =
++    typename BindTypeHelper<Functor, BoundArgs...>::UnboundRunType;
++
+ // The implementation of TransformToUnwrappedType below.
+ template <bool is_once, typename T>
+ struct TransformToUnwrappedTypeImpl;
+-- 
+2.43.0.472.g3155946c3a-goog
+
