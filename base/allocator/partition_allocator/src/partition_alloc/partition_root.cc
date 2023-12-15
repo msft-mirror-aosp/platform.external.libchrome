@@ -972,8 +972,6 @@ void PartitionRoot::Init(PartitionOptions opts) {
     ReserveBackupRefPtrGuardRegionIfNeeded();
 #endif
 
-    settings.allow_aligned_alloc =
-        opts.aligned_alloc == PartitionOptions::kAllowed;
 #if BUILDFLAG(PA_DCHECK_IS_ON)
     settings.use_cookie = true;
 #else
@@ -1034,17 +1032,8 @@ void PartitionRoot::Init(PartitionOptions opts) {
     settings.thread_isolation = opts.thread_isolation;
 #endif  // BUILDFLAG(ENABLE_THREAD_ISOLATION)
 
-    // Ref-count messes up alignment needed for AlignedAlloc, making this
-    // option incompatible. However, except in the
-    // PUT_REF_COUNT_IN_PREVIOUS_SLOT case.
-#if BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT) && \
-    !BUILDFLAG(PUT_REF_COUNT_IN_PREVIOUS_SLOT)
-    PA_CHECK(!settings.allow_aligned_alloc || !settings.brp_enabled_);
-#endif
-
 #if PA_CONFIG(EXTRAS_REQUIRED)
     settings.extras_size = 0;
-    settings.extras_offset = 0;
 
     if (settings.use_cookie) {
       settings.extras_size += internal::kPartitionCookieSizeAdjustment;
@@ -1068,14 +1057,8 @@ void PartitionRoot::Init(PartitionOptions opts) {
 #endif  // PA_CONFIG(INCREASE_REF_COUNT_SIZE_FOR_MTE)
       PA_CHECK(internal::kPartitionRefCountSizeAdjustment <= ref_count_size);
       settings.extras_size += ref_count_size;
-      settings.extras_offset += internal::kPartitionRefCountOffsetAdjustment;
     }
 #endif  // PA_CONFIG(EXTRAS_REQUIRED)
-
-    // Re-confirm the above PA_CHECKs, by making sure there are no
-    // pre-allocation extras when AlignedAlloc is allowed. Post-allocation
-    // extras are ok.
-    PA_CHECK(!settings.allow_aligned_alloc || !settings.extras_offset);
 
     settings.quarantine_mode =
 #if BUILDFLAG(USE_STARSCAN)

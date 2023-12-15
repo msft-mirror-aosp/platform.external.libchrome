@@ -155,7 +155,6 @@ class MainPartitionConstructor {
         partition_alloc::PartitionOptions::kDisabled;
 #endif  // BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
     partition_alloc::PartitionOptions opts;
-    opts.aligned_alloc = partition_alloc::PartitionOptions::kAllowed;
     opts.thread_cache = thread_cache;
     opts.star_scan_quarantine = partition_alloc::PartitionOptions::kAllowed;
     opts.backup_ref_ptr = partition_alloc::PartitionOptions::kDisabled;
@@ -176,22 +175,8 @@ std::atomic<partition_alloc::PartitionRoot*> g_original_root(nullptr);
 
 std::atomic<bool> g_roots_finalized = false;
 
-class AlignedPartitionConstructor {
- public:
-  static partition_alloc::PartitionRoot* New(void* buffer) {
-    return g_root.Get();
-  }
-};
-
-LeakySingleton<partition_alloc::PartitionRoot, AlignedPartitionConstructor>
-    g_aligned_root PA_CONSTINIT = {};
-
 partition_alloc::PartitionRoot* OriginalAllocator() {
   return g_original_root.load(std::memory_order_relaxed);
-}
-
-partition_alloc::PartitionRoot* AlignedAllocator() {
-  return g_aligned_root.Get();
 }
 
 bool AllocatorConfigurationFinalized() {
@@ -201,21 +186,12 @@ bool AllocatorConfigurationFinalized() {
 void* AllocateAlignedMemory(size_t alignment, size_t size) {
   // Memory returned by the regular allocator *always* respects |kAlignment|,
   // which is a power of two, and any valid alignment is also a power of two. So
-  // we can directly fulfill these requests with the main allocator.
-  //
-  // This has several advantages:
-  // - The thread cache is supported on the main partition
-  // - Reduced fragmentation
-  // - Better coverage for MiraclePtr variants requiring extras
+  // we can directly fulfill these requests with the regular Alloc function.
   //
   // There are several call sites in Chromium where base::AlignedAlloc is called
   // with a small alignment. Some may be due to overly-careful code, some are
   // because the client code doesn't know the required alignment at compile
   // time.
-  //
-  // Note that all "AlignedFree()" variants (_aligned_free() on Windows for
-  // instance) directly call PartitionFree(), so there is no risk of
-  // mismatch. (see below the default_dispatch definition).
   if (alignment <= partition_alloc::internal::kAlignment) {
     // This is mandated by |posix_memalign()| and friends, so should never fire.
     PA_CHECK(std::has_single_bit(alignment));
@@ -225,9 +201,8 @@ void* AllocateAlignedMemory(size_t alignment, size_t size) {
         size);
   }
 
-  return AlignedAllocator()
-      ->AlignedAllocInline<partition_alloc::AllocFlags::kNoHooks>(alignment,
-                                                                  size);
+  return Allocator()->AlignedAllocInline<partition_alloc::AllocFlags::kNoHooks>(
+      alignment, size);
 }
 
 }  // namespace
@@ -498,11 +473,6 @@ partition_alloc::PartitionRoot* PartitionAllocMalloc::OriginalAllocator() {
   return ::OriginalAllocator();
 }
 
-// static
-partition_alloc::PartitionRoot* PartitionAllocMalloc::AlignedAllocator() {
-  return ::AlignedAllocator();
-}
-
 }  // namespace allocator_shim::internal
 
 #if BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
@@ -522,7 +492,6 @@ void EnablePartitionAllocMemoryReclaimer() {
   // registered for memory reclaimer there.
   PA_DCHECK(!AllocatorConfigurationFinalized());
   PA_DCHECK(OriginalAllocator() == nullptr);
-  PA_DCHECK(AlignedAllocator() == Allocator());
 }
 
 void ConfigurePartitions(
@@ -530,7 +499,6 @@ void ConfigurePartitions(
     EnableMemoryTagging enable_memory_tagging,
     partition_alloc::TagViolationReportingMode memory_tagging_reporting_mode,
     SplitMainPartition split_main_partition,
-    UseDedicatedAlignedPartition use_dedicated_aligned_partition,
     size_t ref_count_size,
     BucketDistribution distribution,
     SchedulerLoopQuarantine scheduler_loop_quarantine,
@@ -541,18 +509,11 @@ void ConfigurePartitions(
   // the "before allocation" mode, it can't be enabled without further splitting
   // out the aligned partition.
   PA_CHECK(!enable_brp || split_main_partition);
-#if !BUILDFLAG(PUT_REF_COUNT_IN_PREVIOUS_SLOT)
-  PA_CHECK(!enable_brp || use_dedicated_aligned_partition);
-#endif
-  // Can't split out the aligned partition, without splitting the main one.
-  PA_CHECK(!use_dedicated_aligned_partition || split_main_partition);
 
-  // Calling Get() is actually important, even if the return values weren't
-  // used, because it has a side effect of initializing the variables, if they
-  // weren't already.
+  // Calling Get() is actually important, even if the return value isn't
+  // used, because it has a side effect of initializing the variable, if it
+  // wasn't already.
   auto* current_root = g_root.Get();
-  auto* current_aligned_root = g_aligned_root.Get();
-  PA_DCHECK(current_root == current_aligned_root);
 
   if (!split_main_partition) {
     switch (distribution) {
@@ -564,7 +525,6 @@ void ConfigurePartitions(
         break;
     }
     PA_DCHECK(!enable_brp);
-    PA_DCHECK(!use_dedicated_aligned_partition);
     PA_DCHECK(!current_root->settings.with_thread_cache);
     PA_CHECK(!g_roots_finalized.exchange(true));  // Ensure configured once.
     return;
@@ -580,10 +540,6 @@ void ConfigurePartitions(
       partition_alloc::PartitionAllocator>
       new_main_allocator([&]() {
         partition_alloc::PartitionOptions opts;
-        opts.aligned_alloc =
-            !use_dedicated_aligned_partition
-                ? partition_alloc::PartitionOptions::kAllowed
-                : partition_alloc::PartitionOptions::kDisallowed;
         opts.thread_cache = partition_alloc::PartitionOptions::kDisabled;
         opts.star_scan_quarantine = partition_alloc::PartitionOptions::kAllowed;
         opts.backup_ref_ptr =
@@ -611,35 +567,9 @@ void ConfigurePartitions(
       }());
   partition_alloc::PartitionRoot* new_root = new_main_allocator->root();
 
-  partition_alloc::PartitionRoot* new_aligned_root;
-  if (use_dedicated_aligned_partition) {
-    // TODO(bartekn): Use the original root instead of creating a new one. It'd
-    // result in one less partition, but come at a cost of commingling types.
-    static partition_alloc::internal::base::NoDestructor<
-        partition_alloc::PartitionAllocator>
-        new_aligned_allocator([&]() {
-          partition_alloc::PartitionOptions opts;
-          opts.aligned_alloc = partition_alloc::PartitionOptions::kAllowed;
-          opts.thread_cache = partition_alloc::PartitionOptions::kDisabled;
-          opts.star_scan_quarantine =
-              partition_alloc::PartitionOptions::kAllowed;
-          opts.backup_ref_ptr = partition_alloc::PartitionOptions::kDisabled;
-          return opts;
-        }());
-    new_aligned_root = new_aligned_allocator->root();
-  } else {
-    // The new main root can also support AlignedAlloc.
-    new_aligned_root = new_root;
-  }
-
-  // Now switch traffic to the new partitions.
+  // Now switch traffic to the new partition.
   g_original_root = current_root;
-  g_aligned_root.Replace(new_aligned_root);
   g_root.Replace(new_root);
-
-  // No need for g_original_aligned_root, because in cases where g_aligned_root
-  // is replaced, it must've been g_original_root.
-  PA_CHECK(current_aligned_root == g_original_root);
 
   // Purge memory, now that the traffic to the original partition is cut off.
   current_root->PurgeMemory(
@@ -652,9 +582,6 @@ void ConfigurePartitions(
       break;
     case BucketDistribution::kDenser:
       new_root->SwitchToDenserBucketDistribution();
-      if (new_aligned_root != new_root) {
-        new_aligned_root->SwitchToDenserBucketDistribution();
-      }
       break;
   }
 
@@ -687,9 +614,8 @@ void ConfigurePartitions(
 
   ConfigurePartitions(
       enable_brp, enable_memory_tagging, memory_tagging_reporting_mode,
-      split_main_partition, use_dedicated_aligned_partition, ref_count_size,
-      distribution, scheduler_loop_quarantine,
-      scheduler_loop_quarantine_capacity_in_bytes,
+      split_main_partition, ref_count_size, distribution,
+      scheduler_loop_quarantine, scheduler_loop_quarantine_capacity_in_bytes,
       scheduler_loop_quarantine_capacity_count, zapping_by_free_flags);
 }
 
@@ -712,10 +638,6 @@ void EnablePCScan(partition_alloc::internal::PCScan::InitConfig config) {
   if (OriginalAllocator() != nullptr) {
     partition_alloc::internal::PCScan::RegisterScannableRoot(
         OriginalAllocator());
-  }
-  if (Allocator() != AlignedAllocator()) {
-    partition_alloc::internal::PCScan::RegisterScannableRoot(
-        AlignedAllocator());
   }
 
   allocator_shim::NonScannableAllocator::Instance().NotifyPCScanEnabled();
@@ -786,13 +708,6 @@ SHIM_ALWAYS_EXPORT struct mallinfo mallinfo(void) __THROW {
   partition_alloc::SimplePartitionStatsDumper allocator_dumper;
   Allocator()->DumpStats("malloc", true, &allocator_dumper);
   // TODO(bartekn): Dump OriginalAllocator() into "malloc" as well.
-
-  partition_alloc::SimplePartitionStatsDumper aligned_allocator_dumper;
-  if (AlignedAllocator() != Allocator()) {
-    AlignedAllocator()->DumpStats("posix_memalign", true,
-                                  &aligned_allocator_dumper);
-  }
-
   // Dump stats for nonscannable and nonquarantinable allocators.
   auto& nonscannable_allocator =
       allocator_shim::NonScannableAllocator::Instance();
@@ -816,21 +731,18 @@ SHIM_ALWAYS_EXPORT struct mallinfo mallinfo(void) __THROW {
   info.hblks =
       partition_alloc::internal::base::checked_cast<decltype(info.hblks)>(
           allocator_dumper.stats().total_mmapped_bytes +
-          aligned_allocator_dumper.stats().total_mmapped_bytes +
           nonscannable_allocator_dumper.stats().total_mmapped_bytes +
           nonquarantinable_allocator_dumper.stats().total_mmapped_bytes);
   // Resident bytes.
   info.hblkhd =
       partition_alloc::internal::base::checked_cast<decltype(info.hblkhd)>(
           allocator_dumper.stats().total_resident_bytes +
-          aligned_allocator_dumper.stats().total_resident_bytes +
           nonscannable_allocator_dumper.stats().total_resident_bytes +
           nonquarantinable_allocator_dumper.stats().total_resident_bytes);
   // Allocated bytes.
   info.uordblks =
       partition_alloc::internal::base::checked_cast<decltype(info.uordblks)>(
           allocator_dumper.stats().total_active_bytes +
-          aligned_allocator_dumper.stats().total_active_bytes +
           nonscannable_allocator_dumper.stats().total_active_bytes +
           nonquarantinable_allocator_dumper.stats().total_active_bytes);
 

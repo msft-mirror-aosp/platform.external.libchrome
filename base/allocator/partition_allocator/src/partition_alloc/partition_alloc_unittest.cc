@@ -231,12 +231,11 @@ using SlotSpan = SlotSpanMetadata;
 
 const size_t kTestAllocSize = 16;
 
+constexpr size_t kPointerOffset = 0;
 #if !BUILDFLAG(PA_DCHECK_IS_ON)
-const size_t kPointerOffset = kPartitionRefCountOffsetAdjustment;
-const size_t kExtraAllocSizeWithoutRefCount = 0ull;
+constexpr size_t kExtraAllocSizeWithoutRefCount = 0ull;
 #else
-const size_t kPointerOffset = kPartitionRefCountOffsetAdjustment;
-const size_t kExtraAllocSizeWithoutRefCount = kCookieSize;
+constexpr size_t kExtraAllocSizeWithoutRefCount = kCookieSize;
 #endif
 
 const char* type_name = nullptr;
@@ -379,7 +378,6 @@ class PartitionAllocTest
     }
 
     PartitionOptions pkey_opts = GetCommonPartitionOptions();
-    pkey_opts.aligned_alloc = PartitionOptions::kAllowed;
     pkey_opts.thread_isolation = ThreadIsolationOption(pkey_);
     // We always want to have a pkey allocator initialized to make sure that the
     // other pools still work. As part of the initializition, we tag some memory
@@ -400,13 +398,6 @@ class PartitionAllocTest
 #endif  // BUILDFLAG(ENABLE_PKEYS)
 
     PartitionOptions opts = GetCommonPartitionOptions();
-#if !BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT) || \
-    BUILDFLAG(PUT_REF_COUNT_IN_PREVIOUS_SLOT)
-    // AlignedAlloc() can't be called when BRP is in the
-    // "before allocation" mode, because this mode adds extras before
-    // the allocation. Extras after the allocation are ok.
-    opts.aligned_alloc = PartitionOptions::kAllowed;
-#endif
 #if BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)
     opts.backup_ref_ptr = enable_backup_ref_ptr;
 #endif
@@ -424,14 +415,6 @@ class PartitionAllocTest
 #endif  // PA_CONFIG(HAS_MEMORY_TAGGING)
     InitializeTestRoot(
         allocator.root(), opts,
-        PartitionTestOptions{.use_memory_reclaimer = true,
-                             .uncap_empty_slot_span_memory = true,
-                             .set_bucket_distribution = true});
-
-    PartitionOptions aligned_opts = GetCommonPartitionOptions();
-    aligned_opts.aligned_alloc = PartitionOptions::kAllowed;
-    InitializeTestRoot(
-        aligned_allocator.root(), aligned_opts,
         PartitionTestOptions{.use_memory_reclaimer = true,
                              .uncap_empty_slot_span_memory = true,
                              .set_bucket_distribution = true});
@@ -641,7 +624,6 @@ class PartitionAllocTest
   bool UseBRPPool() const { return allocator.root()->brp_enabled(); }
 
   partition_alloc::PartitionAllocatorForTesting allocator;
-  partition_alloc::PartitionAllocatorForTesting aligned_allocator;
 #if BUILDFLAG(ENABLE_PKEYS)
   partition_alloc::PartitionAllocatorForTesting pkey_allocator;
 #endif
@@ -3799,8 +3781,8 @@ TEST_P(PartitionAllocTest, FundamentalAlignment) {
     EXPECT_EQ(UntagPtr(ptr2) % fundamental_alignment, 0u);
     EXPECT_EQ(UntagPtr(ptr3) % fundamental_alignment, 0u);
 
-    uintptr_t slot_start = allocator.root()->ObjectToSlotStart(ptr);
 #if BUILDFLAG(PUT_REF_COUNT_IN_PREVIOUS_SLOT)
+    uintptr_t slot_start = allocator.root()->ObjectToSlotStart(ptr);
     // The capacity(C) is slot size - ExtraAllocSize(allocator).
     // Since slot size is multiples of kAlignment,
     // C % kAlignment == (slot_size - ExtraAllocSize(allocator)) % kAlignment.
@@ -3813,11 +3795,7 @@ TEST_P(PartitionAllocTest, FundamentalAlignment) {
               UseBRPPool()
                   ? (-ExtraAllocSize(allocator) % fundamental_alignment)
                   : 0);
-#else
-    EXPECT_EQ(allocator.root()->AllocationCapacityFromSlotStart(slot_start) %
-                  fundamental_alignment,
-              -ExtraAllocSize(allocator) % fundamental_alignment);
-#endif
+#endif  // BUILDFLAG(PUT_REF_COUNT_IN_PREVIOUS_SLOT)
 
     allocator.root()->Free(ptr);
     allocator.root()->Free(ptr2);
@@ -3860,14 +3838,7 @@ TEST_P(PartitionAllocTest, AlignedAllocations) {
   for (size_t alloc_size : alloc_sizes) {
     for (size_t alignment = 1; alignment <= kMaxSupportedAlignment;
          alignment <<= 1) {
-      VerifyAlignment(aligned_allocator.root(), alloc_size, alignment);
-
-      // Verify alignment on the regular allocator only when BRP is off, or when
-      // it's on in the "previous slot" mode. See the comment in SetUp().
-#if !BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT) || \
-    BUILDFLAG(PUT_REF_COUNT_IN_PREVIOUS_SLOT)
       VerifyAlignment(allocator.root(), alloc_size, alignment);
-#endif
     }
   }
 }
