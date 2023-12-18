@@ -270,14 +270,14 @@ struct PA_ALIGNAS(64) PA_COMPONENT_EXPORT(PARTITION_ALLOC) PartitionRoot {
     bool use_configurable_pool = false;
     bool zapping_by_free_flags = false;
     bool scheduler_loop_quarantine = false;
-#if PA_CONFIG(HAS_MEMORY_TAGGING)
+#if BUILDFLAG(HAS_MEMORY_TAGGING)
     bool memory_tagging_enabled_ = false;
     TagViolationReportingMode memory_tagging_reporting_mode_ =
         TagViolationReportingMode::kUndefined;
 #if PA_CONFIG(INCREASE_REF_COUNT_SIZE_FOR_MTE)
     size_t ref_count_size = 0;
 #endif  // PA_CONFIG(INCREASE_REF_COUNT_SIZE_FOR_MTE)
-#endif  // PA_CONFIG(HAS_MEMORY_TAGGING)
+#endif  // BUILDFLAG(HAS_MEMORY_TAGGING)
 #if BUILDFLAG(ENABLE_THREAD_ISOLATION)
     ThreadIsolationOption thread_isolation;
 #endif
@@ -705,7 +705,7 @@ struct PA_ALIGNAS(64) PA_COMPONENT_EXPORT(PARTITION_ALLOC) PartitionRoot {
     if (PA_UNLIKELY(settings.quarantine_mode != QuarantineMode::kEnabled)) {
       return false;
     }
-#if PA_CONFIG(HAS_MEMORY_TAGGING)
+#if BUILDFLAG(HAS_MEMORY_TAGGING)
     if (PA_UNLIKELY(quarantine_always_for_testing)) {
       return true;
     }
@@ -719,7 +719,7 @@ struct PA_ALIGNAS(64) PA_COMPONENT_EXPORT(PARTITION_ALLOC) PartitionRoot {
     return true;
 #else
     return true;
-#endif
+#endif  // BUILDFLAG(HAS_MEMORY_TAGGING)
   }
 
   PA_ALWAYS_INLINE void SetQuarantineAlwaysForTesting(bool value) {
@@ -1108,15 +1108,6 @@ PartitionAllocGetDirectMapSlotStartInBRPPool(uintptr_t address) {
 // ref-count is in place for this allocation.
 PA_ALWAYS_INLINE uintptr_t
 PartitionAllocGetSlotStartInBRPPool(uintptr_t address) {
-  // Adjust to support pointers right past the end of an allocation, which in
-  // some cases appear to point outside the designated allocation slot.
-  //
-  // If ref-count is present before the allocation, then adjusting a valid
-  // pointer down will not cause us to go down to the previous slot, otherwise
-  // no adjustment is needed (and likely wouldn't be correct as there is
-  // a risk of going down to the previous slot). Either way,
-  // kPartitionPastAllocationAdjustment takes care of that detail.
-  address -= kPartitionPastAllocationAdjustment;
   PA_DCHECK(IsManagedByNormalBucketsOrDirectMap(address));
   DCheckIfManagedByPartitionAllocBRPPool(address);
 
@@ -1288,7 +1279,7 @@ AllocationNotificationData PartitionRoot::CreateAllocationNotificationData(
   AllocationNotificationData notification_data(object, size, type_name);
 
   if (IsMemoryTaggingEnabled()) {
-#if PA_CONFIG(HAS_MEMORY_TAGGING)
+#if BUILDFLAG(HAS_MEMORY_TAGGING)
     notification_data.SetMteReportingMode(memory_tagging_reporting_mode());
 #endif
   }
@@ -1307,7 +1298,7 @@ FreeNotificationData PartitionRoot::CreateFreeNotificationData(
       CreateDefaultFreeNotificationData(address);
 
   if (IsMemoryTaggingEnabled()) {
-#if PA_CONFIG(HAS_MEMORY_TAGGING)
+#if BUILDFLAG(HAS_MEMORY_TAGGING)
     notification_data.SetMteReportingMode(memory_tagging_reporting_mode());
 #endif
   }
@@ -1352,20 +1343,20 @@ PA_ALWAYS_INLINE bool PartitionRoot::FreeProlog(void* object,
 }
 
 PA_ALWAYS_INLINE bool PartitionRoot::IsMemoryTaggingEnabled() const {
-#if PA_CONFIG(HAS_MEMORY_TAGGING)
+#if BUILDFLAG(HAS_MEMORY_TAGGING)
   return settings.memory_tagging_enabled_;
 #else
   return false;
-#endif
+#endif  // BUILDFLAG(HAS_MEMORY_TAGGING)
 }
 
 PA_ALWAYS_INLINE TagViolationReportingMode
 PartitionRoot::memory_tagging_reporting_mode() const {
-#if PA_CONFIG(HAS_MEMORY_TAGGING)
+#if BUILDFLAG(HAS_MEMORY_TAGGING)
   return settings.memory_tagging_reporting_mode_;
 #else
   return TagViolationReportingMode::kUndefined;
-#endif
+#endif  // BUILDFLAG(HAS_MEMORY_TAGGING)
 }
 
 // static
@@ -1431,7 +1422,7 @@ PA_ALWAYS_INLINE void PartitionRoot::FreeInline(void* object) {
   SlotSpan* slot_span = SlotSpan::FromObject(object);
   PA_DCHECK(PartitionRoot::FromSlotSpan(slot_span) == this);
 
-#if PA_CONFIG(HAS_MEMORY_TAGGING)
+#if BUILDFLAG(HAS_MEMORY_TAGGING)
   if (PA_LIKELY(IsMemoryTaggingEnabled())) {
     const size_t slot_size = slot_span->bucket->slot_size;
     if (PA_LIKELY(slot_size <= internal::kMaxMemoryTaggingSize)) {
@@ -1448,7 +1439,7 @@ PA_ALWAYS_INLINE void PartitionRoot::FreeInline(void* object) {
       object = TaggedSlotStartToObject(retagged_slot_start);
     }
   }
-#else
+#else   // BUILDFLAG(HAS_MEMORY_TAGGING)
   // We are going to read from |*slot_span| in all branches, but haven't done it
   // yet.
   //
@@ -1461,7 +1452,7 @@ PA_ALWAYS_INLINE void PartitionRoot::FreeInline(void* object) {
   // Don't do it when memory tagging is enabled, as |*slot_span| has already
   // been touched above.
   PA_PREFETCH(slot_span);
-#endif  // PA_CONFIG(HAS_MEMORY_TAGGING)
+#endif  // BUILDFLAG(HAS_MEMORY_TAGGING)
 
   uintptr_t slot_start = ObjectToSlotStart(object);
   PA_DCHECK(slot_span == SlotSpan::FromSlotStart(slot_start));
@@ -1959,7 +1950,7 @@ PA_ALWAYS_INLINE PageAccessibilityConfiguration
 PartitionRoot::GetPageAccessibility(bool request_tagging) const {
   PageAccessibilityConfiguration::Permissions permissions =
       PageAccessibilityConfiguration::kReadWrite;
-#if PA_CONFIG(HAS_MEMORY_TAGGING)
+#if BUILDFLAG(HAS_MEMORY_TAGGING)
   if (IsMemoryTaggingEnabled() && request_tagging) {
     permissions = PageAccessibilityConfiguration::kReadWriteTagged;
   }
@@ -2037,7 +2028,7 @@ PA_ALWAYS_INLINE void* PartitionRoot::AllocInternal(size_t requested_size,
     hooks_enabled = PartitionAllocHooks::AreHooksEnabled();
     if (hooks_enabled) {
       auto additional_flags = AllocFlags::kNone;
-#if PA_CONFIG(HAS_MEMORY_TAGGING)
+#if BUILDFLAG(HAS_MEMORY_TAGGING)
       if (IsMemoryTaggingEnabled()) {
         additional_flags |= AllocFlags::kMemoryShouldBeTaggedForMte;
       }

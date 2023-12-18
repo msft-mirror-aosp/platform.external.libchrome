@@ -1,4 +1,4 @@
-From 799540fe7c748840f710c1fa31152047ca14f84b Mon Sep 17 00:00:00 2001
+From 4b7099a91c5e6e138ff732cf53592ac8c88e0f0e Mon Sep 17 00:00:00 2001
 From: Jae Hoon Kim <kimjae@google.com>
 Date: Wed, 13 Dec 2023 03:04:00 +0000
 Subject: [PATCH] Add Bind definitions
@@ -12,12 +12,12 @@ Change-Id: I0c29c0d1061efa73d7e33816ed4caa4611eb7f61
  1 file changed, 34 insertions(+)
 
 diff --git a/base/functional/bind_internal.h b/base/functional/bind_internal.h
-index fa7a98c8d8..21effbc6bb 100644
+index 142ef1c703..7dc1fcc163 100644
 --- a/base/functional/bind_internal.h
 +++ b/base/functional/bind_internal.h
-@@ -972,6 +972,34 @@ struct Invoker<StorageType, R(UnboundArgs...)> {
+@@ -1022,6 +1022,34 @@ void VerifyMethodReceiver(Receiver&& receiver, Unused&&...) {
    }
- };
+ }
  
 +// Extracts necessary type info from Functor and BoundArgs.
 +template <typename Functor, typename... BoundArgs>
@@ -47,10 +47,10 @@ index fa7a98c8d8..21effbc6bb 100644
 +  using UnboundRunType = MakeFunctionType<ReturnType, UnboundParamsList>;
 +};
 +
- template <typename Functor>
-   requires(FunctorTraits<Functor>::is_nullable)
- constexpr bool IsNull(const Functor& functor) {
-@@ -1267,6 +1295,12 @@ using MakeBindStateType =
+ // BindState<>
+ //
+ // This stores all the state passed into Bind().
+@@ -1251,6 +1279,12 @@ using MakeBindStateType =
                            Functor,
                            BoundArgs...>;
  
@@ -60,9 +60,9 @@ index fa7a98c8d8..21effbc6bb 100644
 +using MakeUnboundRunType =
 +    typename BindTypeHelper<Functor, BoundArgs...>::UnboundRunType;
 +
- // The implementation of TransformToUnwrappedType below.
- template <bool is_once, typename T>
- struct TransformToUnwrappedTypeImpl;
+ // Transform |T| into `Unwrapped` type, which is passed to the target function.
+ // Example:
+ //   In is_once == true case,
 -- 
 2.43.0.472.g3155946c3a-goog
 

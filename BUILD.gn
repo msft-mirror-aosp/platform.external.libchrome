@@ -219,6 +219,7 @@ buildflag_header("partition_allocator_buildflags") {
     "ENABLE_THREAD_ISOLATION=false",
     "USE_FREESLOT_BITMAP=false",
     "ENABLE_POINTER_ARITHMETIC_TRAIT_CHECK=false",
+    "HAS_MEMORY_TAGGING=false",
   ]
 }
 
