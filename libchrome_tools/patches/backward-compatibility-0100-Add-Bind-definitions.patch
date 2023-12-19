@@ -1,4 +1,4 @@
-From 4b7099a91c5e6e138ff732cf53592ac8c88e0f0e Mon Sep 17 00:00:00 2001
+From c9089a83c92e1566a4b90601a5db9e5b7fb81a66 Mon Sep 17 00:00:00 2001
 From: Jae Hoon Kim <kimjae@google.com>
 Date: Wed, 13 Dec 2023 03:04:00 +0000
 Subject: [PATCH] Add Bind definitions
@@ -12,10 +12,10 @@ Change-Id: I0c29c0d1061efa73d7e33816ed4caa4611eb7f61
  1 file changed, 34 insertions(+)
 
 diff --git a/base/functional/bind_internal.h b/base/functional/bind_internal.h
-index 142ef1c703..7dc1fcc163 100644
+index 6101dc8655..f7d7f83115 100644
 --- a/base/functional/bind_internal.h
 +++ b/base/functional/bind_internal.h
-@@ -1022,6 +1022,34 @@ void VerifyMethodReceiver(Receiver&& receiver, Unused&&...) {
+@@ -1020,6 +1020,34 @@ void VerifyMethodReceiver(Receiver&& receiver, Unused&&...) {
    }
  }
  
@@ -47,12 +47,12 @@ index 142ef1c703..7dc1fcc163 100644
 +  using UnboundRunType = MakeFunctionType<ReturnType, UnboundParamsList>;
 +};
 +
- // BindState<>
+ // `BindState<>`
  //
- // This stores all the state passed into Bind().
-@@ -1251,6 +1279,12 @@ using MakeBindStateType =
-                           Functor,
-                           BoundArgs...>;
+ // This stores all the state passed into `Bind()`.
+@@ -1244,6 +1272,12 @@ struct ValidateBindStateType<true, Functor, Receiver, BoundArgs...> {
+                          NoRawPtrsToRefCountedTypes<>>;
+ };
  
 +// Returns a RunType of bound functor.
 +// E.g. MakeUnboundRunType<R(A, B, C), A, B> is evaluated to R(C).
@@ -60,9 +60,9 @@ index 142ef1c703..7dc1fcc163 100644
 +using MakeUnboundRunType =
 +    typename BindTypeHelper<Functor, BoundArgs...>::UnboundRunType;
 +
- // Transform |T| into `Unwrapped` type, which is passed to the target function.
- // Example:
- //   In is_once == true case,
+ // Transforms `T` into an unwrapped type, which is passed to the target
+ // function; e.g.:
+ // * `is_once` cases:
 -- 
 2.43.0.472.g3155946c3a-goog
 
