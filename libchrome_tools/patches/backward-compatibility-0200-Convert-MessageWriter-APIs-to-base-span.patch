@@ -1,0 +1,277 @@
+From 947f5cab3d5bdbc77e405f58aadc7ecc00908fce Mon Sep 17 00:00:00 2001
+From: Nathan Muggli <nmuggli@google.com>
+Date: Wed, 20 Dec 2023 14:50:38 -0700
+Subject: [PATCH] Revert "Convert MessageWriter APIs to base::span"
+
+This reverts commit ac1defcd1493dd06993dad2a17c793d38454a307.
+---
+ dbus/message.cc           | 40 +++++++++++++++------------------------
+ dbus/message.h            |  9 ++++-----
+ dbus/message_unittest.cc  | 10 +++++-----
+ dbus/property.cc          | 11 +++++++----
+ dbus/property_unittest.cc | 10 +++++-----
+ 5 files changed, 36 insertions(+), 44 deletions(-)
+
+diff --git a/dbus/message.cc b/dbus/message.cc
+index 41a8b21635..a1dced2e97 100644
+--- a/dbus/message.cc
++++ b/dbus/message.cc
+@@ -590,58 +590,47 @@ void MessageWriter::CloseContainer(MessageWriter* writer) {
+   container_is_open_ = false;
+ }
+ 
+-void MessageWriter::AppendArrayOfBytes(base::span<const uint8_t> values) {
++void MessageWriter::AppendArrayOfBytes(const uint8_t* values, size_t length) {
+   DCHECK(!container_is_open_);
+   MessageWriter array_writer(message_);
+   OpenArray("y", &array_writer);
+-  // dbus_message_iter_append_fixed_array takes a pointer to a pointer to the
+-  // data.
+-  const uint8_t* ptr = values.data();
+   const bool success = dbus_message_iter_append_fixed_array(
+-      &(array_writer.raw_message_iter_), DBUS_TYPE_BYTE, &ptr,
+-      base::checked_cast<int>(values.size()));
++      &(array_writer.raw_message_iter_), DBUS_TYPE_BYTE, &values,
++      static_cast<int>(length));
+   CHECK(success) << "Unable to allocate memory";
+   CloseContainer(&array_writer);
+ }
+ 
+-void MessageWriter::AppendArrayOfInt32s(base::span<const int32_t> values) {
++void MessageWriter::AppendArrayOfInt32s(const int32_t* values, size_t length) {
+   DCHECK(!container_is_open_);
+   MessageWriter array_writer(message_);
+   OpenArray("i", &array_writer);
+-  // dbus_message_iter_append_fixed_array takes a pointer to a pointer to the
+-  // data.
+-  const int32_t* ptr = values.data();
+   const bool success = dbus_message_iter_append_fixed_array(
+-      &(array_writer.raw_message_iter_), DBUS_TYPE_INT32, &ptr,
+-      base::checked_cast<int>(values.size()));
++      &(array_writer.raw_message_iter_), DBUS_TYPE_INT32, &values,
++      static_cast<int>(length));
+   CHECK(success) << "Unable to allocate memory";
+   CloseContainer(&array_writer);
+ }
+ 
+-void MessageWriter::AppendArrayOfUint32s(base::span<const uint32_t> values) {
++void MessageWriter::AppendArrayOfUint32s(const uint32_t* values,
++                                         size_t length) {
+   DCHECK(!container_is_open_);
+   MessageWriter array_writer(message_);
+   OpenArray("u", &array_writer);
+-  // dbus_message_iter_append_fixed_array takes a pointer to a pointer to the
+-  // data.
+-  const uint32_t* ptr = values.data();
+   const bool success = dbus_message_iter_append_fixed_array(
+-      &(array_writer.raw_message_iter_), DBUS_TYPE_UINT32, &ptr,
+-      base::checked_cast<int>(values.size()));
++      &(array_writer.raw_message_iter_), DBUS_TYPE_UINT32, &values,
++      static_cast<int>(length));
+   CHECK(success) << "Unable to allocate memory";
+   CloseContainer(&array_writer);
+ }
+ 
+-void MessageWriter::AppendArrayOfDoubles(base::span<const double> values) {
++void MessageWriter::AppendArrayOfDoubles(const double* values, size_t length) {
+   DCHECK(!container_is_open_);
+   MessageWriter array_writer(message_);
+   OpenArray("d", &array_writer);
+-  // dbus_message_iter_append_fixed_array takes a pointer to a pointer to the
+-  // data.
+-  const double* ptr = values.data();
+   const bool success = dbus_message_iter_append_fixed_array(
+-      &(array_writer.raw_message_iter_), DBUS_TYPE_DOUBLE, &ptr,
+-      base::checked_cast<int>(values.size()));
++      &(array_writer.raw_message_iter_), DBUS_TYPE_DOUBLE, &values,
++      static_cast<int>(length));
+   CHECK(success) << "Unable to allocate memory";
+   CloseContainer(&array_writer);
+ }
+@@ -675,7 +664,8 @@ bool MessageWriter::AppendProtoAsArrayOfBytes(
+     LOG(ERROR) << "Unable to serialize supplied protocol buffer";
+     return false;
+   }
+-  AppendArrayOfBytes(base::as_byte_span(serialized_proto));
++  AppendArrayOfBytes(reinterpret_cast<const uint8_t*>(serialized_proto.data()),
++                     serialized_proto.size());
+   return true;
+ }
+ 
+diff --git a/dbus/message.h b/dbus/message.h
+index bbec5290de..4c81963df9 100644
+--- a/dbus/message.h
++++ b/dbus/message.h
+@@ -13,7 +13,6 @@
+ #include <string>
+ #include <vector>
+ 
+-#include "base/containers/span.h"
+ #include "base/files/scoped_file.h"
+ #include "base/memory/raw_ptr.h"
+ #include "dbus/dbus_export.h"
+@@ -320,16 +319,16 @@ class CHROME_DBUS_EXPORT MessageWriter {
+   // Appends the array of bytes. Arrays of bytes are often used for
+   // exchanging binary blobs hence it's worth having a specialized
+   // function.
+-  void AppendArrayOfBytes(base::span<const uint8_t> values);
++  void AppendArrayOfBytes(const uint8_t* values, size_t length);
+ 
+   // Appends array of int32_ts.
+-  void AppendArrayOfInt32s(base::span<const int32_t> values);
++  void AppendArrayOfInt32s(const int32_t* values, size_t length);
+ 
+   // Appends array of uint32_ts.
+-  void AppendArrayOfUint32s(base::span<const uint32_t> values);
++  void AppendArrayOfUint32s(const uint32_t* values, size_t length);
+ 
+   // Appends the array of doubles. Used for audio mixer matrix doubles.
+-  void AppendArrayOfDoubles(base::span<const double> values);
++  void AppendArrayOfDoubles(const double* values, size_t length);
+ 
+   // Appends the array of strings. Arrays of strings are often used for
+   // exchanging lists of names hence it's worth having a specialized
+diff --git a/dbus/message_unittest.cc b/dbus/message_unittest.cc
+index 2a77050a57..2f2dc33acc 100644
+--- a/dbus/message_unittest.cc
++++ b/dbus/message_unittest.cc
+@@ -226,7 +226,7 @@ TEST(MessageTest, ArrayOfBytes) {
+   bytes.push_back(1);
+   bytes.push_back(2);
+   bytes.push_back(3);
+-  writer.AppendArrayOfBytes(bytes);
++  writer.AppendArrayOfBytes(bytes.data(), bytes.size());
+ 
+   MessageReader reader(message.get());
+   const uint8_t* output_bytes = nullptr;
+@@ -247,7 +247,7 @@ TEST(MessageTest, ArrayOfInt32s) {
+   int32s.push_back(1);
+   int32s.push_back(2);
+   int32s.push_back(3);
+-  writer.AppendArrayOfInt32s(int32s);
++  writer.AppendArrayOfInt32s(int32s.data(), int32s.size());
+ 
+   MessageReader reader(message.get());
+   const int32_t* output_int32s = nullptr;
+@@ -268,7 +268,7 @@ TEST(MessageTest, ArrayOfUint32s) {
+   uint32s.push_back(1);
+   uint32s.push_back(2);
+   uint32s.push_back(3);
+-  writer.AppendArrayOfUint32s(uint32s);
++  writer.AppendArrayOfUint32s(uint32s.data(), uint32s.size());
+ 
+   MessageReader reader(message.get());
+   const uint32_t* output_uint32s = nullptr;
+@@ -289,7 +289,7 @@ TEST(MessageTest, ArrayOfDoubles) {
+   doubles.push_back(0.2);
+   doubles.push_back(0.5);
+   doubles.push_back(1);
+-  writer.AppendArrayOfDoubles(doubles);
++  writer.AppendArrayOfDoubles(doubles.data(), doubles.size());
+ 
+   MessageReader reader(message.get());
+   const double* output_doubles = nullptr;
+@@ -307,7 +307,7 @@ TEST(MessageTest, ArrayOfBytes_Empty) {
+   std::unique_ptr<Response> message(Response::CreateEmpty());
+   MessageWriter writer(message.get());
+   std::vector<uint8_t> bytes;
+-  writer.AppendArrayOfBytes(bytes);
++  writer.AppendArrayOfBytes(bytes.data(), bytes.size());
+ 
+   MessageReader reader(message.get());
+   const uint8_t* output_bytes = nullptr;
+diff --git a/dbus/property.cc b/dbus/property.cc
+index c58bed58d8..0635473323 100644
+--- a/dbus/property.cc
++++ b/dbus/property.cc
+@@ -548,7 +548,7 @@ void Property<std::vector<uint8_t>>::AppendSetValueToWriter(
+     MessageWriter* writer) {
+   MessageWriter variant_writer(nullptr);
+   writer->OpenVariant("ay", &variant_writer);
+-  variant_writer.AppendArrayOfBytes(set_value_);
++  variant_writer.AppendArrayOfBytes(set_value_.data(), set_value_.size());
+   writer->CloseContainer(&variant_writer);
+ }
+ 
+@@ -640,7 +640,8 @@ void Property<std::vector<std::pair<std::vector<uint8_t>, uint16_t>>>::
+   for (const auto& pair : set_value_) {
+     dbus::MessageWriter struct_writer(nullptr);
+     array_writer.OpenStruct(&struct_writer);
+-    struct_writer.AppendArrayOfBytes(std::get<0>(pair));
++    struct_writer.AppendArrayOfBytes(std::get<0>(pair).data(),
++                                     std::get<0>(pair).size());
+     struct_writer.AppendUint16(std::get<1>(pair));
+     array_writer.CloseContainer(&struct_writer);
+   }
+@@ -709,7 +710,8 @@ void Property<std::map<std::string, std::vector<uint8_t>>>::
+ 
+     MessageWriter value_varient_writer(nullptr);
+     entry_writer.OpenVariant("ay", &value_varient_writer);
+-    value_varient_writer.AppendArrayOfBytes(pair.second);
++    value_varient_writer.AppendArrayOfBytes(pair.second.data(),
++                                            pair.second.size());
+     entry_writer.CloseContainer(&value_varient_writer);
+ 
+     dict_writer.CloseContainer(&entry_writer);
+@@ -780,7 +782,8 @@ void Property<std::map<uint16_t, std::vector<uint8_t>>>::AppendSetValueToWriter(
+ 
+     MessageWriter value_varient_writer(nullptr);
+     entry_writer.OpenVariant("ay", &value_varient_writer);
+-    value_varient_writer.AppendArrayOfBytes(pair.second);
++    value_varient_writer.AppendArrayOfBytes(pair.second.data(),
++                                            pair.second.size());
+     entry_writer.CloseContainer(&value_varient_writer);
+ 
+     dict_writer.CloseContainer(&entry_writer);
+diff --git a/dbus/property_unittest.cc b/dbus/property_unittest.cc
+index 164b155356..3461686c7b 100644
+--- a/dbus/property_unittest.cc
++++ b/dbus/property_unittest.cc
+@@ -379,7 +379,7 @@ TEST(PropertyTestStatic, ReadWriteNetAddressArray) {
+   for (uint16_t i = 0; i < 5; ++i) {
+     variant_array_writer.OpenStruct(&struct_entry_writer);
+     ip_bytes[4] = 0x30 + i;
+-    struct_entry_writer.AppendArrayOfBytes(ip_bytes);
++    struct_entry_writer.AppendArrayOfBytes(ip_bytes, std::size(ip_bytes));
+     struct_entry_writer.AppendUint16(i);
+     variant_array_writer.CloseContainer(&struct_entry_writer);
+   }
+@@ -442,7 +442,7 @@ TEST(PropertyTestStatic, ReadWriteStringToByteVectorMapVariantWrapped) {
+ 
+     MessageWriter value_varient_writer(nullptr);
+     entry_writer.OpenVariant("ay", &value_varient_writer);
+-    value_varient_writer.AppendArrayOfBytes(values[i]);
++    value_varient_writer.AppendArrayOfBytes(values[i].data(), values[i].size());
+     entry_writer.CloseContainer(&value_varient_writer);
+ 
+     dict_writer.CloseContainer(&entry_writer);
+@@ -476,7 +476,7 @@ TEST(PropertyTestStatic, ReadWriteStringToByteVectorMap) {
+     dict_writer.OpenDictEntry(&entry_writer);
+ 
+     entry_writer.AppendString(keys[i]);
+-    entry_writer.AppendArrayOfBytes(values[i]);
++    entry_writer.AppendArrayOfBytes(values[i].data(), values[i].size());
+ 
+     dict_writer.CloseContainer(&entry_writer);
+   }
+@@ -530,7 +530,7 @@ TEST(PropertyTestStatic, ReadWriteUInt16ToByteVectorMapVariantWrapped) {
+ 
+     MessageWriter value_varient_writer(nullptr);
+     entry_writer.OpenVariant("ay", &value_varient_writer);
+-    value_varient_writer.AppendArrayOfBytes(values[i]);
++    value_varient_writer.AppendArrayOfBytes(values[i].data(), values[i].size());
+     entry_writer.CloseContainer(&value_varient_writer);
+ 
+     dict_writer.CloseContainer(&entry_writer);
+@@ -564,7 +564,7 @@ TEST(PropertyTestStatic, ReadWriteUInt16ToByteVectorMap) {
+     dict_writer.OpenDictEntry(&entry_writer);
+ 
+     entry_writer.AppendUint16(keys[i]);
+-    entry_writer.AppendArrayOfBytes(values[i]);
++    entry_writer.AppendArrayOfBytes(values[i].data(), values[i].size());
+ 
+     dict_writer.CloseContainer(&entry_writer);
+   }
+-- 
+2.43.0.472.g3155946c3a-goog
+
