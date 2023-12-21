@@ -131,6 +131,8 @@ COMMENT_RE = re.compile(r'\s*(//|/\*)')
 COMMENT_END_RE = re.compile(r'.*\*/$')
 INCLUDE_RE = re.compile(r'\s*#(import|include)\s+([<"].+?[">])(\s*(//.*))?$')
 MACRO_RE = re.compile(r'\s*#(.*)$')
+EXTERN_C_RE = re.compile(r'\s*extern "C"(.*){$')
+EXTERN_C_END_RE = re.compile(r'\s*}(\s*//.*)?$')
 
 
 def _DecomposePath(filename):
@@ -288,6 +290,7 @@ def InsertAt(filename, source, decorated_name, target_header_type):
     candidate_block = False
     type_total = 0
     in_comment_block = False
+    in_extern_c_block = False
 
     for idx, line in enumerate(source):
         logging.debug(f'({idx+1}): {line}')
@@ -295,6 +298,20 @@ def InsertAt(filename, source, decorated_name, target_header_type):
         is_comment, in_comment_block = IsCommentThisAndNext(
             line, in_comment_block)
         if is_comment or in_comment_block:
+            continue
+
+        # Aassume a new include should not be inserted inside an extern C block,
+        # so ignore everyting inside that block.
+        if EXTERN_C_RE.match(line):
+            logging.debug(f'({idx+1}): {line} extern c begin - skip this line')
+            in_extern_c_block = True
+            continue
+        if in_extern_c_block and EXTERN_C_END_RE.match(line):
+            logging.debug(f'({idx+1}): {line} extern c end - skip this line')
+            in_extern_c_block = False
+            continue
+        if in_extern_c_block:
+            logging.debug(f'({idx+1}): {line} extern c block - skip this line')
             continue
 
         m = INCLUDE_RE.match(line)
@@ -414,6 +431,7 @@ def RemoveHeaderFromSource(source, name):
 
     file_length = len(source)
     in_comment_block = False
+    in_extern_c_block = False
 
     for idx, line in enumerate(source):
         logging.debug(f'({idx}): {line}')
@@ -421,6 +439,18 @@ def RemoveHeaderFromSource(source, name):
         is_comment, in_comment_block = IsCommentThisAndNext(
             line, in_comment_block)
         if is_comment or in_comment_block:
+            continue
+
+        # Sometimes extern C blocks are in the include section.  Ignore the
+        # lines for extern C but still check the includes inside extern C for in
+        # case that is the file to be removed.
+        if EXTERN_C_RE.match(line):
+            logging.debug(f'({idx}): {line} extern c begin - skip this line')
+            in_extern_c_block = True
+            continue
+        if in_extern_c_block and EXTERN_C_END_RE.match(line):
+            logging.debug(f'({idx}): {line} extern c end - skip this line')
+            in_extern_c_block = False
             continue
 
         m = INCLUDE_RE.match(line)
@@ -468,6 +498,7 @@ def ReplaceHeaderWithMinimumSorting(source, old_header, new_header, prefix,
     old_header_idx = -1
     new_header_idx = -1
     in_comment_block = False
+    in_extern_c_block = False
 
     # Look for old header (to replace) and check new header does not already
     # exist.
@@ -480,6 +511,17 @@ def ReplaceHeaderWithMinimumSorting(source, old_header, new_header, prefix,
         is_comment, in_comment_block = IsCommentThisAndNext(
             line, in_comment_block)
         if is_comment or in_comment_block:
+            continue
+
+        # Sometimes extern C blocks are in the include section.  Ignore the
+        # lines for extern C but still check the includes inside extern C.
+        if EXTERN_C_RE.match(line):
+            logging.debug(f'({idx}): {line} extern c begin - skip this line')
+            in_extern_c_block = True
+            continue
+        if in_extern_c_block and EXTERN_C_END_RE.match(line):
+            logging.debug(f'({idx}): {line} extern c end - skip this line')
+            in_extern_c_block = False
             continue
 
         m = INCLUDE_RE.match(line)

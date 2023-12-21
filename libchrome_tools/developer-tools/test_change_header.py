@@ -153,6 +153,20 @@ class TestRegularExpressions(unittest.TestCase):
         self.assertFalse(MACRO_RE.match('using ::testing::_;'))
         self.assertFalse(MACRO_RE.match('class Foo {'))
 
+    def test_extern(self):
+        self.assertTrue(EXTERN_C_RE.match('extern "C" {'))
+
+        self.assertFalse(EXTERN_C_RE.match('// extern "C" {'))
+        self.assertFalse(EXTERN_C_RE.match('extern "C"'))
+        self.assertFalse(EXTERN_C_RE.match('#include <vector>'))
+
+    def test_extern_end(self):
+        self.assertTrue(EXTERN_C_END_RE.match('}'))
+        self.assertTrue(EXTERN_C_END_RE.match('  }'))
+        self.assertTrue(EXTERN_C_END_RE.match('}  // Comment'))
+
+        self.assertFalse(EXTERN_C_RE.match('#include <vector>'))
+        self.assertFalse(EXTERN_C_END_RE.match('// }'))
 
 class TestIsCommentThisAndNext(unittest.TestCase):
     def test_not_comment(self):
@@ -327,6 +341,18 @@ class TestRemoveHeader(unittest.TestCase):
         self.assertEqual(source, expected_source)
         self.assertEqual(header, removed_header)
 
+    def test_remove_header_in_extern_c(self):
+        header = '<vboot/vboot_host.h>'
+        expected_source = self.source.copy()
+        idx = expected_source.index(f'#include {header}')
+        del expected_source[idx]
+
+        source, removed_header, _ = RemoveHeaderFromSource(self.source, header)
+        self.assertIsNotNone(source)
+        self.assertIsNotNone(removed_header)
+
+        self.assertEqual(source, expected_source)
+        self.assertEqual(header, removed_header)
 
 class TestAddHeader(unittest.TestCase):
     def setUp(self):
@@ -360,7 +386,7 @@ class TestAddHeader(unittest.TestCase):
     def test_add_libchrome_header(self):
         header = '<base/check.h>'
         expected_source = self.source.copy()
-        expected_source.insert(8, f'#include {header}')
+        expected_source.insert(12, f'#include {header}')
 
         source = AddHeaderToSource(os.path.normpath(self.filename),
                                    self.source, header, ClassifyHeader(header))
@@ -395,6 +421,20 @@ class TestReplaceHeader(unittest.TestCase):
         old_header = '<base/strings/string_util.h>'
 
         expected_source = self.source.copy()
+        idx = expected_source.index(f'#include {old_header}')
+        del expected_source[idx]
+
+        source = ReplaceHeader(self.source, old_header, new_header, True,
+                               os.path.normpath(self.filename))
+        self.assertIsNotNone(source)
+        self.assertEqual(source, expected_source)
+
+    def test_old_header_in_extern_c(self):
+        new_header = '<base/foo.h>'
+        old_header = '<vboot/vboot_host.h>'
+
+        expected_source = self.source.copy()
+        expected_source.insert(12, f'#include {new_header}')
         idx = expected_source.index(f'#include {old_header}')
         del expected_source[idx]
 
@@ -466,6 +506,19 @@ class TestReplaceHeaderMinimum(unittest.TestCase):
         expected_source = self.source.copy()
         idx = expected_source.index(f'#include {old_header}')
         del expected_source[idx]
+
+        source = ReplaceHeaderWithMinimumSorting(self.source, old_header,
+                                                 new_header, 'base/', True)
+        self.assertIsNotNone(source)
+        self.assertEqual(source, expected_source)
+
+    def test_old_header_in_extern_c(self):
+        new_header = '<foo.h>'
+        old_header = '<vboot/vboot_host.h>'
+
+        expected_source = self.source.copy()
+        idx = expected_source.index(f'#include {old_header}')
+        expected_source[idx] = f'#include {new_header}'
 
         source = ReplaceHeaderWithMinimumSorting(self.source, old_header,
                                                  new_header, 'base/', True)
