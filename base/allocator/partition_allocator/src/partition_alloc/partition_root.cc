@@ -874,32 +874,27 @@ void PartitionRoot::DestructForTesting() {
   }
 }
 
-#if PA_CONFIG(ENABLE_MAC11_MALLOC_SIZE_HACK)
-void PartitionRoot::InitMac11MallocSizeHackUsableSize(size_t ref_count_size) {
+#if PA_CONFIG(MAYBE_ENABLE_MAC11_MALLOC_SIZE_HACK)
+void PartitionRoot::InitMac11MallocSizeHackUsableSize() {
   settings.mac11_malloc_size_hack_enabled_ = true;
 
-  // 0 means reserve just enough extras to fit PartitionRefCount.
-  if (!ref_count_size) {
-    ref_count_size = sizeof(internal::PartitionRefCount);
-  }
   // Request of 32B will fall into a 48B bucket in the presence of BRP
   // ref-count, yielding |48 - ref_count_size| of actual usable space.
-  settings.mac11_malloc_size_hack_usable_size_ = 48 - ref_count_size;
+  PA_DCHECK(settings.ref_count_size);
+  settings.mac11_malloc_size_hack_usable_size_ = 48 - settings.ref_count_size;
 }
 
-void PartitionRoot::EnableMac11MallocSizeHackForTesting(size_t ref_count_size) {
-  settings.mac11_malloc_size_hack_enabled_ = true;
-  InitMac11MallocSizeHackUsableSize(ref_count_size);
+void PartitionRoot::EnableMac11MallocSizeHackForTesting() {
+  InitMac11MallocSizeHackUsableSize();
 }
 
-void PartitionRoot::EnableMac11MallocSizeHackIfNeeded(size_t ref_count_size) {
-  settings.mac11_malloc_size_hack_enabled_ =
-      settings.brp_enabled_ && internal::base::mac::MacOSMajorVersion() == 11;
-  if (settings.mac11_malloc_size_hack_enabled_) {
-    InitMac11MallocSizeHackUsableSize(ref_count_size);
+void PartitionRoot::EnableMac11MallocSizeHackIfNeeded() {
+  PA_DCHECK(settings.brp_enabled_);
+  if (internal::base::mac::MacOSMajorVersion() == 11) {
+    InitMac11MallocSizeHackUsableSize();
   }
 }
-#endif  // PA_CONFIG(ENABLE_MAC11_MALLOC_SIZE_HACK)
+#endif  // PA_CONFIG(MAYBE_ENABLE_MAC11_MALLOC_SIZE_HACK)
 
 #if BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT) && !BUILDFLAG(HAS_64_BIT_POINTERS)
 namespace {
@@ -977,9 +972,6 @@ void PartitionRoot::Init(PartitionOptions opts) {
 #endif  // BUILDFLAG(PA_DCHECK_IS_ON)
 #if BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)
     settings.brp_enabled_ = opts.backup_ref_ptr == PartitionOptions::kEnabled;
-#if PA_CONFIG(ENABLE_MAC11_MALLOC_SIZE_HACK)
-    EnableMac11MallocSizeHackIfNeeded(opts.ref_count_size);
-#endif
 #else   // BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)
     PA_CHECK(opts.backup_ref_ptr == PartitionOptions::kDisabled);
 #endif  // BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)
@@ -1038,23 +1030,20 @@ void PartitionRoot::Init(PartitionOptions opts) {
     }
 
     if (brp_enabled()) {
-      // TODO(tasak): In the PUT_REF_COUNT_IN_PREVIOUS_SLOT case, ref-count is
-      // stored out-of-line for single-slot slot spans, so no need to
-      // add/subtract its size in this case.
-      size_t ref_count_size = opts.ref_count_size;
-      if (!ref_count_size) {
-        ref_count_size = internal::kPartitionRefCountSizeAdjustment;
-      }
+      size_t ref_count_size = internal::kPartitionRefCountSizeAdjustment;
       ref_count_size = internal::AlignUpRefCountSizeForMac(ref_count_size);
 #if PA_CONFIG(INCREASE_REF_COUNT_SIZE_FOR_MTE)
       if (IsMemoryTaggingEnabled()) {
         ref_count_size = internal::base::bits::AlignUp(
             ref_count_size, internal::kMemTagGranuleSize);
       }
-      settings.ref_count_size = ref_count_size;
 #endif  // PA_CONFIG(INCREASE_REF_COUNT_SIZE_FOR_MTE)
+      settings.ref_count_size = ref_count_size;
       PA_CHECK(internal::kPartitionRefCountSizeAdjustment <= ref_count_size);
       settings.extras_size += ref_count_size;
+#if PA_CONFIG(MAYBE_ENABLE_MAC11_MALLOC_SIZE_HACK)
+      EnableMac11MallocSizeHackIfNeeded();
+#endif
     }
 #endif  // PA_CONFIG(EXTRAS_REQUIRED)
 

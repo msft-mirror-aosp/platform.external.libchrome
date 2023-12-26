@@ -18,12 +18,12 @@
 #include "base/cpu.h"
 #include "base/logging.h"
 #include "base/memory/raw_ptr_asan_service.h"
+#include "base/metrics/histogram_base.h"
 #include "base/task/thread_pool.h"
 #include "base/test/bind.h"
 #include "base/test/gtest_util.h"
 #include "base/test/memory/dangling_ptr_instrumentation.h"
 #include "base/test/scoped_feature_list.h"
-#include "base/test/task_environment.h"
 #include "build/build_config.h"
 #include "build/buildflag.h"
 #include "partition_alloc/dangling_raw_ptr_checks.h"
@@ -2316,6 +2316,42 @@ TEST_F(BackupRefPtrTest, QuarantineHook) {
   }  // <- unquarantined here
 
   partition_alloc::PartitionAllocHooks::SetQuarantineOverrideHook(nullptr);
+}
+
+TEST_F(BackupRefPtrTest, VectorExperimental) {
+  // Allocate a slot so that a slot span doesn't get decommitted from memory,
+  // while we allocate/deallocate/access the tested slot below.
+  void* sentinel = allocator_.root()->Alloc(sizeof(unsigned int), "");
+  constexpr uint32_t kQuarantined2Bytes =
+      partition_alloc::internal::kQuarantinedByte |
+      (partition_alloc::internal::kQuarantinedByte << 8);
+  constexpr uint32_t kQuarantined4Bytes =
+      kQuarantined2Bytes | (kQuarantined2Bytes << 16);
+
+  {
+    raw_ptr<unsigned int, DanglingUntriaged> ptr = static_cast<unsigned int*>(
+        allocator_.root()->Alloc(sizeof(unsigned int), ""));
+    *ptr = 0;
+    allocator_.root()->Free(ptr);
+#if BUILDFLAG(PA_DCHECK_IS_ON) || BUILDFLAG(ENABLE_BACKUP_REF_PTR_SLOW_CHECKS)
+    EXPECT_DEATH_IF_SUPPORTED(*ptr = 0, "");
+#else
+    EXPECT_EQ(kQuarantined4Bytes, *ptr);
+#endif
+  }
+  // raw_ptr with VectorExperimental, BRP is expected to be off.
+  {
+    raw_ptr<unsigned int, DanglingUntriaged | VectorExperimental> ptr =
+        static_cast<unsigned int*>(
+            allocator_.root()->Alloc(sizeof(unsigned int), ""));
+    *ptr = 0;
+    allocator_.root()->Free(ptr);
+    // A tad fragile as a new allocation or free-list pointer may be there, but
+    // highly unlikely it'll match 4 quarantine bytes in a row.
+    EXPECT_NE(kQuarantined4Bytes, *ptr);
+  }
+
+  allocator_.root()->Free(sentinel);
 }
 
 #endif  // BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT) &&

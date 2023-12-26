@@ -255,37 +255,22 @@ void SetDistributionForPartitionRoot(PartitionRoot* root,
 struct PartitionAllocTestParam {
   BucketDistribution bucket_distribution;
   bool use_pkey_pool;
-  size_t ref_count_size;
 };
 
 const std::vector<PartitionAllocTestParam> GetPartitionAllocTestParams() {
-  std::vector<size_t> ref_count_sizes = {0, 8, 16};
-  // sizeof(PartitionRefCount) == 8 under some configurations, so we can't force
-  // the size down to 4.
-#if !PA_CONFIG(REF_COUNT_STORE_REQUESTED_SIZE) && \
-    !PA_CONFIG(REF_COUNT_CHECK_COOKIE) &&         \
-    !BUILDFLAG(ENABLE_DANGLING_RAW_PTR_CHECKS)
-  ref_count_sizes.push_back(4);
-#endif
-  // Using MTE or Mac13 workaroud increases extras size without increasing
-  // sizeof(PartitionRefCount), so we don't have to exclude it here, as long as
-  // ExtraAllocSize() accounts for it.
-
   std::vector<PartitionAllocTestParam> params;
-  for (size_t ref_count_size : ref_count_sizes) {
-    params.emplace_back(PartitionAllocTestParam{BucketDistribution::kNeutral,
-                                                false, ref_count_size});
-    params.emplace_back(PartitionAllocTestParam{BucketDistribution::kDenser,
-                                                false, ref_count_size});
+  params.emplace_back(
+      PartitionAllocTestParam{BucketDistribution::kNeutral, false});
+  params.emplace_back(
+      PartitionAllocTestParam{BucketDistribution::kDenser, false});
 #if BUILDFLAG(ENABLE_PKEYS)
-    if (CPUHasPkeySupport()) {
-      params.emplace_back(PartitionAllocTestParam{BucketDistribution::kNeutral,
-                                                  true, ref_count_size});
-      params.emplace_back(PartitionAllocTestParam{BucketDistribution::kDenser,
-                                                  true, ref_count_size});
-    }
-#endif
+  if (CPUHasPkeySupport()) {
+    params.emplace_back(
+        PartitionAllocTestParam{BucketDistribution::kNeutral, true});
+    params.emplace_back(
+        PartitionAllocTestParam{BucketDistribution::kDenser, true});
   }
+#endif
   return params;
 }
 
@@ -356,7 +341,6 @@ class PartitionAllocTest
 
   PartitionOptions GetCommonPartitionOptions() {
     PartitionOptions opts;
-    opts.ref_count_size = GetParam().ref_count_size;
     // Requires explicit `FreeFlag` to activate, no effect otherwise.
     opts.zapping_by_free_flags = PartitionOptions::kEnabled;
     opts.scheduler_loop_quarantine = PartitionOptions::kEnabled;
@@ -461,10 +445,7 @@ class PartitionAllocTest
     size_t ref_count_size = 0;
     // Duplicate the logic from PartitionRoot::Init().
     if (allocator.root()->brp_enabled()) {
-      ref_count_size = GetParam().ref_count_size;
-      if (!ref_count_size) {
-        ref_count_size = kPartitionRefCountSizeAdjustment;
-      }
+      ref_count_size = kPartitionRefCountSizeAdjustment;
       ref_count_size = AlignUpRefCountSizeForMac(ref_count_size);
 #if PA_CONFIG(INCREASE_REF_COUNT_SIZE_FOR_MTE)
       if (allocator.root()->IsMemoryTaggingEnabled()) {
@@ -3873,9 +3854,8 @@ TEST_P(PartitionAllocTest, GetUsableSizeNull) {
 }
 
 TEST_P(PartitionAllocTest, GetUsableSize) {
-#if PA_CONFIG(ENABLE_MAC11_MALLOC_SIZE_HACK)
-  allocator.root()->EnableMac11MallocSizeHackForTesting(
-      GetParam().ref_count_size);
+#if PA_CONFIG(MAYBE_ENABLE_MAC11_MALLOC_SIZE_HACK)
+  allocator.root()->EnableMac11MallocSizeHackForTesting();
 #endif
   size_t delta = 31;
   for (size_t size = 1; size <= kMinDirectMappedDownsize; size += delta) {
@@ -3884,7 +3864,7 @@ TEST_P(PartitionAllocTest, GetUsableSize) {
     size_t usable_size = PartitionRoot::GetUsableSize(ptr);
     size_t usable_size_with_hack =
         PartitionRoot::GetUsableSizeWithMac11MallocSizeHack(ptr);
-#if PA_CONFIG(ENABLE_MAC11_MALLOC_SIZE_HACK)
+#if PA_CONFIG(MAYBE_ENABLE_MAC11_MALLOC_SIZE_HACK)
     if (size != internal::kMac11MallocSizeHackRequestedSize)
 #endif
       EXPECT_EQ(usable_size_with_hack, usable_size);
@@ -3895,14 +3875,13 @@ TEST_P(PartitionAllocTest, GetUsableSize) {
   }
 }
 
-#if PA_CONFIG(ENABLE_MAC11_MALLOC_SIZE_HACK)
+#if PA_CONFIG(MAYBE_ENABLE_MAC11_MALLOC_SIZE_HACK)
 TEST_P(PartitionAllocTest, GetUsableSizeWithMac11MallocSizeHack) {
   if (internal::base::mac::MacOSMajorVersion() != 11) {
     GTEST_SKIP() << "Skipping because the test is for Mac11.";
   }
 
-  allocator.root()->EnableMac11MallocSizeHackForTesting(
-      GetParam().ref_count_size);
+  allocator.root()->EnableMac11MallocSizeHackForTesting();
   size_t size = internal::kMac11MallocSizeHackRequestedSize;
   void* ptr = allocator.root()->Alloc(size);
   size_t usable_size = PartitionRoot::GetUsableSize(ptr);
@@ -3914,7 +3893,7 @@ TEST_P(PartitionAllocTest, GetUsableSizeWithMac11MallocSizeHack) {
 
   allocator.root()->Free(ptr);
 }
-#endif  // PA_CONFIG(ENABLE_MAC11_MALLOC_SIZE_HACK)
+#endif  // PA_CONFIG(MAYBE_ENABLE_MAC11_MALLOC_SIZE_HACK)
 
 TEST_P(PartitionAllocTest, Bookkeeping) {
   auto& root = *allocator.root();
