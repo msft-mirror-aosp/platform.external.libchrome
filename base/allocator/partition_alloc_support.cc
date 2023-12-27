@@ -854,8 +854,6 @@ PartitionAllocSupport::GetBrpConfiguration(const std::string& process_type) {
   CHECK(base::FeatureList::GetInstance());
 
   bool enable_brp = false;
-  bool enable_brp_for_ash = false;
-  bool split_main_partition = false;
   bool process_affected_by_brp_flag = false;
   size_t ref_count_size = 0;
 
@@ -901,7 +899,6 @@ PartitionAllocSupport::GetBrpConfiguration(const std::string& process_type) {
 
       case base::features::BackupRefPtrMode::kEnabled:
         enable_brp = true;
-        split_main_partition = true;
         break;
     }
 
@@ -925,18 +922,9 @@ PartitionAllocSupport::GetBrpConfiguration(const std::string& process_type) {
 #endif  // BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC) &&
         // BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)
 
-  // Enabling BRP for Ash makes sense only when BRP is enabled. If it wasn't,
-  // there would be no BRP pool, thus BRP would be equally inactive for Ash
-  // pointers.
-#if BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)
-  enable_brp_for_ash =
-      enable_brp && base::FeatureList::IsEnabled(
-                        base::features::kPartitionAllocBackupRefPtrForAsh);
-#endif
-
   return {
-      enable_brp,           enable_brp_for_ash,
-      split_main_partition, process_affected_by_brp_flag,
+      enable_brp,
+      process_affected_by_brp_flag,
       ref_count_size,
   };
 }
@@ -1040,12 +1028,6 @@ void PartitionAllocSupport::ReconfigureAfterFeatureListInit(
   DCHECK_NE(process_type, switches::kZygoteProcess);
   [[maybe_unused]] BrpConfiguration brp_config =
       GetBrpConfiguration(process_type);
-
-  if (brp_config.enable_brp_for_ash) {
-    // This must be enabled before the BRP partition is created. See
-    // RawPtrBackupRefImpl::UseBrp().
-    base::RawPtrGlobalSettings::EnableExperimentalAsh();
-  }
 
 #if BUILDFLAG(USE_ASAN_BACKUP_REF_PTR)
   if (brp_config.process_affected_by_brp_flag) {
@@ -1156,10 +1138,8 @@ void PartitionAllocSupport::ReconfigureAfterFeatureListInit(
   allocator_shim::ConfigurePartitions(
       allocator_shim::EnableBrp(brp_config.enable_brp),
       allocator_shim::EnableMemoryTagging(enable_memory_tagging),
-      memory_tagging_reporting_mode,
-      allocator_shim::SplitMainPartition(brp_config.split_main_partition ||
-                                         enable_memory_tagging),
-      brp_config.ref_count_size, bucket_distribution,
+      memory_tagging_reporting_mode, brp_config.ref_count_size,
+      bucket_distribution,
       allocator_shim::SchedulerLoopQuarantine(scheduler_loop_quarantine),
       scheduler_loop_quarantine_capacity_in_bytes,
       scheduler_loop_quarantine_capacity_count,
