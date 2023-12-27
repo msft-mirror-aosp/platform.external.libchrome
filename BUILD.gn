@@ -600,9 +600,11 @@ libbase_sublibs = [
       "base/profiler/sample_metadata.cc",
       "base/profiler/stack_buffer.cc",
       "base/profiler/stack_copier.cc",
+      "base/profiler/stack_copier_signal.cc",
       "base/profiler/stack_sampler.cc",
       "base/profiler/stack_sampler_posix.cc",
       "base/profiler/stack_sampling_profiler.cc",
+      "base/profiler/thread_delegate_posix.cc",
       "base/profiler/unwinder.cc",
       "base/rand_util.cc",
       "base/rand_util_posix.cc",
@@ -784,6 +786,14 @@ libbase_sublibs = [
         "base/allocator/allocator_extension.cc",
         "base/allocator/partition_allocator/src/partition_alloc/shim/allocator_shim.cc",
         "base/allocator/partition_allocator/src/partition_alloc/shim/allocator_shim_default_dispatch_to_glibc.cc",
+      ]
+    }
+
+    # ARM and X86 doesn't have implementations for frame pointer unwinder.
+    # ARM and X86 has stack profiler disabled.
+    if (current_cpu == "x64" || current_cpu == "arm64") {
+      sources += [
+        "base/profiler/frame_pointer_unwinder.cc",
       ]
     }
   },
