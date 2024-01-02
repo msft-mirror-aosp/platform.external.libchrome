@@ -1280,6 +1280,7 @@ if (use.mojo) {
           "mojo/public/cpp/platform/platform_handle.cc",
           "mojo/public/cpp/platform/socket_utils_posix.cc",
           "mojo/public/cpp/system/handle_signal_tracker.cc",
+          "mojo/public/cpp/system/buffer.cc",
           "mojo/public/cpp/system/invitation.cc",
           "mojo/public/cpp/system/isolated_connection.cc",
           "mojo/public/cpp/system/platform_handle.cc",
