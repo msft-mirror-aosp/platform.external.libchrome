@@ -35,7 +35,10 @@ BAD_KEYWORDS = {
     # UMA_HISTOGRAM macros send their metrics into the void on CrOS.
     r'UMA_(?:STABILITY_){0,1}HISTOGRAM[_A-Z0-9]*\(': 'Chromium UMA macros don\'t work on CrOS. See crsrc.org/o/src/platform2/metrics/metrics_library.h if you want to collect metrics on CrOS.',
     # UmaHistogram functions send their metrics into the void on CrOS.
-    r'(?:base::){0,1}UmaHistogram[a-zA-Z0-9]*\(': 'Chromium UmaHistogram functions don\'t work on CrOS. See crsrc.org/o/src/platform2/metrics/metrics_library.h if you want to collect metrics on CrOS.'
+    r'(?:base::){0,1}UmaHistogram[a-zA-Z0-9]*\(': 'Chromium UmaHistogram functions don\'t work on CrOS. See crsrc.org/o/src/platform2/metrics/metrics_library.h if you want to collect metrics on CrOS.',
+    # logging::LOG_foo is deprecated in favor of logging::LOGGING_foo.
+    r'logging::LOG_(VERBOSE|INFO|WARNING|ERROR|FATAL)':
+    'logging::LOG_foo is deprecated in favor of logging::LOGGING_foo.'
 }
 
 LINE_NUMBER_RE=re.compile(r'^@@ [0-9\,\+\-]+ \+([0-9]+)[ \,][0-9 ]*@@')
