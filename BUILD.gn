@@ -220,6 +220,7 @@ buildflag_header("partition_allocator_buildflags") {
     "USE_FREESLOT_BITMAP=false",
     "ENABLE_POINTER_ARITHMETIC_TRAIT_CHECK=false",
     "HAS_MEMORY_TAGGING=false",
+    "FORWARD_THROUGH_MALLOC=false",
   ]
 }
 
@@ -498,6 +499,7 @@ libbase_sublibs = [
       "base/files/scoped_temp_dir.cc",
       "base/functional/callback_helpers.cc",
       "base/functional/callback_internal.cc",
+      "base/gtest_prod_util.cc",
       "base/hash/hash.cc",
       "base/hash/md5_nacl.cc",
       "base/hash/sha1_nacl.cc",

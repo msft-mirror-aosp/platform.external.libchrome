@@ -33,6 +33,7 @@
 #include "base/debug/stack_trace.h"
 #include "base/debug/task_trace.h"
 #include "base/functional/callback.h"
+#include "base/gtest_prod_util.h"
 #include "base/immediate_crash.h"
 #include "base/no_destructor.h"
 #include "base/path_service.h"
@@ -698,8 +699,10 @@ void LogMessage::Flush() {
   size_t stack_start = stream_.str().length();
 #if !defined(OFFICIAL_BUILD) && !BUILDFLAG(IS_NACL) && !defined(__UCLIBC__) && \
     !BUILDFLAG(IS_AIX)
-  if (severity_ == LOGGING_FATAL && !base::debug::BeingDebugged()) {
-    // Include a stack trace on a fatal, unless a debugger is attached.
+  // Include a stack trace on a fatal, unless running within a death test proc
+  // or a debugger is attached.
+  if (severity_ == LOGGING_FATAL && !::base::internal::InDeathTestChild() &&
+      !base::debug::BeingDebugged()) {
     base::debug::StackTrace stack_trace;
     stream_ << std::endl;  // Newline to separate from log message.
     stack_trace.OutputToStream(&stream_);
@@ -1034,6 +1037,11 @@ void LogMessage::HandleFatal(size_t stack_start,
   }
 }
 
+LogMessageFatal::~LogMessageFatal() {
+  Flush();
+  base::ImmediateCrash();
+}
+
 #if BUILDFLAG(IS_WIN)
 // This has already been defined in the header, but defining it again as DWORD
 // ensures that the type used in the header is equivalent to DWORD. If not,
@@ -1080,12 +1088,23 @@ Win32ErrorLogMessage::Win32ErrorLogMessage(const char* file,
     : LogMessage(file, line, severity), err_(err) {}
 
 Win32ErrorLogMessage::~Win32ErrorLogMessage() {
+  AppendError();
+}
+
+void Win32ErrorLogMessage::AppendError() {
   stream() << ": " << SystemErrorCodeToString(err_);
   // We're about to crash (CHECK). Put |err_| on the stack (by placing it in a
   // field) and use Alias in hopes that it makes it into crash dumps.
   DWORD last_error = err_;
   base::debug::Alias(&last_error);
 }
+
+Win32ErrorLogMessageFatal::~Win32ErrorLogMessageFatal() {
+  AppendError();
+  Flush();
+  base::ImmediateCrash();
+}
+
 #elif BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
 ErrnoLogMessage::ErrnoLogMessage(const char* file,
                                  int line,
@@ -1094,12 +1113,23 @@ ErrnoLogMessage::ErrnoLogMessage(const char* file,
     : LogMessage(file, line, severity), err_(err) {}
 
 ErrnoLogMessage::~ErrnoLogMessage() {
+  AppendError();
+}
+
+void ErrnoLogMessage::AppendError() {
   stream() << ": " << SystemErrorCodeToString(err_);
   // We're about to crash (CHECK). Put |err_| on the stack (by placing it in a
   // field) and use Alias in hopes that it makes it into crash dumps.
   int last_error = err_;
   base::debug::Alias(&last_error);
 }
+
+ErrnoLogMessageFatal::~ErrnoLogMessageFatal() {
+  AppendError();
+  Flush();
+  base::ImmediateCrash();
+}
+
 #endif  // BUILDFLAG(IS_WIN)
 
 void CloseLogFile() {
