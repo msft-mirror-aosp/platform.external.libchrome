@@ -47,12 +47,14 @@ class PatchCommit(NamedTuple):
     """Hash of a patch commit and the corresponding patch file basename."""
     hash: str
     patch_name: str
+    is_script: bool
 
 
 class PotentialPatchCommit(NamedTuple):
     """Commit that is potentially a patch commit."""
     hash: str
     patch_name_trailers: Sequence[str]
+    is_script: bool
 
     def is_patch_commit(self) -> bool:
         return (len(self.patch_name_trailers) == 1
@@ -60,7 +62,8 @@ class PotentialPatchCommit(NamedTuple):
 
     def to_patch_commit(self) -> PatchCommit:
         assert self.is_patch_commit()
-        return PatchCommit(self.hash, self.patch_name_trailers[0])
+        return PatchCommit(self.hash, self.patch_name_trailers[0],
+                           self.is_script)
 
 
 class CommandResult(NamedTuple):
@@ -93,7 +96,7 @@ def _commit_script_patch(patch: str, dry_run: bool) -> None:
             "-m",
             "Temporary commit for script-based patch",
             "-m",
-            f"patch-name: {os.path.basename(patch)}",
+            f"patch-name: {os.path.basename(patch)}\nis-script: true",
         ],
         True,
         dry_run,
@@ -319,18 +322,19 @@ def _potential_patch_commits_since_hash(
     output = _run_or_log_cmd([
         "git",
         "log",
-        "--format=%H:%(trailers:key=patch-name,valueonly,separator=%x2C)",
+        "--format=%H:%(trailers:key=patch-name,valueonly,separator=%x2C):%(trailers:key=is-script,keyonly)",
         f"{commit_hash}..",
     ], True, dry_run).stdout.split('\n')
     # Reverse output so that it is sorted from commit hash to HEAD.
     output.reverse()
     # Parse output by line so each entry is a tuple (hash: str, unparsed string
     # of ','-separated trailers: str).
-    output = [line.split(':', maxsplit=2) for line in output if line]
+    output = [line.split(':', maxsplit=3) for line in output if line]
     return [
         PotentialPatchCommit(
             line[0],  # hash
-            line[1].split(',') if line[1] else []  # trailers: list of str
+            line[1].split(',') if line[1] else [],  # trailers: list of str
+            line[2] == 'is-script' if line[2] else False,  # script-based patch
         ) for line in output
     ]
 
@@ -507,20 +511,30 @@ def format_patches(libchrome_path: str,
     # commit order (HEAD-before-patching to HEAD).
     formatted_patches = _run_or_log_cmd(["git", "format-patch", TAG, "-N"],
                                         dry_run=dry_run).stdout.splitlines()
-    logging.info("Formatted %d commits since %s as patches.",
-                 len(formatted_patches), TAG)
+    commit_count = len(formatted_patches)
+    script_generated_commit_count = len(
+        [c for c in commits if c.is_script])
+    logging.info(
+        "Formatted %d commits since %s as patches: "
+        "%d is/are generated from script (and will be discarded), "
+        "remaining %d will be moved to libchrome_tools/patches/.",
+        commit_count, TAG, script_generated_commit_count,
+        commit_count - script_generated_commit_count)
 
     # Reset to tagged commit.
     _run_or_log_cmd(["git", "reset", "--hard", TAG], dry_run=dry_run)
     logging.info("Reset to %s.", TAG)
 
     # Move and rename files to <libchrome>/libchrome_tools/patches/ with name
-    # specified by the patch-name trailer.
+    # specified by the patch-name trailer; unless it is generated from a script-
+    # based patch, in which case remove it.
     patch_dir = os.path.join(libchrome_path, "libchrome_tools", "patches")
-    for (formatted_patch_file,
-         patch_name) in zip(formatted_patches,
-                            [c.patch_name for c in commits]):
-        os.rename(formatted_patch_file, os.path.join(patch_dir, patch_name))
+    for (formatted_patch_file, commit) in zip(formatted_patches, commits):
+        if commit.is_script:
+            os.remove(formatted_patch_file)
+        else:
+            os.rename(formatted_patch_file,
+                      os.path.join(patch_dir, commit.patch_name))
     logging.info("Moved and renamed formatted patches, please check %s.",
                  patch_dir)
 
