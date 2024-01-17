@@ -221,6 +221,7 @@ buildflag_header("partition_allocator_buildflags") {
     "ENABLE_POINTER_ARITHMETIC_TRAIT_CHECK=false",
     "HAS_MEMORY_TAGGING=false",
     "FORWARD_THROUGH_MALLOC=false",
+    "ENABLE_BACKUP_REF_PTR_INSTANCE_TRACER=false",
   ]
 }
 
