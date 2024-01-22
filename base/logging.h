@@ -17,6 +17,7 @@
 #include "base/compiler_specific.h"
 #include "base/dcheck_is_on.h"
 #include "base/functional/callback_forward.h"
+#include "base/memory/raw_ptr.h"
 #include "base/scoped_clear_last_error.h"
 #include "base/strings/string_piece.h"
 #include "base/strings/utf_ostream_operators.h"
@@ -243,7 +244,7 @@ struct BASE_EXPORT LoggingSettings {
   // |log_file_path| will be ignored, and the logging system will take ownership
   // of the FILE. If there's an error writing to this file, no fallback paths
   // will be opened.
-  FILE* log_file = nullptr;
+  raw_ptr<FILE> log_file = nullptr;
   // ChromeOS uses the syslog log format by default.
   LogFormat log_format = LogFormat::LOG_FORMAT_SYSLOG;
 #endif
@@ -392,16 +393,12 @@ constexpr LogSeverity LOGGING_DFATAL = LOGGING_ERROR;
 #define COMPACT_GOOGLE_LOG_EX_DFATAL(ClassName, ...)                  \
   ::logging::ClassName(__FILE__, __LINE__, ::logging::LOGGING_DFATAL, \
                        ##__VA_ARGS__)
-#define COMPACT_GOOGLE_LOG_EX_DCHECK(ClassName, ...)                  \
-  ::logging::ClassName(__FILE__, __LINE__, ::logging::LOGGING_DCHECK, \
-                       ##__VA_ARGS__)
 
 #define COMPACT_GOOGLE_LOG_INFO COMPACT_GOOGLE_LOG_EX_INFO(LogMessage)
 #define COMPACT_GOOGLE_LOG_WARNING COMPACT_GOOGLE_LOG_EX_WARNING(LogMessage)
 #define COMPACT_GOOGLE_LOG_ERROR COMPACT_GOOGLE_LOG_EX_ERROR(LogMessage)
 #define COMPACT_GOOGLE_LOG_FATAL COMPACT_GOOGLE_LOG_EX_FATAL(LogMessage)
 #define COMPACT_GOOGLE_LOG_DFATAL COMPACT_GOOGLE_LOG_EX_DFATAL(LogMessage)
-#define COMPACT_GOOGLE_LOG_DCHECK COMPACT_GOOGLE_LOG_EX_DCHECK(LogMessage)
 
 #if BUILDFLAG(IS_WIN)
 // wingdi.h defines ERROR to be 0. When we call LOG(ERROR), it gets
@@ -574,6 +571,9 @@ BASE_EXPORT extern std::ostream* g_swallow_stream;
 
 // Definitions for DCHECK et al.
 
+// TODO(pbos): Move this to check.h. Probably find a better name. Maybe this
+// means that we want LogSeverity in a separate file, but maybe we can just have
+// this as a bool DCHECK_IS_FATAL.
 #if BUILDFLAG(DCHECK_IS_CONFIGURABLE)
 BASE_EXPORT extern LogSeverity LOGGING_DCHECK;
 #else
