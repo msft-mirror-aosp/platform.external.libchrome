@@ -18,7 +18,7 @@ diff --git a/base/logging.h b/base/logging.h
 index 95180d7710..2fca3e6fa0 100644
 --- a/base/logging.h
 +++ b/base/logging.h
-@@ -374,6 +374,15 @@ constexpr LogSeverity LOGGING_DFATAL = LOGGING_FATAL;
+@@ -374,6 +374,14 @@ constexpr LogSeverity LOGGING_DFATAL = LOGGING_FATAL;
  constexpr LogSeverity LOGGING_DFATAL = LOGGING_ERROR;
  #endif
  
@@ -27,7 +27,6 @@ index 95180d7710..2fca3e6fa0 100644
 +// TODO(thestig): Convert existing users to LOGGING_FOO and remove this block.
 +constexpr LogSeverity LOG_VERBOSE = LOGGING_VERBOSE;
 +constexpr LogSeverity LOG_INFO = LOGGING_INFO;
-+constexpr LogSeverity LOG_WARNING = LOGGING_WARNING;
 +constexpr LogSeverity LOG_ERROR = LOGGING_ERROR;
 +constexpr LogSeverity LOG_FATAL = LOGGING_FATAL;
 +

@@ -512,6 +512,32 @@ TEST(SpanTest, ConstructFromContainer) {
     EXPECT_EQ(vector[i], static_span[i]);
 }
 
+TEST(SpanTest, FromRefOfMutableStackVariable) {
+  int x = 123;
+
+  auto s = span_from_ref(x);
+  static_assert(std::is_same_v<decltype(s), span<int, 1u>>);
+  EXPECT_EQ(&x, s.data());
+  EXPECT_EQ(1u, s.size());
+  EXPECT_EQ(sizeof(int), s.size_bytes());
+  EXPECT_EQ(123, s[0]);
+
+  s[0] = 456;
+  EXPECT_EQ(456, x);
+  EXPECT_EQ(456, s[0]);
+}
+
+TEST(SpanTest, FromRefOfConstStackVariable) {
+  const int x = 123;
+
+  auto s = span_from_ref(x);
+  static_assert(std::is_same_v<decltype(s), span<const int, 1u>>);
+  EXPECT_EQ(&x, s.data());
+  EXPECT_EQ(1u, s.size());
+  EXPECT_EQ(sizeof(int), s.size_bytes());
+  EXPECT_EQ(123, s[0]);
+}
+
 TEST(SpanTest, ConvertNonConstIntegralToConst) {
   std::vector<int> vector = {1, 1, 2, 3, 5, 8};
 
@@ -1561,6 +1587,42 @@ TEST(SpanTest, OutOfBoundsDeath) {
   ASSERT_DEATH_IF_SUPPORTED(kNonEmptyDynamicSpan.subspan(minus_one, minus_one),
                             "");
   ASSERT_DEATH_IF_SUPPORTED(kNonEmptyDynamicSpan.subspan(minus_one, 1), "");
+
+  // Span's iterators should be checked. To confirm the crashes come from the
+  // iterator checks and not stray memory accesses, we create spans that are
+  // backed by larger arrays.
+  int array1[] = {1, 2, 3, 4};
+  int array2[] = {1, 2, 3, 4};
+  span<int> span_len2 = span(array1).first(2);
+  span<int> span_len3 = span(array2).first(3);
+  ASSERT_DEATH_IF_SUPPORTED(*span_len2.end(), "");
+  ASSERT_DEATH_IF_SUPPORTED(span_len2.begin()[2], "");
+  ASSERT_DEATH_IF_SUPPORTED(span_len2.begin() + 3, "");
+  ASSERT_DEATH_IF_SUPPORTED(span_len2.begin() - 1, "");
+  ASSERT_DEATH_IF_SUPPORTED(span_len2.end() + 1, "");
+
+  // When STL functions take explicit end iterators, bounds checking happens
+  // at the caller, when end iterator is created. However, some APIs take only a
+  // begin iterator and determine end implicitly. In that case, bounds checking
+  // happens inside the STL. However, the STL sometimes specializes operations
+  // on contiguous iterators. These death ensures this specialization does not
+  // lose hardening.
+  //
+  // Note that these tests are necessary, but not sufficient, to demonstrate
+  // that iterators are suitably checked. The output iterator is currently
+  // checked too late due to https://crbug.com/1520041.
+
+  // Copying more values than fit in the destination.
+  ASSERT_DEATH_IF_SUPPORTED(
+      std::copy(span_len3.begin(), span_len3.end(), span_len2.begin()), "");
+  ASSERT_DEATH_IF_SUPPORTED(std::ranges::copy(span_len3, span_len2.begin()),
+                            "");
+  ASSERT_DEATH_IF_SUPPORTED(
+      std::copy_n(span_len3.begin(), 3, span_len2.begin()), "");
+
+  // Copying more values than exist in the source.
+  ASSERT_DEATH_IF_SUPPORTED(
+      std::copy_n(span_len2.begin(), 3, span_len3.begin()), "");
 }
 
 TEST(SpanTest, IteratorIsRangeMoveSafe) {

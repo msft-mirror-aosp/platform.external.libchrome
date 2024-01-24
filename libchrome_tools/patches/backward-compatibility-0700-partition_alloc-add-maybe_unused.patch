@@ -1,0 +1,77 @@
+From 9bd25d9b0bb288ac17346e43e14bb841697e340e Mon Sep 17 00:00:00 2001
+From: Cici Ruan <cuicuiruan@google.com>
+Date: Mon, 22 Jan 2024 16:16:42 -0800
+Subject: [PATCH] partition_alloc: add [[maybe_unused]]
+
+Because of different build flag, unused parameter is not catched on
+chromium side. Add [[maybe_unused]] to let the build pass for libchrome.
+Once this fix is added on chromium side and synced with libchrome, this
+patch can be removed.
+
+Change-Id: Idbc868a0dd4740e0f910acd24ef5866655358c2e
+---
+ .vscode/settings.json                                        | 5 +++++
+ .../src/partition_alloc/pointers/instance_tracer.h           | 4 ++--
+ .../src/partition_alloc/pointers/raw_ptr.h                   | 2 +-
+ .../src/partition_alloc/pointers/raw_ptr_noop_impl.h         | 4 ++--
+ 4 files changed, 10 insertions(+), 5 deletions(-)
+ create mode 100644 .vscode/settings.json
+
+diff --git a/.vscode/settings.json b/.vscode/settings.json
+new file mode 100644
+index 0000000000..af13e3afd0
+--- /dev/null
++++ b/.vscode/settings.json
+@@ -0,0 +1,5 @@
++{
++    "files.associations": {
++        "cstdint": "cpp"
++    }
++}
+\ No newline at end of file
+diff --git a/base/allocator/partition_allocator/src/partition_alloc/pointers/instance_tracer.h b/base/allocator/partition_allocator/src/partition_alloc/pointers/instance_tracer.h
+index b2b01b8dc7..bfe208086b 100644
+--- a/base/allocator/partition_allocator/src/partition_alloc/pointers/instance_tracer.h
++++ b/base/allocator/partition_allocator/src/partition_alloc/pointers/instance_tracer.h
+@@ -26,8 +26,8 @@ class InstanceTracer {
+  public:
+   constexpr uint64_t owner_id() const { return 0; }
+ 
+-  constexpr static void Trace(uint64_t owner_id, uintptr_t address) {}
+-  constexpr static void Untrace(uint64_t owner_id) {}
++  constexpr static void Trace([[maybe_unused]] uint64_t owner_id, [[maybe_unused]] uintptr_t address) {}
++  constexpr static void Untrace([[maybe_unused]] uint64_t owner_id) {}
+ };
+ 
+ #else
+diff --git a/base/allocator/partition_allocator/src/partition_alloc/pointers/raw_ptr.h b/base/allocator/partition_allocator/src/partition_alloc/pointers/raw_ptr.h
+index eb24bea7df..411a78ea45 100644
+--- a/base/allocator/partition_allocator/src/partition_alloc/pointers/raw_ptr.h
++++ b/base/allocator/partition_allocator/src/partition_alloc/pointers/raw_ptr.h
+@@ -248,7 +248,7 @@ template <RawPtrTraits Traits>
+ using UnderlyingImplForTraits = internal::RawPtrNoOpImpl;
+ #endif
+ 
+-constexpr bool IsPtrArithmeticAllowed(RawPtrTraits Traits) {
++constexpr bool IsPtrArithmeticAllowed([[maybe_unused]] RawPtrTraits Traits) {
+ #if BUILDFLAG(ENABLE_POINTER_ARITHMETIC_TRAIT_CHECK)
+   return partition_alloc::internal::ContainsFlags(
+       Traits, RawPtrTraits::kAllowPtrArithmetic);
+diff --git a/base/allocator/partition_allocator/src/partition_alloc/pointers/raw_ptr_noop_impl.h b/base/allocator/partition_allocator/src/partition_alloc/pointers/raw_ptr_noop_impl.h
+index ec74be9f59..517fa3d198 100644
+--- a/base/allocator/partition_allocator/src/partition_alloc/pointers/raw_ptr_noop_impl.h
++++ b/base/allocator/partition_allocator/src/partition_alloc/pointers/raw_ptr_noop_impl.h
+@@ -109,8 +109,8 @@ struct RawPtrNoOpImpl {
+   }
+ 
+   template <typename T>
+-  static constexpr void Trace(uint64_t owner_id, T* wrapped_ptr) {}
+-  static constexpr void Untrace(uint64_t owner_id) {}
++  static constexpr void Trace([[maybe_unused]] uint64_t owner_id, [[maybe_unused]] T* wrapped_ptr) {}
++  static constexpr void Untrace([[maybe_unused]] uint64_t owner_id) {}
+ 
+   // This is for accounting only, used by unit tests.
+   PA_ALWAYS_INLINE static constexpr void IncrementSwapCountForTest() {}
+-- 
+2.43.0.429.g432eaa2c6b-goog
+
