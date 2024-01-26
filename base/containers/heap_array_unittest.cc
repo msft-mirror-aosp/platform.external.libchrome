@@ -28,7 +28,8 @@ class DestructCounter {
   void set_where(size_t* where) { where_ = where; }
 
  private:
-  RAW_PTR_EXCLUSION size_t* where_ = nullptr;  // Stack location only.
+  // RAW_PTR_EXCLUSION: Stack location only.
+  RAW_PTR_EXCLUSION size_t* where_ = nullptr;
 };
 
 }  // namespace
@@ -239,6 +240,25 @@ TEST(HeapArray, CopyFrom) {
   other.copy_from(something);
   EXPECT_EQ(1000u, other[0]);
   EXPECT_EQ(1001u, other[1]);
+}
+
+TEST(HeapArray, Leak) {
+  size_t count = 0;
+  span<DestructCounter> leaked;
+  {
+    auto vec = base::HeapArray<DestructCounter>::WithSize(2);
+    vec[0].set_where(&count);
+    vec[1].set_where(&count);
+
+    auto* data = vec.data();
+    leaked = std::move(vec).leak();
+    ASSERT_EQ(data, leaked.data());
+
+    EXPECT_EQ(count, 0u);
+  }
+  EXPECT_EQ(count, 0u);
+
+  delete[] leaked.data();
 }
 
 }  // namespace base
