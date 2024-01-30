@@ -171,6 +171,9 @@ class MojoUtils;
 class StartupCustomizationDocument;
 class StartupUtils;
 bool CameraAppUIShouldEnableLocalOverride(const std::string&);
+namespace converters::diagnostics {
+class MojoUtils;
+}
 namespace system {
 class StatisticsProviderImpl;
 }  // namespace system
@@ -568,6 +571,7 @@ class BASE_EXPORT [[maybe_unused, nodiscard]] ScopedAllowBlocking {
   // This can only be instantiated by friends. Use ScopedAllowBlockingForTesting
   // in unit tests to avoid the friend requirement.
   // Sorted by class name (with namespace), #if blocks at the bottom.
+  friend class ::BrowserProcessImpl;
   friend class ::BrowserThemePack;  // http://crbug.com/80206
   friend class ::DesktopNotificationBalloon;
   friend class ::FirefoxProfileLock;
@@ -583,6 +587,7 @@ class BASE_EXPORT [[maybe_unused, nodiscard]] ScopedAllowBlocking {
   friend class ash::MojoUtils;                     // http://crbug.com/1055467
   friend class ash::StartupCustomizationDocument;  // http://crosbug.com/11103
   friend class ash::StartupUtils;
+  friend class ash::converters::diagnostics::MojoUtils;  // http://b/322741627
   friend class base::AdjustOOMScoreHelper;
   friend class base::ChromeOSVersionInfo;
   friend class base::Process;
