@@ -393,11 +393,12 @@ class CheckOneBoard:
         self.state.update(self.board, 'build_packages')
 
         proc = subprocess.Popen([
-            '/mnt/host/source/src/scripts/build_packages',
+            'cros',
+            'build-packages',
             '--board',
             self.board,
             '--withdev',
-            '--skip_setup_board',
+            '--skip-setup-board',
         ] + params,
                                 stdout=subprocess.PIPE,
                                 stderr=subprocess.STDOUT)
