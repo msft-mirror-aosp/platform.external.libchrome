@@ -51,6 +51,7 @@ group("all_buildflags") {
     ":debugging_buildflags",
     ":feature_list_buildflags",
     ":fuzzing_buildflags",
+    ":ios_buildflags",
     ":ios_cronet_buildflags",
     ":ipc_buildflags",
     ":message_pump_buildflags",
@@ -347,6 +348,11 @@ buildflag_header("feature_list_buildflags") {
 buildflag_header("fuzzing_buildflags") {
   header = "base/fuzzing_buildflags.h"
   flags = [ "USE_FUZZING_ENGINE=false" ]
+}
+
+buildflag_header("ios_buildflags") {
+  header = "build/ios_buildflags.h"
+  flags = [ "IS_IOS_APP_EXTENSION=false" ]
 }
 
 buildflag_header("ios_cronet_buildflags") {
