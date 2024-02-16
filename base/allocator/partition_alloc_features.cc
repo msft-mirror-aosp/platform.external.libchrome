@@ -40,11 +40,16 @@ const base::FeatureParam<UnretainedDanglingPtrMode>
         &kUnretainedDanglingPtrModeOption,
 };
 
-// TODO(crbug.com/324994233): Re-enable DPD once we annotate all
-// `DanglingUntriaged`.
 BASE_FEATURE(kPartitionAllocDanglingPtr,
              "PartitionAllocDanglingPtr",
-             FEATURE_DISABLED_BY_DEFAULT);
+#if BUILDFLAG(ENABLE_DANGLING_RAW_PTR_FEATURE_FLAG) ||                   \
+    (BUILDFLAG(ENABLE_DANGLING_RAW_PTR_CHECKS) && BUILDFLAG(IS_LINUX) && \
+     !defined(OFFICIAL_BUILD) && (!defined(NDEBUG) || DCHECK_IS_ON()))
+             FEATURE_ENABLED_BY_DEFAULT
+#else
+             FEATURE_DISABLED_BY_DEFAULT
+#endif
+);
 
 constexpr FeatureParam<DanglingPtrMode>::Option kDanglingPtrModeOption[] = {
     {DanglingPtrMode::kCrash, "crash"},
@@ -158,14 +163,24 @@ const base::FeatureParam<BackupRefPtrMode> kBackupRefPtrModeParam{
 
 BASE_FEATURE(kPartitionAllocMemoryTagging,
              "PartitionAllocMemoryTagging",
-             FEATURE_DISABLED_BY_DEFAULT);
+#if BUILDFLAG(USE_FULL_MTE)
+             FEATURE_ENABLED_BY_DEFAULT
+#else
+             FEATURE_DISABLED_BY_DEFAULT
+#endif
+);
 
 constexpr FeatureParam<MemtagMode>::Option kMemtagModeOptions[] = {
     {MemtagMode::kSync, "sync"},
     {MemtagMode::kAsync, "async"}};
 
 const base::FeatureParam<MemtagMode> kMemtagModeParam{
-    &kPartitionAllocMemoryTagging, "memtag-mode", MemtagMode::kAsync,
+    &kPartitionAllocMemoryTagging, "memtag-mode",
+#if BUILDFLAG(USE_FULL_MTE)
+    MemtagMode::kSync,
+#else
+    MemtagMode::kAsync,
+#endif
     &kMemtagModeOptions};
 
 constexpr FeatureParam<MemoryTaggingEnabledProcesses>::Option
@@ -177,7 +192,11 @@ constexpr FeatureParam<MemoryTaggingEnabledProcesses>::Option
 const base::FeatureParam<MemoryTaggingEnabledProcesses>
     kMemoryTaggingEnabledProcessesParam{
         &kPartitionAllocMemoryTagging, "enabled-processes",
+#if BUILDFLAG(USE_FULL_MTE)
+        MemoryTaggingEnabledProcesses::kAllProcesses,
+#else
         MemoryTaggingEnabledProcesses::kBrowserOnly,
+#endif
         &kMemoryTaggingEnabledProcessesOptions};
 
 BASE_FEATURE(kKillPartitionAllocMemoryTagging,
@@ -187,7 +206,13 @@ BASE_FEATURE(kKillPartitionAllocMemoryTagging,
 BASE_EXPORT BASE_DECLARE_FEATURE(kPartitionAllocPermissiveMte);
 BASE_FEATURE(kPartitionAllocPermissiveMte,
              "PartitionAllocPermissiveMte",
-             FEATURE_ENABLED_BY_DEFAULT);
+#if BUILDFLAG(USE_FULL_MTE)
+             // We want to actually crash if USE_FULL_MTE is enabled.
+             FEATURE_DISABLED_BY_DEFAULT
+#else
+             FEATURE_ENABLED_BY_DEFAULT
+#endif
+);
 
 const base::FeatureParam<bool> kBackupRefPtrAsanEnableDereferenceCheckParam{
     &kPartitionAllocBackupRefPtr, "asan-enable-dereference-check", true};
