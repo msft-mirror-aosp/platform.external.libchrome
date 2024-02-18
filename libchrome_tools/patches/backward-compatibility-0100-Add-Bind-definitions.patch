@@ -23,7 +23,7 @@ index 6101dc8655..f7d7f83115 100644
 +template <typename Functor, typename... BoundArgs>
 +struct BindTypeHelper {
 +  static constexpr size_t num_bounds = sizeof...(BoundArgs);
-+  using FunctorTraits = MakeFunctorTraits<Functor>;
++  using FunctorTraits = FunctorTraits<Functor>;
 +
 +  // Example:
 +  //   When Functor is `double (Foo::*)(int, const std::string&)`, and BoundArgs
