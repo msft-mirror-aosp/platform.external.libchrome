@@ -447,9 +447,12 @@ class PartitionAllocTest
       ref_count_size = kPartitionRefCountSizeAdjustment;
       ref_count_size = AlignUpRefCountSizeForMac(ref_count_size);
 #if PA_CONFIG(MAYBE_INCREASE_REF_COUNT_SIZE_FOR_MTE)
-      // Note the brp_enabled() check above.
-      // TODO(bartekn): Don't increase ref-count size in the "same slot" mode.
-      if (allocator.root()->IsMemoryTaggingEnabled()) {
+      // When MTE is enabled together with BRP (crbug.com/1445816) in the
+      // "previous slot" mode (note the brp_enabled() check above), there is a
+      // race that can be avoided by making ref-count a multiple of the MTE
+      // granule and not tagging it.
+      if (allocator.root()->IsMemoryTaggingEnabled() &&
+          !PartitionRoot::GetBrpRefCountInSameSlot()) {
         ref_count_size = partition_alloc::internal::base::bits::AlignUp(
             ref_count_size, kMemTagGranuleSize);
       }
@@ -1288,9 +1291,9 @@ TEST_P(PartitionAllocTest, AllocGetSizeAndStart) {
   if (UseBRPPool()) {
     uintptr_t address = UntagPtr(ptr);
     for (size_t offset = 0; offset < requested_size; ++offset) {
-      EXPECT_EQ(
-          PartitionAllocGetSlotStartAndSizeInBRPPool(address + offset).first,
-          slot_start);
+      EXPECT_EQ(PartitionAllocGetSlotStartAndSizeInBRPPool(address + offset)
+                    .slot_start,
+                slot_start);
     }
   }
 #endif  // BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)
@@ -1312,9 +1315,9 @@ TEST_P(PartitionAllocTest, AllocGetSizeAndStart) {
   if (UseBRPPool()) {
     uintptr_t address = UntagPtr(ptr);
     for (size_t offset = 0; offset < requested_size; offset += 877) {
-      EXPECT_EQ(
-          PartitionAllocGetSlotStartAndSizeInBRPPool(address + offset).first,
-          slot_start);
+      EXPECT_EQ(PartitionAllocGetSlotStartAndSizeInBRPPool(address + offset)
+                    .slot_start,
+                slot_start);
     }
   }
 #endif  // BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)
@@ -1342,9 +1345,9 @@ TEST_P(PartitionAllocTest, AllocGetSizeAndStart) {
   if (UseBRPPool()) {
     uintptr_t address = UntagPtr(ptr);
     for (size_t offset = 0; offset < requested_size; offset += 4999) {
-      EXPECT_EQ(
-          PartitionAllocGetSlotStartAndSizeInBRPPool(address + offset).first,
-          slot_start);
+      EXPECT_EQ(PartitionAllocGetSlotStartAndSizeInBRPPool(address + offset)
+                    .slot_start,
+                slot_start);
     }
   }
 #endif  // BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)
@@ -1365,9 +1368,9 @@ TEST_P(PartitionAllocTest, AllocGetSizeAndStart) {
   if (UseBRPPool()) {
     uintptr_t address = UntagPtr(ptr);
     for (size_t offset = 0; offset < requested_size; offset += 4999) {
-      EXPECT_EQ(
-          PartitionAllocGetSlotStartAndSizeInBRPPool(address + offset).first,
-          slot_start);
+      EXPECT_EQ(PartitionAllocGetSlotStartAndSizeInBRPPool(address + offset)
+                    .slot_start,
+                slot_start);
     }
   }
 #endif  // BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)
@@ -1395,9 +1398,9 @@ TEST_P(PartitionAllocTest, AllocGetSizeAndStart) {
     if (UseBRPPool()) {
       uintptr_t address = UntagPtr(ptr);
       for (size_t offset = 0; offset < requested_size; offset += 16111) {
-        EXPECT_EQ(
-            PartitionAllocGetSlotStartAndSizeInBRPPool(address + offset).first,
-            slot_start);
+        EXPECT_EQ(PartitionAllocGetSlotStartAndSizeInBRPPool(address + offset)
+                      .slot_start,
+                  slot_start);
       }
     }
 #endif  // BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)
@@ -1647,9 +1650,9 @@ TEST_P(PartitionAllocTest, GetSlotStartMultiplePages) {
     EXPECT_EQ(allocator.root()->AllocationCapacityFromSlotStart(slot_start),
               requested_size);
     for (size_t offset = 0; offset < requested_size; offset += 13) {
-      EXPECT_EQ(
-          PartitionAllocGetSlotStartAndSizeInBRPPool(address + offset).first,
-          slot_start);
+      EXPECT_EQ(PartitionAllocGetSlotStartAndSizeInBRPPool(address + offset)
+                    .slot_start,
+                slot_start);
     }
     allocator.root()->Free(ptr);
   }

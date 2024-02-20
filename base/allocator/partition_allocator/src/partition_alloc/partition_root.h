@@ -898,13 +898,17 @@ struct PA_ALIGNAS(64) PA_COMPONENT_EXPORT(PARTITION_ALLOC) PartitionRoot {
 #if BUILDFLAG(PA_DCHECK_IS_ON)
     if (brp_enabled()) {
       PA_DCHECK(settings.ref_count_size > 0);
-      PA_DCHECK((settings.ref_count_size % internal::kMemTagGranuleSize) == 0);
+      if (!ref_count_in_same_slot_) {
+        PA_DCHECK((settings.ref_count_size % internal::kMemTagGranuleSize) ==
+                  0);
+      }
     } else {
       PA_DCHECK(settings.ref_count_size == 0);
     }
 #endif  // BUILDFLAG(PA_DCHECK_IS_ON)
-    // TODO(bartekn): Don't subtract ref-count size in the "same slot" mode.
-    return slot_size - settings.ref_count_size;
+    // Subtract ref-count size in the "previous slot" mode to avoid the MTE/BRP
+    // race (crbug.com/1445816).
+    return slot_size - (ref_count_in_same_slot_ ? 0 : settings.ref_count_size);
 #else  // PA_CONFIG(MAYBE_INCREASE_REF_COUNT_SIZE_FOR_MTE)
     return slot_size;
 #endif
@@ -922,6 +926,14 @@ struct PA_ALIGNAS(64) PA_COMPONENT_EXPORT(PARTITION_ALLOC) PartitionRoot {
   static void SetBrpRefCountInSameSlot(bool ref_count_in_same_slot) {
 #if BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)
     ref_count_in_same_slot_ = ref_count_in_same_slot;
+#endif
+  }
+
+  static bool GetBrpRefCountInSameSlot() {
+#if BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)
+    return ref_count_in_same_slot_;
+#else
+    return false;
 #endif
   }
 
@@ -1110,7 +1122,12 @@ class ScopedSyscallTimer {
 
 #if BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)
 
-PA_ALWAYS_INLINE std::pair<uintptr_t, size_t>
+struct SlotAddressAndSize {
+  uintptr_t slot_start;
+  size_t size;
+};
+
+PA_ALWAYS_INLINE SlotAddressAndSize
 PartitionAllocGetDirectMapSlotStartAndSizeInBRPPool(uintptr_t address) {
   PA_DCHECK(IsManagedByPartitionAllocBRPPool(address));
 #if BUILDFLAG(HAS_64_BIT_POINTERS)
@@ -1123,7 +1140,7 @@ PartitionAllocGetDirectMapSlotStartAndSizeInBRPPool(uintptr_t address) {
   uintptr_t reservation_start = GetDirectMapReservationStart(address);
 #endif
   if (!reservation_start) {
-    return std::make_pair(uintptr_t(0), size_t(0));
+    return SlotAddressAndSize{.slot_start = uintptr_t(0), .size = size_t(0)};
   }
 
   // The direct map allocation may not start exactly from the first page, as
@@ -1148,7 +1165,8 @@ PartitionAllocGetDirectMapSlotStartAndSizeInBRPPool(uintptr_t address) {
   PA_DCHECK(slot_start ==
             reservation_start + PartitionPageSize() + padding_for_alignment);
 #endif  // BUILDFLAG(PA_DCHECK_IS_ON)
-  return std::make_pair(slot_start, slot_span->bucket->slot_size);
+  return SlotAddressAndSize{.slot_start = slot_start,
+                            .size = slot_span->bucket->slot_size};
 }
 
 // Gets the start address and size of the allocated slot. The input |address|
@@ -1158,14 +1176,14 @@ PartitionAllocGetDirectMapSlotStartAndSizeInBRPPool(uintptr_t address) {
 // This isn't a general purpose function, it is used specifically for obtaining
 // BackupRefPtr's ref-count. The caller is responsible for ensuring that the
 // ref-count is in place for this allocation.
-PA_ALWAYS_INLINE std::pair<uintptr_t, size_t>
+PA_ALWAYS_INLINE SlotAddressAndSize
 PartitionAllocGetSlotStartAndSizeInBRPPool(uintptr_t address) {
   PA_DCHECK(IsManagedByNormalBucketsOrDirectMap(address));
   DCheckIfManagedByPartitionAllocBRPPool(address);
 
   auto directmap_slot_info =
       PartitionAllocGetDirectMapSlotStartAndSizeInBRPPool(address);
-  if (PA_UNLIKELY(directmap_slot_info.first)) {
+  if (PA_UNLIKELY(directmap_slot_info.slot_start)) {
     return directmap_slot_info;
   }
 
@@ -1181,10 +1199,11 @@ PartitionAllocGetSlotStartAndSizeInBRPPool(uintptr_t address) {
   size_t offset_in_slot_span = address - slot_span_start;
 
   auto* bucket = slot_span->bucket;
-  return std::make_pair(
-      slot_span_start +
+  return SlotAddressAndSize{
+      .slot_start =
+          slot_span_start +
           bucket->slot_size * bucket->GetSlotNumber(offset_in_slot_span),
-      bucket->slot_size);
+      .size = bucket->slot_size};
 }
 
 // Return values to indicate where a pointer is pointing relative to the bounds
