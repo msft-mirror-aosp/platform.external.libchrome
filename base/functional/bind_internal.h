@@ -578,17 +578,22 @@ inline constexpr bool IsObjCArcBlockPointer<R (^)(Args...)> = true;
 
 // True when `Functor` has an overloaded `operator()()` that can be invoked with
 // the provided `BoundArgs`.
+//
+// Do not decay `Functor` before testing this, lest it give an incorrect result
+// for overloads with different ref-qualifiers.
 template <typename Functor, typename... BoundArgs>
 concept HasOverloadedCallOp = requires {
   // The functor must be invocable with the bound args.
-  requires requires(Functor f, BoundArgs... args) { f(args...); };
+  requires requires(Functor&& f, BoundArgs&&... args) {
+    std::forward<Functor>(f)(std::forward<BoundArgs>(args)...);
+  };
   // Now exclude invocables that are not cases of overloaded `operator()()`s:
   // * `operator()()` exists, but isn't overloaded
-  requires !HasNonOverloadedCallOp<Functor>;
+  requires !HasNonOverloadedCallOp<std::decay_t<Functor>>;
   // * Function pointer (doesn't have `operator()()`)
-  requires !std::is_pointer_v<Functor>;
+  requires !std::is_pointer_v<std::decay_t<Functor>>;
   // * Block pointer (doesn't have `operator()()`)
-  requires !IsObjCArcBlockPointer<Functor>;
+  requires !IsObjCArcBlockPointer<std::decay_t<Functor>>;
 };
 
 // `HasRefCountedTypeAsRawPtr` is true when any of the `Args` is a raw pointer
@@ -639,26 +644,6 @@ template <typename Functor, typename... BoundArgs>
   requires HasNonOverloadedCallOp<Functor>
 struct DecayedFunctorTraits<Functor, BoundArgs...> {
   using RunType = ExtractCallableRunType<Functor>;
-  static constexpr bool is_method = false;
-  static constexpr bool is_nullable = false;
-  static constexpr bool is_callback = false;
-  static constexpr bool is_stateless = std::is_empty_v<Functor>;
-
-  template <typename RunFunctor, typename... RunArgs>
-  static ExtractReturnType<RunType> Invoke(RunFunctor&& functor,
-                                           RunArgs&&... args) {
-    return std::forward<RunFunctor>(functor)(std::forward<RunArgs>(args)...);
-  }
-};
-
-template <typename Functor, typename... BoundArgs>
-  requires HasOverloadedCallOp<Functor, BoundArgs...>
-struct DecayedFunctorTraits<Functor, BoundArgs...> {
-  // For an overloaded operator()(), it is not possible to resolve the
-  // actual declared type. Since it is invocable with the bound args, make up a
-  // signature based on their types.
-  using RunType = decltype(std::declval<Functor>()(
-      std::declval<BoundArgs>()...))(std::decay_t<BoundArgs>...);
   static constexpr bool is_method = false;
   static constexpr bool is_nullable = false;
   static constexpr bool is_callback = false;
@@ -857,6 +842,28 @@ template <typename Functor, typename... BoundArgs>
 struct FunctorTraits<Functor, BoundArgs...>
     : DecayedFunctorTraits<std::decay_t<Functor>, BoundArgs...> {};
 
+// For `overloaded operator()()`s, it's possible the ref qualifiers of the
+// functor matter, so be careful to use the undecayed type.
+template <typename Functor, typename... BoundArgs>
+  requires HasOverloadedCallOp<Functor, BoundArgs...>
+struct FunctorTraits<Functor, BoundArgs...> {
+  // For an overloaded operator()(), it is not possible to resolve the
+  // actual declared type. Since it is invocable with the bound args, make up a
+  // signature based on their types.
+  using RunType = decltype(std::declval<Functor>()(
+      std::declval<BoundArgs>()...))(std::decay_t<BoundArgs>...);
+  static constexpr bool is_method = false;
+  static constexpr bool is_nullable = false;
+  static constexpr bool is_callback = false;
+  static constexpr bool is_stateless = std::is_empty_v<std::decay_t<Functor>>;
+
+  template <typename RunFunctor, typename... RunArgs>
+  static ExtractReturnType<RunType> Invoke(RunFunctor&& functor,
+                                           RunArgs&&... args) {
+    return std::forward<RunFunctor>(functor)(std::forward<RunArgs>(args)...);
+  }
+};
+
 // `StorageTraits<>`
 //
 // See description at top of file.
@@ -920,7 +927,7 @@ struct InvokeHelper<false, Traits, ReturnType, indices...> {
                                     BoundArgsTuple&& bound,
                                     RunArgs&&... args) {
     return Traits::Invoke(
-        std::forward<Functor>(functor),
+        Unwrap(std::forward<Functor>(functor)),
         Unwrap(std::get<indices>(std::forward<BoundArgsTuple>(bound)))...,
         std::forward<RunArgs>(args)...);
   }
@@ -944,7 +951,7 @@ struct InvokeHelper<true, Traits, ReturnType, index_target, index_tail...> {
       return;
     }
     Traits::Invoke(
-        std::forward<Functor>(functor), target,
+        Unwrap(std::forward<Functor>(functor)), target,
         Unwrap(std::get<index_tail>(std::forward<BoundArgsTuple>(bound)))...,
         std::forward<RunArgs>(args)...);
   }
@@ -1793,8 +1800,8 @@ struct BindHelper {
     //     using CallbackType = OnceCallback<double(const std::string&)>;
     //     ...
     // ```
-    using Traits =
-        FunctorTraits<Functor, TransformToUnwrappedType<kIsOnce, Args&&>...>;
+    using Traits = FunctorTraits<TransformToUnwrappedType<kIsOnce, Functor&&>,
+                                 TransformToUnwrappedType<kIsOnce, Args&&>...>;
     if constexpr (TraitsAreInstantiable<Traits>::value) {
       using ValidatedUnwrappedTypes =
           ValidateUnwrappedTypeList<kIsOnce, Traits::is_method, Args&&...>;
