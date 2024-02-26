@@ -794,7 +794,6 @@ libbase_sublibs = [
 
     if (use_allocator_shim) {
       sources += [
-        "base/allocator/allocator_extension.cc",
         "base/allocator/partition_allocator/src/partition_alloc/shim/allocator_shim.cc",
         "base/allocator/partition_allocator/src/partition_alloc/shim/allocator_shim_default_dispatch_to_glibc.cc",
       ]

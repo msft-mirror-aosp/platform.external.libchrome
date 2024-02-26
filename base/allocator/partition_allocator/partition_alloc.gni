@@ -216,10 +216,14 @@ declare_args() {
   # to go through build_overrides
   enable_dangling_raw_ptr_perf_experiment = false
 
-  # Set to `enable_backup_ref_ptr_support && has_64_bit_pointers` when enabling.
-  backup_ref_ptr_poison_oob_ptr = false
-
   enable_backup_ref_ptr_instance_tracer = false
+
+  backup_ref_ptr_extra_oob_checks = enable_backup_ref_ptr_support
+}
+
+declare_args() {
+  backup_ref_ptr_poison_oob_ptr =
+      false && backup_ref_ptr_extra_oob_checks && has_64_bit_pointers
 }
 
 declare_args() {
@@ -271,6 +275,11 @@ if (!use_partition_alloc) {
   use_full_mte = false
 }
 
+# Disable |use_full_mte| if memory tagging is not available. This is for targets that run as part the build process.
+if (!has_memory_tagging) {
+  use_full_mte = false
+}
+
 # enable_backup_ref_ptr_slow_checks can only be used if
 # enable_backup_ref_ptr_support is true.
 assert(enable_backup_ref_ptr_support || !enable_backup_ref_ptr_slow_checks,
@@ -293,12 +302,16 @@ assert(
     enable_dangling_raw_ptr_checks || !enable_dangling_raw_ptr_perf_experiment,
     "Missing dangling pointer checks feature for its performance experiment")
 
+# To enable extra OOB checks for BackupRefPtr, the underlying feature must be
+# enabled, too.
+assert(enable_backup_ref_ptr_support || !backup_ref_ptr_extra_oob_checks,
+       "Can't enable extra OOB checks if BackupRefPtr isn't enabled at all")
+
 # To poison OOB pointers for BackupRefPtr, the underlying feature must be
 # enabled, too.
-assert(
-    enable_backup_ref_ptr_support || !backup_ref_ptr_poison_oob_ptr,
-    "Can't enable poisoning for OOB pointers if BackupRefPtr isn't enabled " +
-        "at all")
+assert(backup_ref_ptr_extra_oob_checks || !backup_ref_ptr_poison_oob_ptr,
+       "Can't enable poisoning for OOB pointers if OOB checks aren't enabled " +
+           "at all")
 assert(has_64_bit_pointers || !backup_ref_ptr_poison_oob_ptr,
        "Can't enable poisoning for OOB pointers if pointers are only 32-bit")
 
@@ -346,11 +359,6 @@ assert(build_with_chromium || !use_asan_backup_ref_ptr,
 
 assert(!use_asan_backup_ref_ptr || use_hookable_raw_ptr,
        "AsanBackupRefPtr requires RawPtrHookableImpl")
-
-# use_full_mte can only be used if has_memory_tagging is true.
-assert(
-    has_memory_tagging || !use_full_mte,
-    "Can't use full MTE protection if memory tagging isn't supported at all.")
 
 declare_args() {
   # pkeys support is explicitly disabled in all Cronet builds, as some test
