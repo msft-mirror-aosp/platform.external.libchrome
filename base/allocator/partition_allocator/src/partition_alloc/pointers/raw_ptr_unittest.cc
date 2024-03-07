@@ -25,6 +25,7 @@
 #include "base/test/gtest_util.h"
 #include "base/test/memory/dangling_ptr_instrumentation.h"
 #include "base/test/scoped_feature_list.h"
+#include "base/types/to_address.h"
 #include "build/build_config.h"
 #include "build/buildflag.h"
 #include "partition_alloc/dangling_raw_ptr_checks.h"
@@ -1502,7 +1503,7 @@ TEST_F(RawPtrTest, CrossKindAssignment) {
 // `to_address()`.
 TEST_F(RawPtrTest, ToAddressDoesNotDereference) {
   CountingRawPtr<int> ptr = nullptr;
-  int* raw = std::to_address(ptr);
+  int* raw = base::to_address(ptr);
   std::ignore = raw;
   EXPECT_THAT((CountingRawPtrExpectations{.get_for_dereference_cnt = 0,
                                           .get_for_extraction_cnt = 1,
@@ -1514,7 +1515,7 @@ TEST_F(RawPtrTest, ToAddressDoesNotDereference) {
 TEST_F(RawPtrTest, ToAddressGivesBackRawAddress) {
   int* raw = nullptr;
   raw_ptr<int> miracle = raw;
-  EXPECT_EQ(std::to_address(raw), std::to_address(miracle));
+  EXPECT_EQ(base::to_address(raw), base::to_address(miracle));
 }
 
 void InOutParamFuncWithPointer(int* in, int** out) {
@@ -1975,7 +1976,7 @@ TEST_F(BackupRefPtrTest, Bind) {
   EXPECT_TRUE(IsQuarantineEmpty(allocator_));
 }
 
-#if PA_CONFIG(REF_COUNT_CHECK_COOKIE)
+#if PA_CONFIG(IN_SLOT_METADATA_CHECK_COOKIE)
 TEST_F(BackupRefPtrTest, ReinterpretCast) {
   void* ptr = allocator_.root()->Alloc(16);
   allocator_.root()->Free(ptr);
@@ -1985,13 +1986,14 @@ TEST_F(BackupRefPtrTest, ReinterpretCast) {
   // been already freed.
   BASE_EXPECT_DEATH(*wrapped_ptr = nullptr, "");
 }
-#endif  // PA_CONFIG(REF_COUNT_CHECK_COOKIE)
+#endif  // PA_CONFIG(IN_SLOT_METADATA_CHECK_COOKIE)
 
 // Tests that ref-count management is correct, despite `std::optional` may be
 // using `union` underneath.
 TEST_F(BackupRefPtrTest, WorksWithOptional) {
   void* ptr = allocator_.root()->Alloc(16);
-  auto* ref_count = allocator_.root()->RefCountPointerFromObjectForTesting(ptr);
+  auto* ref_count =
+      allocator_.root()->InSlotMetadataPointerFromObjectForTesting(ptr);
   EXPECT_TRUE(ref_count->IsAliveWithNoKnownRefs());
 
   std::optional<raw_ptr<void>> opt = ptr;
@@ -2024,7 +2026,8 @@ TEST_F(BackupRefPtrTest, WorksWithOptional) {
 // using `union` underneath.
 TEST_F(BackupRefPtrTest, WorksWithVariant) {
   void* ptr = allocator_.root()->Alloc(16);
-  auto* ref_count = allocator_.root()->RefCountPointerFromObjectForTesting(ptr);
+  auto* ref_count =
+      allocator_.root()->InSlotMetadataPointerFromObjectForTesting(ptr);
   EXPECT_TRUE(ref_count->IsAliveWithNoKnownRefs());
 
   absl::variant<uintptr_t, raw_ptr<void>> vary = ptr;
@@ -2397,11 +2400,19 @@ TEST_F(BackupRefPtrTest, RawPtrTraits_DisableBRP) {
     raw_ptr<unsigned int, DanglingUntriaged> ptr = static_cast<unsigned int*>(
         allocator_.root()->Alloc(sizeof(unsigned int), ""));
     *ptr = 0;
+    // Freeing would  update the MTE tag so use |TagPtr()| to dereference it
+    // below.
     allocator_.root()->Free(ptr);
 #if BUILDFLAG(PA_DCHECK_IS_ON) || BUILDFLAG(ENABLE_BACKUP_REF_PTR_SLOW_CHECKS)
-    EXPECT_DEATH_IF_SUPPORTED(*ptr = 0, "");
+    // Recreate the raw_ptr so we can use a pointer with the updated MTE tag.
+    // Reassigning to |ptr| would hit the PartitionRefCount cookie check rather
+    // than the |IsPointeeAlive()| check.
+    raw_ptr<unsigned int, DanglingUntriaged> dangling_ptr =
+        partition_alloc::internal::TagPtr(ptr.get());
+    EXPECT_DEATH_IF_SUPPORTED(*dangling_ptr = 0, "");
 #else
-    EXPECT_EQ(kQuarantined4Bytes, *ptr);
+    EXPECT_EQ(kQuarantined4Bytes,
+              *partition_alloc::internal::TagPtr(ptr.get()));
 #endif
   }
   // raw_ptr with DisableBRP, BRP is expected to be off.
@@ -2413,7 +2424,10 @@ TEST_F(BackupRefPtrTest, RawPtrTraits_DisableBRP) {
     allocator_.root()->Free(ptr);
     // A tad fragile as a new allocation or free-list pointer may be there, but
     // highly unlikely it'll match 4 quarantine bytes in a row.
-    EXPECT_NE(kQuarantined4Bytes, *ptr);
+    // Use |TagPtr()| for this dereference because freeing would have updated
+    // the MTE tag.
+    EXPECT_NE(kQuarantined4Bytes,
+              *partition_alloc::internal::TagPtr(ptr.get()));
   }
 
   allocator_.root()->Free(sentinel);

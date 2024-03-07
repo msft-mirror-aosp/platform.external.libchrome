@@ -624,6 +624,10 @@ BASE_EXPORT bool SetNonBlocking(int fd);
 // executable code or as data. Windows treats the file backed pages in RAM
 // differently, and specifying the wrong value results in two copies in RAM.
 //
+// |sequential| hints that the file will be read sequentially in the future.
+// This has the affect of using POSIX_FADV_SEQUENTIAL on supported POSIX
+// systems.
+//
 // Returns true if at least part of the requested range was successfully
 // prefetched.
 //
@@ -634,6 +638,7 @@ BASE_EXPORT bool SetNonBlocking(int fd);
 BASE_EXPORT bool PreReadFile(
     const FilePath& file_path,
     bool is_executable,
+    bool sequential,
     int64_t max_bytes = std::numeric_limits<int64_t>::max());
 
 #if BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
@@ -736,9 +741,6 @@ BASE_EXPORT bool CopyFileContentsWithSendfile(File& infile,
                                               bool& retry_slow);
 #endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) ||
         // BUILDFLAG(IS_ANDROID)
-
-// Used by PreReadFile() when no kernel support for prefetching is available.
-bool PreReadFileSlow(const FilePath& file_path, int64_t max_bytes);
 
 }  // namespace internal
 }  // namespace base

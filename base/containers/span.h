@@ -20,13 +20,10 @@
 
 #include "base/check.h"
 #include "base/compiler_specific.h"
-// TODO(crbug.com/40284755): checked_iterators should use UNSAFE_BUFFERS()
-// internally.
-UNSAFE_BUFFERS_INCLUDE_BEGIN
 #include "base/containers/checked_iterators.h"
-UNSAFE_BUFFERS_INCLUDE_END
 #include "base/numerics/safe_conversions.h"
 #include "base/template_util.h"
+#include "base/types/to_address.h"
 #include "third_party/abseil-cpp/absl/base/attributes.h"
 
 namespace base {
@@ -290,7 +287,7 @@ class GSL_POINTER span {
          // We can not protect here generally against an invalid iterator/count
          // being passed in, since we have no context to determine if the
          // iterator or count are valid.
-        data_(std::to_address(first)) {
+        data_(base::to_address(first)) {
     // Guarantees that the N in the type signature is correct.
     CHECK(N == count);
   }
@@ -656,7 +653,7 @@ class GSL_POINTER span<T, dynamic_extent, InternalPtrType> {
       // We can not protect here generally against an invalid iterator/count
       // being passed in, since we have no context to determine if the
       // iterator or count are valid.
-      : data_(std::to_address(first)), size_(count) {}
+      : data_(base::to_address(first)), size_(count) {}
 
   // Constructs a span from a contiguous iterator and a size.
   //

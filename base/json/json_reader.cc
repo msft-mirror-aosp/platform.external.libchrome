@@ -116,7 +116,7 @@ JSONReader::Result DecodeJSONInRust(std::string_view json,
   auto& ctx = reinterpret_cast<ContextPointer&>(value);
   serde_json_lenient::DecodeError error;
   bool ok = serde_json_lenient::decode_json(
-      std::string_viewToRustSlice(json), rust_options, functions, ctx, error);
+      base::StringPieceToRustSlice(json), rust_options, functions, ctx, error);
 
   if (!ok) {
     return base::unexpected(base::JSONReader::Error{
