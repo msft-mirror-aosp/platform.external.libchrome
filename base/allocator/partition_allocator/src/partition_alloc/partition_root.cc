@@ -80,7 +80,8 @@ PtrPosWithinAlloc IsPtrWithinSameAlloc(uintptr_t orig_address,
 
   auto* slot_span = SlotSpanMetadata::FromSlotStart(slot_start);
   auto* root = PartitionRoot::FromSlotSpanMetadata(slot_span);
-  // Double check that in-slot metadata is indeed present.
+  // Double check that in-slot metadata is indeed present. Currently that's the
+  // case only when BRP is used.
   PA_DCHECK(root->brp_enabled());
 
   uintptr_t object_addr = root->SlotStartToObjectAddr(slot_start);
@@ -376,9 +377,8 @@ static size_t PartitionPurgeSlotSpan(PartitionRoot* root,
   constexpr size_t kMaxSlotCount =
       (PartitionPageSize() * kMaxPartitionPagesPerRegularSlotSpan) /
       MinPurgeableSlotSize();
-#elif BUILDFLAG(IS_APPLE) ||                           \
-    ((BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_LINUX)) && \
-     defined(ARCH_CPU_ARM64))
+#elif BUILDFLAG(IS_APPLE) || \
+    defined(PARTITION_ALLOCATOR_CONSTANTS_POSIX_NONCONST_PAGE_SIZE)
   // It's better for slot_usage to be stack-allocated and fixed-size, which
   // demands that its size be constexpr. On IS_APPLE and Linux on arm64,
   // PartitionPageSize() is always SystemPageSize() << 2, so regardless of
@@ -842,6 +842,12 @@ void PartitionRoot::DecommitEmptySlotSpans() {
   PA_DCHECK(empty_slot_spans_dirty_bytes == 0);
 }
 
+void PartitionRoot::DecommitEmptySlotSpansForTesting() {
+  ::partition_alloc::internal::ScopedGuard guard{
+      internal::PartitionRootLock(this)};
+  DecommitEmptySlotSpans();
+}
+
 void PartitionRoot::DestructForTesting() {
   // We need to destruct the thread cache before we unreserve any of the super
   // pages below, which we currently are not doing. So, we should only call
@@ -949,7 +955,7 @@ void PartitionRoot::Init(PartitionOptions opts) {
     // not merged with the IS_APPLE case above as a 1 << 16 case needs to be
     // added here in the future, to allow 64 kiB pagesize. That is only
     // supported on Linux on arm64, not on IS_APPLE, but not yet present here
-    // as the rest of the partition allocator does not currently support it.
+    // as the rest of the PartitionAlloc does not currently support it.
     PA_CHECK((internal::SystemPageSize() == (size_t{1} << 12)) ||
              (internal::SystemPageSize() == (size_t{1} << 14)));
 #endif
@@ -960,7 +966,7 @@ void PartitionRoot::Init(PartitionOptions opts) {
     }
 
 #if BUILDFLAG(HAS_64_BIT_POINTERS)
-    // Reserve address space for partition alloc.
+    // Reserve address space for PartitionAlloc.
     internal::PartitionAddressSpace::Init();
 #endif
 

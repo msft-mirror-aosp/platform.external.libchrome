@@ -395,6 +395,8 @@ struct PA_ALIGNAS(64) PA_COMPONENT_EXPORT(PARTITION_ALLOC) PartitionRoot {
   // pool and cause tests to fail.
   void DestructForTesting();
 
+  void DecommitEmptySlotSpansForTesting();
+
 #if PA_CONFIG(MAYBE_ENABLE_MAC11_MALLOC_SIZE_HACK)
   void EnableMac11MallocSizeHackIfNeeded();
   void EnableMac11MallocSizeHackForTesting();
@@ -605,7 +607,7 @@ struct PA_ALIGNAS(64) PA_COMPONENT_EXPORT(PARTITION_ALLOC) PartitionRoot {
   void EnableLargeEmptySlotSpanRing() {
     ::partition_alloc::internal::ScopedGuard locker{
         internal::PartitionRootLock(this)};
-    global_empty_slot_span_ring_size = internal::kMaxFreeableSpans;
+    global_empty_slot_span_ring_size = internal::kMinFreeableSpans;
   }
 
   void DumpStats(const char* partition_name,
@@ -855,6 +857,22 @@ struct PA_ALIGNAS(64) PA_COMPONENT_EXPORT(PARTITION_ALLOC) PartitionRoot {
 
   PA_ALWAYS_INLINE bool uses_configurable_pool() const {
     return settings.use_configurable_pool;
+  }
+
+  void AdjustForForeground() {
+    max_empty_slot_spans_dirty_bytes_shift = 2;
+    ::partition_alloc::internal::ScopedGuard guard{
+        internal::PartitionRootLock(this)};
+    global_empty_slot_span_ring_size = internal::kMaxFreeableSpans;
+  }
+
+  void AdjustForBackground() {
+    max_empty_slot_spans_dirty_bytes_shift = 3;
+    // ShrinkEmptySlotSpansRing() will iterate through kMaxFreeableSpans, so
+    // no need to for this to free any empty pages now.
+    ::partition_alloc::internal::ScopedGuard guard{
+        internal::PartitionRootLock(this)};
+    global_empty_slot_span_ring_size = internal::kMinFreeableSpans;
   }
 
   // To make tests deterministic, it is necessary to uncap the amount of memory
@@ -1193,7 +1211,8 @@ PartitionAllocGetSlotStartAndSizeInBRPPool(uintptr_t address) {
   auto* slot_span = SlotSpanMetadata::FromAddr(address);
 #if BUILDFLAG(PA_DCHECK_IS_ON)
   auto* root = PartitionRoot::FromSlotSpanMetadata(slot_span);
-  // Double check that in-slot metadata is indeed present.
+  // Double check that in-slot metadata is indeed present. Currently that's the
+  // case only when BRP is used.
   PA_DCHECK(root->brp_enabled());
 #endif  // BUILDFLAG(PA_DCHECK_IS_ON)
 
@@ -1242,8 +1261,7 @@ PtrPosWithinAlloc IsPtrWithinSameAlloc(uintptr_t orig_address,
 PA_ALWAYS_INLINE void PartitionAllocFreeForRefCounting(uintptr_t slot_start) {
   auto* slot_span = SlotSpanMetadata::FromSlotStart(slot_start);
   auto* root = PartitionRoot::FromSlotSpanMetadata(slot_span);
-  // InSlotMetadata is required to be allocated inside a `PartitionRoot` that
-  // supports reference counts.
+  // Currently, InSlotMetadata is allocated when BRP is used.
   PA_DCHECK(root->brp_enabled());
   PA_DCHECK(!PartitionRoot::InSlotMetadataPointerFromSlotStartAndSize(
                  slot_start, slot_span->bucket->slot_size)
@@ -2272,8 +2290,8 @@ PA_ALWAYS_INLINE void* PartitionRoot::AllocInternalNoHooks(
   //   slot, thus creating the "empty" space.
   // - Unlike "unused", "empty" counts towards usable_size, because the app can
   //   query for it and use this space without a need for reallocation.
-  // - In-slot metadata may or may not exist in the slot, depending on
-  //   ENABLE_BACKUP_REF_PTR_SUPPORT and brp_enabled().
+  // - In-slot metadata may or may not exist in the slot. Currently it exists
+  //   only when BRP is used.
   // - If slot_start is not SystemPageSize()-aligned (possible only for small
   //   allocations), in-slot metadata is stored either at the end of the current
   //   slot or the previous slot, depending on the

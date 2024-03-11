@@ -223,6 +223,8 @@ buildflag_header("partition_allocator_buildflags") {
     "HAS_MEMORY_TAGGING=false",
     "FORWARD_THROUGH_MALLOC=false",
     "ENABLE_BACKUP_REF_PTR_INSTANCE_TRACER=false",
+    "ASSERT_CPP_20=true",
+    "USE_LARGE_EMPTY_SLOT_SPAN_RING=false",
   ]
 }
 

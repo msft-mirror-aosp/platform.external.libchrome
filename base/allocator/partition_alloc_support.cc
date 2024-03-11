@@ -758,11 +758,19 @@ void UnretainedDanglingRawPtrDetectedDumpWithoutCrashing(uintptr_t id) {
 }
 
 void UnretainedDanglingRawPtrDetectedCrash(uintptr_t id) {
+  static const char unretained_dangling_ptr_footer[] =
+      "\n"
+      "\n"
+      "Please check for more information on:\n"
+      "https://chromium.googlesource.com/chromium/src/+/main/docs/"
+      "unretained_dangling_ptr_guide.md\n";
   debug::TaskTrace task_trace;
   debug::StackTrace stack_trace;
   LOG(ERROR) << "Detected dangling raw_ptr in unretained with id="
              << StringPrintf("0x%016" PRIxPTR, id) << ":\n\n"
-             << task_trace << stack_trace;
+             << task_trace << '\n'
+             << "Stack trace:\n"
+             << stack_trace << unretained_dangling_ptr_footer;
   ImmediateCrash();
 }
 
@@ -1407,34 +1415,36 @@ void PartitionAllocSupport::ReconfigureAfterTaskRunnerInit(
 }
 
 void PartitionAllocSupport::OnForegrounded(bool has_main_frame) {
-#if PA_CONFIG(THREAD_CACHE_SUPPORTED) && \
-    BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
+#if BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
   {
     base::AutoLock scoped_lock(lock_);
     if (established_process_type_ != switches::kRendererProcess) {
       return;
     }
   }
-
+#if PA_CONFIG(THREAD_CACHE_SUPPORTED)
   if (!base::FeatureList::IsEnabled(
           features::kLowerPAMemoryLimitForNonMainRenderers) ||
       has_main_frame) {
     ::partition_alloc::ThreadCache::SetLargestCachedSize(largest_cached_size_);
   }
-#endif  // PA_CONFIG(THREAD_CACHE_SUPPORTED) &&
-        // BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
+#endif  // PA_CONFIG(THREAD_CACHE_SUPPORTED)
+  if (base::FeatureList::IsEnabled(
+          features::kPartitionAllocAdjustSizeWhenInForeground)) {
+    allocator_shim::AdjustDefaultAllocatorForForeground();
+  }
+#endif  // BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
 }
 
 void PartitionAllocSupport::OnBackgrounded() {
-#if PA_CONFIG(THREAD_CACHE_SUPPORTED) && \
-    BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
+#if BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
   {
     base::AutoLock scoped_lock(lock_);
     if (established_process_type_ != switches::kRendererProcess) {
       return;
     }
   }
-
+#if PA_CONFIG(THREAD_CACHE_SUPPORTED)
   // Performance matters less for background renderers, don't pay the memory
   // cost.
   ::partition_alloc::ThreadCache::SetLargestCachedSize(
@@ -1454,8 +1464,12 @@ void PartitionAllocSupport::OnBackgrounded() {
       }),
       base::Seconds(10));
 
-#endif  // PA_CONFIG(THREAD_CACHE_SUPPORTED) &&
-        // BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
+#endif  // PA_CONFIG(THREAD_CACHE_SUPPORTED)
+  if (base::FeatureList::IsEnabled(
+          features::kPartitionAllocAdjustSizeWhenInForeground)) {
+    allocator_shim::AdjustDefaultAllocatorForBackground();
+  }
+#endif  // BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
 }
 
 #if BUILDFLAG(ENABLE_DANGLING_RAW_PTR_CHECKS)
