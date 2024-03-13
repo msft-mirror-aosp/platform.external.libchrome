@@ -508,8 +508,19 @@ class PartitionAllocTest
     return bucket->active_slot_spans_head;
   }
 
-  void ClearEmptySlotSpanCache() {
-    allocator.root()->DecommitEmptySlotSpansForTesting();
+  void CycleFreeCache(size_t size) {
+    for (size_t i = 0; i < kMaxFreeableSpans; ++i) {
+      void* ptr = allocator.root()->Alloc(size, type_name);
+      auto* slot_span = SlotSpanMetadata::FromSlotStart(
+          allocator.root()->ObjectToSlotStart(ptr));
+      auto* bucket = slot_span->bucket;
+      EXPECT_EQ(1u, bucket->active_slot_spans_head->num_allocated_slots);
+      allocator.root()->Free(ptr);
+      EXPECT_EQ(0u, bucket->active_slot_spans_head->num_allocated_slots);
+      EXPECT_TRUE(bucket->active_slot_spans_head->in_empty_cache() ||
+                  bucket->active_slot_spans_head ==
+                      SlotSpanMetadata::get_sentinel_slot_span());
+    }
   }
 
   enum ReturnNullTestMode {
@@ -2273,13 +2284,20 @@ TEST_P(PartitionAllocTest, FreeCache) {
   EXPECT_TRUE(slot_span->in_empty_cache());
   EXPECT_TRUE(slot_span->get_freelist_head());
 
-  ClearEmptySlotSpanCache();
+  CycleFreeCache(kTestAllocSize);
 
   // Flushing the cache should have really freed the unused slot spans.
   EXPECT_FALSE(slot_span->get_freelist_head());
   EXPECT_FALSE(slot_span->in_empty_cache());
   EXPECT_EQ(0u, slot_span->num_allocated_slots);
-  EXPECT_EQ(0u, allocator.root()->get_total_size_of_committed_pages());
+  size_t num_system_pages_per_slot_span = allocator.root()
+                                              ->buckets[test_bucket_index_]
+                                              .num_system_pages_per_slot_span;
+  size_t expected_size =
+      kUseLazyCommit ? SystemPageSize()
+                     : num_system_pages_per_slot_span * SystemPageSize();
+  EXPECT_EQ(expected_size,
+            allocator.root()->get_total_size_of_committed_pages());
 
   // Check that an allocation works ok whilst in this state (a free'd slot span
   // as the active slot spans head).
@@ -2338,7 +2356,7 @@ TEST_P(PartitionAllocTest, LostFreeSlotSpansBug) {
   EXPECT_TRUE(slot_span->get_freelist_head());
   EXPECT_TRUE(slot_span2->get_freelist_head());
 
-  ClearEmptySlotSpanCache();
+  CycleFreeCache(kTestAllocSize);
 
   EXPECT_FALSE(slot_span->get_freelist_head());
   EXPECT_FALSE(slot_span2->get_freelist_head());
@@ -2358,7 +2376,7 @@ TEST_P(PartitionAllocTest, LostFreeSlotSpansBug) {
   EXPECT_TRUE(bucket->empty_slot_spans_head);
   EXPECT_TRUE(bucket->decommitted_slot_spans_head);
 
-  ClearEmptySlotSpanCache();
+  CycleFreeCache(kTestAllocSize);
 
   // We're now set up to trigger a historical bug by scanning over the active
   // slot spans list. The current code gets into a different state, but we'll
@@ -2727,7 +2745,7 @@ TEST_P(PartitionAllocTest, DumpMemoryStats) {
     // TODO(crbug.com/722911): Commenting this out causes this test to fail when
     // run singly (--gtest_filter=PartitionAllocTest.DumpMemoryStats), but not
     // when run with the others (--gtest_filter=PartitionAllocTest.*).
-    ClearEmptySlotSpanCache();
+    CycleFreeCache(kTestAllocSize);
 
     {
       MockPartitionStatsDumper dumper;
@@ -2759,7 +2777,7 @@ TEST_P(PartitionAllocTest, DumpMemoryStats) {
     allocator.root()->Free(ptr1);
     allocator.root()->Free(ptr2);
 
-    ClearEmptySlotSpanCache();
+    CycleFreeCache(kTestAllocSize);
 
     ptr1 = allocator.root()->Alloc(size, type_name);
 
@@ -4415,22 +4433,6 @@ TEST_P(PartitionAllocTest, DanglingPtr) {
   EXPECT_EQ(g_dangling_raw_ptr_detected_count, 0);
   EXPECT_EQ(g_dangling_raw_ptr_released_count, 0);
 
-#if BUILDFLAG(ENABLE_DANGLING_RAW_PTR_PERF_EXPERIMENT)
-  // Free it. This creates two dangling pointer.
-  allocator.root()->Free(ptr);
-  EXPECT_EQ(g_dangling_raw_ptr_detected_count, 0);
-  EXPECT_EQ(g_dangling_raw_ptr_released_count, 0);
-
-  // The dangling raw_ptr stop referencing it.
-  EXPECT_FALSE(in_slot_metadata->Release());
-  EXPECT_EQ(g_dangling_raw_ptr_detected_count, 0);
-  EXPECT_EQ(g_dangling_raw_ptr_released_count, 0);
-
-  // The dangling raw_ptr stop referencing it again.
-  EXPECT_TRUE(in_slot_metadata->Release());
-  EXPECT_EQ(g_dangling_raw_ptr_detected_count, 0);
-  EXPECT_EQ(g_dangling_raw_ptr_released_count, 0);
-#else
   // Free it. This creates two dangling pointer.
   allocator.root()->Free(ptr);
   EXPECT_EQ(g_dangling_raw_ptr_detected_count, 1);
@@ -4445,7 +4447,6 @@ TEST_P(PartitionAllocTest, DanglingPtr) {
   EXPECT_TRUE(in_slot_metadata->Release());
   EXPECT_EQ(g_dangling_raw_ptr_detected_count, 1);
   EXPECT_EQ(g_dangling_raw_ptr_released_count, 2);
-#endif
 
   PartitionAllocFreeForRefCounting(allocator.root()->ObjectToSlotStart(ptr));
 }
@@ -4515,22 +4516,6 @@ TEST_P(PartitionAllocTest, DanglingMixedReleaseRawPtrFirst) {
   EXPECT_EQ(g_dangling_raw_ptr_detected_count, 0);
   EXPECT_EQ(g_dangling_raw_ptr_released_count, 0);
 
-#if BUILDFLAG(ENABLE_DANGLING_RAW_PTR_PERF_EXPERIMENT)
-  // Free it.
-  allocator.root()->Free(ptr);
-  EXPECT_EQ(g_dangling_raw_ptr_detected_count, 0);
-  EXPECT_EQ(g_dangling_raw_ptr_released_count, 0);
-
-  // The raw_ptr<> stops referencing it.
-  EXPECT_FALSE(in_slot_metadata->Release());
-  EXPECT_EQ(g_dangling_raw_ptr_detected_count, 0);
-  EXPECT_EQ(g_dangling_raw_ptr_released_count, 0);
-
-  // The raw_ptr<T, DisableDanglingPtrDetection> stop referencing it.
-  EXPECT_TRUE(in_slot_metadata->ReleaseFromUnprotectedPtr());
-  EXPECT_EQ(g_dangling_raw_ptr_detected_count, 0);
-  EXPECT_EQ(g_dangling_raw_ptr_released_count, 0);
-#else
   // Free it.
   allocator.root()->Free(ptr);
   EXPECT_EQ(g_dangling_raw_ptr_detected_count, 1);
@@ -4545,7 +4530,6 @@ TEST_P(PartitionAllocTest, DanglingMixedReleaseRawPtrFirst) {
   EXPECT_TRUE(in_slot_metadata->ReleaseFromUnprotectedPtr());
   EXPECT_EQ(g_dangling_raw_ptr_detected_count, 1);
   EXPECT_EQ(g_dangling_raw_ptr_released_count, 1);
-#endif
 
   PartitionAllocFreeForRefCounting(allocator.root()->ObjectToSlotStart(ptr));
 }
@@ -4571,22 +4555,6 @@ TEST_P(PartitionAllocTest, DanglingMixedReleaseDanglingPtrFirst) {
   EXPECT_EQ(g_dangling_raw_ptr_detected_count, 0);
   EXPECT_EQ(g_dangling_raw_ptr_released_count, 0);
 
-#if BUILDFLAG(ENABLE_DANGLING_RAW_PTR_PERF_EXPERIMENT)
-  // Free it.
-  allocator.root()->Free(ptr);
-  EXPECT_EQ(g_dangling_raw_ptr_detected_count, 0);
-  EXPECT_EQ(g_dangling_raw_ptr_released_count, 0);
-
-  // The raw_ptr<> stops referencing it.
-  EXPECT_FALSE(in_slot_metadata->ReleaseFromUnprotectedPtr());
-  EXPECT_EQ(g_dangling_raw_ptr_detected_count, 0);
-  EXPECT_EQ(g_dangling_raw_ptr_released_count, 0);
-
-  // The raw_ptr<T, DisableDanglingPtrDetection> stop referencing it.
-  EXPECT_TRUE(in_slot_metadata->Release());
-  EXPECT_EQ(g_dangling_raw_ptr_detected_count, 0);
-  EXPECT_EQ(g_dangling_raw_ptr_released_count, 0);
-#else
   // Free it.
   allocator.root()->Free(ptr);
   EXPECT_EQ(g_dangling_raw_ptr_detected_count, 1);
@@ -4601,7 +4569,6 @@ TEST_P(PartitionAllocTest, DanglingMixedReleaseDanglingPtrFirst) {
   EXPECT_TRUE(in_slot_metadata->Release());
   EXPECT_EQ(g_dangling_raw_ptr_detected_count, 1);
   EXPECT_EQ(g_dangling_raw_ptr_released_count, 1);
-#endif
 
   PartitionAllocFreeForRefCounting(allocator.root()->ObjectToSlotStart(ptr));
 }
@@ -4723,6 +4690,119 @@ TEST_P(PartitionAllocTest, RawPtrReleasedBeforeFree) {
   EXPECT_TRUE(in_slot_metadata->ReleaseFromUnprotectedPtr());
   EXPECT_EQ(g_dangling_raw_ptr_detected_count, 0);
   EXPECT_EQ(g_dangling_raw_ptr_released_count, 0);
+
+  PartitionAllocFreeForRefCounting(allocator.root()->ObjectToSlotStart(ptr));
+}
+
+// Similar to `PartitionAllocTest.DanglingPtr`, but using
+// `PartitionRoot::Free<FreeFlags::kSchedulerLoopQuarantine>`.
+// 1. `PartitionRoot::Free<kSchedulerLoopQuarantine>`
+//   - The allocation is owned by Scheduler-Loop Quarantine.
+// 2. `InSlotMetadata::Release`
+//   - The allocation is still owned by Scheduler-Loop Quarantine.
+// 3. The allocation gets purged from Scheduler-Loop Quarantine.
+//   - Actual free happens here.
+TEST_P(PartitionAllocTest,
+       DanglingPtrReleaseBeforeSchedulerLoopQuarantineExit) {
+  if (!UseBRPPool()) {
+    return;
+  }
+
+  CountDanglingRawPtr dangling_checks;
+
+  // Allocate memory, and reference it from 3 raw_ptr.
+  uint64_t* ptr = static_cast<uint64_t*>(
+      allocator.root()->Alloc(64 - ExtraAllocSize(allocator), type_name));
+  auto* ref_count =
+      allocator.root()->InSlotMetadataPointerFromObjectForTesting(ptr);
+
+  ref_count->Acquire();
+  ref_count->Acquire();
+  ref_count->Acquire();
+  EXPECT_EQ(g_dangling_raw_ptr_detected_count, 0);
+  EXPECT_EQ(g_dangling_raw_ptr_released_count, 0);
+
+  // The first raw_ptr stops referencing it, before the memory has been
+  // released.
+  EXPECT_FALSE(ref_count->Release());
+  EXPECT_EQ(g_dangling_raw_ptr_detected_count, 0);
+  EXPECT_EQ(g_dangling_raw_ptr_released_count, 0);
+
+  // Free it. This creates two dangling pointer.
+  allocator.root()->Free<FreeFlags::kSchedulerLoopQuarantine>(ptr);
+  EXPECT_EQ(g_dangling_raw_ptr_detected_count, 1);
+  EXPECT_EQ(g_dangling_raw_ptr_released_count, 0);
+
+  // The dangling raw_ptr stop referencing it.
+  EXPECT_FALSE(ref_count->Release());
+  EXPECT_EQ(g_dangling_raw_ptr_detected_count, 1);
+  EXPECT_EQ(g_dangling_raw_ptr_released_count, 1);
+
+  // The dangling raw_ptr stop referencing it again.
+  // Allocation should not be reclaimed because it is still held by the
+  // allocator, in the quarantine.
+  EXPECT_FALSE(ref_count->Release());
+  EXPECT_EQ(g_dangling_raw_ptr_detected_count, 1);
+  EXPECT_EQ(g_dangling_raw_ptr_released_count, 2);
+
+  LightweightQuarantineBranch& branch =
+      allocator.root()->GetSchedulerLoopQuarantineBranchForTesting();
+  branch.Purge();
+}
+
+// Similar to `PartitionAllocTest.DanglingPtr`, but using
+// `PartitionRoot::Free<FreeFlags::kSchedulerLoopQuarantine>`.
+// 1. `PartitionRoot::Free<kSchedulerLoopQuarantine>`
+//   - The allocation is owned by Scheduler-Loop Quarantine.
+// 2. The allocation gets purged from Scheduler-Loop Quarantine.
+//   - The allocation is now moved to BRP-quarantine.
+// 3. `InSlotMetadata::Release`
+//   - Actual free happens here.
+TEST_P(PartitionAllocTest, DanglingPtrReleaseAfterSchedulerLoopQuarantineExit) {
+  if (!UseBRPPool()) {
+    return;
+  }
+
+  CountDanglingRawPtr dangling_checks;
+
+  // Allocate memory, and reference it from 3 raw_ptr.
+  uint64_t* ptr = static_cast<uint64_t*>(
+      allocator.root()->Alloc(64 - ExtraAllocSize(allocator), type_name));
+  auto* ref_count =
+      allocator.root()->InSlotMetadataPointerFromObjectForTesting(ptr);
+
+  ref_count->Acquire();
+  ref_count->Acquire();
+  ref_count->Acquire();
+  EXPECT_EQ(g_dangling_raw_ptr_detected_count, 0);
+  EXPECT_EQ(g_dangling_raw_ptr_released_count, 0);
+
+  // The first raw_ptr stops referencing it, before the memory has been
+  // released.
+  EXPECT_FALSE(ref_count->Release());
+  EXPECT_EQ(g_dangling_raw_ptr_detected_count, 0);
+  EXPECT_EQ(g_dangling_raw_ptr_released_count, 0);
+
+  // Free it. This creates two dangling pointer.
+  allocator.root()->Free<FreeFlags::kSchedulerLoopQuarantine>(ptr);
+  EXPECT_EQ(g_dangling_raw_ptr_detected_count, 1);
+  EXPECT_EQ(g_dangling_raw_ptr_released_count, 0);
+
+  // The dangling raw_ptr stop referencing it.
+  EXPECT_FALSE(ref_count->Release());
+  EXPECT_EQ(g_dangling_raw_ptr_detected_count, 1);
+  EXPECT_EQ(g_dangling_raw_ptr_released_count, 1);
+
+  LightweightQuarantineBranch& branch =
+      allocator.root()->GetSchedulerLoopQuarantineBranchForTesting();
+  branch.Purge();
+
+  // The dangling raw_ptr stop referencing it again.
+  // Allocation should not be reclaimed because it is still held by the
+  // allocator, in the quarantine.
+  EXPECT_TRUE(ref_count->Release());
+  EXPECT_EQ(g_dangling_raw_ptr_detected_count, 1);
+  EXPECT_EQ(g_dangling_raw_ptr_released_count, 2);
 
   PartitionAllocFreeForRefCounting(allocator.root()->ObjectToSlotStart(ptr));
 }
@@ -5232,33 +5312,20 @@ TEST_P(PartitionAllocTest, IncreaseEmptySlotSpanRingSize) {
   root->EnableLargeEmptySlotSpanRing();
 
   constexpr size_t single_slot_large_count = kDefaultEmptySlotSpanRingSize + 10;
-  // The assertion following the alloc/free checks that the ring contains the
-  // slots spans for the allocations done here. Slot spans that have not yet
-  // been added to the ring are added at
-  // `PartitionRoot::global_empty_slot_span_ring_index`. By iterating twice,
-  // we ensure the ring contains the allocations here. This is because the
-  // first time through the empty slot span may decommit one of the allocations
-  // done here, the second time through that won't happen (because
-  // `global_empty_slot_span_ring_index` will have incremented past
-  // `kDefaultEmptySlotSpanRingSize`, and the frees in the second iteration
-  // won't decommit one of the allocations here).
-  for (int x = 0; x < 2; ++x) {
-    for (size_t i = 0; i < single_slot_large_count; i++) {
-      void* ptr = root->Alloc(single_slot_size);
-      single_slot_allocated_memory.push_back(ptr);
-    }
-
-    for (void* ptr : single_slot_allocated_memory) {
-      root->Free(ptr);
-    }
-    single_slot_allocated_memory.clear();
+  for (size_t i = 0; i < single_slot_large_count; i++) {
+    void* ptr = root->Alloc(single_slot_size);
+    single_slot_allocated_memory.push_back(ptr);
   }
 
+  for (void* ptr : single_slot_allocated_memory) {
+    root->Free(ptr);
+  }
+  single_slot_allocated_memory.clear();
+
+  // No overflow this time.
   EXPECT_EQ(PA_TS_UNCHECKED_READ(root->empty_slot_spans_dirty_bytes),
             single_slot_large_count * bucket_size);
 
-  // Constants used here don't work with USE_LARGE_EMPTY_SLOT_SPAN_RING.
-#if !BUILDFLAG(USE_LARGE_EMPTY_SLOT_SPAN_RING)
   constexpr size_t single_slot_too_many_count = kMaxFreeableSpans + 10;
   for (size_t i = 0; i < single_slot_too_many_count; i++) {
     void* ptr = root->Alloc(single_slot_size);
@@ -5273,7 +5340,6 @@ TEST_P(PartitionAllocTest, IncreaseEmptySlotSpanRingSize) {
   // Overflow still works.
   EXPECT_EQ(PA_TS_UNCHECKED_READ(root->empty_slot_spans_dirty_bytes),
             kMaxFreeableSpans * bucket_size);
-#endif
 }
 
 #if BUILDFLAG(PA_IS_CAST_ANDROID) && BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)

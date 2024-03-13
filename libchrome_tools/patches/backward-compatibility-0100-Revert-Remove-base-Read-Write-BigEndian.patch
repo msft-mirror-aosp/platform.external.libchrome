@@ -1,0 +1,179 @@
+From ff55b430fccb0dc31d6f8b31a9c8b35c1e565965 Mon Sep 17 00:00:00 2001
+From: Nathan Muggli <nmuggli@google.com>
+Date: Wed, 13 Mar 2024 15:55:46 -0600
+Subject: [PATCH] Revert "Remove base::{Read,Write}BigEndian"
+
+This reverts commit dd594756704d3cbd22e90a5576239702d54fe2a4.
+
+Revert "Remove unused ByteSwapIfLittleEndian functions"
+
+This reverts commit f713f3df627e0d4a7bd075ff18c0619180760898.
+---
+ base/big_endian.h           | 78 +++++++++++++++++++++++++++++++++++++
+ base/big_endian_unittest.cc | 61 +++++++++++++++++++++++++++++
+ 2 files changed, 139 insertions(+)
+
+diff --git a/base/big_endian.h b/base/big_endian.h
+index 678f94cfa9..0aed135575 100644
+--- a/base/big_endian.h
++++ b/base/big_endian.h
+@@ -22,6 +22,84 @@
+ 
+ namespace base {
+ 
++namespace internal {
++
++// ByteSwapIfLittleEndian performs ByteSwap if this platform is little-endian,
++// otherwise it is a no-op.
++
++#if defined(ARCH_CPU_LITTLE_ENDIAN)
++
++template <typename T>
++inline auto ByteSwapIfLittleEndian(T val) -> decltype(ByteSwap(val)) {
++  return ByteSwap(val);
++}
++
++#else
++
++// The use of decltype ensures this is only enabled for types for which
++// ByteSwap() is defined, so the same set of overloads will work on both
++// little-endian and big-endian platforms.
++
++template <typename T>
++inline auto ByteSwapIfLittleEndian(T val) -> decltype(ByteSwap(val)) {
++  return val;
++}
++
++#endif
++
++// We never need to byte-swap a single-byte value, but it's convenient to have
++// this overload to avoid a special case.
++inline uint8_t ByteSwapIfLittleEndian(uint8_t val) {
++  return val;
++}
++
++}  // namespace internal
++
++// Read an integer (signed or unsigned) from |buf| in Big Endian order.
++// Note: this loop is unrolled with -O1 and above.
++// NOTE(szym): glibc dns-canon.c use ntohs(*(uint16_t*)ptr) which is
++// potentially unaligned.
++// This would cause SIGBUS on ARMv5 or earlier and ARMv6-M.
++//
++// DEPRECATED: Use base::numerics::*FromBigEndian to convert big-endian byte
++// encoding to primitives.
++template <typename T>
++inline void ReadBigEndian(span<const uint8_t, sizeof(T)> buffer, T* out) {
++  static_assert(std::is_integral_v<T>, "T has to be an integral type.");
++  // Make an unsigned version of the output type to make shift possible
++  // without UB.
++  std::make_unsigned_t<T> raw;
++  byte_span_from_ref(raw).copy_from(buffer);
++  *out = static_cast<T>(internal::ByteSwapIfLittleEndian(raw));
++}
++
++// TODO(crbug.com/40284755): Remove this function when there are no callers.
++template <typename T>
++inline void ReadBigEndian(const uint8_t buf[], T* out) {
++  ReadBigEndian(span<const uint8_t, sizeof(T)>(buf, sizeof(T)), out);
++}
++
++// Write an integer (signed or unsigned) `val` to `buffer` in Big Endian order.
++// The `buffer` must be the same size (in bytes) as the integer `val`.
++//
++// DEPRECATED: Use base::numerics::*ToBigEndian to convert primitives to big-
++// endian byte encoding.
++template <typename T>
++  requires(std::is_integral_v<T>)
++inline void WriteBigEndian(span<uint8_t, sizeof(T)> buffer, T val) {
++  const auto unsigned_val = static_cast<std::make_unsigned_t<T>>(val);
++  const auto raw = internal::ByteSwapIfLittleEndian(unsigned_val);
++  buffer.copy_from(byte_span_from_ref(raw));
++}
++
++// TODO(crbug.com/40284755): Remove this function when there are no callers.
++template <typename T>
++  requires(std::is_integral_v<T>)
++inline void WriteBigEndian(char buf[], T val) {
++  return WriteBigEndian(
++      as_writable_bytes(span<char, sizeof(T)>(buf, sizeof(T))), val);
++}
++
+ // Allows reading integers in network order (big endian) while iterating over
+ // an underlying buffer. All the reading functions advance the internal pointer.
+ class BASE_EXPORT BigEndianReader {
+diff --git a/base/big_endian_unittest.cc b/base/big_endian_unittest.cc
+index a2f7348b8a..5fd3cf5e4e 100644
+--- a/base/big_endian_unittest.cc
++++ b/base/big_endian_unittest.cc
+@@ -13,6 +13,67 @@
+ 
+ namespace base {
+ 
++TEST(ReadBigEndianTest, ReadSignedPositive) {
++  uint8_t data[] = {0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x1A, 0x2A};
++  int8_t s8 = 0;
++  int16_t s16 = 0;
++  int32_t s32 = 0;
++  int64_t s64 = 0;
++  ReadBigEndian(base::span(data).first<1>(), &s8);
++  ReadBigEndian(base::span(data).first<2>(), &s16);
++  ReadBigEndian(base::span(data).first<4>(), &s32);
++  ReadBigEndian(base::span(data).first<8>(), &s64);
++  EXPECT_EQ(0x0A, s8);
++  EXPECT_EQ(0x0A0B, s16);
++  EXPECT_EQ(int32_t{0x0A0B0C0D}, s32);
++  EXPECT_EQ(int64_t{0x0A0B0C0D0E0F1A2All}, s64);
++}
++
++TEST(ReadBigEndianTest, ReadSignedNegative) {
++  uint8_t data[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
++  int8_t s8 = 0;
++  int16_t s16 = 0;
++  int32_t s32 = 0;
++  int64_t s64 = 0;
++  ReadBigEndian(base::span(data).first<1>(), &s8);
++  ReadBigEndian(base::span(data).first<2>(), &s16);
++  ReadBigEndian(base::span(data).first<4>(), &s32);
++  ReadBigEndian(base::span(data).first<8>(), &s64);
++  EXPECT_EQ(-1, s8);
++  EXPECT_EQ(-1, s16);
++  EXPECT_EQ(-1, s32);
++  EXPECT_EQ(-1, s64);
++}
++
++TEST(ReadBigEndianTest, ReadUnsignedSigned) {
++  uint8_t data[] = {0xA0, 0xB0, 0xC0, 0xD0, 0xE0, 0xF0, 0xA1, 0xA2};
++  uint8_t u8 = 0;
++  uint16_t u16 = 0;
++  uint32_t u32 = 0;
++  uint64_t u64 = 0;
++  ReadBigEndian(base::span(data).first<1>(), &u8);
++  ReadBigEndian(base::span(data).first<2>(), &u16);
++  ReadBigEndian(base::span(data).first<4>(), &u32);
++  ReadBigEndian(base::span(data).first<8>(), &u64);
++  EXPECT_EQ(0xA0, u8);
++  EXPECT_EQ(0xA0B0, u16);
++  EXPECT_EQ(0xA0B0C0D0, u32);
++  EXPECT_EQ(0xA0B0C0D0E0F0A1A2ull, u64);
++}
++
++TEST(ReadBigEndianTest, TryAll16BitValues) {
++  using signed_type = int16_t;
++  uint8_t data[sizeof(signed_type)];
++  for (int i = std::numeric_limits<signed_type>::min();
++       i <= std::numeric_limits<signed_type>::max(); i++) {
++    signed_type expected = i;
++    signed_type actual = 0;
++    WriteBigEndian(data, expected);
++    ReadBigEndian(data, &actual);
++    EXPECT_EQ(expected, actual);
++  }
++}
++
+ TEST(BigEndianReaderTest, ReadsValues) {
+   std::array<uint8_t, 21u> data = {0,   1,   2,    3,    4,    5,    6,
+                                    7,   8,   9,    0xA,  0xB,  0xC,  0xD,
+-- 
+2.44.0.278.ge034bb2e1d-goog
+

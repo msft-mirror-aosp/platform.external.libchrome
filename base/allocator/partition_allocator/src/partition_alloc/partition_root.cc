@@ -842,12 +842,6 @@ void PartitionRoot::DecommitEmptySlotSpans() {
   PA_DCHECK(empty_slot_spans_dirty_bytes == 0);
 }
 
-void PartitionRoot::DecommitEmptySlotSpansForTesting() {
-  ::partition_alloc::internal::ScopedGuard guard{
-      internal::PartitionRootLock(this)};
-  DecommitEmptySlotSpans();
-}
-
 void PartitionRoot::DestructForTesting() {
   // We need to destruct the thread cache before we unreserve any of the super
   // pages below, which we currently are not doing. So, we should only call
@@ -1522,6 +1516,15 @@ void PartitionRoot::DumpStats(const char* partition_name,
           true, &stats.current_thread_cache_stats);
       ThreadCacheRegistry::Instance().DumpStats(false,
                                                 &stats.all_thread_caches_stats);
+    }
+
+    stats.has_scheduler_loop_quarantine = settings.scheduler_loop_quarantine;
+    if (stats.has_scheduler_loop_quarantine) {
+      memset(
+          reinterpret_cast<void*>(&stats.scheduler_loop_quarantine_stats_total),
+          0, sizeof(LightweightQuarantineStats));
+      scheduler_loop_quarantine_root.AccumulateStats(
+          stats.scheduler_loop_quarantine_stats_total);
     }
   }
 
