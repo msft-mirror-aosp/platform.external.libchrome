@@ -5,11 +5,6 @@
 #include "base/allocator/partition_alloc_features.h"
 
 #include "base/allocator/miracle_parameter.h"
-#include "base/allocator/partition_allocator/src/partition_alloc/partition_alloc_base/time/time.h"
-#include "base/allocator/partition_allocator/src/partition_alloc/partition_alloc_buildflags.h"
-#include "base/allocator/partition_allocator/src/partition_alloc/partition_root.h"
-#include "base/allocator/partition_allocator/src/partition_alloc/shim/allocator_shim_dispatch_to_noop_on_free.h"
-#include "base/allocator/partition_allocator/src/partition_alloc/thread_cache.h"
 #include "base/base_export.h"
 #include "base/feature_list.h"
 #include "base/features.h"
@@ -18,6 +13,11 @@
 #include "build/build_config.h"
 #include "build/chromecast_buildflags.h"
 #include "build/chromeos_buildflags.h"
+#include "partition_alloc/partition_alloc_base/time/time.h"
+#include "partition_alloc/partition_alloc_buildflags.h"
+#include "partition_alloc/partition_root.h"
+#include "partition_alloc/shim/allocator_shim_dispatch_to_noop_on_free.h"
+#include "partition_alloc/thread_cache.h"
 
 namespace base {
 namespace features {
@@ -498,6 +498,10 @@ void MakeFreeNoOp(WhenFreeBecomesNoOp callsite) {
   }
 #endif  // BUILDFLAG(USE_ALLOCATOR_SHIM)
 }
+
+BASE_FEATURE(kPartitionAllocAdjustSizeWhenInForeground,
+             "PartitionAllocAdjustSizeWhenInForeground",
+             base::FEATURE_DISABLED_BY_DEFAULT);
 
 }  // namespace features
 }  // namespace base

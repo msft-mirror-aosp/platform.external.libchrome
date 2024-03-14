@@ -1,0 +1,106 @@
+From 5f837f888a6e9014f6de2364690bad1dc82db0db Mon Sep 17 00:00:00 2001
+From: Nathan Muggli <nmuggli@google.com>
+Date: Mon, 18 Mar 2024 09:01:50 -0600
+Subject: [PATCH 1/3] Revert "Stop recording
+ Scheduling.ThreadController.*.Any.* in microseconds"
+
+This reverts commit 93c5b2f74226f539d46f26bc384d19e811d3675e.
+---
+ .../sequence_manager/thread_controller.cc     | 38 ++++++++-----------
+ .../task/sequence_manager/thread_controller.h |  3 --
+ 2 files changed, 15 insertions(+), 26 deletions(-)
+
+diff --git a/base/task/sequence_manager/thread_controller.cc b/base/task/sequence_manager/thread_controller.cc
+index b53d07189f..c8225d816c 100644
+--- a/base/task/sequence_manager/thread_controller.cc
++++ b/base/task/sequence_manager/thread_controller.cc
+@@ -46,10 +46,6 @@ std::atomic<bool> g_thread_controller_sets_profiler_metadata{true};
+ constexpr TimeDelta kNonTrivialActiveIntervalLength = Milliseconds(1);
+ constexpr TimeDelta kMediumActiveIntervalLength = Milliseconds(100);
+ 
+-std::string MakeSuffix(StringPiece time_suffix, StringPiece thread_name) {
+-  return base::StrCat({".", time_suffix, ".", thread_name});
+-}
+-
+ }  // namespace
+ 
+ ThreadController::ThreadController(const TickClock* time_source)
+@@ -87,28 +83,24 @@ bool ThreadController::RunLevelTracker::RunLevel::ShouldRecordSampleMetadata() {
+       std::memory_order_relaxed);
+ }
+ 
+-StringPiece ThreadController::RunLevelTracker::RunLevel::GetThreadName() {
+-  StringPiece thread_name = "Other";
+-  if (!time_keeper_->thread_name().empty()) {
+-    thread_name = time_keeper_->thread_name();
+-  }
+-  return thread_name;
+-}
+-
+-std::string
+-ThreadController::RunLevelTracker::RunLevel::GetSuffixForCatchAllHistogram() {
+-  return MakeSuffix("Any", GetThreadName());
+-}
+-
+ std::string ThreadController::RunLevelTracker::RunLevel::GetSuffixForHistogram(
+     TimeDelta duration) {
+   StringPiece time_suffix;
+-  if (duration < kNonTrivialActiveIntervalLength) {
++  // No time specified
++  if (duration == TimeDelta()) {
++    time_suffix = "Any";
++  } else if (duration < kNonTrivialActiveIntervalLength) {
+     time_suffix = "Short";
+   } else if (duration < kMediumActiveIntervalLength) {
+     time_suffix = "Medium";
+   }
+-  return MakeSuffix(time_suffix, GetThreadName());
++
++  StringPiece thread_name = "Other";
++  if (!time_keeper_->thread_name().empty()) {
++    thread_name = time_keeper_->thread_name();
++  }
++
++  return base::StrCat({".", time_suffix, ".", thread_name});
+ }
+ 
+ void ThreadController::EnableMessagePumpTimeKeeperMetrics(
+@@ -341,8 +333,8 @@ void ThreadController::RunLevelTracker::RunLevel::LogPercentageMetric(
+     const char* name,
+     int percentage,
+     base::TimeDelta interval_duration) {
+-  UmaHistogramPercentage(base::StrCat({name, GetSuffixForCatchAllHistogram()}),
+-                         percentage);
++  UmaHistogramPercentage(
++      base::StrCat({name, GetSuffixForHistogram(TimeDelta())}), percentage);
+   UmaHistogramPercentage(
+       base::StrCat({name, GetSuffixForHistogram(interval_duration)}),
+       percentage);
+@@ -352,8 +344,8 @@ void ThreadController::RunLevelTracker::RunLevel::LogIntervalMetric(
+     const char* name,
+     base::TimeDelta value,
+     base::TimeDelta interval_duration) {
+-  // Log towards "Any" time suffix first.
+-  UmaHistogramTimes(base::StrCat({name, GetSuffixForCatchAllHistogram()}),
++  // Log towards "Any" thread suffix first.
++  UmaHistogramTimes(base::StrCat({name, GetSuffixForHistogram(TimeDelta())}),
+                     value);
+   if (interval_duration < kNonTrivialActiveIntervalLength) {
+     UmaHistogramCustomMicrosecondsTimes(
+diff --git a/base/task/sequence_manager/thread_controller.h b/base/task/sequence_manager/thread_controller.h
+index 7b94d99f2a..6108ee69eb 100644
+--- a/base/task/sequence_manager/thread_controller.h
++++ b/base/task/sequence_manager/thread_controller.h
+@@ -425,9 +425,6 @@ class BASE_EXPORT ThreadController {
+       // TimeDelta() when not applicable.
+       std::string GetSuffixForHistogram(TimeDelta duration);
+ 
+-      std::string GetSuffixForCatchAllHistogram();
+-      StringPiece GetThreadName();
+-
+       const raw_ref<TimeKeeper> time_keeper_;
+       // Must be set shortly before ~RunLevel.
+       raw_ptr<LazyNow> exit_lazy_now_ = nullptr;
+-- 
+2.44.0.291.gc1ea87d7ee-goog
+

@@ -1,59 +1,22 @@
-From ff55b430fccb0dc31d6f8b31a9c8b35c1e565965 Mon Sep 17 00:00:00 2001
+From 84c02d7ee564a6587dc5817a55a182f74149abe3 Mon Sep 17 00:00:00 2001
 From: Nathan Muggli <nmuggli@google.com>
-Date: Wed, 13 Mar 2024 15:55:46 -0600
-Subject: [PATCH] Revert "Remove base::{Read,Write}BigEndian"
+Date: Mon, 18 Mar 2024 08:52:56 -0600
+Subject: [PATCH 3/3] Revert "Remove base::{Read,Write}BigEndian"
 
 This reverts commit dd594756704d3cbd22e90a5576239702d54fe2a4.
-
-Revert "Remove unused ByteSwapIfLittleEndian functions"
-
-This reverts commit f713f3df627e0d4a7bd075ff18c0619180760898.
 ---
- base/big_endian.h           | 78 +++++++++++++++++++++++++++++++++++++
- base/big_endian_unittest.cc | 61 +++++++++++++++++++++++++++++
- 2 files changed, 139 insertions(+)
+ base/big_endian.h           | 45 +++++++++++++++++++++++++++
+ base/big_endian_unittest.cc | 61 +++++++++++++++++++++++++++++++++++++
+ 2 files changed, 106 insertions(+)
 
 diff --git a/base/big_endian.h b/base/big_endian.h
-index 678f94cfa9..0aed135575 100644
+index 76c419a799..0aed135575 100644
 --- a/base/big_endian.h
 +++ b/base/big_endian.h
-@@ -22,6 +22,84 @@
+@@ -55,6 +55,51 @@ inline uint8_t ByteSwapIfLittleEndian(uint8_t val) {
  
- namespace base {
+ }  // namespace internal
  
-+namespace internal {
-+
-+// ByteSwapIfLittleEndian performs ByteSwap if this platform is little-endian,
-+// otherwise it is a no-op.
-+
-+#if defined(ARCH_CPU_LITTLE_ENDIAN)
-+
-+template <typename T>
-+inline auto ByteSwapIfLittleEndian(T val) -> decltype(ByteSwap(val)) {
-+  return ByteSwap(val);
-+}
-+
-+#else
-+
-+// The use of decltype ensures this is only enabled for types for which
-+// ByteSwap() is defined, so the same set of overloads will work on both
-+// little-endian and big-endian platforms.
-+
-+template <typename T>
-+inline auto ByteSwapIfLittleEndian(T val) -> decltype(ByteSwap(val)) {
-+  return val;
-+}
-+
-+#endif
-+
-+// We never need to byte-swap a single-byte value, but it's convenient to have
-+// this overload to avoid a special case.
-+inline uint8_t ByteSwapIfLittleEndian(uint8_t val) {
-+  return val;
-+}
-+
-+}  // namespace internal
-+
 +// Read an integer (signed or unsigned) from |buf| in Big Endian order.
 +// Note: this loop is unrolled with -O1 and above.
 +// NOTE(szym): glibc dns-canon.c use ntohs(*(uint16_t*)ptr) which is
@@ -175,5 +138,5 @@ index a2f7348b8a..5fd3cf5e4e 100644
    std::array<uint8_t, 21u> data = {0,   1,   2,    3,    4,    5,    6,
                                     7,   8,   9,    0xA,  0xB,  0xC,  0xD,
 -- 
-2.44.0.278.ge034bb2e1d-goog
+2.44.0.291.gc1ea87d7ee-goog
 

@@ -1,70 +1,9 @@
-From f0b7b798e78fdfd99c3ff8c855666bc0b8e8b110 Mon Sep 17 00:00:00 2001
-From: Kevin Lin <kevinptt@chromium.org>
-Date: Sat, 9 Mar 2024 10:36:23 +0800
-Subject: [PATCH 1/2] Revert "Add Scheduling prefix to logging of
- ThreadController metrics"
-
-This reverts commit 9b3324f5bb94676279a7e1c3a5a5ed15413328b3.
----
- .../sequence_manager/thread_controller.cc     | 19 ++++++++-----------
- 1 file changed, 8 insertions(+), 11 deletions(-)
-
-diff --git a/base/task/sequence_manager/thread_controller.cc b/base/task/sequence_manager/thread_controller.cc
-index c8225d816c..f6de47e5d4 100644
---- a/base/task/sequence_manager/thread_controller.cc
-+++ b/base/task/sequence_manager/thread_controller.cc
-@@ -365,8 +365,7 @@ void ThreadController::RunLevelTracker::RunLevel::LogOnActiveMetrics(
- 
-   if (!last_active_end_.is_null()) {
-     const base::TimeDelta idle_time = lazy_now.Now() - last_active_end_;
--    LogIntervalMetric("Scheduling.ThreadController.IdleDuration", idle_time,
--                      idle_time);
-+    LogIntervalMetric("ThreadController.IdleDuration", idle_time, idle_time);
-     last_active_end_ = base::TimeTicks();
-   }
- 
-@@ -390,12 +389,11 @@ void ThreadController::RunLevelTracker::RunLevel::LogOnIdleMetrics(
-     // there's impossibly more ThreadTicks than TimeTicks elapsed.
-     elapsed_thread_ticks = std::min(elapsed_thread_ticks, elapsed_ticks);
- 
--    LogIntervalMetric("Scheduling.ThreadController.ActiveIntervalDuration",
--                      elapsed_ticks, elapsed_ticks);
--    LogIntervalMetric(
--        "Scheduling.ThreadController.ActiveIntervalOffCpuDuration",
--        elapsed_ticks - elapsed_thread_ticks, elapsed_ticks);
--    LogIntervalMetric("Scheduling.ThreadController.ActiveIntervalOnCpuDuration",
-+    LogIntervalMetric("ThreadController.ActiveIntervalDuration", elapsed_ticks,
-+                      elapsed_ticks);
-+    LogIntervalMetric("ThreadController.ActiveIntervalOffCpuDuration",
-+                      elapsed_ticks - elapsed_thread_ticks, elapsed_ticks);
-+    LogIntervalMetric("ThreadController.ActiveIntervalOnCpuDuration",
-                       elapsed_thread_ticks, elapsed_ticks);
- 
-     // If the interval was shorter than a tick, 100% on-cpu time is assumed.
-@@ -405,9 +403,8 @@ void ThreadController::RunLevelTracker::RunLevel::LogOnIdleMetrics(
-             : static_cast<int>(
-                   (elapsed_thread_ticks * 100).IntDiv(elapsed_ticks));
- 
--    LogPercentageMetric(
--        "Scheduling.ThreadController.ActiveIntervalOnCpuPercentage",
--        active_interval_cpu_percentage, elapsed_ticks);
-+    LogPercentageMetric("ThreadController.ActiveIntervalOnCpuPercentage",
-+                        active_interval_cpu_percentage, elapsed_ticks);
- 
-     // Reset timings.
-     last_active_start_ = base::TimeTicks();
--- 
-2.44.0.278.ge034bb2e1d-goog
-
-
-From 193bf8c6f297961ca135be3a559c4647b5dad5ca Mon Sep 17 00:00:00 2001
-From: Wei-Luan Wang <weiluanwang@google.com>
-Date: Wed, 28 Feb 2024 06:53:26 +0000
-Subject: [PATCH 2/2] Revert "Introduce metric to track on-cpu percentage."
+From 8ef61a3e0d5f261df6ba2d7eb42248e574321579 Mon Sep 17 00:00:00 2001
+From: Nathan Muggli <nmuggli@google.com>
+Date: Mon, 18 Mar 2024 09:09:29 -0600
+Subject: [PATCH 3/3] Revert "Introduce metric to track on-cpu percentage."
 
 This reverts commit 294d9321b7a42278e2dd89fabd5038eb2d2cc16d.
-
-It causes seccomp violation on `uname` for some daemons.
 ---
  .../sequence_manager_impl_unittest.cc         |  89 ++---------
  .../sequence_manager/thread_controller.cc     | 143 +-----------------
@@ -556,5 +495,5 @@ index 6108ee69eb..4d61e769fc 100644
        // Must be set shortly before ~RunLevel.
        raw_ptr<LazyNow> exit_lazy_now_ = nullptr;
 -- 
-2.44.0.278.ge034bb2e1d-goog
+2.44.0.291.gc1ea87d7ee-goog
 

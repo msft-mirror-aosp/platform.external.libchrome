@@ -1,0 +1,131 @@
+From 847ee9d13f4df9b11872987b5ef9550c44e199d5 Mon Sep 17 00:00:00 2001
+From: Nathan Muggli <nmuggli@google.com>
+Date: Mon, 18 Mar 2024 08:52:34 -0600
+Subject: [PATCH 1/3] Revert "Reland "Move code from base::ByteSwap to
+ base::numerics and fix UB casts""
+
+This reverts commit 63aa7ab02fa3609d3d8407ad41f9dabf775f7106.
+---
+ base/hash/sha1_nacl.cc         |  6 ++---
+ base/sys_byteorder.h           | 22 +++++++++++++++++++
+ base/sys_byteorder_unittest.cc | 40 ++++++++++++++++++++++++++++++++++
+ 3 files changed, 65 insertions(+), 3 deletions(-)
+
+diff --git a/base/hash/sha1_nacl.cc b/base/hash/sha1_nacl.cc
+index 8ebeb09938..4e9f0d509c 100644
+--- a/base/hash/sha1_nacl.cc
++++ b/base/hash/sha1_nacl.cc
+@@ -9,7 +9,7 @@
+ #include <string_view>
+ 
+ #include "base/hash/sha1.h"
+-#include "base/numerics/byte_conversions.h"
++#include "base/sys_byteorder.h"
+ 
+ namespace base {
+ // Implementation of SHA-1. Only handles data in byte-sized blocks,
+@@ -84,7 +84,7 @@ void SHA1Context::Final() {
+   Process();
+ 
+   for (auto& t : H) {
+-    t = numerics::ByteSwap(t);
++    t = ByteSwap(t);
+   }
+ }
+ 
+@@ -128,7 +128,7 @@ void SHA1Context::Process() {
+   // W and M are in a union, so no need to memcpy.
+   // memcpy(W, M, sizeof(M));
+   for (t = 0; t < 16; ++t) {
+-    W[t] = numerics::ByteSwap(W[t]);
++    W[t] = ByteSwap(W[t]);
+   }
+ 
+   // b.
+diff --git a/base/sys_byteorder.h b/base/sys_byteorder.h
+index 02de1f4e82..f3ec517a02 100644
+--- a/base/sys_byteorder.h
++++ b/base/sys_byteorder.h
+@@ -22,6 +22,28 @@
+ 
+ namespace base {
+ 
++// Returns a value with all bytes in |x| swapped, i.e. reverses the endianness.
++// TODO(danakj): Replace with base::numerics::byteswap().
++inline constexpr uint16_t ByteSwap(uint16_t x) {
++  // Forward to templated function in //base/numerics.
++  return numerics::ByteSwap(x);
++}
++
++inline constexpr uint32_t ByteSwap(uint32_t x) {
++  // Forward to templated function in //base/numerics.
++  return numerics::ByteSwap(x);
++}
++
++inline constexpr uint64_t ByteSwap(uint64_t x) {
++  // Forward to templated function in //base/numerics.
++  return numerics::ByteSwap(x);
++}
++
++inline constexpr uintptr_t ByteSwapUintPtrT(uintptr_t x) {
++  // Forward to templated function in //base/numerics.
++  return numerics::ByteSwap(x);
++}
++
+ // Converts the bytes in |x| from host order (endianness) to little endian, and
+ // returns the result.
+ inline constexpr uint16_t ByteSwapToLE16(uint16_t x) {
+diff --git a/base/sys_byteorder_unittest.cc b/base/sys_byteorder_unittest.cc
+index fe9bf2671d..7b68d2c0f5 100644
+--- a/base/sys_byteorder_unittest.cc
++++ b/base/sys_byteorder_unittest.cc
+@@ -20,6 +20,46 @@ const uint64_t k64BitSwappedTestData = 0x11223344ddccbbaa;
+ 
+ }  // namespace
+ 
++TEST(ByteOrderTest, ByteSwap16) {
++  uint16_t swapped = base::ByteSwap(k16BitTestData);
++  EXPECT_EQ(k16BitSwappedTestData, swapped);
++  uint16_t reswapped = base::ByteSwap(swapped);
++  EXPECT_EQ(k16BitTestData, reswapped);
++}
++
++TEST(ByteOrderTest, ByteSwap32) {
++  uint32_t swapped = base::ByteSwap(k32BitTestData);
++  EXPECT_EQ(k32BitSwappedTestData, swapped);
++  uint32_t reswapped = base::ByteSwap(swapped);
++  EXPECT_EQ(k32BitTestData, reswapped);
++}
++
++TEST(ByteOrderTest, ByteSwap64) {
++  uint64_t swapped = base::ByteSwap(k64BitTestData);
++  EXPECT_EQ(k64BitSwappedTestData, swapped);
++  uint64_t reswapped = base::ByteSwap(swapped);
++  EXPECT_EQ(k64BitTestData, reswapped);
++}
++
++TEST(ByteOrderTest, ByteSwapUintPtrT) {
++#if defined(ARCH_CPU_64_BITS)
++  const uintptr_t test_data = static_cast<uintptr_t>(k64BitTestData);
++  const uintptr_t swapped_test_data =
++      static_cast<uintptr_t>(k64BitSwappedTestData);
++#elif defined(ARCH_CPU_32_BITS)
++  const uintptr_t test_data = static_cast<uintptr_t>(k32BitTestData);
++  const uintptr_t swapped_test_data =
++      static_cast<uintptr_t>(k32BitSwappedTestData);
++#else
++#error architecture not supported
++#endif
++
++  uintptr_t swapped = base::ByteSwapUintPtrT(test_data);
++  EXPECT_EQ(swapped_test_data, swapped);
++  uintptr_t reswapped = base::ByteSwapUintPtrT(swapped);
++  EXPECT_EQ(test_data, reswapped);
++}
++
+ TEST(ByteOrderTest, ByteSwapToLE16) {
+   uint16_t le = base::ByteSwapToLE16(k16BitTestData);
+ #if defined(ARCH_CPU_LITTLE_ENDIAN)
+-- 
+2.44.0.291.gc1ea87d7ee-goog
+

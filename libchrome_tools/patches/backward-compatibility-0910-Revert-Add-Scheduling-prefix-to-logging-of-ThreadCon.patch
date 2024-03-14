@@ -1,0 +1,58 @@
+From 81f9aaf718d7e60f8ac8eada77b503284bd9da79 Mon Sep 17 00:00:00 2001
+From: Nathan Muggli <nmuggli@google.com>
+Date: Mon, 18 Mar 2024 09:09:18 -0600
+Subject: [PATCH 2/3] Revert "Add Scheduling prefix to logging of
+ ThreadController metrics"
+
+This reverts commit 9b3324f5bb94676279a7e1c3a5a5ed15413328b3.
+---
+ .../sequence_manager/thread_controller.cc     | 19 ++++++++-----------
+ 1 file changed, 8 insertions(+), 11 deletions(-)
+
+diff --git a/base/task/sequence_manager/thread_controller.cc b/base/task/sequence_manager/thread_controller.cc
+index c8225d816c..f6de47e5d4 100644
+--- a/base/task/sequence_manager/thread_controller.cc
++++ b/base/task/sequence_manager/thread_controller.cc
+@@ -365,8 +365,7 @@ void ThreadController::RunLevelTracker::RunLevel::LogOnActiveMetrics(
+ 
+   if (!last_active_end_.is_null()) {
+     const base::TimeDelta idle_time = lazy_now.Now() - last_active_end_;
+-    LogIntervalMetric("Scheduling.ThreadController.IdleDuration", idle_time,
+-                      idle_time);
++    LogIntervalMetric("ThreadController.IdleDuration", idle_time, idle_time);
+     last_active_end_ = base::TimeTicks();
+   }
+ 
+@@ -390,12 +389,11 @@ void ThreadController::RunLevelTracker::RunLevel::LogOnIdleMetrics(
+     // there's impossibly more ThreadTicks than TimeTicks elapsed.
+     elapsed_thread_ticks = std::min(elapsed_thread_ticks, elapsed_ticks);
+ 
+-    LogIntervalMetric("Scheduling.ThreadController.ActiveIntervalDuration",
+-                      elapsed_ticks, elapsed_ticks);
+-    LogIntervalMetric(
+-        "Scheduling.ThreadController.ActiveIntervalOffCpuDuration",
+-        elapsed_ticks - elapsed_thread_ticks, elapsed_ticks);
+-    LogIntervalMetric("Scheduling.ThreadController.ActiveIntervalOnCpuDuration",
++    LogIntervalMetric("ThreadController.ActiveIntervalDuration", elapsed_ticks,
++                      elapsed_ticks);
++    LogIntervalMetric("ThreadController.ActiveIntervalOffCpuDuration",
++                      elapsed_ticks - elapsed_thread_ticks, elapsed_ticks);
++    LogIntervalMetric("ThreadController.ActiveIntervalOnCpuDuration",
+                       elapsed_thread_ticks, elapsed_ticks);
+ 
+     // If the interval was shorter than a tick, 100% on-cpu time is assumed.
+@@ -405,9 +403,8 @@ void ThreadController::RunLevelTracker::RunLevel::LogOnIdleMetrics(
+             : static_cast<int>(
+                   (elapsed_thread_ticks * 100).IntDiv(elapsed_ticks));
+ 
+-    LogPercentageMetric(
+-        "Scheduling.ThreadController.ActiveIntervalOnCpuPercentage",
+-        active_interval_cpu_percentage, elapsed_ticks);
++    LogPercentageMetric("ThreadController.ActiveIntervalOnCpuPercentage",
++                        active_interval_cpu_percentage, elapsed_ticks);
+ 
+     // Reset timings.
+     last_active_start_ = base::TimeTicks();
+-- 
+2.44.0.291.gc1ea87d7ee-goog
+
