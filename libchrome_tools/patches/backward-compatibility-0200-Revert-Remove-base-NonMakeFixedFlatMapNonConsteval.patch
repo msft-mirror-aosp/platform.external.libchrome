@@ -1,0 +1,60 @@
+From 3fdf7acca6ed3481adf7fe4cd0f6d5816a4a1067 Mon Sep 17 00:00:00 2001
+From: Andrew Moylan <amoylan@google.com>
+Date: Fri, 22 Mar 2024 11:59:28 +1100
+Subject: [PATCH] Revert "Remove base::NonMakeFixedFlatMapNonConsteval()."
+
+This reverts commit 386b74b586b8ddf482505dde10983b5d575193a2.
+---
+ base/containers/fixed_flat_map.h           | 16 ++++++++++++++++
+ base/containers/fixed_flat_map_unittest.cc | 10 ++++++++++
+ 2 files changed, 26 insertions(+)
+
+diff --git a/base/containers/fixed_flat_map.h b/base/containers/fixed_flat_map.h
+index e73a87ed36..3f74b78b8e 100644
+--- a/base/containers/fixed_flat_map.h
++++ b/base/containers/fixed_flat_map.h
+@@ -116,6 +116,22 @@ consteval fixed_flat_map<Key, Mapped, N, Compare> MakeFixedFlatMap(
+       comp);
+ }
+ 
++// Performs sorting at runtime. Do not introduce new calls to this.
++// Use MakeFixedFlatMap() or FixedFlatMap() instead.
++// https://crbug.com/1513684
++template <class Key, class Mapped, size_t N, class Compare = std::less<>>
++constexpr fixed_flat_map<Key, Mapped, N, Compare> MakeFixedFlatMapNonConsteval(
++    std::pair<Key, Mapped> (&&data)[N],
++    const Compare& comp = Compare()) {
++  using FixedFlatMap = fixed_flat_map<Key, Mapped, N, Compare>;
++  typename FixedFlatMap::value_compare value_comp{comp};
++  std::sort(data, data + N, value_comp);
++  CHECK(internal::is_sorted_and_unique(data, value_comp));
++  return FixedFlatMap(
++      sorted_unique, internal::ToArray<typename FixedFlatMap::value_type>(data),
++      comp);
++}
++
+ }  // namespace base
+ 
+ #endif  // BASE_CONTAINERS_FIXED_FLAT_MAP_H_
+diff --git a/base/containers/fixed_flat_map_unittest.cc b/base/containers/fixed_flat_map_unittest.cc
+index ad81ce84d0..00ea140f09 100644
+--- a/base/containers/fixed_flat_map_unittest.cc
++++ b/base/containers/fixed_flat_map_unittest.cc
+@@ -78,4 +78,14 @@ TEST(FixedFlatMapTest, UnsortableValues) {
+                                     PairType(3, {9}), PairType(4, {16})));
+ }
+ 
++// Verifies that passing repeated keys to MakeFixedFlatMap results in a CHECK
++// failure.
++TEST(FixedFlatMapTest, RepeatedKeys) {
++  // Note: The extra pair of parens is needed to escape the nested commas in the
++  // type list.
++  // Need to use NonConsteval since CHECK(false) is not constexpr.
++  EXPECT_CHECK_DEATH((MakeFixedFlatMapNonConsteval<StringPiece, int>(
++      {{"foo", 1}, {"bar", 2}, {"foo", 3}})));
++}
++
+ }  // namespace base
+-- 
+2.44.0.396.g6e790dbe36-goog
+

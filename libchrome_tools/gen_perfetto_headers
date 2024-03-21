@@ -20,6 +20,7 @@ protozero_includes="
   third_party/perfetto/include/perfetto/protozero/proto_decoder.h
   third_party/perfetto/include/perfetto/protozero/proto_utils.h
   third_party/perfetto/include/protos/perfetto/trace/track_event/debug_annotation.pbzero.h
+  third_party/perfetto/include/protos/perfetto/trace/track_event/source_location.pbzero.h
   third_party/perfetto/include/protos/perfetto/trace/track_event/track_event.pbzero.h"
 
 rm -rf third_party/perfetto

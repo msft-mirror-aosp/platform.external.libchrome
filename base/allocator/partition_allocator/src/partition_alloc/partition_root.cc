@@ -405,8 +405,11 @@ static size_t PartitionPurgeSlotSpan(PartitionRoot* root,
   uintptr_t slot_span_start = SlotSpanMetadata::ToSlotSpanStart(slot_span);
   // First, walk the freelist for this slot span and make a bitmap of which
   // slots are not in use.
+  const PartitionFreelistDispatcher* freelist_dispatcher =
+      root->get_freelist_dispatcher();
+
   for (PartitionFreelistEntry* entry = slot_span->get_freelist_head(); entry;
-       entry = entry->GetNext(slot_size)) {
+       entry = freelist_dispatcher->GetNext(entry, slot_size)) {
     size_t slot_number =
         bucket->GetSlotNumber(SlotStartPtr2Addr(entry) - slot_span_start);
     PA_DCHECK(slot_number < num_provisioned_slots);
@@ -417,7 +420,7 @@ static size_t PartitionPurgeSlotSpan(PartitionRoot* root,
     // return the original content or 0. (Note that this optimization won't be
     // effective on big-endian machines because the masking function is
     // negation.)
-    if (entry->IsEncodedNextPtrZero()) {
+    if (freelist_dispatcher->IsEncodedNextPtrZero(entry)) {
       last_slot = slot_number;
     }
 #endif
@@ -504,7 +507,7 @@ static size_t PartitionPurgeSlotSpan(PartitionRoot* root,
         auto* entry = static_cast<PartitionFreelistEntry*>(
             SlotStartAddr2Ptr(slot_span_start + (slot_size * slot_index)));
         if (num_new_freelist_entries) {
-          back->SetNext(entry);
+          freelist_dispatcher->SetNext(back, entry);
         } else {
           slot_span->SetFreelistHead(entry);
         }
@@ -518,7 +521,7 @@ static size_t PartitionPurgeSlotSpan(PartitionRoot* root,
           slot_span_start + (num_provisioned_slots * slot_size);
       bool skipped = false;
       for (PartitionFreelistEntry* entry = slot_span->get_freelist_head();
-           entry; entry = entry->GetNext(slot_size)) {
+           entry; entry = freelist_dispatcher->GetNext(entry, slot_size)) {
         uintptr_t entry_addr = SlotStartPtr2Addr(entry);
         if (entry_addr >= first_unprovisioned_slot) {
           skipped = true;
@@ -529,7 +532,7 @@ static size_t PartitionPurgeSlotSpan(PartitionRoot* root,
         // if no entry exists). Otherwise the link is already correct.
         if (skipped) {
           if (num_new_freelist_entries) {
-            back->SetNext(entry);
+            freelist_dispatcher->SetNext(back, entry);
           } else {
             slot_span->SetFreelistHead(entry);
           }
@@ -544,7 +547,7 @@ static size_t PartitionPurgeSlotSpan(PartitionRoot* root,
     if (straighten || unprovisioned_bytes) {
       if (num_new_freelist_entries) {
         PA_DCHECK(back);
-        PartitionFreelistEntry::EmplaceAndInitNull(back);
+        freelist_dispatcher->EmplaceAndInitNull(back);
 #if !BUILDFLAG(IS_WIN)
         // Memorize index of the last slot in the list, as it may be able to
         // participate in an optimization related to page discaring (below), due
@@ -1020,6 +1023,9 @@ void PartitionRoot::Init(PartitionOptions opts) {
         opts.memory_tagging.reporting_mode;
 #endif  // BUILDFLAG(HAS_MEMORY_TAGGING)
 
+    settings.use_pool_offset_freelists =
+        opts.use_pool_offset_freelists == PartitionOptions::kEnabled;
+
     // brp_enabled() is not supported in the configurable pool because
     // BRP requires objects to be in a different Pool.
     PA_CHECK(!(settings.use_configurable_pool && brp_enabled()));
@@ -1041,19 +1047,9 @@ void PartitionRoot::Init(PartitionOptions opts) {
 
 #if BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)
     if (brp_enabled()) {
-      size_t in_slot_metadata_size = internal::kInSlotMetadataSizeAdjustment;
-      in_slot_metadata_size =
-          internal::AlignUpInSlotMetadataSizeForApple(in_slot_metadata_size);
-#if PA_CONFIG(MAYBE_INCREASE_IN_SLOT_METADATA_SIZE_FOR_MTE)
-      // When MTE is enabled together with BRP (crbug.com/1445816) in the
-      // "previous slot" mode (note the brp_enabled() check above), there is a
-      // race that can be avoided by making in-slot metadata a multiple of the
-      // MTE granule and not tagging it.
-      if (IsMemoryTaggingEnabled() && !in_slot_metadata_in_same_slot_) {
-        in_slot_metadata_size = internal::base::bits::AlignUp(
-            in_slot_metadata_size, internal::kMemTagGranuleSize);
-      }
-#endif  // PA_CONFIG(MAYBE_INCREASE_IN_SLOT_METADATA_SIZE_FOR_MTE)
+      size_t in_slot_metadata_size =
+          internal::AlignUpInSlotMetadataSizeForApple(
+              internal::kInSlotMetadataSizeAdjustment);
       settings.in_slot_metadata_size = in_slot_metadata_size;
       PA_CHECK(internal::kInSlotMetadataSizeAdjustment <=
                in_slot_metadata_size);
@@ -1408,7 +1404,8 @@ void PartitionRoot::ShrinkEmptySlotSpansRing(size_t limit) {
     // The ring is not always full, may be nullptr.
     if (slot_span) {
       slot_span->DecommitIfPossible(this);
-      global_empty_slot_span_ring[index] = nullptr;
+      // DecommitIfPossible() should set the buffer to null.
+      PA_DCHECK(!global_empty_slot_span_ring[index]);
     }
     index += 1;
     // Walk through the entirety of possible slots, even though the last ones

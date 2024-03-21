@@ -937,10 +937,7 @@ PartitionAllocSupport::GetBrpConfiguration(const std::string& process_type) {
   // TODO(bartekn): Switch to DCHECK once confirmed there are no issues.
   CHECK(base::FeatureList::GetInstance());
 
-  bool enable_brp = false;
-  bool in_slot_metadata_in_same_slot = false;
   bool process_affected_by_brp_flag = false;
-
 #if (BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC) &&  \
      BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)) || \
     BUILDFLAG(USE_ASAN_BACKUP_REF_PTR)
@@ -969,28 +966,19 @@ PartitionAllocSupport::GetBrpConfiguration(const std::string& process_type) {
         // BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)) ||
         // BUILDFLAG(USE_ASAN_BACKUP_REF_PTR)
 
+  const bool enable_brp =
 #if BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC) && \
     BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)
-  if (process_affected_by_brp_flag) {
-    switch (base::features::kBackupRefPtrModeParam.Get()) {
-      case base::features::BackupRefPtrMode::kDisabled:
-        // Do nothing. Equivalent to !IsEnabled(kPartitionAllocBackupRefPtr).
-        break;
-
-      case base::features::BackupRefPtrMode::kEnabledInSameSlotMode:
-        in_slot_metadata_in_same_slot = true;
-        ABSL_FALLTHROUGH_INTENDED;
-      case base::features::BackupRefPtrMode::kEnabled:
-        enable_brp = true;
-        break;
-    }
-  }
-#endif  // BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC) &&
-        // BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)
+      // kDisabled is equivalent to !IsEnabled(kPartitionAllocBackupRefPtr).
+      process_affected_by_brp_flag &&
+      base::features::kBackupRefPtrModeParam.Get() !=
+          base::features::BackupRefPtrMode::kDisabled;
+#else
+      false;
+#endif
 
   return {
       enable_brp,
-      in_slot_metadata_in_same_slot,
       process_affected_by_brp_flag,
   };
 }
@@ -1132,6 +1120,13 @@ void PartitionAllocSupport::ReconfigureAfterFeatureListInit(
   const bool zapping_by_free_flags = base::FeatureList::IsEnabled(
       base::features::kPartitionAllocZappingByFreeFlags);
 
+#if BUILDFLAG(USE_FREELIST_POOL_OFFSETS)
+  const bool use_pool_offset_freelists =
+      base::FeatureList::IsEnabled(base::features::kUsePoolOffsetFreelists);
+#else
+  const bool use_pool_offset_freelists = false;
+#endif  // BUILDFLAG(USE_FREELIST_POOL_OFFSETS)
+
   bool enable_memory_tagging = false;
   partition_alloc::TagViolationReportingMode memory_tagging_reporting_mode =
       partition_alloc::TagViolationReportingMode::kUndefined;
@@ -1197,17 +1192,14 @@ void PartitionAllocSupport::ReconfigureAfterFeatureListInit(
            partition_alloc::TagViolationReportingMode::kDisabled));
   }
 
-  // Set in-slot metadata mode before we create any roots that have BRP enabled.
-  partition_alloc::PartitionRoot::SetInSlotMetadataInSameSlot(
-      brp_config.in_slot_metadata_in_same_slot);
-
   allocator_shim::ConfigurePartitions(
       allocator_shim::EnableBrp(brp_config.enable_brp),
       allocator_shim::EnableMemoryTagging(enable_memory_tagging),
       memory_tagging_reporting_mode, bucket_distribution,
       allocator_shim::SchedulerLoopQuarantine(scheduler_loop_quarantine),
       scheduler_loop_quarantine_capacity_in_bytes,
-      allocator_shim::ZappingByFreeFlags(zapping_by_free_flags));
+      allocator_shim::ZappingByFreeFlags(zapping_by_free_flags),
+      allocator_shim::UsePoolOffsetFreelists(use_pool_offset_freelists));
 
   const uint32_t extras_size = allocator_shim::GetMainPartitionRootExtrasSize();
   // As per description, extras are optional and are expected not to

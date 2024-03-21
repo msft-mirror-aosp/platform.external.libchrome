@@ -42,9 +42,10 @@ const base::FeatureParam<UnretainedDanglingPtrMode>
 
 BASE_FEATURE(kPartitionAllocDanglingPtr,
              "PartitionAllocDanglingPtr",
-#if BUILDFLAG(ENABLE_DANGLING_RAW_PTR_FEATURE_FLAG) ||                   \
-    (BUILDFLAG(ENABLE_DANGLING_RAW_PTR_CHECKS) && BUILDFLAG(IS_LINUX) && \
-     !defined(OFFICIAL_BUILD) && (!defined(NDEBUG) || DCHECK_IS_ON()))
+#if BUILDFLAG(ENABLE_DANGLING_RAW_PTR_FEATURE_FLAG) ||                         \
+    (BUILDFLAG(ENABLE_DANGLING_RAW_PTR_CHECKS) &&                              \
+     (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_WIN)) && !defined(OFFICIAL_BUILD) && \
+     (!defined(NDEBUG) || DCHECK_IS_ON()))
              FEATURE_ENABLED_BY_DEFAULT
 #else
              FEATURE_DISABLED_BY_DEFAULT
@@ -166,7 +167,7 @@ constexpr FeatureParam<BackupRefPtrMode>::Option kBackupRefPtrModeOptions[] = {
     {BackupRefPtrMode::kDisabled, "disabled"},
     {BackupRefPtrMode::kEnabled, "enabled"},
     {BackupRefPtrMode::kEnabled, "enabled-with-memory-reclaimer"},
-    {BackupRefPtrMode::kEnabledInSameSlotMode, "enabled-in-same-slot-mode"},
+    {BackupRefPtrMode::kEnabled, "enabled-in-same-slot-mode"},
     {BackupRefPtrMode::kDisabled, "disabled-but-2-way-split"},
     {BackupRefPtrMode::kDisabled,
      "disabled-but-2-way-split-with-memory-reclaimer"},
@@ -174,8 +175,8 @@ constexpr FeatureParam<BackupRefPtrMode>::Option kBackupRefPtrModeOptions[] = {
 };
 
 const base::FeatureParam<BackupRefPtrMode> kBackupRefPtrModeParam{
-    &kPartitionAllocBackupRefPtr, "brp-mode",
-    BackupRefPtrMode::kEnabledInSameSlotMode, &kBackupRefPtrModeOptions};
+    &kPartitionAllocBackupRefPtr, "brp-mode", BackupRefPtrMode::kEnabled,
+    &kBackupRefPtrModeOptions};
 
 BASE_FEATURE(kPartitionAllocMemoryTagging,
              "PartitionAllocMemoryTagging",

@@ -294,6 +294,9 @@ class PA_COMPONENT_EXPORT(PARTITION_ALLOC) ThreadCache {
   // Must be called without the partition locked, as this may allocate.
   static ThreadCache* Create(PartitionRoot* root);
 
+  const internal::PartitionFreelistDispatcher*
+  get_freelist_dispatcher_from_root();
+
   ~ThreadCache();
 
   // Disallow copy and move.
@@ -571,8 +574,16 @@ PA_ALWAYS_INLINE uintptr_t ThreadCache::GetFromCache(size_t bucket_index,
   // corruption, we know the bucket size that lead to the crash, helping to
   // narrow down the search for culprit. |bucket| was touched just now, so this
   // does not introduce another cache miss.
+  const internal::PartitionFreelistDispatcher* freelist_dispatcher =
+      get_freelist_dispatcher_from_root();
+#if BUILDFLAG(USE_FREELIST_POOL_OFFSETS)
   internal::PartitionFreelistEntry* next =
-      entry->GetNextForThreadCache<true>(bucket.slot_size);
+      freelist_dispatcher->GetNextForThreadCacheTrue(entry, bucket.slot_size);
+#else
+  internal::PartitionFreelistEntry* next =
+      freelist_dispatcher->GetNextForThreadCache<true>(entry, bucket.slot_size);
+#endif  // USE_FREELIST_POOL_OFFSETS
+
   PA_DCHECK(entry != next);
   bucket.count--;
   PA_DCHECK(bucket.count != 0 || !next);
@@ -611,9 +622,8 @@ PA_ALWAYS_INLINE void ThreadCache::PutInBucket(Bucket& bucket,
       internal::kPartitionCachelineSize == 64,
       "The computation below assumes that cache lines are 64 bytes long.");
   int distance_to_next_cacheline_in_16_bytes = 4 - ((slot_start >> 4) & 3);
-  // In the "previous slot" mode, this slot may have an in-slot metadata of the
-  // next, potentially allocated slot. Make sure we don't overwrite it.
-  // TODO(bartekn): Ok to overwrite in the "same slot" mode.
+  // TODO(crbug.com/41483807): Poison entire slot now that "same slot" has
+  // prevailed. In-slot metadata isn't used once the slot is freed.
   int slot_size_remaining_in_16_bytes =
       (bucket.slot_size - internal::kInSlotMetadataBufferSize) / 16;
 
@@ -642,8 +652,9 @@ PA_ALWAYS_INLINE void ThreadCache::PutInBucket(Bucket& bucket,
 #endif  // PA_CONFIG(HAS_FREELIST_SHADOW_ENTRY) && defined(ARCH_CPU_X86_64) &&
         // BUILDFLAG(HAS_64_BIT_POINTERS)
 
-  auto* entry = internal::PartitionFreelistEntry::EmplaceAndInitForThreadCache(
-      slot_start, bucket.freelist_head);
+  auto* entry =
+      get_freelist_dispatcher_from_root()->EmplaceAndInitForThreadCache(
+          slot_start, bucket.freelist_head);
   bucket.freelist_head = entry;
   bucket.count++;
 }

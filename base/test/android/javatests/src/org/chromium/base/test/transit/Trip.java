@@ -8,6 +8,7 @@ import androidx.annotation.Nullable;
 
 import org.chromium.base.Log;
 import org.chromium.base.test.transit.ConditionWaiter.ConditionWaitStatus;
+import org.chromium.base.test.transit.ConditionalState.Phase;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -52,6 +53,22 @@ public class Trip extends Transition {
     public static <T extends TransitStation> T travelSync(
             @Nullable TransitStation origin, T destination, Trigger trigger) {
         Trip trip = new Trip(origin, destination, trigger);
+        trip.travelSyncInternal();
+        return destination;
+    }
+
+    /**
+     * Version of #travelSync() with extra Transition conditions.
+     *
+     * @param transitionConditions a list of the extra Conditions to wait for in the Transition
+     */
+    public static <T extends TransitStation> T travelSync(
+            @Nullable TransitStation origin,
+            T destination,
+            List<Condition> transitionConditions,
+            Trigger trigger) {
+        Trip trip = new Trip(origin, destination, trigger);
+        trip.addTransitionConditions(transitionConditions);
         trip.travelSyncInternal();
         return destination;
     }
@@ -110,8 +127,11 @@ public class Trip extends Transition {
         ArrayList<ConditionWaitStatus> waitStatuses = new ArrayList<>();
 
         Elements originElements =
-                origin != null ? origin.getElementsIncludingFacilities() : Elements.EMPTY;
-        Elements destinationElements = destination.getElementsIncludingFacilities();
+                origin != null
+                        ? origin.getElementsIncludingFacilitiesWithPhase(Phase.TRANSITIONING_FROM)
+                        : Elements.EMPTY;
+        Elements destinationElements =
+                destination.getElementsIncludingFacilitiesWithPhase(Phase.TRANSITIONING_TO);
 
         // Create ENTER Conditions for Views that should appear and LogicalElements that should
         // be true.
