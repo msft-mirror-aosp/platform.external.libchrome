@@ -691,8 +691,11 @@ struct PA_ALIGNAS(64) PA_COMPONENT_EXPORT(PARTITION_ALLOC) PartitionRoot {
     }
 #endif
 #if BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)
-    return brp_enabled() ? internal::kBRPPoolHandle
-                         : internal::kRegularPoolHandle;
+    if (PA_LIKELY(brp_enabled())) {
+      return internal::kBRPPoolHandle;
+    } else {
+      return internal::kRegularPoolHandle;
+    }
 #else
     return internal::kRegularPoolHandle;
 #endif  // BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)
@@ -839,13 +842,9 @@ struct PA_ALIGNAS(64) PA_COMPONENT_EXPORT(PARTITION_ALLOC) PartitionRoot {
     // TODO(bartekn): Check that the result is indeed a slot start.
   }
 
-  bool brp_enabled() const {
 #if BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)
-    return settings.brp_enabled_;
-#else
-    return false;
-#endif
-  }
+  bool brp_enabled() const { return settings.brp_enabled_; }
+#endif  // BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)
 
   PA_ALWAYS_INLINE bool uses_configurable_pool() const {
     return settings.use_configurable_pool;
@@ -908,14 +907,6 @@ struct PA_ALIGNAS(64) PA_COMPONENT_EXPORT(PARTITION_ALLOC) PartitionRoot {
 #endif  // USE_FREELIST_POOL_OFFSETS
     return internal::PartitionFreelistDispatcher::Create(
         internal::PartitionFreelistEncoding::kEncodedFreeList);
-  }
-
-  PA_ALWAYS_INLINE size_t in_slot_metadata_size() {
-#if BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)
-    return settings.in_slot_metadata_size;
-#else
-    return 0;
-#endif
   }
 
  private:
@@ -1236,10 +1227,8 @@ PA_ALWAYS_INLINE void PartitionAllocFreeForRefCounting(uintptr_t slot_start) {
       PA_DCHECK(object[i] == kQuarantinedByte);
     }
   }
-  // TODO(crbug.com/41483807): Memset entire slot now that "same slot" has
-  // prevailed. In-slot metadata isn't used once the slot is freed.
   DebugMemset(SlotStartAddr2Ptr(slot_start), kFreedByte,
-              slot_span->GetUtilizedSlotSize() - root->in_slot_metadata_size());
+              slot_span->GetUtilizedSlotSize());
 #endif  // BUILDFLAG(PA_EXPENSIVE_DCHECKS_ARE_ON)
 
   root->total_size_of_brp_quarantined_bytes.fetch_sub(
@@ -1640,21 +1629,15 @@ PA_ALWAYS_INLINE void PartitionRoot::FreeNoHooksImmediate(
 
   // memset() can be really expensive.
 #if BUILDFLAG(PA_EXPENSIVE_DCHECKS_ARE_ON)
-  // TODO(crbug.com/41483807): Memset entire slot now that "same slot" has
-  // prevailed. In-slot metadata isn't used once the slot is freed.
-  internal::DebugMemset(
-      internal::SlotStartAddr2Ptr(slot_start), internal::kFreedByte,
-      slot_span->GetUtilizedSlotSize() - in_slot_metadata_size());
+  internal::DebugMemset(internal::SlotStartAddr2Ptr(slot_start),
+                        internal::kFreedByte, slot_span->GetUtilizedSlotSize());
 #elif PA_CONFIG(ZERO_RANDOMLY_ON_FREE)
   // `memset` only once in a while: we're trading off safety for time
   // efficiency.
   if (PA_UNLIKELY(internal::RandomPeriod()) &&
       !IsDirectMappedBucket(slot_span->bucket)) {
-    // TODO(crbug.com/41483807): Memset entire slot now that "same slot" has
-    // prevailed. In-slot metadata isn't used once the slot is freed.
-    internal::SecureMemset(
-        internal::SlotStartAddr2Ptr(slot_start), 0,
-        slot_span->GetUtilizedSlotSize() - in_slot_metadata_size());
+    internal::SecureMemset(internal::SlotStartAddr2Ptr(slot_start), 0,
+                           slot_span->GetUtilizedSlotSize());
   }
 #endif  // PA_CONFIG(ZERO_RANDOMLY_ON_FREE)
 
