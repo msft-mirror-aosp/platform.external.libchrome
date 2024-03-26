@@ -43,6 +43,7 @@ void WontCompilePointerInsteadOfArray() {
   const char good[] = "abc";
   const char* bad = good;
   auto v = cstring_view(bad);  // expected-error {{no matching conversion}}
+  auto v2 = cstring_view(nullptr);  // expected-error {{no matching conversion}}
 }
 
 void WontCompileCompareTypeMismatch() {
@@ -50,6 +51,17 @@ void WontCompileCompareTypeMismatch() {
   // a concept.
   (void)(cstring_view() == u16cstring_view());  // expected-error {{invalid operands to binary expression}}
   (void)(cstring_view() <=> u16cstring_view());  // expected-error {{invalid operands to binary expression}}
+}
+
+void WontCompileSwapTypeMismatch() {
+  auto a = cstring_view("8");
+  auto b = u16cstring_view(u"16");
+  a.swap(b);  // expected-error {{cannot bind to a value of unrelated type}}
+}
+
+void WontCompileStartsEndWithMismatch() {
+  u16cstring_view(u"abc").starts_with("ab");  // expected-error {{no matching member function}}
+  u16cstring_view(u"abc").ends_with("ab");  // expected-error {{no matching member function}}
 }
 
 void WontCompileDanglingInput() {
