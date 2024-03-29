@@ -792,6 +792,7 @@ libbase_sublibs = [
       "base/values.cc",
       "base/version.cc",
       "base/vlog.cc",
+      "dump_without_crashing.cc",
     ]
 
     if (use_allocator_shim) {
