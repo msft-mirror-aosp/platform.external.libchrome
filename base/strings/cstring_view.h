@@ -86,6 +86,9 @@ class basic_cstring_view final {
   // type). The string parameter must outlive the cstring view, including that
   // it must not be moved-from or destroyed.
   //
+  // This conversion is implicit, which matches the conversion from std::string
+  // to std::string_view (through string's `operator string_view()`).
+  //
   // # Interaction with SSO
   // std::string stores its contents inline when they fit (which is an
   // implementation defined length), instead of in a heap-allocated buffer. This
@@ -102,10 +105,11 @@ class basic_cstring_view final {
   // constructor and requiring the incoming type to actually be a `std::string`
   // (or other `std::basic_string`). This also improves compiler errors,
   // compared to deleting a string&& overload, when passed an array that does
-  // not match the `ENABLE_IF_ATTR` constructor condition by not sending it to
-  // a deleted overload receiving `std::string`.
+  // not match the `ENABLE_IF_ATTR` constructor condition by not sending it to a
+  // deleted overload receiving `std::string`.
   template <std::same_as<std::basic_string<Char>> String>
-  explicit constexpr basic_cstring_view(const String& s LIFETIME_BOUND) noexcept
+  // NOLINTNEXTLINE(google-explicit-constructor)
+  constexpr basic_cstring_view(const String& s LIFETIME_BOUND) noexcept
       : ptr_(s.c_str()), len_(s.size()) {}
 
   // Unsafe construction from a pointer and length. Prefer to construct cstring
@@ -450,11 +454,47 @@ class basic_cstring_view final {
     return UNSAFE_BUFFERS(std::basic_string<Char>(ptr_, len_));
   }
 
+  // Concatenate a std::string with a cstring_view to produce another
+  // std::string.
+  //
+  // These act like overloads on `std::string` that work for concatenating
+  // `std::string` and `const char*`.
+  //
+  // The rvalue overloads allow `std::string` to reuse existing capacity, by
+  // calling through to the rvalue overloads on `std::string`.
+  template <class Traits, class Alloc>
+  friend constexpr std::basic_string<Char, Traits, Alloc> operator+(
+      basic_cstring_view lhs,
+      const std::basic_string<Char, Traits, Alloc>& rhs) {
+    return lhs.c_str() + rhs;
+  }
+  template <class Traits, class Alloc>
+  friend constexpr std::basic_string<Char, Traits, Alloc> operator+(
+      basic_cstring_view lhs,
+      std::basic_string<Char, Traits, Alloc>&& rhs) {
+    return lhs.c_str() + std::move(rhs);
+  }
+  template <class Traits, class Alloc>
+  friend constexpr std::basic_string<Char, Traits, Alloc> operator+(
+      const std::basic_string<Char, Traits, Alloc>& lhs,
+      basic_cstring_view rhs) {
+    return lhs + rhs.c_str();
+  }
+  template <class Traits, class Alloc>
+  friend constexpr std::basic_string<Char, Traits, Alloc> operator+(
+      std::basic_string<Char, Traits, Alloc>&& lhs,
+      basic_cstring_view rhs) {
+    return std::move(lhs) + rhs.c_str();
+  }
+
  private:
   // An empty string literal for the `Char` type.
   static constexpr Char kEmpty[] = {Char{0}};
 
   // An always-valid pointer (never null) to a NUL-terminated string.
+  //
+  // RAW_PTR_EXCLUSION: cstring_view is typically used on the stack as a local
+  // variable/function parameter, so no raw_ptr is used here.
   RAW_PTR_EXCLUSION const Char* ptr_;
   // The number of characters between `ptr_` and the NUL terminator.
   //
