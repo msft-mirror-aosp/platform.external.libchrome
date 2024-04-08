@@ -7,8 +7,8 @@
 #include <stdint.h>
 
 #include <limits>
+#include <string_view>
 
-#include "base/strings/string_piece.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace base {
@@ -22,11 +22,11 @@ TEST(BigEndianReaderTest, ReadsValues) {
   uint16_t u16;
   uint32_t u32;
   uint64_t u64;
-  base::StringPiece piece;
+  std::string_view piece;
 
   {
     BigEndianReader reader(data);
-    EXPECT_TRUE(reader.Skip(4));
+    EXPECT_TRUE(reader.Skip(4u));
     EXPECT_EQ(reader.remaining_bytes().data(), &data[4u]);
     EXPECT_EQ(reader.remaining(), sizeof(data) - 4);
     EXPECT_TRUE(reader.ReadU8(&u8));
@@ -37,10 +37,40 @@ TEST(BigEndianReaderTest, ReadsValues) {
     EXPECT_EQ(0x0708090Au, u32);
     EXPECT_TRUE(reader.ReadU64(&u64));
     EXPECT_EQ(0x0B0C0D0E0F1A2B3Cllu, u64);
-    base::StringPiece expected(reinterpret_cast<const char*>(reader.ptr()), 2);
+    std::string_view expected(reinterpret_cast<const char*>(reader.ptr()), 2);
     EXPECT_TRUE(reader.ReadPiece(&piece, 2));
     EXPECT_EQ(2u, piece.size());
     EXPECT_EQ(expected.data(), piece.data());
+  }
+
+  // Signed integer reads.
+  {
+    std::array<uint8_t, 21u> sdata = {
+        0,    1,    2,    3,                            //
+        0x84,                                           //
+        0x85, 0x06,                                     //
+        0x87, 0x08, 0x09, 0x0A,                         //
+        0x8B, 0x0C, 0x0D, 0x0E, 0x0F, 0x1A, 0x2B, 0x3C  //
+    };
+    int8_t i8;
+    int16_t i16;
+    int32_t i32;
+    int64_t i64;
+
+    BigEndianReader reader(sdata);
+    EXPECT_TRUE(reader.Skip(4u));
+    EXPECT_TRUE(reader.ReadI8(&i8));
+    EXPECT_EQ(-124, i8);
+    EXPECT_EQ(static_cast<int8_t>(0x84u), i8);
+    EXPECT_TRUE(reader.ReadI16(&i16));
+    EXPECT_EQ(-31482, i16);
+    EXPECT_EQ(static_cast<int16_t>(0x8506u), i16);
+    EXPECT_TRUE(reader.ReadI32(&i32));
+    EXPECT_EQ(-2029516534, i32);
+    EXPECT_EQ(static_cast<int32_t>(0x8708090Au), i32);
+    EXPECT_TRUE(reader.ReadI64(&i64));
+    EXPECT_EQ(-8427346448682964164, i64);
+    EXPECT_EQ(static_cast<int64_t>(0x8B0C0D0E0F1A2B3Cllu), i64);
   }
 
   {
@@ -79,7 +109,7 @@ TEST(BigEndianReaderTest, ReadsLengthPrefixedValues) {
                                   0xE, 0xF, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E};
     BigEndianReader reader(u8_prefixed_data, sizeof(u8_prefixed_data));
 
-    base::StringPiece piece;
+    std::string_view piece;
     ASSERT_TRUE(reader.ReadU8LengthPrefixed(&piece));
     // |reader| should skip both a u8 and the length-8 length-prefixed field.
     EXPECT_EQ(reader.ptr(), u8_prefixed_data + 9);
@@ -92,7 +122,7 @@ TEST(BigEndianReaderTest, ReadsLengthPrefixedValues) {
     uint8_t u16_prefixed_data[] = {0,    8,    0xD,  0xE,  0xF,
                                    0x1A, 0x2B, 0x3C, 0x4D, 0x5E};
     BigEndianReader reader(u16_prefixed_data, sizeof(u16_prefixed_data));
-    base::StringPiece piece;
+    std::string_view piece;
     ASSERT_TRUE(reader.ReadU16LengthPrefixed(&piece));
     // |reader| should skip both a u16 and the length-8 length-prefixed field.
     EXPECT_EQ(reader.ptr(), u16_prefixed_data + 10);
@@ -111,7 +141,7 @@ TEST(BigEndianReaderTest, ReadsLengthPrefixedValues) {
     // Make sure there's no issue reading a zero-value length prefix.
     uint8_t u16_prefixed_data[3] = {};
     BigEndianReader reader(u16_prefixed_data, sizeof(u16_prefixed_data));
-    base::StringPiece piece;
+    std::string_view piece;
     ASSERT_TRUE(reader.ReadU16LengthPrefixed(&piece));
     EXPECT_EQ(reader.ptr(), u16_prefixed_data + 2);
     EXPECT_EQ(reinterpret_cast<const uint8_t*>(piece.data()),
@@ -126,7 +156,7 @@ TEST(BigEndianReaderTest, LengthPrefixedReadsFailGracefully) {
   uint8_t data[] = {0xF, 8,   9,    0xA,  0xB,  0xC,  0xD,
                     0xE, 0xF, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E};
   BigEndianReader reader(data, sizeof(data));
-  base::StringPiece piece;
+  std::string_view piece;
   EXPECT_FALSE(reader.ReadU8LengthPrefixed(&piece));
   EXPECT_EQ(data, reader.ptr());
 
@@ -141,7 +171,7 @@ TEST(BigEndianReaderTest, RespectsLength) {
   uint16_t u16;
   uint32_t u32;
   uint64_t u64;
-  base::StringPiece piece;
+  std::string_view piece;
   BigEndianReader reader(data, sizeof(data));
   // 8 left
   EXPECT_FALSE(reader.Skip(9));
@@ -171,7 +201,7 @@ TEST(BigEndianReaderTest, SafePointerMath) {
   // Craft an extreme length value that would cause |reader.data() + len| to
   // overflow.
   size_t extreme_length = std::numeric_limits<size_t>::max() - 1;
-  base::StringPiece piece;
+  std::string_view piece;
   EXPECT_FALSE(reader.Skip(extreme_length));
   EXPECT_FALSE(reader.ReadBytes(
       // SAFETY: This will create Undefined Behaviour if the invalid length is

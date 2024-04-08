@@ -24,7 +24,7 @@ class SpanWriter {
 
  public:
   // Construct SpanWriter that writes to `buf`.
-  explicit SpanWriter(span<T> buf) : buf_(buf) {}
+  explicit SpanWriter(span<T> buf) : buf_(buf), original_size_(buf_.size()) {}
 
   // Returns true and writes the span `data` into the front of the inner span,
   // if there is enough room left. Otherwise, it returns false and does
@@ -39,14 +39,28 @@ class SpanWriter {
     return true;
   }
 
-  // Returns true and skips over the next `n` objects, if there are enough
-  // objects left. Otherwise, it returns false and does nothing.
-  bool Skip(base::StrictNumeric<size_t> n) {
+  // Skips over the next `n` objects, and returns a span that points to the
+  // skipped objects, if there are enough objects left. Otherwise, it returns
+  // nullopt and does nothing.
+  std::optional<span<T>> Skip(StrictNumeric<size_t> n) {
     if (n > remaining()) {
-      return false;
+      return std::nullopt;
     }
-    buf_ = buf_.subspan(n);
-    return true;
+    auto [lhs, rhs] = buf_.split_at(n);
+    buf_ = rhs;
+    return lhs;
+  }
+  // Skips over the next `N` objects, and returns a fixed-size span that points
+  // to the skipped objects, if there are enough objects left. Otherwise, it
+  // returns nullopt and does nothing.
+  template <size_t N>
+  std::optional<span<T, N>> Skip() {
+    if (N > remaining()) {
+      return std::nullopt;
+    }
+    auto [lhs, rhs] = buf_.template split_at<N>();
+    buf_ = rhs;
+    return lhs;
   }
 
   // For a SpanWriter over bytes, we can write integer values directly to those
@@ -57,22 +71,22 @@ class SpanWriter {
   bool WriteU8BigEndian(uint8_t value)
     requires(std::same_as<T, uint8_t>)
   {
-    return Write(numerics::U8ToBigEndian(value));
+    return Write(U8ToBigEndian(value));
   }
   bool WriteU16BigEndian(uint16_t value)
     requires(std::same_as<T, uint8_t>)
   {
-    return Write(numerics::U16ToBigEndian(value));
+    return Write(U16ToBigEndian(value));
   }
   bool WriteU32BigEndian(uint32_t value)
     requires(std::same_as<T, uint8_t>)
   {
-    return Write(numerics::U32ToBigEndian(value));
+    return Write(U32ToBigEndian(value));
   }
   bool WriteU64BigEndian(uint64_t value)
     requires(std::same_as<T, uint8_t>)
   {
-    return Write(numerics::U64ToBigEndian(value));
+    return Write(U64ToBigEndian(value));
   }
 
   // For a SpanWriter over bytes, we can write integer values directly to those
@@ -83,22 +97,22 @@ class SpanWriter {
   bool WriteU8LittleEndian(uint8_t value)
     requires(std::same_as<T, uint8_t>)
   {
-    return Write(numerics::U8ToLittleEndian(value));
+    return Write(U8ToLittleEndian(value));
   }
   bool WriteU16LittleEndian(uint16_t value)
     requires(std::same_as<T, uint8_t>)
   {
-    return Write(numerics::U16ToLittleEndian(value));
+    return Write(U16ToLittleEndian(value));
   }
   bool WriteU32LittleEndian(uint32_t value)
     requires(std::same_as<T, uint8_t>)
   {
-    return Write(numerics::U32ToLittleEndian(value));
+    return Write(U32ToLittleEndian(value));
   }
   bool WriteU64LittleEndian(uint64_t value)
     requires(std::same_as<T, uint8_t>)
   {
-    return Write(numerics::U64ToLittleEndian(value));
+    return Write(U64ToLittleEndian(value));
   }
 
   // For a SpanWriter over bytes, we can write integer values directly to those
@@ -112,32 +126,35 @@ class SpanWriter {
   bool WriteU8NativeEndian(uint8_t value)
     requires(std::same_as<T, uint8_t>)
   {
-    return Write(numerics::U8ToNativeEndian(value));
+    return Write(U8ToNativeEndian(value));
   }
   bool WriteU16NativeEndian(uint16_t value)
     requires(std::same_as<T, uint8_t>)
   {
-    return Write(numerics::U16ToNativeEndian(value));
+    return Write(U16ToNativeEndian(value));
   }
   bool WriteU32NativeEndian(uint32_t value)
     requires(std::same_as<T, uint8_t>)
   {
-    return Write(numerics::U32ToNativeEndian(value));
+    return Write(U32ToNativeEndian(value));
   }
   bool WriteU64NativeEndian(uint64_t value)
     requires(std::same_as<T, uint8_t>)
   {
-    return Write(numerics::U64ToNativeEndian(value));
+    return Write(U64ToNativeEndian(value));
   }
 
   // Returns the number of objects remaining to be written to the original span.
   size_t remaining() const { return buf_.size(); }
-
   // Returns the objects that have not yet been written to, as a span.
   span<T> remaining_span() const { return buf_; }
 
+  // Returns the number of objects written (or skipped) in the original span.
+  size_t num_written() const { return original_size_ - buf_.size(); }
+
  private:
-  base::raw_span<T> buf_;
+  raw_span<T> buf_;
+  size_t original_size_;
 };
 
 template <class T, size_t N>

@@ -1,0 +1,31 @@
+From 20d1586c1836b3e49c71c17aeebfa009c375b3cc Mon Sep 17 00:00:00 2001
+From: Jeff Lin <jeffulin@google.com>
+Date: Tue, 9 Apr 2024 18:50:01 +0800
+Subject: [PATCH] Revert "MessagePumpEpoll: Enable MessagePumpEpoll by default
+ on CrOS"
+
+This reverts commit 2621c755f5d122defb81c1922692ac3d42909900.
+---
+ base/message_loop/message_pump_libevent.cc | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/base/message_loop/message_pump_libevent.cc b/base/message_loop/message_pump_libevent.cc
+index cdebe4c67e..fc029b6963 100644
+--- a/base/message_loop/message_pump_libevent.cc
++++ b/base/message_loop/message_pump_libevent.cc
+@@ -41,7 +41,12 @@ namespace base {
+ 
+ #if BUILDFLAG(ENABLE_MESSAGE_PUMP_EPOLL)
+ namespace {
++#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_ANDROID)
+ bool g_use_epoll = true;
++#else
++// TODO(crbug.com/1243354): Enable by default on chromeos.
++bool g_use_epoll = false;
++#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_ANDROID)
+ }  // namespace
+ 
+ BASE_FEATURE(kMessagePumpEpoll, "MessagePumpEpoll", FEATURE_ENABLED_BY_DEFAULT);
+-- 
+2.44.0.478.gd926399ef9-goog
+

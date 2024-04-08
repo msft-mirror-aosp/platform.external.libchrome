@@ -10,15 +10,13 @@
 #include <string.h>
 
 #include <optional>
+#include <string_view>
 #include <type_traits>
 
 #include "base/base_export.h"
 #include "base/compiler_specific.h"
 #include "base/containers/span.h"
 #include "base/memory/raw_span.h"
-#include "base/strings/string_piece.h"
-#include "base/sys_byteorder.h"
-#include "build/build_config.h"
 
 namespace base {
 
@@ -26,7 +24,7 @@ namespace base {
 // an underlying buffer. All the reading functions advance the internal pointer.
 class BASE_EXPORT BigEndianReader {
  public:
-  static BigEndianReader FromStringPiece(base::StringPiece string_piece);
+  static BigEndianReader FromStringPiece(std::string_view string_piece);
 
   explicit BigEndianReader(base::span<const uint8_t> buffer);
 
@@ -50,15 +48,27 @@ class BASE_EXPORT BigEndianReader {
   // Reads an 8-bit integer and advances past it. Returns false if there is not
   // enough bytes to read from.
   bool ReadU8(uint8_t* value);
+  // Reads an 8-bit signed integer and advances past it. Returns false if there
+  // is not enough bytes to read from.
+  bool ReadI8(int8_t* value);
   // Reads a 16-bit integer and advances past it. Returns false if there is not
   // enough bytes to read from.
   bool ReadU16(uint16_t* value);
+  // Reads a 16-bit signed integer and advances past it. Returns false if there
+  // is not enough bytes to read from.
+  bool ReadI16(int16_t* value);
   // Reads a 32-bit integer and advances past it. Returns false if there is not
   // enough bytes to read from.
   bool ReadU32(uint32_t* value);
+  // Reads a 32-bit signed integer and advances past it. Returns false if there
+  // is not enough bytes to read from.
+  bool ReadI32(int32_t* value);
   // Reads a 64-bit integer and advances past it. Returns false if there is not
   // enough bytes to read from.
   bool ReadU64(uint64_t* value);
+  // Reads a 64-bit signed integer and advances past it. Returns false if there
+  // is not enough bytes to read from.
+  bool ReadI64(int64_t* value);
 
   // An alias for `ReadU8` that works with a `char` pointer instead of
   // `uint8_t`.
@@ -66,8 +76,8 @@ class BASE_EXPORT BigEndianReader {
     return ReadU8(reinterpret_cast<uint8_t*>(value));
   }
 
-  // Creates a StringPiece in |out| that points to the underlying buffer.
-  bool ReadPiece(base::StringPiece* out, size_t len);
+  // Creates a string_view in |out| that points to the underlying buffer.
+  bool ReadPiece(std::string_view* out, size_t len);
 
   // Returns a span over `n` bytes from the buffer and moves the internal state
   // past those bytes, or returns nullopt and if there are not `n` bytes
@@ -108,7 +118,7 @@ class BASE_EXPORT BigEndianReader {
 
   // Reads a length-prefixed region:
   // 1. reads a big-endian length L from the buffer;
-  // 2. sets |*out| to a StringPiece over the next L many bytes
+  // 2. sets |*out| to a string_view over the next L many bytes
   // of the buffer (beyond the end of the bytes encoding the length); and
   // 3. skips the main reader past this L-byte substring.
   //
@@ -117,8 +127,8 @@ class BASE_EXPORT BigEndianReader {
   //
   // On failure, leaves the stream at the same position
   // as before the call.
-  bool ReadU8LengthPrefixed(base::StringPiece* out);
-  bool ReadU16LengthPrefixed(base::StringPiece* out);
+  bool ReadU8LengthPrefixed(std::string_view* out);
+  bool ReadU16LengthPrefixed(std::string_view* out);
 
  private:
   raw_span<const uint8_t> buffer_;

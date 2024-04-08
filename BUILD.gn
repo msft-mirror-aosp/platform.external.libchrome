@@ -65,6 +65,7 @@ group("all_buildflags") {
     ":rust_buildflags",
     ":synchronization_buildflags",
     ":tracing_buildflags",
+    ":protected_memory_buildflags",
   ]
 }
 
@@ -415,6 +416,13 @@ buildflag_header("tracing_buildflags") {
     "USE_PERFETTO_TRACE_PROCESSOR=false",
 
     # "OPTIONAL_TRACE_EVENTS_ENABLED=",
+  ]
+}
+
+buildflag_header("protected_memory_buildflags") {
+  header = "base/memory/protected_memory_buildflags.h"
+  flags = [
+    "PROTECTED_MEMORY_ENABLED=false"
   ]
 }
 
