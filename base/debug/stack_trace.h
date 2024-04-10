@@ -14,6 +14,7 @@
 #include "base/containers/span.h"
 #include "base/debug/debugging_buildflags.h"
 #include "base/memory/raw_ptr.h"
+#include "base/strings/cstring_view.h"
 #include "build/build_config.h"
 
 #if BUILDFLAG(IS_POSIX)
@@ -116,7 +117,7 @@ class BASE_EXPORT StackTrace {
 
   // Prints the stack trace to stderr, prepending the given string before
   // each output line.
-  void PrintWithPrefix(const char* prefix_string) const;
+  void PrintWithPrefix(cstring_view prefix_string) const;
 
 #if !defined(__UCLIBC__) && !defined(_AIX)
   // Resolves backtrace to symbols and write to stream.
@@ -124,7 +125,7 @@ class BASE_EXPORT StackTrace {
   // Resolves backtrace to symbols and write to stream, with the provided
   // prefix string prepended to each line.
   void OutputToStreamWithPrefix(std::ostream* os,
-                                const char* prefix_string) const;
+                                cstring_view prefix_string) const;
 #endif
 
   // Resolves backtrace to symbols and returns as string.
@@ -132,9 +133,24 @@ class BASE_EXPORT StackTrace {
 
   // Resolves backtrace to symbols and returns as string, prepending the
   // provided prefix string to each line.
-  std::string ToStringWithPrefix(const char* prefix_string) const;
+  std::string ToStringWithPrefix(cstring_view prefix_string) const;
+
+  // Sets a message to be emitted in place of symbolized stack traces. When
+  // such a message is provided, collection and symbolization of stack traces
+  // is suppressed. Suppression is cancelled if `message` is empty.
+  static void SuppressStackTracesWithMessageForTesting(std::string message);
 
  private:
+  // Prints `message` with an optional prefix.
+  static void PrintMessageWithPrefix(cstring_view prefix_string,
+                                     cstring_view message);
+
+  void PrintWithPrefixImpl(cstring_view prefix_string) const;
+#if !defined(__UCLIBC__) && !defined(_AIX)
+  void OutputToStreamWithPrefixImpl(std::ostream* os,
+                                    cstring_view prefix_string) const;
+#endif
+
   // Returns true if generation of symbolized stack traces is to be suppressed.
   static bool ShouldSuppressOutput();
 
