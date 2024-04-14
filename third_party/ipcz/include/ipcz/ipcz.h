@@ -66,6 +66,14 @@ typedef uint32_t IpczMemoryFlags;
 
 #define IPCZ_MEMORY_FIXED_PARCEL_CAPACITY (1 << 0)
 
+// Feature identifiers which may be passed through IpczCreateNodeOptions to
+// control dynamic runtime features.
+typedef uint32_t IpczFeature;
+
+// When this feature is enabled, ipcz will use alternative shared memory layout
+// and allocation behavior intended to be more efficient than the v1 scheme.
+#define IPCZ_FEATURE_MEM_V2 ((IpczFeature)0xA110C002)
+
 // Options given to CreateNode() to configure the new node's behavior.
 struct IPCZ_ALIGN(8) IpczCreateNodeOptions {
   // The exact size of this structure in bytes. Must be set accurately before
@@ -77,6 +85,15 @@ struct IPCZ_ALIGN(8) IpczCreateNodeOptions {
   bool disable_parcel_memory_expansion;
 
   IpczMemoryFlags memory_flags;
+
+  // List of features to enable for this node.
+  const IpczFeature* enabled_features;
+  size_t num_enabled_features;
+
+  // List of features to disable for this node. Note that if a feature is listed
+  // both in `enabled_features` and `disabled_features`, it is disabled.
+  const IpczFeature* disabled_features;
+  size_t num_disabled_features;
 };
 
 

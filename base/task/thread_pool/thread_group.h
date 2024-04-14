@@ -91,9 +91,8 @@ class BASE_EXPORT ThreadGroup {
       scoped_refptr<SingleThreadTaskRunner> service_thread_task_runner,
       WorkerThreadObserver* worker_thread_observer,
       WorkerEnvironment worker_environment,
-      bool synchronous_thread_start_for_testing = false,
-      std::optional<TimeDelta> may_block_threshold =
-          std::optional<TimeDelta>()) = 0;
+      bool synchronous_thread_start_for_testing,
+      std::optional<TimeDelta> may_block_threshold) = 0;
 
   // Registers the thread group in TLS.
   void BindToCurrentThread();
@@ -238,7 +237,7 @@ class BASE_EXPORT ThreadGroup {
 
     // RAW_PTR_EXCLUSION: Performance: visible in sampling profiler and stack
     // scoped, also a back-pointer to the owning object.
-    RAW_PTR_EXCLUSION ThreadGroup* outer_;
+    RAW_PTR_EXCLUSION ThreadGroup* outer_ = nullptr;
 
    protected:
     // Performs BaseScopedCommandsExecutor-related tasks, must be called in this
@@ -498,8 +497,7 @@ class BASE_EXPORT ThreadGroup {
   int num_unresolved_best_effort_may_block_ GUARDED_BY(lock_) = 0;
 
   // Signaled when a worker is added to the idle workers set.
-  std::unique_ptr<ConditionVariable> idle_workers_set_cv_for_testing_
-      GUARDED_BY(lock_);
+  ConditionVariable idle_workers_set_cv_for_testing_ GUARDED_BY(lock_);
 
   // Whether an AdjustMaxTasks() task was posted to the service thread.
   bool adjust_max_tasks_posted_ GUARDED_BY(lock_) = false;
@@ -521,7 +519,7 @@ class BASE_EXPORT ThreadGroup {
 
   // Signaled, if non-null, when |num_workers_cleaned_up_for_testing_| is
   // incremented.
-  std::unique_ptr<ConditionVariable> num_workers_cleaned_up_for_testing_cv_
+  std::optional<ConditionVariable> num_workers_cleaned_up_for_testing_cv_
       GUARDED_BY(lock_);
 
   // All workers owned by this thread group.

@@ -61,14 +61,27 @@ class SpanReader {
     return true;
   }
 
-  // Returns true and skips over the next `n` objects, if there are enough
-  // objects left. Otherwise, it returns false and does nothing.
-  bool Skip(base::StrictNumeric<size_t> n) {
-    if (n > remaining()) {
+  // Returns true and copies objects into `out`, if there are enough objects
+  // left to fill `out`. Otherwise, it returns false and does nothing.
+  bool ReadCopy(span<std::remove_const_t<T>> out) {
+    if (out.size() > remaining()) {
       return false;
     }
-    buf_ = buf_.subspan(n);
+    auto [lhs, rhs] = buf_.split_at(out.size());
+    out.copy_from(lhs);
+    buf_ = rhs;
     return true;
+  }
+
+  // Returns true and skips over the next `n` objects, if there are enough
+  // objects left. Otherwise, it returns false and does nothing.
+  std::optional<base::span<T>> Skip(base::StrictNumeric<size_t> n) {
+    if (n > remaining()) {
+      return std::nullopt;
+    }
+    auto [lhs, rhs] = buf_.split_at(n);
+    buf_ = rhs;
+    return lhs;
   }
 
   // For a SpanReader over bytes, we can read integer values directly from those
@@ -77,22 +90,22 @@ class SpanReader {
   //
   // These treat the bytes from the buffer as being in big endian order.
   bool ReadU8BigEndian(uint8_t& value)
-    requires(std::same_as<T, uint8_t>)
+    requires(std::same_as<std::remove_const_t<T>, uint8_t>)
   {
     return ReadAnd<1>([&](auto buf) { value = U8FromBigEndian(buf); });
   }
   bool ReadU16BigEndian(uint16_t& value)
-    requires(std::same_as<T, uint8_t>)
+    requires(std::same_as<std::remove_const_t<T>, uint8_t>)
   {
     return ReadAnd<2>([&](auto buf) { value = U16FromBigEndian(buf); });
   }
   bool ReadU32BigEndian(uint32_t& value)
-    requires(std::same_as<T, uint8_t>)
+    requires(std::same_as<std::remove_const_t<T>, uint8_t>)
   {
     return ReadAnd<4>([&](auto buf) { value = U32FromBigEndian(buf); });
   }
   bool ReadU64BigEndian(uint64_t& value)
-    requires(std::same_as<T, uint8_t>)
+    requires(std::same_as<std::remove_const_t<T>, uint8_t>)
   {
     return ReadAnd<8>([&](auto buf) { value = U64FromBigEndian(buf); });
   }
@@ -103,22 +116,22 @@ class SpanReader {
   //
   // These treat the bytes from the buffer as being in little endian order.
   bool ReadU8LittleEndian(uint8_t& value)
-    requires(std::same_as<T, uint8_t>)
+    requires(std::same_as<std::remove_const_t<T>, uint8_t>)
   {
     return ReadAnd<1>([&](auto buf) { value = U8FromLittleEndian(buf); });
   }
   bool ReadU16LittleEndian(uint16_t& value)
-    requires(std::same_as<T, uint8_t>)
+    requires(std::same_as<std::remove_const_t<T>, uint8_t>)
   {
     return ReadAnd<2>([&](auto buf) { value = U16FromLittleEndian(buf); });
   }
   bool ReadU32LittleEndian(uint32_t& value)
-    requires(std::same_as<T, uint8_t>)
+    requires(std::same_as<std::remove_const_t<T>, uint8_t>)
   {
     return ReadAnd<4>([&](auto buf) { value = U32FromLittleEndian(buf); });
   }
   bool ReadU64LittleEndian(uint64_t& value)
-    requires(std::same_as<T, uint8_t>)
+    requires(std::same_as<std::remove_const_t<T>, uint8_t>)
   {
     return ReadAnd<8>([&](auto buf) { value = U64FromLittleEndian(buf); });
   }
@@ -132,22 +145,22 @@ class SpanReader {
   // sense for byte buffers that are only meant to stay in memory and never be
   // written to the disk or network.
   bool ReadU8NativeEndian(uint8_t& value)
-    requires(std::same_as<T, uint8_t>)
+    requires(std::same_as<std::remove_const_t<T>, uint8_t>)
   {
     return ReadAnd<1>([&](auto buf) { value = U8FromNativeEndian(buf); });
   }
   bool ReadU16NativeEndian(uint16_t& value)
-    requires(std::same_as<T, uint8_t>)
+    requires(std::same_as<std::remove_const_t<T>, uint8_t>)
   {
     return ReadAnd<2>([&](auto buf) { value = U16FromNativeEndian(buf); });
   }
   bool ReadU32NativeEndian(uint32_t& value)
-    requires(std::same_as<T, uint8_t>)
+    requires(std::same_as<std::remove_const_t<T>, uint8_t>)
   {
     return ReadAnd<4>([&](auto buf) { value = U32FromNativeEndian(buf); });
   }
   bool ReadU64NativeEndian(uint64_t& value)
-    requires(std::same_as<T, uint8_t>)
+    requires(std::same_as<std::remove_const_t<T>, uint8_t>)
   {
     return ReadAnd<8>([&](auto buf) { value = U64FromNativeEndian(buf); });
   }
