@@ -10,19 +10,16 @@
 
 #include "build/build_config.h"
 #include "partition_alloc/freeslot_bitmap.h"
-#include "partition_alloc/in_slot_metadata.h"
 #include "partition_alloc/partition_alloc-inl.h"
 #include "partition_alloc/partition_alloc_base/compiler_specific.h"
 #include "partition_alloc/partition_alloc_base/debug/debugging_buildflags.h"
-#include "partition_alloc/partition_alloc_base/immediate_crash.h"
 #include "partition_alloc/partition_alloc_buildflags.h"
-#include "partition_alloc/partition_alloc_check.h"
 #include "partition_alloc/partition_alloc_config.h"
 #include "partition_alloc/partition_alloc_constants.h"
 
 #if !defined(ARCH_CPU_BIG_ENDIAN)
 #include "partition_alloc/reverse_bytes.h"
-#endif  // !defined(ARCH_CPU_BIG_ENDIAN)
+#endif
 
 namespace partition_alloc::internal {
 
@@ -52,7 +49,7 @@ class EncodedFreelistPtr {
   // encoding and decoding.
   PA_ALWAYS_INLINE static constexpr uintptr_t Transform(uintptr_t address) {
     // We use bswap on little endian as a fast transformation for two reasons:
-    // 1) On 64 bit architectures, the pointer is very unlikely to be a
+    // 1) On 64 bit architectures, the swapped pointer is very unlikely to be a
     //    canonical address. Therefore, if an object is freed and its vtable is
     //    used where the attacker doesn't get the chance to run allocations
     //    between the free and use, the vtable dereference is likely to fault.
@@ -156,23 +153,23 @@ class EncodedNextFreelistEntry {
   template <bool crash_on_corruption>
   PA_ALWAYS_INLINE EncodedNextFreelistEntry* GetNextForThreadCache(
       size_t slot_size) const {
-    return GetNextInternal<crash_on_corruption, /* for_thread_cache = */ true>(
+    return GetNextInternal<crash_on_corruption, /*for_thread_cache=*/true>(
         slot_size);
   }
   PA_ALWAYS_INLINE EncodedNextFreelistEntry* GetNext(size_t slot_size) const {
-    return GetNextInternal<true, /* for_thread_cache = */ false>(slot_size);
+    return GetNextInternal<true, /*for_thread_cache=*/false>(slot_size);
   }
 
   PA_NOINLINE void CheckFreeList(size_t slot_size) const {
     for (auto* entry = this; entry; entry = entry->GetNext(slot_size)) {
-      // |GetNext()| checks freelist integrity.
+      // `GetNext()` calls `IsWellFormed()`.
     }
   }
 
   PA_NOINLINE void CheckFreeListForThreadCache(size_t slot_size) const {
     for (auto* entry = this; entry;
          entry = entry->GetNextForThreadCache<true>(slot_size)) {
-      // |GetNextForThreadCache()| checks freelist integrity.
+      // `GetNextForThreadCache()` calls `IsWellFormed()`.
     }
   }
 
@@ -234,9 +231,8 @@ class EncodedNextFreelistEntry {
         PA_DEBUG_DATA_ON_STACK("second", static_cast<size_t>(shadow_));
 #endif
         FreelistCorruptionDetected(slot_size);
-      } else {
-        return nullptr;
       }
+      return nullptr;
     }
 
     // In real-world profiles, the load of |encoded_next_| above is responsible
@@ -247,7 +243,6 @@ class EncodedNextFreelistEntry {
     // In the case of repeated allocations, we can prefetch the access that will
     // be done at the *next* allocation, which will touch *ret, prefetch it.
     PA_PREFETCH(ret);
-
     return ret;
   }
 
