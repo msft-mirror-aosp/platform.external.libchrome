@@ -291,10 +291,11 @@ class PoolOffsetFreelistEntry {
     // Don't allow the freelist to be blindly followed to any location.
     // Checks following constraints:
     // - `here->shadow_` must match an inversion of `here->next_` (if present).
-    // - `next` must not have bits in the pool base mask except a MTE tag.
-    // - `next` cannot point inside the metadata area.
-    // - `here` and `next` must belong to the same superpage, unless this is in
-    //   the thread cache (they even always belong to the same slot span).
+    // - `next` mustn't have bits set in the pool base mask, except MTE tag.
+    // - `next` mustn't point inside the super page metadata area.
+    // - Unless this is a thread-cache freelist, `here` and `next` must belong
+    //   to the same super page (as a matter of fact, they must belong to the
+    //   same slot span, but that'd be too expensive to check here).
     // - `next` is marked as free in the free slot bitmap (if present).
 
     const uintptr_t here_address = SlotStartPtr2Addr(here);
@@ -325,7 +326,7 @@ class PoolOffsetFreelistEntry {
                                  (next_address & kSuperPageBaseMask);
 
 #if BUILDFLAG(USE_FREESLOT_BITMAP)
-    // TODO(crbug.com/1461983): Add support for freeslot bitmaps.
+    // TODO(crbug.com/40274683): Add support for freeslot bitmaps.
     static_assert(false, "USE_FREESLOT_BITMAP not supported");
 #else
     constexpr bool marked_as_free_in_bitmap = true;
