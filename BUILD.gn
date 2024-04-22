@@ -726,7 +726,6 @@ libbase_sublibs = [
       "base/task/thread_pool/worker_thread_set.cc",
       "base/task/thread_pool/worker_thread_waitable_event.cc",
       "base/third_party/cityhash/city.cc",
-      "base/third_party/dynamic_annotations/dynamic_annotations.c",
       "base/third_party/nspr/prtime.cc",
       "base/third_party/superfasthash/superfasthash.c",
       "base/threading/hang_watcher.cc",
