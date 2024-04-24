@@ -266,7 +266,7 @@ bool ShouldUnescapeCodePoint(UnescapeRule::Type rules,
   //
   // Can't use icu to make this cleaner, because Cronet cannot depend on
   // icu, and currently uses this file.
-  // TODO(https://crbug.com/829873): Try to make this use icu, both to
+  // TODO(crbug.com/41381359): Try to make this use icu, both to
   // protect against regressions as the Unicode standard is updated and to
   // reduce the number of long lists of characters.
   return !(
@@ -539,7 +539,7 @@ std::string UnescapeBinaryURLComponent(StringPiece escaped_text,
   // before FeatureList initialization. In that case, fallback to the feature's
   // default state.
   //
-  // TODO(crbug.com/1321924): Cleanup this feature.
+  // TODO(crbug.com/40224104): Cleanup this feature.
   const bool optimize_data_urls_feature_is_enabled =
       base::FeatureList::GetInstance()
           ? base::FeatureList::IsEnabled(features::kOptimizeDataUrls)
