@@ -474,7 +474,6 @@ libbase_sublibs = [
       "base/base64.cc",
       "base/base64url.cc",
       "base/base_switches.cc",
-      "base/big_endian.cc",
       "base/callback_list.cc",
       "base/check.cc",
       "base/check_is_test.cc",
