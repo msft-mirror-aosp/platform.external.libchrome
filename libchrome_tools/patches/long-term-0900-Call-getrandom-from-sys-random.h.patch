@@ -13,10 +13,10 @@ patch-name: long-term-0900-Call-getrandom-from-sys-random.h.patch
  1 file changed, 2 insertions(+), 2 deletions(-)
 
 diff --git a/base/rand_util_posix.cc b/base/rand_util_posix.cc
-index 16fa608cbc..eff504078c 100644
+index 37dd2d32ea..50f7aea8db 100644
 --- a/base/rand_util_posix.cc
 +++ b/base/rand_util_posix.cc
-@@ -22,9 +22,9 @@
+@@ -28,9 +28,9 @@
  #include "base/time/time.h"
  #include "build/build_config.h"
  
@@ -25,9 +25,9 @@ index 16fa608cbc..eff504078c 100644
  #include "third_party/lss/linux_syscall_support.h"
 -#elif BUILDFLAG(IS_MAC)
 +#elif BUILDFLAG(IS_MAC) || 1
- // TODO(crbug.com/995996): Waiting for this header to appear in the iOS SDK.
+ // TODO(crbug.com/40641285): Waiting for this header to appear in the iOS SDK.
  // (See below.)
  #include <sys/random.h>
 -- 
-2.42.0.582.g8ccd20d70d-goog
+2.45.0.rc0.197.gbae5840b3b-goog
 
