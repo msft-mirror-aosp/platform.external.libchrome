@@ -9,6 +9,7 @@ import("//common-mk/mojom_bindings_generator.gni")
 import("//common-mk/mojom_type_mappings_generator.gni")
 import("//common-mk/pkg_config.gni")
 import("//common-mk/proto_library.gni")
+import("//libchrome/base/allocator/partition_allocator/src/partition_alloc/buildflag_header.gni")
 import("//libchrome/build/buildflag_header.gni")
 
 libchrome_basever = read_file("BASE_VER", "trim string")
@@ -182,7 +183,7 @@ buildflag_header("allocator_logging_buildflags") {
   flags = [ "PA_ENABLE_LOG_ERROR_NOT_REACHED=false" ]
 }
 
-buildflag_header("partition_allocator_buildflags") {
+pa_buildflag_header("partition_allocator_buildflags") {
   # Copied from base/allocator/partition_allocator/src/partition_alloc/partition_alloc.gni without
   # using is_nacl.
   if (current_cpu == "x64" || current_cpu == "arm64") {
@@ -230,7 +231,7 @@ buildflag_header("partition_allocator_buildflags") {
   ]
 }
 
-buildflag_header("partition_allocator_raw_ptr_buildflags") {
+pa_buildflag_header("partition_allocator_raw_ptr_buildflags") {
   header = "base/allocator/partition_allocator/src/partition_alloc/raw_ptr_buildflags.h"
 
   flags = [
@@ -240,7 +241,7 @@ buildflag_header("partition_allocator_raw_ptr_buildflags") {
   ]
 }
 
-buildflag_header("partition_allocator_chromecast_buildflags") {
+pa_buildflag_header("partition_allocator_chromecast_buildflags") {
   header = "base/allocator/partition_allocator/src/partition_alloc/chromecast_buildflags.h"
   flags = [
     "PA_IS_CAST_ANDROID=false",
@@ -248,12 +249,12 @@ buildflag_header("partition_allocator_chromecast_buildflags") {
   ]
 }
 
-buildflag_header("partition_allocator_chromeos_buildflags") {
+pa_buildflag_header("partition_allocator_chromeos_buildflags") {
   header = "base/allocator/partition_allocator/src/partition_alloc/chromeos_buildflags.h"
   flags = [ "PA_IS_CHROMEOS_ASH=false" ]
 }
 
-buildflag_header("allocator_debugging_buildflags") {
+pa_buildflag_header("allocator_debugging_buildflags") {
   header = "base/allocator/partition_allocator/src/partition_alloc/partition_alloc_base/debug/debugging_buildflags.h"
   flags = [
     "PA_DCHECK_IS_ON=false",

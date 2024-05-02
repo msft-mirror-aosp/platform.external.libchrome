@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "partition_alloc/partition_alloc_for_testing.h"
-
 #include <algorithm>
 #include <bit>
 #include <cstddef>
@@ -20,8 +18,8 @@
 
 #include "base/system/sys_info.h"
 #include "base/test/gtest_util.h"
-#include "build/build_config.h"
 #include "partition_alloc/address_space_randomization.h"
+#include "partition_alloc/build_config.h"
 #include "partition_alloc/chromecast_buildflags.h"
 #include "partition_alloc/dangling_raw_ptr_checks.h"
 #include "partition_alloc/freeslot_bitmap.h"
@@ -42,6 +40,7 @@
 #include "partition_alloc/partition_alloc_buildflags.h"
 #include "partition_alloc/partition_alloc_config.h"
 #include "partition_alloc/partition_alloc_constants.h"
+#include "partition_alloc/partition_alloc_for_testing.h"
 #include "partition_alloc/partition_alloc_forward.h"
 #include "partition_alloc/partition_bucket.h"
 #include "partition_alloc/partition_cookie.h"
@@ -52,6 +51,7 @@
 #include "partition_alloc/reservation_offset_table.h"
 #include "partition_alloc/tagging.h"
 #include "partition_alloc/thread_isolation/thread_isolation.h"
+#include "partition_alloc/use_death_tests.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 #if defined(__ARM_FEATURE_MEMORY_TAGGING)
@@ -608,9 +608,7 @@ class PartitionAllocTest
 #endif
 };
 
-// Death tests misbehave on Android, http://crbug.com/643760.
-#if defined(GTEST_HAS_DEATH_TEST) && !BUILDFLAG(IS_ANDROID)
-#define PA_HAS_DEATH_TESTS
+#if PA_USE_DEATH_TESTS()
 
 class PartitionAllocDeathTest : public PartitionAllocTest {};
 
@@ -2369,7 +2367,7 @@ TEST_P(PartitionAllocTest, LostFreeSlotSpansBug) {
   EXPECT_TRUE(bucket->decommitted_slot_spans_head);
 }
 
-#if defined(PA_HAS_DEATH_TESTS)
+#if PA_USE_DEATH_TESTS()
 
 // Unit tests that check if an allocation fails in "return null" mode,
 // repeating it doesn't crash, and still returns null. The tests need to
@@ -2659,7 +2657,7 @@ TEST_P(PartitionAllocDeathTest, OffByOneDetectionWithRealisticData) {
 #endif  // !BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT) &&
         // PA_CONFIG(HAS_FREELIST_SHADOW_ENTRY)
 
-#endif  // !defined(PA_HAS_DEATH_TESTS)
+#endif  // PA_USE_DEATH_TESTS()
 
 // Tests that |PartitionDumpStats| and |PartitionDumpStats| run without
 // crashing and return non-zero values when memory is allocated.
@@ -4785,7 +4783,7 @@ TEST_P(PartitionAllocTest, DanglingPtrReleaseAfterSchedulerLoopQuarantineExit) {
   PartitionAllocFreeForRefCounting(allocator.root()->ObjectToSlotStart(ptr));
 }
 
-#if defined(PA_HAS_DEATH_TESTS)
+#if PA_USE_DEATH_TESTS()
 // DCHECK message are stripped in official build. It causes death tests with
 // matchers to fail.
 #if !defined(OFFICIAL_BUILD) || !defined(NDEBUG)
@@ -4823,7 +4821,7 @@ TEST_P(PartitionAllocDeathTest, ReleaseUnderflowDanglingPtr) {
 }
 
 #endif  //! defined(OFFICIAL_BUILD) || !defined(NDEBUG)
-#endif  // defined(PA_HAS_DEATH_TESTS)
+#endif  // PA_USE_DEATH_TESTS()
 #endif  // BUILDFLAG(ENABLE_DANGLING_RAW_PTR_CHECKS)
 
 TEST_P(PartitionAllocTest, ReservationOffset) {
@@ -5028,7 +5026,7 @@ TEST_P(PartitionAllocTest, FastPathOrReturnNull) {
   allocator.root()->Free<FreeFlags::kNoHooks>(ptr2);
 }
 
-#if defined(PA_HAS_DEATH_TESTS)
+#if PA_USE_DEATH_TESTS()
 // DCHECK message are stripped in official build. It causes death tests with
 // matchers to fail.
 #if !defined(OFFICIAL_BUILD) || !defined(NDEBUG)
@@ -5039,12 +5037,12 @@ TEST_P(PartitionAllocDeathTest, CheckTriggered) {
 }
 
 #endif  // !defined(OFFICIAL_BUILD) && !defined(NDEBUG)
-#endif  // defined(PA_HAS_DEATH_TESTS)
+#endif  // PA_USE_DEATH_TESTS()
 
 // Not on chromecast, since gtest considers extra output from itself as a test
 // failure:
 // https://ci.chromium.org/ui/p/chromium/builders/ci/Cast%20Audio%20Linux/98492/overview
-#if BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC) && defined(PA_HAS_DEATH_TESTS) && \
+#if BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC) && PA_USE_DEATH_TESTS() && \
     !BUILDFLAG(PA_IS_CASTOS)
 
 namespace {
@@ -5122,7 +5120,7 @@ TEST_P(PartitionAllocTest, DISABLED_PreforkHandler) {
 }
 
 #endif  // BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC) &&
-        // PA_CONFIG(HAS_DEATH_TESTS) && !BUILDFLAG(PA_IS_CASTOS)
+        // PA_USE_DEATH_TESTS() && !BUILDFLAG(PA_IS_CASTOS)
 
 // Checks the bucket index logic.
 TEST_P(PartitionAllocTest, GetIndex) {

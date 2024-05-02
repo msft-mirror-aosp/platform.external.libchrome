@@ -739,8 +739,9 @@ struct Employee {
 
 *** note
 **NOTE:** Mojo object or handle types added with a `MinVersion` **MUST** be
-optional (nullable). On the other hand, primitive numeric types added with a
-`MinVersion` are allowed to be either nullable or non-nullable.
+optional (nullable). On the other hand, primitive numeric types (including
+enums) added with a `MinVersion` are allowed to be either nullable or
+non-nullable.
 
 See [Primitive Types](#Primitive-Types) for details on nullable values.
 
@@ -801,6 +802,9 @@ When a struct of version X is passed to a destination using version Y:
 
 * If X is older than Y, then all fields newer than version X are populated
     automatically: `null` for nullable types, and `0`/`false` for primitive
+    numeric types, including enums. See
+    [Ensuring Backward Compatible Behavior](#ensuring-backward-compatible-behavior)
+    for more details on choosing between nullable and non-nullable primitive
     numeric types.
 * If X is newer than Y, then all fields newer than version Y are truncated.
 
@@ -950,9 +954,9 @@ definition to communicate with a service using a different version Y:
 
 **Choosing between Nullable and Non-nullable Primitive Numeric Types**
 
-Primitive numeric types are allowed to be either nullable or non-nullable when
-extending structs or method parameter lists. There are several tradeoffs to
-consider when choosing between the two:
+Primitive numeric types, including enums, are allowed to be either nullable or
+non-nullable when extending structs or method parameter lists. There are several
+tradeoffs to consider when choosing between the two:
 
 * Nullable numeric primitives: they can offer more semantic safety for new
     fields because it is more obvious that such fields are optional, and whether
@@ -963,6 +967,14 @@ consider when choosing between the two:
     benefits: they are slightly more efficient (although that is usually
     negligible). And they can avoid additional null checks if value `0`/`false`
     already represents the invalid state.
+
+*** note
+**NOTE**: A non-nullable enum's automatically populated value is distinct from
+the value used when an extensible enum is deserialised with an enumerator value
+that is not defined in the current enum definition (the enum's
+[`[Default]` enumerator value](/mojo/public/cpp/bindings/README.md#versioned-enums),
+if one exists).
+***
 
 If the consequences of auto-populated `0`/`false` have not been thoroughly and
 carefully considered, prefer nullable numeric primitives.
