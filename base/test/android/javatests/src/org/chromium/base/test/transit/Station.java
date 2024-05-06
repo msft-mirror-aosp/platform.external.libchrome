@@ -17,25 +17,27 @@ import java.util.List;
  * <p>As a {@link ConditionalState}, it has a defined lifecycle and must declare {@link Elements}
  * that determine its enter and exit {@link Condition}s.
  *
- * <p>Transitions should be done with {@link Trip#travelSync(TransitStation, TransitStation,
+ * <p>Transitions should be done with {@link Trip#travelSync(Station, Station,
  * Trigger)}. The transit-layer derived class should expose screen-specific methods for the
  * test-layer to use.
  */
-public abstract class TransitStation extends ConditionalState {
+public abstract class Station extends ConditionalState {
     private static final String TAG = "Transit";
     private final int mId;
     private static int sLastStationId;
-    private List<StationFacility> mFacilities = new ArrayList<>();
+    private List<Facility> mFacilities = new ArrayList<>();
+    private String mName;
 
-    protected TransitStation() {
+    protected Station() {
         mId = ++sLastStationId;
         TrafficControl.notifyCreatedStation(this);
+        mName = String.format("<S%d: %s>", mId, getClass().getSimpleName());
     }
 
     Elements getElementsIncludingFacilitiesWithPhase(@Phase int phase) {
         Elements.Builder allElements = Elements.newBuilder();
         allElements.addAll(getElements());
-        for (StationFacility facility : mFacilities) {
+        for (Facility facility : mFacilities) {
             if (facility.getPhase() == phase) {
                 allElements.addAll(facility.getElements());
             }
@@ -43,13 +45,18 @@ public abstract class TransitStation extends ConditionalState {
         return allElements.build();
     }
 
-    void registerFacility(StationFacility facility) {
+    void registerFacility(Facility facility) {
         mFacilities.add(facility);
     }
 
     @Override
+    public String getName() {
+        return mName;
+    }
+
+    @Override
     public String toString() {
-        return String.format("<S%d: %s>", mId, getClass().getSimpleName());
+        return mName;
     }
 
     /**
@@ -63,7 +70,7 @@ public abstract class TransitStation extends ConditionalState {
     void setStateTransitioningTo() {
         super.setStateTransitioningTo();
 
-        for (StationFacility facility : mFacilities) {
+        for (Facility facility : mFacilities) {
             facility.setStateTransitioningTo();
         }
     }
@@ -72,7 +79,7 @@ public abstract class TransitStation extends ConditionalState {
     void setStateActive() {
         super.setStateActive();
 
-        for (StationFacility facility : mFacilities) {
+        for (Facility facility : mFacilities) {
             facility.setStateActive();
         }
     }
@@ -81,7 +88,7 @@ public abstract class TransitStation extends ConditionalState {
     void setStateTransitioningFrom() {
         super.setStateTransitioningFrom();
 
-        for (StationFacility facility : mFacilities) {
+        for (Facility facility : mFacilities) {
             if (facility.getPhase() == Phase.ACTIVE) {
                 facility.setStateTransitioningFrom();
             }
@@ -92,7 +99,7 @@ public abstract class TransitStation extends ConditionalState {
     void setStateFinished() {
         super.setStateFinished();
 
-        for (StationFacility facility : mFacilities) {
+        for (Facility facility : mFacilities) {
             if (facility.getPhase() == Phase.TRANSITIONING_FROM) {
                 facility.setStateFinished();
             }

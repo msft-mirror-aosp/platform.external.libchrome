@@ -1,0 +1,59 @@
+From e84a761b1aec631330b28ea97d51f1a4126532b8 Mon Sep 17 00:00:00 2001
+From: Jae Hoon Kim <kimjae@chromium.org>
+Date: Tue, 7 May 2024 23:48:09 +0000
+Subject: [PATCH] File::[Stat()|Lstat()] receive FilePath + const char ptr
+
+Accounts for backwards compatibility with commit
+d166a5331b12699bb26f80182d04af4ed4a200f7.
+
+Change-Id: I2caa3c33698c8f087c288855455d6324619c89f7
+---
+ base/files/file.h        | 2 ++
+ base/files/file_posix.cc | 8 ++++++++
+ 2 files changed, 10 insertions(+)
+
+diff --git a/base/files/file.h b/base/files/file.h
+index b857ce95d5..c5cc53d60c 100644
+--- a/base/files/file.h
++++ b/base/files/file.h
+@@ -385,10 +385,12 @@ class BASE_EXPORT File {
+ #if BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+   // Wrapper for stat().
+   static int Stat(const FilePath& path, stat_wrapper_t* sb);
++  static int Stat(const char* path, stat_wrapper_t* sb);
+   // Wrapper for fstat().
+   static int Fstat(int fd, stat_wrapper_t* sb);
+   // Wrapper for lstat().
+   static int Lstat(const FilePath& path, stat_wrapper_t* sb);
++  static int Lstat(const char* path, stat_wrapper_t* sb);
+ #endif
+ 
+   // This function can be used to augment `flags` with the correct flags
+diff --git a/base/files/file_posix.cc b/base/files/file_posix.cc
+index 7660b372dc..b21cd1c8aa 100644
+--- a/base/files/file_posix.cc
++++ b/base/files/file_posix.cc
+@@ -679,6 +679,10 @@ int File::Stat(const FilePath& path, stat_wrapper_t* sb) {
+   ScopedBlockingCall scoped_blocking_call(FROM_HERE, BlockingType::MAY_BLOCK);
+   return stat(path.value().c_str(), sb);
+ }
++int File::Stat(const char* path, stat_wrapper_t* sb) {
++  ScopedBlockingCall scoped_blocking_call(FROM_HERE, BlockingType::MAY_BLOCK);
++  return stat(path, sb);
++}
+ int File::Fstat(int fd, stat_wrapper_t* sb) {
+   ScopedBlockingCall scoped_blocking_call(FROM_HERE, BlockingType::MAY_BLOCK);
+   return fstat(fd, sb);
+@@ -687,5 +691,9 @@ int File::Lstat(const FilePath& path, stat_wrapper_t* sb) {
+   ScopedBlockingCall scoped_blocking_call(FROM_HERE, BlockingType::MAY_BLOCK);
+   return lstat(path.value().c_str(), sb);
+ }
++int File::Lstat(const char* path, stat_wrapper_t* sb) {
++  ScopedBlockingCall scoped_blocking_call(FROM_HERE, BlockingType::MAY_BLOCK);
++  return lstat(path, sb);
++}
+ 
+ }  // namespace base
+-- 
+2.45.0.rc1.225.g2a3ae87e7f-goog
+

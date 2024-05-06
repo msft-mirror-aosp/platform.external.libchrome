@@ -8,7 +8,7 @@ import static androidx.test.espresso.Espresso.onData;
 import static androidx.test.espresso.Espresso.onView;
 import static androidx.test.espresso.action.ViewActions.click;
 import static androidx.test.espresso.assertion.ViewAssertions.matches;
-import static androidx.test.espresso.matcher.ViewMatchers.isDisplayed;
+import static androidx.test.espresso.matcher.ViewMatchers.isCompletelyDisplayed;
 
 import static org.chromium.base.test.transit.ViewElement.sharedViewElement;
 
@@ -28,10 +28,10 @@ import java.util.concurrent.Callable;
 /**
  * Represents a facility that contains items which may or may not be visible due to scrolling.
  *
- * @param <HostStationT> the type of TransitStation this is scoped to.
+ * @param <HostStationT> the type of host {@link Station} this is scoped to.
  */
-public abstract class ScrollableFacility<HostStationT extends TransitStation>
-        extends StationFacility<HostStationT> {
+public abstract class ScrollableFacility<HostStationT extends Station>
+        extends Facility<HostStationT> {
 
     public ScrollableFacility(HostStationT station) {
         super(station);
@@ -68,7 +68,7 @@ public abstract class ScrollableFacility<HostStationT extends TransitStation>
     }
 
     /** Create a new item which transitions to a |DestinationStationT| when selected. */
-    public <DestinationStationT extends TransitStation> Item<DestinationStationT> newItemToStation(
+    public <DestinationStationT extends Station> Item<DestinationStationT> newItemToStation(
             Matcher<View> onScreenViewMatcher,
             Matcher<?> offScreenDataMatcher,
             Callable<DestinationStationT> destinationStationFactory) {
@@ -84,7 +84,7 @@ public abstract class ScrollableFacility<HostStationT extends TransitStation>
     }
 
     /** Create a new item which enters a |EnteredFacilityT| when selected. */
-    public <EnteredFacilityT extends StationFacility<HostStationT>>
+    public <EnteredFacilityT extends Facility<HostStationT>>
             Item<EnteredFacilityT> newItemToFacility(
                     Matcher<View> onScreenViewMatcher,
                     Matcher<?> offScreenDataMatcher,
@@ -218,8 +218,8 @@ public abstract class ScrollableFacility<HostStationT extends TransitStation>
          */
         public ItemOnScreenFacility<HostStationT, SelectReturnT> scrollTo() {
             ItemOnScreenFacility<HostStationT, SelectReturnT> focusedItem =
-                    new ItemOnScreenFacility<>(mStation, this);
-            return StationFacility.enterSync(focusedItem, this::maybeScrollTo);
+                    new ItemOnScreenFacility<>(mHostStation, this);
+            return Facility.enterSync(focusedItem, this::maybeScrollTo);
         }
 
         protected void setSelectHandler(Callable<SelectReturnT> selectHandler) {
@@ -253,14 +253,14 @@ public abstract class ScrollableFacility<HostStationT extends TransitStation>
 
         private void maybeScrollTo() {
             try {
-                onView(mOnScreenViewMatcher).check(matches(isDisplayed()));
+                onView(mOnScreenViewMatcher).check(matches(isCompletelyDisplayed()));
             } catch (AssertionError | NoMatchingViewException e) {
                 onData(mOffScreenDataMatcher).perform(ViewActions.scrollTo());
             }
         }
     }
 
-    private <EnteredFacilityT extends StationFacility> EnteredFacilityT enterFacility(
+    private <EnteredFacilityT extends Facility> EnteredFacilityT enterFacility(
             Item<EnteredFacilityT> item, Callable<EnteredFacilityT> mDestinationFactory) {
         EnteredFacilityT destination;
         try {
@@ -269,10 +269,10 @@ public abstract class ScrollableFacility<HostStationT extends TransitStation>
             throw new RuntimeException(e);
         }
 
-        return StationFacility.enterSync(destination, () -> item.getViewElement().perform(click()));
+        return Facility.enterSync(destination, () -> item.getViewElement().perform(click()));
     }
 
-    private <DestinationStationT extends TransitStation> DestinationStationT travelToStation(
+    private <DestinationStationT extends Station> DestinationStationT travelToStation(
             Item<DestinationStationT> item, Callable<DestinationStationT> mDestinationFactory) {
         DestinationStationT destination;
         try {
@@ -281,6 +281,7 @@ public abstract class ScrollableFacility<HostStationT extends TransitStation>
             throw new RuntimeException(e);
         }
 
-        return Trip.travelSync(mStation, destination, () -> item.getViewElement().perform(click()));
+        return Trip.travelSync(
+                mHostStation, destination, () -> item.getViewElement().perform(click()));
     }
 }

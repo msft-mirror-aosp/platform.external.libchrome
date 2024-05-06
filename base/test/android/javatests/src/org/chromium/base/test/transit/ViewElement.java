@@ -4,25 +4,38 @@
 
 package org.chromium.base.test.transit;
 
-import static androidx.test.espresso.matcher.ViewMatchers.isDisplayed;
+import static androidx.test.espresso.matcher.ViewMatchers.isDisplayingAtLeast;
 
+import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.allOf;
 
 import android.view.View;
 
 import androidx.annotation.IntDef;
 import androidx.test.espresso.Espresso;
+import androidx.test.espresso.UiController;
 import androidx.test.espresso.ViewAction;
 import androidx.test.espresso.ViewInteraction;
 
 import org.hamcrest.Matcher;
 import org.hamcrest.StringDescription;
 
+import org.chromium.base.test.util.ViewPrinter;
+
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 
 /** An Element representing a view characteristic of a ConditionalState. */
 public class ViewElement {
+
+    /**
+     * Minimum percentage of the View that needs to be displayed for a ViewElement's enter
+     * Conditions to be considered fulfilled.
+     *
+     * <p>Matches Espresso's preconditions for ViewActions like click().
+     */
+    public static final int MIN_DISPLAYED_PERCENT = 90;
+
     @IntDef({Scope.CONDITIONAL_STATE_SCOPED, Scope.SHARED, Scope.UNSCOPED})
     @Retention(RetentionPolicy.SOURCE)
     @interface Scope {
@@ -137,7 +150,7 @@ public class ViewElement {
      * Start an Espresso interaction with a displayed View that matches this ViewElement's Matcher.
      */
     public ViewInteraction onView() {
-        return Espresso.onView(allOf(mViewMatcher, isDisplayed()));
+        return Espresso.onView(allOf(mViewMatcher, isDisplayingAtLeast(MIN_DISPLAYED_PERCENT)));
     }
 
     /**
@@ -159,6 +172,31 @@ public class ViewElement {
      */
     public static Options.Builder newOptions() {
         return new Options().new Builder();
+    }
+
+    /**
+     * Print the whole View hierarchy that contains the View matched to this ViewElement.
+     *
+     * <p>For debugging.
+     */
+    public void printFromRoot() {
+        perform(
+                new ViewAction() {
+                    @Override
+                    public Matcher<View> getConstraints() {
+                        return instanceOf(View.class);
+                    }
+
+                    @Override
+                    public String getDescription() {
+                        return "print the View hierarchy for debugging";
+                    }
+
+                    @Override
+                    public void perform(UiController uiController, View view) {
+                        ViewPrinter.printView(view.getRootView());
+                    }
+                });
     }
 
     /** Extra options for declaring ViewElements. */
