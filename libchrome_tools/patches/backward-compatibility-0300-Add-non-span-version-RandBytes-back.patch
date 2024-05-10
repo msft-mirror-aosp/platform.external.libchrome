@@ -1,0 +1,50 @@
+From 55160c692ad852ca29897956690b81f56b2bc1a9 Mon Sep 17 00:00:00 2001
+From: Byron Lee <byronlee@google.com>
+Date: Tue, 14 May 2024 04:07:04 +0000
+Subject: [PATCH] Add non-span version RandBytes back
+
+We should remove this after migration of span version RandBytes is done.
+Otherwise, some unit tests will be failed.
+
+Change-Id: I8890c53ca4be054603472a321fd9899a135f5277
+---
+ base/rand_util.h        | 7 ++-----
+ base/rand_util_posix.cc | 4 ++++
+ 2 files changed, 6 insertions(+), 5 deletions(-)
+
+diff --git a/base/rand_util.h b/base/rand_util.h
+index 967ac9f385..c79a66d172 100644
+--- a/base/rand_util.h
++++ b/base/rand_util.h
+@@ -90,11 +90,8 @@ BASE_EXPORT float BitsToOpenEndedUnitIntervalF(uint64_t bits);
+ // random number source, code outside of base/ that relies on this should use
+ // crypto::RandBytes instead to ensure the requirement is easily discoverable.
+ BASE_EXPORT void RandBytes(span<uint8_t> output);
+-
+-// // TODO(40284755): This overload will be removed, do not use.
+-inline void RandBytes(void* output, size_t output_length) {
+-  UNSAFE_BUFFERS(span(static_cast<uint8_t*>(output), output_length));
+-}
++// TODO(crbug.com/40284755): Migrate callers to the span version.
++BASE_EXPORT void RandBytes(void* output, size_t output_length);
+ 
+ // Creates a vector of `length` bytes, fills it with random data, and returns
+ // it. Thread-safe.
+diff --git a/base/rand_util_posix.cc b/base/rand_util_posix.cc
+index d7dc274bfd..ae2ba14479 100644
+--- a/base/rand_util_posix.cc
++++ b/base/rand_util_posix.cc
+@@ -239,6 +239,10 @@ void RandBytes(span<uint8_t> output) {
+   RandBytesInternal(output, /*avoid_allocation=*/false);
+ }
+ 
++void RandBytes(void* output, size_t output_length) {
++  RandBytes(make_span(static_cast<uint8_t*>(output), output_length));
++}
++
+ int GetUrandomFD() {
+   static NoDestructor<URandomFd> urandom_fd;
+   return urandom_fd->fd();
+-- 
+2.45.0.rc1.225.g2a3ae87e7f-goog
+

@@ -1,4 +1,4 @@
-From c09df3f4c1d3750f08135c2544cfed827af9fed1 Mon Sep 17 00:00:00 2001
+From fcad2c03511d89e6b32114b49e747999fa31a52e Mon Sep 17 00:00:00 2001
 From: Grace Cham <hscham@chromium.org>
 Date: Tue, 18 Oct 2022 14:30:08 +0900
 Subject: [PATCH] disable boringssl in base::RandBytes
@@ -14,10 +14,10 @@ patch-name: long-term-0800-disable-boringssl-in-base-RandBytes.patch
  3 files changed, 5 insertions(+), 5 deletions(-)
 
 diff --git a/base/feature_list.cc b/base/feature_list.cc
-index 82adc98ad4..c78f774182 100644
+index 895b710fdf..80b80df74c 100644
 --- a/base/feature_list.cc
 +++ b/base/feature_list.cc
-@@ -584,7 +584,7 @@ void FeatureList::SetInstance(std::unique_ptr<FeatureList> instance) {
+@@ -614,7 +614,7 @@ void FeatureList::SetInstance(std::unique_ptr<FeatureList> instance) {
    // FeatureList instance, as the state of the involved Features might change
    // with the final FeatureList for this process.
    if (!g_feature_list_instance->IsEarlyAccessInstance()) {
@@ -27,7 +27,7 @@ index 82adc98ad4..c78f774182 100644
      internal::ConfigureBoringSSLBackedRandBytesFieldTrial();
  #endif
 diff --git a/base/rand_util.h b/base/rand_util.h
-index 00e901a326..29bae73c2f 100644
+index 967ac9f385..5fb52af899 100644
 --- a/base/rand_util.h
 +++ b/base/rand_util.h
 @@ -38,7 +38,7 @@ namespace internal {
@@ -40,10 +40,10 @@ index 00e901a326..29bae73c2f 100644
  #endif
  
 diff --git a/base/rand_util_posix.cc b/base/rand_util_posix.cc
-index d0da3d7cd3..967587fc34 100644
+index d7dc274bfd..ecde63d42b 100644
 --- a/base/rand_util_posix.cc
 +++ b/base/rand_util_posix.cc
-@@ -31,7 +31,7 @@
+@@ -36,7 +36,7 @@
  #include <sys/random.h>
  #endif
  
@@ -52,7 +52,7 @@ index d0da3d7cd3..967587fc34 100644
  #include "third_party/boringssl/src/include/openssl/crypto.h"
  #include "third_party/boringssl/src/include/openssl/rand.h"
  #endif
-@@ -149,9 +149,9 @@ void ConfigureRandBytesFieldTrial() {
+@@ -154,9 +154,9 @@ void ConfigureRandBytesFieldTrial() {
  }
  #endif
  
@@ -63,15 +63,15 @@ index d0da3d7cd3..967587fc34 100644
  // The BoringSSl helpers are duplicated in rand_util_fuchsia.cc and
  // rand_util_win.cc.
  std::atomic<bool> g_use_boringssl;
-@@ -177,7 +177,7 @@ bool UseBoringSSLForRandBytes() {
+@@ -182,7 +182,7 @@ bool UseBoringSSLForRandBytes() {
  namespace {
  
- void RandBytes(span<uint8_t> output, bool avoid_allocation) {
+ void RandBytesInternal(span<uint8_t> output, bool avoid_allocation) {
 -#if !BUILDFLAG(IS_NACL)
 +#if !BUILDFLAG(IS_NACL) && 0
    // The BoringSSL experiment takes priority over everything else.
    if (!avoid_allocation && internal::UseBoringSSLForRandBytes()) {
      // Ensure BoringSSL is initialized so it can use things like RDRAND.
 -- 
-2.43.0.275.g3460e3d667-goog
+2.45.0.118.g7fe29c98d7-goog
 
