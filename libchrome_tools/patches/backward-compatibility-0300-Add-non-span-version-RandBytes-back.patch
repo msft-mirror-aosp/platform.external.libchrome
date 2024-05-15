@@ -8,23 +8,18 @@ Otherwise, some unit tests will be failed.
 
 Change-Id: I8890c53ca4be054603472a321fd9899a135f5277
 ---
- base/rand_util.h        | 7 ++-----
+ base/rand_util.h        | 2 ++
  base/rand_util_posix.cc | 4 ++++
- 2 files changed, 6 insertions(+), 5 deletions(-)
+ 2 files changed, 6 insertions(+)
 
 diff --git a/base/rand_util.h b/base/rand_util.h
-index 967ac9f385..c79a66d172 100644
+index 746166bf75..c79a66d172 100644
 --- a/base/rand_util.h
 +++ b/base/rand_util.h
-@@ -90,11 +90,8 @@ BASE_EXPORT float BitsToOpenEndedUnitIntervalF(uint64_t bits);
+@@ -90,6 +90,8 @@ BASE_EXPORT float BitsToOpenEndedUnitIntervalF(uint64_t bits);
  // random number source, code outside of base/ that relies on this should use
  // crypto::RandBytes instead to ensure the requirement is easily discoverable.
  BASE_EXPORT void RandBytes(span<uint8_t> output);
--
--// // TODO(40284755): This overload will be removed, do not use.
--inline void RandBytes(void* output, size_t output_length) {
--  UNSAFE_BUFFERS(span(static_cast<uint8_t*>(output), output_length));
--}
 +// TODO(crbug.com/40284755): Migrate callers to the span version.
 +BASE_EXPORT void RandBytes(void* output, size_t output_length);
  
