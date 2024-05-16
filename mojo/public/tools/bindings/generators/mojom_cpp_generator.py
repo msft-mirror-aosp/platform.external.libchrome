@@ -791,9 +791,6 @@ class Generator(generator.Generator):
 
   def _IsNonConstRefKind(self, kind):
     if self._IsTypemappedKind(kind):
-      # TODO(b/340134926): Remove the following check after migration is done.
-      if "non_const_ref" not in self.typemap[self._GetFullMojomNameForKind(kind)]:
-        return False
       return self.typemap[self._GetFullMojomNameForKind(kind)]["non_const_ref"]
     return False
 
