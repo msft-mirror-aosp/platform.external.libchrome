@@ -1,0 +1,151 @@
+From d28f52b4452ded9292d9a0816db0de8404cc4d95 Mon Sep 17 00:00:00 2001
+From: Wei-Luan Wang <weiluanwang@google.com>
+Date: Fri, 24 May 2024 08:27:48 +0000
+Subject: [PATCH] Revert "Reland "Make NOTREACHED() without parameters
+ [[noreturn]]""
+
+This reverts commit 012bd0ddb09a3105ff68e88895c2abaaab70468f.
+
+Remove the patch after all `NOTREACHED()`` are migrated to
+`NOTREACHED_IN_MIGRATION()`.
+---
+ base/android/feature_map.cc |  4 ++--
+ base/check.cc               |  4 ++--
+ base/check_unittest.cc      | 10 +++++-----
+ base/features.cc            | 10 +++++-----
+ base/notreached.h           | 17 ++++++++++-------
+ base/version_info/channel.h |  2 +-
+ 6 files changed, 25 insertions(+), 22 deletions(-)
+
+diff --git a/base/android/feature_map.cc b/base/android/feature_map.cc
+index 305e76be63..6768aae50c 100644
+--- a/base/android/feature_map.cc
++++ b/base/android/feature_map.cc
+@@ -36,8 +36,8 @@ const Feature* FeatureMap::FindFeatureExposedToJava(
+     return it->second;
+   }
+ 
+-  NOTREACHED() << "Queried feature cannot be found in FeatureMap: "
+-               << feature_name;
++  NOTREACHED_NORETURN() << "Queried feature cannot be found in FeatureMap: "
++                        << feature_name;
+ }
+ 
+ static jboolean JNI_FeatureMap_IsEnabled(JNIEnv* env,
+diff --git a/base/check.cc b/base/check.cc
+index b5f12ab79e..39286d0ed7 100644
+--- a/base/check.cc
++++ b/base/check.cc
+@@ -396,8 +396,8 @@ NotReachedNoreturnError::~NotReachedNoreturnError() {
+   log_message_.reset();
+ 
+   // Make sure we die if we haven't.
+-  // TODO(crbug.com/40254046): Replace this with NOTREACHED() once LOG(FATAL) is
+-  // [[noreturn]].
++  // TODO(crbug.com/40254046): Replace this with NOTREACHED_NORETURN() once
++  // LOG(FATAL) is [[noreturn]].
+   base::ImmediateCrash();
+ }
+ 
+diff --git a/base/check_unittest.cc b/base/check_unittest.cc
+index c61dcc6086..9a5db59180 100644
+--- a/base/check_unittest.cc
++++ b/base/check_unittest.cc
+@@ -505,10 +505,10 @@ TEST(CheckDeathTest, OstreamVsToString) {
+                CHECK_EQ(g, h));
+ }
+ 
+-// This non-void function is here to make sure that NOTREACHED() is properly
+-// annotated as [[noreturn]] and does not require a return statement.
+-int NotReachedInFunction() {
+-  NOTREACHED();
++// This non-void function is here to make sure that NOTREACHED_NORETURN() is
++// properly annotated as [[noreturn]] and does not require a return statement.
++int NotReachedNoreturnInFunction() {
++  NOTREACHED_NORETURN();
+   // No return statement here.
+ }
+ 
+@@ -549,7 +549,7 @@ TEST(CheckDeathTest, NotReached) {
+                                  "Check failed: false. NOTREACHED log messages "
+                                  "are omitted in official builds. Sorry!\n");
+ #endif
+-  EXPECT_DEATH_IF_SUPPORTED(NotReachedInFunction(),
++  EXPECT_DEATH_IF_SUPPORTED(NotReachedNoreturnInFunction(),
+                             CHECK_WILL_STREAM() ? "NOTREACHED hit. " : "");
+ }
+ 
+diff --git a/base/features.cc b/base/features.cc
+index 4f9f7fa01c..e8e437aa77 100644
+--- a/base/features.cc
++++ b/base/features.cc
+@@ -40,11 +40,11 @@ BASE_FEATURE(kEnforceNoExecutableFileHandles,
+              FEATURE_ENABLED_BY_DEFAULT);
+ 
+ // TODO(crbug.com/40580068): Roll out this to 100% before replacing existing
+-// NOTREACHED_IN_MIGRATION()s with NOTREACHED() as part of [[noreturn]]
+-// migration. Note that a prerequisite for rolling out this experiment is that
+-// existing NOTREACHED() reports are at a very low rate. Once this rolls out we
+-// should monitor that crash rates for the experiment population is within a
+-// 1-5% or lower than the control group.
++// NOTREACHED_IN_MIGRATION()s with NOTREACHED_NORETURN() as part of
++// NOTREACHED_IN_MIGRATION() migration. Note that a prerequisite for rolling out
++// this experiment is that existing NOTREACHED reports are at a very low rate.
++// Once this rolls out we should monitor that crash rates for the experiment
++// population is within a 1-5% or lower than the control group.
+ BASE_FEATURE(kNotReachedIsFatal,
+              "NotReachedIsFatal",
+              FEATURE_DISABLED_BY_DEFAULT);
+diff --git a/base/notreached.h b/base/notreached.h
+index 26c4eeda07..248fe96a8c 100644
+--- a/base/notreached.h
++++ b/base/notreached.h
+@@ -46,10 +46,18 @@ namespace logging {
+          : EAT_CHECK_STREAM_PARAMS()
+ #endif
+ 
++// TODO(crbug.com/40580068): Migrate existing NOTREACHED() instances to
++// NOTREACHED_IN_MIGRATION() then replace the NOTREACHED_IN_MIGRATION() branch
++// here with the NOTREACHED_NORETURN() implementation.
++#define NOTREACHED(...)                                          \
++  BASE_IF(BASE_IS_EMPTY(__VA_ARGS__), NOTREACHED_IN_MIGRATION(), \
++          LOGGING_CHECK_FUNCTION_IMPL(                           \
++              ::logging::NotReachedError::NotReached(__VA_ARGS__), false))
++
+ // NOTREACHED_NORETURN() annotates paths that are supposed to be unreachable.
+ // They crash if they are ever hit.
+-// TODO(crbug.com/40580068): Merge this with NOTREACHED() once
+-// NOTREACHED_NORETURN() callers are renamed NOTREACHED().
++// TODO(crbug.com/40580068): Rename back to NOTREACHED() once there are no
++// callers of the old non-CHECK-fatal macro.
+ #if CHECK_WILL_STREAM()
+ #define NOTREACHED_NORETURN() ::logging::NotReachedNoreturnError()
+ #else
+@@ -64,11 +72,6 @@ namespace logging {
+   (true) ? ::logging::NotReachedFailure() : EAT_CHECK_STREAM_PARAMS()
+ #endif
+ 
+-#define NOTREACHED(...)                                      \
+-  BASE_IF(BASE_IS_EMPTY(__VA_ARGS__), NOTREACHED_NORETURN(), \
+-          LOGGING_CHECK_FUNCTION_IMPL(                       \
+-              ::logging::NotReachedError::NotReached(__VA_ARGS__), false))
+-
+ // The DUMP_WILL_BE_NOTREACHED_NORETURN() macro provides a convenient way to
+ // non-fatally dump in official builds if ever hit. See DUMP_WILL_BE_CHECK for
+ // suggested usage.
+diff --git a/base/version_info/channel.h b/base/version_info/channel.h
+index 08c2821844..09cfb09cf2 100644
+--- a/base/version_info/channel.h
++++ b/base/version_info/channel.h
+@@ -39,7 +39,7 @@ constexpr std::string_view GetChannelString(Channel channel) {
+     case Channel::UNKNOWN:
+       return "unknown";
+   }
+-  NOTREACHED();
++  NOTREACHED_NORETURN();
+ }
+ 
+ }  // namespace version_info
+-- 
+2.45.1.288.g0e0cd299f1-goog
+
