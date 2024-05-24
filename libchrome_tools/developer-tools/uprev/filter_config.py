@@ -10,6 +10,7 @@ import re
 WANT = [
     re.compile(rb'base/((?!(third_party)/).*$)'),
     re.compile(rb'base/third_party/(dynamic_annotation|icu|nspr|valgrind|cityhash|superfasthash)'),
+    re.compile(rb'chrome/VERSION$'),
     re.compile(
         rb'build/(android/(gyp/util|pylib/([^/]*$|constants))|[^/]*\.(h|py)$|buildflag_header.gni)'),
     re.compile(rb'mojo/'),
