@@ -376,7 +376,7 @@ public class BaseJUnit4ClassRunner extends AndroidJUnit4ClassRunner {
         // Run resetters on UI thread so as to minimize the number of failed thread check
         // assertions, and to match the semantics of Robolectric's runners.
         BaseChromiumAndroidJUnitRunner.sInstance.runOnMainSync(
-                ResettersForTesting::afterHooksDidExecute);
+                ResettersForTesting::afterClassHooksDidExecute);
     }
 
     /** Loop through all the {@code SkipCheck}s to confirm whether a test should be ignored */
