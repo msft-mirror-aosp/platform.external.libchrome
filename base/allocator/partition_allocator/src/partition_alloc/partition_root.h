@@ -138,6 +138,9 @@ struct PurgeFlags {
     // Aggressively reclaim memory. This is meant to be used in low-memory
     // situations, not for periodic memory reclaiming.
     kAggressiveReclaim = 1 << 2,
+    // Limit the total duration of reclaim to 2ms, then return even if reclaim
+    // is incomplete.
+    kLimitDuration = 1 << 3,
   };
 };
 
@@ -285,6 +288,10 @@ struct PA_ALIGNAS(64) PA_COMPONENT_EXPORT(PARTITION_ALLOC) PartitionRoot {
     // extras.
     static inline constexpr uint32_t extras_size = 0;
 #endif  // PA_CONFIG(EXTRAS_REQUIRED)
+
+#if PA_CONFIG(ENABLE_SHADOW_METADATA)
+    std::ptrdiff_t shadow_pool_offset_ = 0;
+#endif
   };
 
   Settings settings;
@@ -364,6 +371,8 @@ struct PA_ALIGNAS(64) PA_COMPONENT_EXPORT(PARTITION_ALLOC) PartitionRoot {
   int16_t global_empty_slot_span_ring_size
       PA_GUARDED_BY(internal::PartitionRootLock(this)) =
           internal::kDefaultEmptySlotSpanRingSize;
+  unsigned int purge_next_bucket_index
+      PA_GUARDED_BY(internal::PartitionRootLock(this)) = 0;
 
   // Integrity check = ~reinterpret_cast<uintptr_t>(this).
   uintptr_t inverted_self = 0;
@@ -379,6 +388,12 @@ struct PA_ALIGNAS(64) PA_COMPONENT_EXPORT(PARTITION_ALLOC) PartitionRoot {
       internal::base::NoDestructor<internal::LightweightQuarantineBranch>>
       scheduler_loop_quarantine;
 
+  static constexpr internal::base::TimeDelta kMaxPurgeDuration =
+      internal::base::Milliseconds(2);
+  // Not overriding the global one to only change it for this partition.
+  internal::base::TimeTicks (*now_maybe_overridden_for_testing)() =
+      internal::base::TimeTicks::Now;
+
   PartitionRoot();
   explicit PartitionRoot(PartitionOptions opts);
 
@@ -390,7 +405,8 @@ struct PA_ALIGNAS(64) PA_COMPONENT_EXPORT(PARTITION_ALLOC) PartitionRoot {
   // using. This is needed because many tests create and destroy many
   // PartitionRoots over the lifetime of a process, which can exhaust the
   // pool and cause tests to fail.
-  void DestructForTesting();
+  void DestructForTesting()
+      PA_EXCLUSIVE_LOCKS_REQUIRED(internal::PartitionRootLock(this));
 
   void DecommitEmptySlotSpansForTesting();
 
@@ -906,6 +922,18 @@ struct PA_ALIGNAS(64) PA_COMPONENT_EXPORT(PARTITION_ALLOC) PartitionRoot {
     return internal::PartitionFreelistDispatcher::Create(
         internal::PartitionFreelistEncoding::kEncodedFreeList);
   }
+
+#if PA_CONFIG(ENABLE_SHADOW_METADATA)
+  static void EnableShadowMetadata(internal::PoolHandleMask mask);
+
+  PA_ALWAYS_INLINE std::ptrdiff_t ShadowPoolOffset() const {
+    return settings.shadow_pool_offset_;
+  }
+#else
+  PA_ALWAYS_INLINE constexpr std::ptrdiff_t ShadowPoolOffset() const {
+    return 0;
+  }
+#endif  // PA_CONFIG(ENABLE_SHADOW_METADATA)
 
  private:
   static inline StraightenLargerSlotSpanFreeListsMode

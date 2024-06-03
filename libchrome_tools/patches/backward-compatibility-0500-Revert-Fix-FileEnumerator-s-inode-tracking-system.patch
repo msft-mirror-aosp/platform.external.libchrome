@@ -1,0 +1,30 @@
+From 9b5f9bbe5cb71ddda73abd0e4df72ab7885d9526 Mon Sep 17 00:00:00 2001
+From: Cici Ruan <cuicuiruan@google.com>
+Date: Tue, 4 Jun 2024 10:09:49 -0700
+Subject: [PATCH] Revert "Fix FileEnumerator's inode tracking system"
+
+This reverts commit da379150006d00de63981d42cf03ffac92a7e0af.
+
+Change-Id: Ifb927045bb3d62b8d32a883e0afa38515aaceea5
+---
+ base/files/file_enumerator_posix.cc | 4 +---
+ 1 file changed, 1 insertion(+), 3 deletions(-)
+
+diff --git a/base/files/file_enumerator_posix.cc b/base/files/file_enumerator_posix.cc
+index ac49d766e5..8cf8d3450d 100644
+--- a/base/files/file_enumerator_posix.cc
++++ b/base/files/file_enumerator_posix.cc
+@@ -218,9 +218,7 @@ FilePath FileEnumerator::Next() {
+       }
+ 
+       FilePath full_path = root_path_.Append(info.filename_);
+-      if (!GetStat(full_path, ShouldShowSymLinks(file_type_), &info.stat_)) {
+-        continue;
+-      }
++      GetStat(full_path, ShouldShowSymLinks(file_type_), &info.stat_);
+ 
+       const bool is_dir = info.IsDirectory();
+ 
+-- 
+2.45.2.505.gda0bf45e8d-goog
+
