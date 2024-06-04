@@ -851,6 +851,10 @@ struct PA_ALIGNAS(64) PA_COMPONENT_EXPORT(PARTITION_ALLOC) PartitionRoot {
     // TODO(bartekn): Check that the result is indeed a slot start.
   }
 
+  PA_ALWAYS_INLINE uintptr_t ObjectToSlotStartUnchecked(void* object) const {
+    return UntagPtr(object);
+  }
+
   PA_ALWAYS_INLINE uintptr_t ObjectToTaggedSlotStart(void* object) const {
     return reinterpret_cast<uintptr_t>(object);
     // TODO(bartekn): Check that the result is indeed a slot start.
@@ -1491,7 +1495,7 @@ PA_ALWAYS_INLINE void PartitionRoot::FreeInline(void* object) {
   // On Android Chromecast devices, this is already checked in PartitionFree()
   // in the shim.
 #if PA_BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC) && \
-    (BUILDFLAG(IS_ANDROID) && !PA_BUILDFLAG(PA_IS_CAST_ANDROID))
+    (PA_BUILDFLAG(IS_ANDROID) && !PA_BUILDFLAG(PA_IS_CAST_ANDROID))
   uintptr_t object_addr = internal::ObjectPtr2Addr(object);
   PA_CHECK(IsManagedByPartitionAlloc(object_addr));
 #endif
@@ -2612,14 +2616,14 @@ EXPORT_TEMPLATE void* PartitionRoot::AlignedAlloc<AllocFlags::kNone>(size_t,
 using ::partition_alloc::internal::PartitionAllocGetSlotStartAndSizeInBRPPool;
 #endif  // PA_BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)
 
-#if BUILDFLAG(IS_APPLE) && PA_BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
+#if PA_BUILDFLAG(IS_APPLE) && PA_BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
 PA_COMPONENT_EXPORT(PARTITION_ALLOC)
 void PartitionAllocMallocHookOnBeforeForkInParent();
 PA_COMPONENT_EXPORT(PARTITION_ALLOC)
 void PartitionAllocMallocHookOnAfterForkInParent();
 PA_COMPONENT_EXPORT(PARTITION_ALLOC)
 void PartitionAllocMallocHookOnAfterForkInChild();
-#endif  // BUILDFLAG(IS_APPLE) && PA_BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
+#endif  // PA_BUILDFLAG(IS_APPLE) && PA_BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
 
 }  // namespace partition_alloc
 

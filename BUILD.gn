@@ -253,7 +253,13 @@ pa_buildflag_header("partition_allocator_chromecast_buildflags") {
 
 pa_buildflag_header("partition_allocator_chromeos_buildflags") {
   header = "base/allocator/partition_allocator/src/partition_alloc/chromeos_buildflags.h"
-  flags = [ "PA_IS_CHROMEOS_ASH=false" ]
+  flags = [
+    "IS_CHROMEOS=true",
+
+    # TODO(https://crbug.com/41481467): Remove the "PA_" prefix, because it
+    # will already be part of the define and the `PA_BUILDFLAG` macro.
+    "PA_IS_CHROMEOS_ASH=false",
+  ]
 }
 
 pa_buildflag_header("allocator_debugging_buildflags") {
