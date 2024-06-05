@@ -5,7 +5,7 @@
 #ifndef IPCZ_SRC_API_H_
 #define IPCZ_SRC_API_H_
 
-#include "third_party/ipcz/include/ipcz/ipcz.h"
+#include "ipcz/ipcz.h"
 
 #if defined(IPCZ_SHARED_LIBRARY)
 #if defined(WIN32)
@@ -19,9 +19,7 @@
 
 extern "C" {
 
-IPCZ_EXPORT IpczResult IPCZ_API IpczGetAPI(IpczAPI* api) {
-  return IPCZ_RESULT_UNKNOWN;
-};
+IPCZ_EXPORT IpczResult IPCZ_API IpczGetAPI(IpczAPI* api);
 
 }  // namespace "C"
 

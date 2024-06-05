@@ -1328,6 +1328,17 @@ if (use.mojo) {
           "mojo/public/cpp/system/wait_set.cc",
         ] + get_target_outputs(":mojom_bindings_gen")  # +
 
+    include_dirs = [
+      "third_party/ipcz/include",
+      "third_party/ipcz/src",
+    ]
+
+    if (!use.ipcz) {
+      sources += [
+        "third_party/ipcz/src/disable_api.cc",
+      ]
+    }
+
     #get_target_outputs(":mojom_bindings_native_gen")
 
     if (use.asan || use.fuzzer || use.msan || use.ubsan) {
