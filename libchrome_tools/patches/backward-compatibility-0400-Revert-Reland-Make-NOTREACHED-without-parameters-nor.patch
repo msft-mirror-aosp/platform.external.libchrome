@@ -47,34 +47,6 @@ index b5f12ab79e..39286d0ed7 100644
    base::ImmediateCrash();
  }
  
-diff --git a/base/check_unittest.cc b/base/check_unittest.cc
-index c61dcc6086..9a5db59180 100644
---- a/base/check_unittest.cc
-+++ b/base/check_unittest.cc
-@@ -505,10 +505,10 @@ TEST(CheckDeathTest, OstreamVsToString) {
-                CHECK_EQ(g, h));
- }
- 
--// This non-void function is here to make sure that NOTREACHED() is properly
--// annotated as [[noreturn]] and does not require a return statement.
--int NotReachedInFunction() {
--  NOTREACHED();
-+// This non-void function is here to make sure that NOTREACHED_NORETURN() is
-+// properly annotated as [[noreturn]] and does not require a return statement.
-+int NotReachedNoreturnInFunction() {
-+  NOTREACHED_NORETURN();
-   // No return statement here.
- }
- 
-@@ -549,7 +549,7 @@ TEST(CheckDeathTest, NotReached) {
-                                  "Check failed: false. NOTREACHED log messages "
-                                  "are omitted in official builds. Sorry!\n");
- #endif
--  EXPECT_DEATH_IF_SUPPORTED(NotReachedInFunction(),
-+  EXPECT_DEATH_IF_SUPPORTED(NotReachedNoreturnInFunction(),
-                             CHECK_WILL_STREAM() ? "NOTREACHED hit. " : "");
- }
- 
 diff --git a/base/features.cc b/base/features.cc
 index 4f9f7fa01c..e8e437aa77 100644
 --- a/base/features.cc
@@ -130,7 +102,7 @@ index 26c4eeda07..248fe96a8c 100644
 -          LOGGING_CHECK_FUNCTION_IMPL(                       \
 -              ::logging::NotReachedError::NotReached(__VA_ARGS__), false))
 -
- // The DUMP_WILL_BE_NOTREACHED_NORETURN() macro provides a convenient way to
+ // The DUMP_WILL_BE_NOTREACHED() macro provides a convenient way to
  // non-fatally dump in official builds if ever hit. See DUMP_WILL_BE_CHECK for
  // suggested usage.
 diff --git a/base/version_info/channel.h b/base/version_info/channel.h
