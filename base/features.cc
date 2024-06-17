@@ -10,6 +10,7 @@
 #include "build/buildflag.h"
 
 #if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID)
+#include "base/message_loop/message_pump_epoll.h"
 #include "base/message_loop/message_pump_libevent.h"
 #endif
 
@@ -47,7 +48,7 @@ BASE_FEATURE(kEnforceNoExecutableFileHandles,
 // 1-5% or lower than the control group.
 BASE_FEATURE(kNotReachedIsFatal,
              "NotReachedIsFatal",
-             FEATURE_DISABLED_BY_DEFAULT);
+             FEATURE_ENABLED_BY_DEFAULT);
 
 // Optimizes parsing and loading of data: URLs.
 BASE_FEATURE(kOptimizeDataUrls, "OptimizeDataUrls", FEATURE_ENABLED_BY_DEFAULT);
@@ -98,6 +99,7 @@ void Init(EmitThreadControllerProfilerMetadata
 
 #if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID)
   MessagePumpLibevent::InitializeFeatures();
+  MessagePumpEpoll::InitializeFeatures();
 #endif
 
 #if BUILDFLAG(IS_APPLE) || BUILDFLAG(IS_CHROMEOS)

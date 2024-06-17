@@ -1,0 +1,135 @@
+From e9dc7ca100971a086bdf0bc8689c05ea675e4455 Mon Sep 17 00:00:00 2001
+From: Georg Neis <neis@chromium.org>
+Date: Wed, 19 Jun 2024 04:00:17 +0000
+Subject: [PATCH] Provide base::span related backwards compat functions
+
+Change-Id: Ib51df2565a08ecf4b6a910b1711cd699bc955a8e
+---
+ base/files/file_util.h        |  2 ++
+ base/files/file_util_posix.cc |  8 ++++++++
+ base/hash/sha1.h              |  5 +++++
+ base/hash/sha1_boringssl.cc   |  9 +++++++++
+ base/hash/sha1_nacl.cc        | 13 +++++++++++++
+ 5 files changed, 37 insertions(+)
+
+diff --git a/base/files/file_util.h b/base/files/file_util.h
+index 8fc8d1d6d1..3ea622152e 100644
+--- a/base/files/file_util.h
++++ b/base/files/file_util.h
+@@ -296,6 +296,7 @@ BASE_EXPORT bool ReadStreamToStringWithMaxSize(FILE* stream,
+ // into `buffer`. This function is protected against EINTR and partial reads.
+ // Returns true iff `buffer` was successfully filled with bytes read from `fd`.
+ BASE_EXPORT bool ReadFromFD(int fd, span<char> buffer);
++BASE_EXPORT bool ReadFromFD(int fd, char* buffer, size_t bytes);
+ 
+ // Performs the same function as CreateAndOpenTemporaryStreamInDir(), but
+ // returns the file-descriptor wrapped in a ScopedFD, rather than the stream
+@@ -695,6 +696,7 @@ BASE_EXPORT bool CreatePipe(ScopedFD* read_fd,
+ // child process. This will be done atomically if the operating system supports
+ // it. Returns true if it was able to create the pipe, otherwise false.
+ BASE_EXPORT bool CreateLocalNonBlockingPipe(span<int, 2u> fds);
++BASE_EXPORT bool CreateLocalNonBlockingPipe(int fds[2]);
+ 
+ // Sets the given |fd| to close-on-exec mode.
+ // Returns true if it was able to set it in the close-on-exec mode, otherwise
+diff --git a/base/files/file_util_posix.cc b/base/files/file_util_posix.cc
+index a8f98f134d..4c814ff88f 100644
+--- a/base/files/file_util_posix.cc
++++ b/base/files/file_util_posix.cc
+@@ -550,6 +550,10 @@ bool CreateLocalNonBlockingPipe(span<int, 2u> fds) {
+ #endif
+ }
+ 
++bool CreateLocalNonBlockingPipe(int fds[2]) {
++  return CreateLocalNonBlockingPipe(make_span<2>(fds, 2u));
++}
++
+ bool SetNonBlocking(int fd) {
+   const int flags = fcntl(fd, F_GETFL);
+   if (flags == -1) {
+@@ -633,6 +637,10 @@ bool ReadFromFD(int fd, span<char> buffer) {
+   return true;
+ }
+ 
++BASE_EXPORT bool ReadFromFD(int fd, char* buffer, size_t bytes) {
++  return ReadFromFD(fd, make_span(buffer, bytes));
++}
++
+ ScopedFD CreateAndOpenFdForTemporaryFileInDir(const FilePath& directory,
+                                               FilePath* path) {
+   ScopedBlockingCall scoped_blocking_call(
+diff --git a/base/hash/sha1.h b/base/hash/sha1.h
+index 857159d757..a50c5a2a3f 100644
+--- a/base/hash/sha1.h
++++ b/base/hash/sha1.h
+@@ -31,9 +31,14 @@ using SHA1Digest = std::array<uint8_t, kSHA1Length>;
+ // These functions perform SHA-1 operations.
+ // Computes the SHA-1 hash of the input |data| and returns the full hash.
+ BASE_EXPORT SHA1Digest SHA1Hash(span<const uint8_t> data);
++BASE_EXPORT SHA1Digest SHA1HashSpan(span<const uint8_t> data);
++
+ // Computes the SHA-1 hash of the input string |str| and returns the full
+ // hash.
+ BASE_EXPORT std::string SHA1HashString(std::string_view str);
++UNSAFE_BUFFER_USAGE BASE_EXPORT void SHA1HashBytes(const unsigned char* data,
++                                                   size_t len,
++                                                   unsigned char* hash);
+ 
+ // These functions allow streaming SHA-1 operations.
+ BASE_EXPORT void SHA1Init(SHA1Context& context);
+diff --git a/base/hash/sha1_boringssl.cc b/base/hash/sha1_boringssl.cc
+index 2b7a1d0aea..92ae0f42dc 100644
+--- a/base/hash/sha1_boringssl.cc
++++ b/base/hash/sha1_boringssl.cc
+@@ -26,6 +26,10 @@ SHA1Digest SHA1Hash(span<const uint8_t> data) {
+   return digest;
+ }
+ 
++SHA1Digest SHA1HashSpan(span<const uint8_t> data) {
++  return SHA1Hash(data);
++}
++
+ std::string SHA1HashString(std::string_view str) {
+   CRYPTO_library_init();
+   std::string digest(kSHA1Length, '\0');
+@@ -34,6 +38,11 @@ std::string SHA1HashString(std::string_view str) {
+   return digest;
+ }
+ 
++void SHA1HashBytes(const unsigned char* data, size_t len, unsigned char* hash) {
++  CRYPTO_library_init();
++  SHA1(data, len, hash);
++}
++
+ // These functions allow streaming SHA-1 operations.
+ void SHA1Init(SHA1Context& context) {
+   SHA1_Init(&context);
+diff --git a/base/hash/sha1_nacl.cc b/base/hash/sha1_nacl.cc
+index 8c5388c996..e1edb48ad6 100644
+--- a/base/hash/sha1_nacl.cc
++++ b/base/hash/sha1_nacl.cc
+@@ -188,8 +188,21 @@ SHA1Digest SHA1Hash(span<const uint8_t> data) {
+   return digest;
+ }
+ 
++SHA1Digest SHA1HashSpan(span<const uint8_t> data) {
++  return SHA1Hash(data);
++}
++
+ std::string SHA1HashString(std::string_view str) {
+   return std::string(as_string_view(SHA1Hash(base::as_byte_span(str))));
+ }
+ 
++void SHA1HashBytes(const unsigned char* data, size_t len, unsigned char* hash) {
++  SHA1Context context;
++  context.Init();
++  context.Update(data, len);
++  context.Final();
++
++  memcpy(hash, context.GetDigest(), kSHA1Length);
++}
++
+ }  // namespace base
+-- 
+2.45.2.627.g7a2c4fd464-goog
+

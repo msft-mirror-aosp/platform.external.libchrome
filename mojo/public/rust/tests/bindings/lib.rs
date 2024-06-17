@@ -5,11 +5,14 @@
 //! Test Rust code generated for mojom test definitions, and associated code for
 //! bindings support.
 
+mod validation;
+
 use rust_gtest_interop::prelude::*;
 
 chromium::import! {
     "//mojo/public/interfaces/bindings/tests:test_mojom_import_rust" as test_mojom_import;
     "//mojo/public/interfaces/bindings/tests:test_interfaces_rust" as test_interfaces;
+    "//mojo/public/rust:mojo_bindings" as bindings;
 }
 
 #[gtest(MojoBindingsTest, Basic)]
@@ -36,4 +39,15 @@ fn test() {
 
     let _rect_pair =
         RectPair { first: Some(Box::new(Rect { x: 1, y: 1, width: 1, height: 1 })), second: None };
+}
+
+#[gtest(MojoBindingsTest, Bytemuck)]
+fn test() {
+    let bytes: [u8; 16] = [16, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0];
+    let point: test_mojom_import::sample_import::Point_Data = bytemuck::cast(bytes);
+
+    expect_eq!(point._header.size, 16);
+    expect_eq!(point._header.version, 0);
+    expect_eq!(point.x, 1);
+    expect_eq!(point.y, 2);
 }

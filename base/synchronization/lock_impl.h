@@ -5,6 +5,8 @@
 #ifndef BASE_SYNCHRONIZATION_LOCK_IMPL_H_
 #define BASE_SYNCHRONIZATION_LOCK_IMPL_H_
 
+#include <utility>
+
 #include "base/base_export.h"
 #include "base/check.h"
 #include "base/dcheck_is_on.h"
@@ -131,6 +133,8 @@ void LockImpl::Unlock() {
 // This is an implementation used for AutoLock templated on the lock type.
 template <class LockType>
 class SCOPED_LOCKABLE BasicAutoLock {
+  STACK_ALLOCATED();
+
  public:
   struct AlreadyAcquired {};
 
@@ -154,8 +158,7 @@ class SCOPED_LOCKABLE BasicAutoLock {
   }
 
  private:
-  // RAW_PTR_EXCLUSION: crbug.com/1521343 crbug.com/1520734 crbug.com/1519816
-  RAW_PTR_EXCLUSION LockType& lock_;
+  LockType& lock_;
 };
 
 // This is an implementation used for MovableAutoLock templated on the lock

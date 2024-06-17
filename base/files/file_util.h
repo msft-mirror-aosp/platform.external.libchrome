@@ -16,6 +16,7 @@
 #include <optional>
 #include <set>
 #include <string>
+#include <string_view>
 
 #include "base/base_export.h"
 #include "base/containers/span.h"
@@ -295,8 +296,6 @@ BASE_EXPORT bool ReadStreamToStringWithMaxSize(FILE* stream,
 // into `buffer`. This function is protected against EINTR and partial reads.
 // Returns true iff `buffer` was successfully filled with bytes read from `fd`.
 BASE_EXPORT bool ReadFromFD(int fd, span<char> buffer);
-// TODO(crbug.com/40284755): Migrate callers to the span variant.
-BASE_EXPORT bool ReadFromFD(int fd, char* buffer, size_t bytes);
 
 // Performs the same function as CreateAndOpenTemporaryStreamInDir(), but
 // returns the file-descriptor wrapped in a ScopedFD, rather than the stream
@@ -480,7 +479,7 @@ BASE_EXPORT bool CreateNewTempDirectory(const FilePath::StringType& prefix,
 // Extra characters will be appended to |prefix| to ensure that the
 // new directory does not have the same name as an existing directory.
 BASE_EXPORT bool CreateTemporaryDirInDir(const FilePath& base_dir,
-                                         const FilePath::StringType& prefix,
+                                         FilePath::StringPieceType prefix,
                                          FilePath* new_dir);
 
 // Creates a directory, as well as creating any parent directories, if they
@@ -583,25 +582,27 @@ BASE_EXPORT int ReadFile(const FilePath& filename, char* data, int max_size);
 // If file doesn't exist, it gets created with read/write permissions for all.
 // Note that the other variants of WriteFile() below may be easier to use.
 // TODO(crbug.com/40284755): Migrate callers to the span variant.
-BASE_EXPORT int WriteFile(const FilePath& filename, const char* data, int size);
+UNSAFE_BUFFER_USAGE BASE_EXPORT int WriteFile(const FilePath& filename,
+                                              const char* data,
+                                              int size);
 
 // Writes |data| into the file, overwriting any data that was previously there.
 // Returns true if and only if all of |data| was written. If the file does not
 // exist, it gets created with read/write permissions for all.
 BASE_EXPORT bool WriteFile(const FilePath& filename, span<const uint8_t> data);
 
-// Another WriteFile() variant that takes a StringPiece so callers don't have to
-// do manual conversions from a char span to a uint8_t span.
-BASE_EXPORT bool WriteFile(const FilePath& filename, StringPiece data);
+// Another WriteFile() variant that takes a std::string_view so callers don't
+// have to do manual conversions from a char span to a uint8_t span.
+BASE_EXPORT bool WriteFile(const FilePath& filename, std::string_view data);
 
 #if BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
 // Appends |data| to |fd|. Does not close |fd| when done.  Returns true iff all
 // of |data| were written to |fd|.
 BASE_EXPORT bool WriteFileDescriptor(int fd, span<const uint8_t> data);
 
-// WriteFileDescriptor() variant that takes a StringPiece so callers don't have
-// to do manual conversions from a char span to a uint8_t span.
-BASE_EXPORT bool WriteFileDescriptor(int fd, StringPiece data);
+// WriteFileDescriptor() variant that takes a std::string_view so callers don't
+// have to do manual conversions from a char span to a uint8_t span.
+BASE_EXPORT bool WriteFileDescriptor(int fd, std::string_view data);
 
 // Allocates disk space for the file referred to by |fd| for the byte range
 // starting at |offset| and continuing for |size| bytes. The file size will be
@@ -617,9 +618,9 @@ BASE_EXPORT bool AllocateFileRegion(File* file, int64_t offset, size_t size);
 BASE_EXPORT bool AppendToFile(const FilePath& filename,
                               span<const uint8_t> data);
 
-// AppendToFile() variant that takes a StringPiece so callers don't have to do
-// manual conversions from a char span to a uint8_t span.
-BASE_EXPORT bool AppendToFile(const FilePath& filename, StringPiece data);
+// AppendToFile() variant that takes a std::string_view so callers don't have to
+// do manual conversions from a char span to a uint8_t span.
+BASE_EXPORT bool AppendToFile(const FilePath& filename, std::string_view data);
 
 // Gets the current working directory for the process.
 BASE_EXPORT bool GetCurrentDirectory(FilePath* path);
@@ -693,7 +694,7 @@ BASE_EXPORT bool CreatePipe(ScopedFD* read_fd,
 // This creates a non-blocking pipe that is not intended to be shared with any
 // child process. This will be done atomically if the operating system supports
 // it. Returns true if it was able to create the pipe, otherwise false.
-BASE_EXPORT bool CreateLocalNonBlockingPipe(int fds[2]);
+BASE_EXPORT bool CreateLocalNonBlockingPipe(span<int, 2u> fds);
 
 // Sets the given |fd| to close-on-exec mode.
 // Returns true if it was able to set it in the close-on-exec mode, otherwise

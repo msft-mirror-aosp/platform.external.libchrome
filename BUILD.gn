@@ -350,6 +350,7 @@ buildflag_header("debugging_buildflags") {
     "EXPENSIVE_DCHECKS_ARE_ON=false",
 
     # "ENABLE_STACK_TRACE_LINE_NUMBERS=",
+    "PRINT_UNSYMBOLIZED_STACK_TRACES=false",
   ]
 }
 

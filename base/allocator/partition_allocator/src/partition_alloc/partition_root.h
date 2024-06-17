@@ -838,14 +838,6 @@ struct PA_ALIGNAS(64) PA_COMPONENT_EXPORT(PARTITION_ALLOC) PartitionRoot {
     return internal::TagAddr(SlotStartToObjectAddr(slot_start));
   }
 
-  PA_ALWAYS_INLINE void* TaggedSlotStartToObject(
-      void* tagged_slot_start) const {
-    return reinterpret_cast<void*>(
-        internal::TaggedSlotStart::FromTaggedAddr(
-            reinterpret_cast<uintptr_t>(tagged_slot_start))
-            .tagged_slot_start);
-  }
-
   PA_ALWAYS_INLINE uintptr_t ObjectToSlotStart(void* object) const {
     uintptr_t untagged_slot_start =
         internal::UntagAddr(reinterpret_cast<uintptr_t>(object));
@@ -855,11 +847,6 @@ struct PA_ALIGNAS(64) PA_COMPONENT_EXPORT(PARTITION_ALLOC) PartitionRoot {
 
   PA_ALWAYS_INLINE uintptr_t ObjectToSlotStartUnchecked(void* object) const {
     return UntagPtr(object);
-  }
-
-  PA_ALWAYS_INLINE uintptr_t ObjectToTaggedSlotStart(void* object) const {
-    return reinterpret_cast<uintptr_t>(
-        internal::TagAddr(ObjectToSlotStart(object)));
   }
 
 #if PA_BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)
@@ -1505,17 +1492,18 @@ PA_ALWAYS_INLINE void PartitionRoot::FreeInline(void* object) {
   SlotSpanMetadata* slot_span = SlotSpanMetadata::FromObject(object);
   PA_DCHECK(PartitionRoot::FromSlotSpanMetadata(slot_span) == this);
 
+  internal::SlotStart slot_start = internal::SlotStart::FromObject(object);
+  PA_DCHECK(slot_span ==
+            SlotSpanMetadata::FromSlotStart(slot_start.untagged_slot_start));
+
 #if PA_BUILDFLAG(HAS_MEMORY_TAGGING)
   if (PA_LIKELY(IsMemoryTaggingEnabled())) {
     const size_t slot_size = slot_span->bucket->slot_size;
     if (PA_LIKELY(slot_size <= internal::kMaxMemoryTaggingSize)) {
-      // slot_span is untagged at this point, so we have to recover its tag
-      // again to increment and provide use-after-free mitigations.
-      void* retagged_slot_start = internal::TagMemoryRangeIncrement(
-          ObjectToTaggedSlotStart(object), slot_size);
-      // Incrementing the MTE-tag in the memory range invalidates the |object|'s
-      // tag, so it must be retagged.
-      object = TaggedSlotStartToObject(retagged_slot_start);
+      // Retag the `object` to provide MTE UaF mitigation. Doing so
+      // invalidates the tag in the address of `object`, so it must
+      // be refreshed.
+      object = internal::TagMemoryRangeIncrement(object, slot_size);
     }
   }
 #else   // PA_BUILDFLAG(HAS_MEMORY_TAGGING)
@@ -1533,13 +1521,9 @@ PA_ALWAYS_INLINE void PartitionRoot::FreeInline(void* object) {
   PA_PREFETCH(slot_span);
 #endif  // PA_BUILDFLAG(HAS_MEMORY_TAGGING)
 
-  uintptr_t slot_start = ObjectToSlotStart(object);
-  PA_DCHECK(slot_span == SlotSpanMetadata::FromSlotStart(slot_start));
-
   if constexpr (ContainsFlags(flags, FreeFlags::kZap)) {
     if (settings.zapping_by_free_flags) {
-      internal::SecureMemset(internal::SlotStartAddr2Ptr(slot_start),
-                             internal::kFreedByte,
+      internal::SecureMemset(object, internal::kFreedByte,
                              GetSlotUsableSize(slot_span));
     }
   }
@@ -1554,12 +1538,12 @@ PA_ALWAYS_INLINE void PartitionRoot::FreeInline(void* object) {
       // will be false only for the aligned partition.
       if (brp_enabled()) {
         auto* ref_count = InSlotMetadataPointerFromSlotStartAndSize(
-            slot_start, slot_span->bucket->slot_size);
+            slot_start.untagged_slot_start, slot_span->bucket->slot_size);
         ref_count->PreReleaseFromAllocator();
       }
 #endif  // PA_BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)
-      GetSchedulerLoopQuarantineBranch().Quarantine(object, slot_span,
-                                                    slot_start);
+      GetSchedulerLoopQuarantineBranch().Quarantine(
+          object, slot_span, slot_start.untagged_slot_start);
       return;
     }
   }
@@ -1570,15 +1554,17 @@ PA_ALWAYS_INLINE void PartitionRoot::FreeInline(void* object) {
   if (PA_UNLIKELY(ShouldQuarantine(object))) {
     // PCScan safepoint. Call before potentially scheduling scanning task.
     PCScan::JoinScanIfNeeded();
-    if (PA_LIKELY(internal::IsManagedByNormalBuckets(slot_start))) {
-      PCScan::MoveToQuarantine(object, GetSlotUsableSize(slot_span), slot_start,
+    if (PA_LIKELY(internal::IsManagedByNormalBuckets(
+            slot_start.untagged_slot_start))) {
+      PCScan::MoveToQuarantine(object, GetSlotUsableSize(slot_span),
+                               slot_start.untagged_slot_start,
                                slot_span->bucket->slot_size);
       return;
     }
   }
 #endif  // PA_BUILDFLAG(USE_STARSCAN)
 
-  FreeNoHooksImmediate(object, slot_span, slot_start);
+  FreeNoHooksImmediate(object, slot_span, slot_start.untagged_slot_start);
 }
 
 PA_ALWAYS_INLINE void PartitionRoot::FreeNoHooksImmediate(
@@ -1783,13 +1769,13 @@ PA_ALWAYS_INLINE void PartitionRoot::RawFreeWithThreadCache(
                 !IsDirectMappedBucket(slot_span->bucket))) {
     size_t bucket_index =
         static_cast<size_t>(slot_span->bucket - this->buckets);
-    size_t slot_size;
-    if (PA_LIKELY(thread_cache->MaybePutInCache(slot_start, bucket_index,
-                                                &slot_size))) {
+    std::optional<size_t> slot_size =
+        thread_cache->MaybePutInCache(slot_start, bucket_index);
+    if (PA_LIKELY(slot_size.has_value())) {
       // This is a fast path, avoid calling GetSlotUsableSize() in Release
       // builds as it is costlier. Copy its small bucket path instead.
       PA_DCHECK(!slot_span->CanStoreRawSize());
-      size_t usable_size = AdjustSizeForExtrasSubtract(slot_size);
+      size_t usable_size = AdjustSizeForExtrasSubtract(slot_size.value());
       PA_DCHECK(usable_size == GetSlotUsableSize(slot_span));
       thread_cache->RecordDeallocation(usable_size);
       return;
@@ -2171,10 +2157,10 @@ PA_ALWAYS_INLINE void* PartitionRoot::AllocInternalNoHooks(
   size_t raw_size = AdjustSizeForExtrasAdd(requested_size);
   PA_CHECK(raw_size >= requested_size);  // check for overflows
 
-  // We should only call |SizeToBucketIndex| at most once when allocating.
-  // Otherwise, we risk having |bucket_distribution| changed
-  // underneath us (between calls to |SizeToBucketIndex| during the same call),
-  // which would result in an inconsistent state.
+  // We should avoid calling `GetBucketDistribution()` repeatedly in the
+  // same function, since the bucket distribution can change underneath
+  // us. If we pass this changed value to `SizeToBucketIndex()` in the
+  // same allocation request, we'll get inconsistent state.
   uint16_t bucket_index =
       SizeToBucketIndex(raw_size, this->GetBucketDistribution());
   size_t usable_size;

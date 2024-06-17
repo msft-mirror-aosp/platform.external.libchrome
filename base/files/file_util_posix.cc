@@ -2,11 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifdef UNSAFE_BUFFERS_BUILD
-// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
-#pragma allow_unsafe_buffers
-#endif
-
 #include "base/files/file_util.h"
 
 #include <dirent.h>
@@ -29,6 +24,7 @@
 #include <iomanip>
 #include <memory>
 #include <optional>
+#include <string_view>
 
 #include "base/base_export.h"
 #include "base/base_switches.h"
@@ -50,7 +46,6 @@
 #include "base/posix/eintr_wrapper.h"
 #include "base/strings/cstring_view.h"
 #include "base/strings/strcat.h"
-#include "base/strings/string_piece.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
 #include "base/strings/sys_string_conversions.h"
@@ -392,7 +387,7 @@ bool DoDeleteFile(const FilePath& path, bool recursive) {
 // Appends |mode_char| to |mode| before the optional character set encoding; see
 // https://www.gnu.org/software/libc/manual/html_node/Opening-Streams.html for
 // details.
-std::string AppendModeCharacter(StringPiece mode, char mode_char) {
+std::string AppendModeCharacter(std::string_view mode, char mode_char) {
   std::string result(mode);
   size_t comma_pos = result.find(',');
   result.insert(comma_pos == std::string::npos ? result.length() : comma_pos, 1,
@@ -527,12 +522,12 @@ bool CreatePipe(ScopedFD* read_fd, ScopedFD* write_fd, bool non_blocking) {
   return true;
 }
 
-bool CreateLocalNonBlockingPipe(int fds[2]) {
+bool CreateLocalNonBlockingPipe(span<int, 2u> fds) {
 #if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
-  return pipe2(fds, O_CLOEXEC | O_NONBLOCK) == 0;
+  return pipe2(fds.data(), O_CLOEXEC | O_NONBLOCK) == 0;
 #else
-  int raw_fds[2];
-  if (pipe(raw_fds) != 0) {
+  std::array<int, 2> raw_fds;
+  if (pipe(raw_fds.data()) != 0) {
     return false;
   }
   ScopedFD fd_out(raw_fds[0]);
@@ -549,8 +544,8 @@ bool CreateLocalNonBlockingPipe(int fds[2]) {
   if (!SetNonBlocking(fd_in.get())) {
     return false;
   }
-  fds[0] = fd_out.release();
-  fds[1] = fd_in.release();
+  fds[0u] = fd_out.release();
+  fds[1u] = fd_in.release();
   return true;
 #endif
 }
@@ -636,10 +631,6 @@ bool ReadFromFD(int fd, span<char> buffer) {
     buffer = buffer.subspan(static_cast<size_t>(bytes_read));
   }
   return true;
-}
-
-bool ReadFromFD(int fd, char* buffer, size_t bytes) {
-  return ReadFromFD(fd, make_span(buffer, bytes));
 }
 
 ScopedFD CreateAndOpenFdForTemporaryFileInDir(const FilePath& directory,
@@ -753,7 +744,7 @@ bool ExecutableExistsInPath(Environment* env,
     return false;
   }
 
-  for (const StringPiece& cur_path :
+  for (std::string_view cur_path :
        SplitStringPiece(path, ":", KEEP_WHITESPACE, SPLIT_WANT_NONEMPTY)) {
     FilePath file(cur_path);
     int permissions;
@@ -830,11 +821,11 @@ bool CreateTemporaryFileInDir(const FilePath& dir, FilePath* temp_file) {
 
 FilePath FormatTemporaryFileName(FilePath::StringPieceType identifier) {
 #if BUILDFLAG(IS_APPLE)
-  StringPiece prefix = base::apple::BaseBundleID();
+  std::string_view prefix = base::apple::BaseBundleID();
 #elif BUILDFLAG(GOOGLE_CHROME_BRANDING)
-  StringPiece prefix = "com.google.Chrome";
+  std::string_view prefix = "com.google.Chrome";
 #else
-  StringPiece prefix = "org.chromium.Chromium";
+  std::string_view prefix = "org.chromium.Chromium";
 #endif
   return FilePath(StrCat({".", prefix, ".", identifier}));
 }
@@ -877,9 +868,9 @@ static bool CreateTemporaryDirInDirImpl(const FilePath& base_dir,
 }
 
 bool CreateTemporaryDirInDir(const FilePath& base_dir,
-                             const FilePath::StringType& prefix,
+                             FilePath::StringPieceType prefix,
                              FilePath* new_dir) {
-  FilePath::StringType mkdtemp_template = prefix;
+  FilePath::StringType mkdtemp_template(prefix);
   mkdtemp_template.append("XXXXXX");
   return CreateTemporaryDirInDirImpl(base_dir, FilePath(mkdtemp_template),
                                      new_dir);
@@ -1097,7 +1088,7 @@ int WriteFile(const FilePath& filename, const char* data, int size) {
   }
 
   int bytes_written =
-      WriteFileDescriptor(fd, StringPiece(data, static_cast<size_t>(size)))
+      WriteFileDescriptor(fd, std::string_view(data, static_cast<size_t>(size)))
           ? size
           : -1;
   if (IGNORE_EINTR(close(fd)) < 0) {
@@ -1107,23 +1098,19 @@ int WriteFile(const FilePath& filename, const char* data, int size) {
 }
 
 bool WriteFileDescriptor(int fd, span<const uint8_t> data) {
-  // Allow for partial writes.
-  ssize_t bytes_written_total = 0;
-  ssize_t size = checked_cast<ssize_t>(data.size());
-  for (ssize_t bytes_written_partial = 0; bytes_written_total < size;
-       bytes_written_total += bytes_written_partial) {
-    bytes_written_partial =
-        HANDLE_EINTR(write(fd, data.data() + bytes_written_total,
-                           static_cast<size_t>(size - bytes_written_total)));
+  while (!data.empty()) {
+    ssize_t bytes_written_partial =
+        HANDLE_EINTR(write(fd, data.data(), data.size()));
     if (bytes_written_partial < 0) {
       return false;
     }
+    data = data.subspan(checked_cast<size_t>(bytes_written_partial));
   }
 
   return true;
 }
 
-bool WriteFileDescriptor(int fd, StringPiece data) {
+bool WriteFileDescriptor(int fd, std::string_view data) {
   return WriteFileDescriptor(fd, as_bytes(make_span(data)));
 }
 
@@ -1232,7 +1219,7 @@ bool AppendToFile(const FilePath& filename, span<const uint8_t> data) {
   return ret;
 }
 
-bool AppendToFile(const FilePath& filename, StringPiece data) {
+bool AppendToFile(const FilePath& filename, std::string_view data) {
   return AppendToFile(filename, as_bytes(make_span(data)));
 }
 
@@ -1293,7 +1280,7 @@ bool VerifyPathControlledByUser(const FilePath& base,
 }
 
 bool VerifyPathControlledByAdmin(const FilePath& path) {
-  const unsigned kRootUid = 0;
+  constexpr unsigned kRootUid = 0;
   const FilePath kFileSystemRoot("/");
 
   // The name of the administrator group on mac os.
@@ -1303,11 +1290,10 @@ bool VerifyPathControlledByAdmin(const FilePath& path) {
   ScopedBlockingCall scoped_blocking_call(FROM_HERE, BlockingType::MAY_BLOCK);
 
   std::set<gid_t> allowed_group_ids;
-  for (int i = 0, ie = std::size(kAdminGroupNames); i < ie; ++i) {
-    struct group* group_record = getgrnam(kAdminGroupNames[i]);
+  for (const char* name : kAdminGroupNames) {
+    struct group* group_record = getgrnam(name);
     if (!group_record) {
-      DPLOG(ERROR) << "Could not get the group ID of group \""
-                   << kAdminGroupNames[i] << "\".";
+      DPLOG(ERROR) << "Could not get the group ID of group \"" << name << "\".";
       continue;
     }
 
