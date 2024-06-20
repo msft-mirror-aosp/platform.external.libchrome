@@ -246,8 +246,8 @@ pa_buildflag_header("partition_allocator_raw_ptr_buildflags") {
 pa_buildflag_header("partition_allocator_chromecast_buildflags") {
   header = "base/allocator/partition_allocator/src/partition_alloc/chromecast_buildflags.h"
   flags = [
-    "PA_IS_CAST_ANDROID=false",
-    "PA_IS_CASTOS=false",
+    "IS_CAST_ANDROID=false",
+    "IS_CASTOS=false",
   ]
 }
 
@@ -255,20 +255,16 @@ pa_buildflag_header("partition_allocator_chromeos_buildflags") {
   header = "base/allocator/partition_allocator/src/partition_alloc/chromeos_buildflags.h"
   flags = [
     "IS_CHROMEOS=true",
-
-    # TODO(https://crbug.com/41481467): Remove the "PA_" prefix, because it
-    # will already be part of the define and the `PA_BUILDFLAG` macro.
-    "PA_IS_CHROMEOS_ASH=false",
   ]
 }
 
 pa_buildflag_header("allocator_debugging_buildflags") {
   header = "base/allocator/partition_allocator/src/partition_alloc/partition_alloc_base/debug/debugging_buildflags.h"
   flags = [
-    "PA_DCHECK_IS_ON=false",
-    "PA_EXPENSIVE_DCHECKS_ARE_ON=false",
-    "PA_DCHECK_IS_CONFIGURABLE=false",
-    "PA_CAN_UNWIND_WITH_FRAME_POINTERS=false",
+    "DCHECKS_ARE_ON=false",
+    "EXPENSIVE_DCHECKS_ARE_ON=false",
+    "DCHECK_IS_CONFIGURABLE=false",
+    "CAN_UNWIND_WITH_FRAME_POINTERS=false",
   ]
 }
 
