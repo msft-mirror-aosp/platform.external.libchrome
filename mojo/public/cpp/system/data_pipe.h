@@ -40,6 +40,10 @@ class DataPipeProducerHandle : public Handle {
   // how many bytes (from the beginning of `data`) were actually written into
   // the mojo data pipe (depending on the size of the internal pipe buffer, this
   // may be less than `data.size()`).
+  //
+  // Note that instead of passing specific `flags`, a more direct method can be
+  // used instead:
+  // - `MOJO_WRITE_DATA_FLAG_ALL_OR_NONE` => `WriteAllData`
   MojoResult WriteData(base::span<const uint8_t> data,
                        MojoWriteDataFlags flags,
                        size_t& bytes_written) const {
@@ -64,31 +68,13 @@ class DataPipeProducerHandle : public Handle {
     return result;
   }
 
-  // TODO(https://crbug.com/40284755): Remove this deprecated, non-`span`-ified
-  // overload (after double-checking that no callers remain).
-  MojoResult WriteData(const void* elements,
-                       size_t* num_bytes,
-                       MojoWriteDataFlags flags) const {
-    MojoWriteDataOptions options;
-    options.struct_size = sizeof(options);
-    options.flags = flags;
-
-    // Because of ABI-stability requirements, the C-level APIs take `uint32_t`.
-    // But, for compatibility with C++ containers, the C++ APIs take `size_t`.
-    //
-    // We use `saturated_cast` so that when `num_bytes` doesn't fit into
-    // `uint32_t`, then we will simply report that a smaller number of bytes was
-    // written.  We accept that `num_bytes_u32` may no longer being a multiple
-    // of `MojoCreateDataPipeOptions::element_num_bytes` and rely on the C layer
-    // to return `MOJO_RESULT_INVALID_ARGUMENT` in this case.
-    //
-    // TODO(crbug.com/40284755): `span`ify these C++ APIs.
-    uint32_t num_bytes_u32 = base::saturated_cast<uint32_t>(*num_bytes);
-
-    MojoResult result =
-        MojoWriteData(value(), elements, &num_bytes_u32, &options);
-    *num_bytes = size_t{num_bytes_u32};
-    return result;
+  MojoResult WriteAllData(base::span<const uint8_t> data) const {
+    // Ok to ignore `bytes_written` because `MOJO_WRITE_DATA_FLAG_ALL_OR_NONE`
+    // means that `MOJO_RESULT_OK` will be returned only if exactly
+    // `data.size()` bytes have been written (i.e. if `data.size() ==
+    // bytes_written`).
+    size_t bytes_written = 0;
+    return WriteData(data, MOJO_WRITE_DATA_FLAG_ALL_OR_NONE, bytes_written);
   }
 
   // Using `kNoSizeHint` as `write_size_hint` argument of `BeginWriteData`
@@ -125,21 +111,6 @@ class DataPipeProducerHandle : public Handle {
       // write up to |*buffer_num_bytes| bytes of data."
       buffer = UNSAFE_BUFFERS(base::span(static_cast<uint8_t*>(buffer_ptr),
                                          size_t{buffer_num_bytes}));
-    }
-    return result;
-  }
-
-  // TODO(https://crbug.com/40284755): Remove this deprecated, non-`span`-ified
-  // overload (after double-checking that no callers remain).
-  MojoResult BeginWriteData(void** buffer,
-                            size_t* buffer_num_bytes,
-                            MojoBeginWriteDataFlags flags) const {
-    base::span<uint8_t> span;
-    size_t write_size_hint = *buffer_num_bytes;
-    MojoResult result = BeginWriteData(write_size_hint, flags, span);
-    if (result == MOJO_RESULT_OK) {
-      *buffer = span.data();
-      *buffer_num_bytes = span.size();
     }
     return result;
   }
@@ -183,6 +154,10 @@ class DataPipeConsumerHandle : public Handle {
   // many bytes (at the beginning of `buffer`) were actually read (depending on
   // the size of the internal pipe buffer, this may be less than
   // `buffer.size()`).
+  //
+  // Note that instead of passing specific `flags`, a more direct method can be
+  // used instead:
+  // - `MOJO_READ_DATA_FLAG_DISCARD` => `DiscardData`
   MojoResult ReadData(MojoReadDataFlags flags,
                       base::span<uint8_t> buffer,
                       size_t& bytes_read) const {
@@ -230,32 +205,6 @@ class DataPipeConsumerHandle : public Handle {
     return result;
   }
 
-  // TODO(https://crbug.com/40284755): Remove this deprecated, non-`span`-ified
-  // overload (after double-checking that no callers remain).
-  MojoResult ReadData(void* elements,
-                      size_t* num_bytes,
-                      MojoReadDataFlags flags) const {
-    MojoReadDataOptions options;
-    options.struct_size = sizeof(options);
-    options.flags = flags;
-
-    // Because of ABI-stability requirements, the C-level APIs take `uint32_t`.
-    // But, for compatibility with C++ containers, the C++ APIs take `size_t`.
-    //
-    // Input value of `*num_bytes` is ignored in `MOJO_READ_DATA_FLAG_QUERY`
-    // mode and otherwise is an _upper_ bound on how many bytes will be read (or
-    // discarded in `MOJO_READ_DATA_FLAG_DISCARD`).  Therefore it is okay to use
-    // `saturated_cast` instead of `checked_cast` because the C-layer mojo code
-    // will anyway read only up to uin32_t max bytes.
-    //
-    // TODO(crbug.com/40284755): `span`ify these C++ APIs.
-    uint32_t num_bytes_u32 = base::saturated_cast<uint32_t>(*num_bytes);
-    MojoResult result =
-        MojoReadData(value(), &options, elements, &num_bytes_u32);
-    *num_bytes = size_t{num_bytes_u32};
-    return result;
-  }
-
   // Begins a two-phase read from a data pipe. See |MojoBeginReadData()| for
   // complete documentation.
   //
@@ -279,18 +228,6 @@ class DataPipeConsumerHandle : public Handle {
       buffer = UNSAFE_BUFFERS(base::span(static_cast<const uint8_t*>(data),
                                          size_t{buffer_num_bytes}));
     }
-    return result;
-  }
-
-  // TODO(https://crbug.com/40284755): Remove this deprecated, non-`span`-ified
-  // overload (after double-checking that no callers remain).
-  MojoResult BeginReadData(const void** buffer,
-                           size_t* buffer_num_bytes,
-                           MojoBeginReadDataFlags flags) const {
-    base::span<const uint8_t> span;
-    MojoResult result = BeginReadData(flags, span);
-    *buffer = static_cast<const void*>(span.data());
-    *buffer_num_bytes = span.size();
     return result;
   }
 
