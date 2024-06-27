@@ -88,6 +88,9 @@ config("libchrome_config") {
       "DISABLE_ALLOCATOR_SANITIZER",
     ]
   }
+  if (use.ipcz) {
+    defines += [ "ENABLE_IPCZ_ON_CHROMEOS" ]
+  }
 
   include_dirs = [
     ".",
