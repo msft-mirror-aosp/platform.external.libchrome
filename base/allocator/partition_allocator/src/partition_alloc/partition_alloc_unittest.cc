@@ -20,7 +20,7 @@
 #include "base/test/gtest_util.h"
 #include "partition_alloc/address_space_randomization.h"
 #include "partition_alloc/build_config.h"
-#include "partition_alloc/chromecast_buildflags.h"
+#include "partition_alloc/buildflags.h"
 #include "partition_alloc/dangling_raw_ptr_checks.h"
 #include "partition_alloc/freeslot_bitmap.h"
 #include "partition_alloc/in_slot_metadata.h"
@@ -31,13 +31,11 @@
 #include "partition_alloc/partition_alloc_base/bits.h"
 #include "partition_alloc/partition_alloc_base/compiler_specific.h"
 #include "partition_alloc/partition_alloc_base/cpu.h"
-#include "partition_alloc/partition_alloc_base/debug/debugging_buildflags.h"
 #include "partition_alloc/partition_alloc_base/logging.h"
 #include "partition_alloc/partition_alloc_base/numerics/checked_math.h"
 #include "partition_alloc/partition_alloc_base/rand_util.h"
 #include "partition_alloc/partition_alloc_base/thread_annotations.h"
 #include "partition_alloc/partition_alloc_base/threading/platform_thread_for_testing.h"
-#include "partition_alloc/partition_alloc_buildflags.h"
 #include "partition_alloc/partition_alloc_config.h"
 #include "partition_alloc/partition_alloc_constants.h"
 #include "partition_alloc/partition_alloc_for_testing.h"
@@ -5711,6 +5709,49 @@ TEST_P(PartitionAllocTest, FastReclaim) {
     allocator.root()->PurgeMemory(kFlags | PurgeFlags::kLimitDuration);
   }
   // No expectation, test will time out if it's incorrect.
+
+  allocator.root()->now_maybe_overridden_for_testing = base::TimeTicks::Now;
+}
+
+TEST_P(PartitionAllocTest, FastReclaimEventuallyLooksAtAllBuckets) {
+  static base::TimeTicks now = base::TimeTicks();
+  // Advances times by the same amount every time.
+  allocator.root()->now_maybe_overridden_for_testing = []() {
+    now += PartitionRoot::kMaxPurgeDuration / 10;
+    return now;
+  };
+
+  constexpr int kFlags = PurgeFlags::kDecommitEmptySlotSpans |
+                         PurgeFlags::kDiscardUnusedSystemPages;
+  allocator.root()->PurgeMemory(kFlags);
+  ASSERT_GT(now, base::TimeTicks());
+  // Here and below, using TS_UNCHECKED_READ since the root is not used
+  // conccurently.
+  //
+  // Went around all buckets, generation is incremented.
+  EXPECT_EQ(TS_UNCHECKED_READ(allocator.root()->purge_next_bucket_index), 0u);
+  EXPECT_EQ(TS_UNCHECKED_READ(allocator.root()->purge_generation), 1u);
+
+  allocator.root()->PurgeMemory(kFlags | PurgeFlags::kLimitDuration);
+  // Ran out of time.
+  unsigned int next_bucket =
+      TS_UNCHECKED_READ(allocator.root()->purge_next_bucket_index);
+  EXPECT_NE(next_bucket, 0u);
+  allocator.root()->PurgeMemory(kFlags | PurgeFlags::kLimitDuration);
+  // Make some progress, but not through all buckets yet.
+  EXPECT_GT(TS_UNCHECKED_READ(allocator.root()->purge_next_bucket_index),
+            next_bucket);
+  EXPECT_EQ(TS_UNCHECKED_READ(allocator.root()->purge_generation), 1u);
+
+  allocator.root()->PurgeMemory(kFlags | PurgeFlags::kLimitDuration);
+  // Ran out of time.
+  EXPECT_NE(TS_UNCHECKED_READ(allocator.root()->purge_next_bucket_index), 0u);
+
+  // But eventually we make it through all generations.
+  while (TS_UNCHECKED_READ(allocator.root()->purge_generation) != 0) {
+    allocator.root()->PurgeMemory(kFlags | PurgeFlags::kLimitDuration);
+  }
+  EXPECT_EQ(TS_UNCHECKED_READ(allocator.root()->purge_next_bucket_index), 0u);
 
   allocator.root()->now_maybe_overridden_for_testing = base::TimeTicks::Now;
 }

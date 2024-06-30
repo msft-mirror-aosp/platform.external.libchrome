@@ -40,7 +40,6 @@ group("all") {
 group("all_buildflags") {
   deps = [
     ":allocator_buildflags",
-    ":allocator_debugging_buildflags",
     ":allocator_logging_buildflags",
     ":blink_buildflags",
     ":branding_buildflags",
@@ -59,9 +58,6 @@ group("all_buildflags") {
     ":mojo_buildflags",
     ":mojo_cpp_bindings_buildflags",
     ":partition_allocator_buildflags",
-    ":partition_allocator_chromecast_buildflags",
-    ":partition_allocator_chromeos_buildflags",
-    ":partition_allocator_raw_ptr_buildflags",
     ":profiler_buildflags",
     ":rust_buildflags",
     ":synchronization_buildflags",
@@ -197,7 +193,7 @@ pa_buildflag_header("partition_allocator_buildflags") {
     assert(false, "Unknown CPU: $current_cpu")
   }
 
-  header = "base/allocator/partition_allocator/src/partition_alloc/partition_alloc_buildflags.h"
+  header = "base/allocator/partition_allocator/src/partition_alloc/buildflags.h"
   flags = [
     "HAS_64_BIT_POINTERS=$has_64_bit_pointers",
     "USE_PARTITION_ALLOC=false",
@@ -233,37 +229,12 @@ pa_buildflag_header("partition_allocator_buildflags") {
     "ENABLE_BACKUP_REF_PTR_INSTANCE_TRACER=false",
     "ASSERT_CPP_20=true",
     "USE_LARGE_EMPTY_SLOT_SPAN_RING=false",
-  ]
-}
-
-pa_buildflag_header("partition_allocator_raw_ptr_buildflags") {
-  header = "base/allocator/partition_allocator/src/partition_alloc/raw_ptr_buildflags.h"
-
-  flags = [
     "RAW_PTR_ZERO_ON_CONSTRUCT=true",
     "RAW_PTR_ZERO_ON_MOVE=true",
     "RAW_PTR_ZERO_ON_DESTRUCT=false",
-  ]
-}
-
-pa_buildflag_header("partition_allocator_chromecast_buildflags") {
-  header = "base/allocator/partition_allocator/src/partition_alloc/chromecast_buildflags.h"
-  flags = [
     "IS_CAST_ANDROID=false",
     "IS_CASTOS=false",
-  ]
-}
-
-pa_buildflag_header("partition_allocator_chromeos_buildflags") {
-  header = "base/allocator/partition_allocator/src/partition_alloc/chromeos_buildflags.h"
-  flags = [
     "IS_CHROMEOS=true",
-  ]
-}
-
-pa_buildflag_header("allocator_debugging_buildflags") {
-  header = "base/allocator/partition_allocator/src/partition_alloc/partition_alloc_base/debug/debugging_buildflags.h"
-  flags = [
     "DCHECKS_ARE_ON=false",
     "EXPENSIVE_DCHECKS_ARE_ON=false",
     "DCHECK_IS_CONFIGURABLE=false",

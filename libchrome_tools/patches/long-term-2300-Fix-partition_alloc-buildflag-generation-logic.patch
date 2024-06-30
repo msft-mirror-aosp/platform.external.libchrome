@@ -1,4 +1,4 @@
-From 131541f93140a204869da41f0687db5e6d3ab405 Mon Sep 17 00:00:00 2001
+From 89f800b70a1c32bbce206005217625588549582b Mon Sep 17 00:00:00 2001
 From: Cici Ruan <cuicuiruan@google.com>
 Date: Wed, 5 Jun 2024 15:47:08 -0700
 Subject: [PATCH] Fix partition_alloc buildflag generation logic for libchrome
@@ -9,6 +9,9 @@ Subject: [PATCH] Fix partition_alloc buildflag generation logic for libchrome
 - Fix write_buildflag_header.py to fix the include paths in the
   generated header files.
 
+Introduced in r1294816 (crrev.com/c/5504598).
+Updated in r1321254 (crrev.com/c/5669584).
+
 Change-Id: Id342a17dd2e912d4d681fc64bb7ea642d72d5de4
 ---
  .../src/partition_alloc/buildflag_header.gni                   | 3 +--
@@ -16,7 +19,7 @@ Change-Id: Id342a17dd2e912d4d681fc64bb7ea642d72d5de4
  2 files changed, 2 insertions(+), 3 deletions(-)
 
 diff --git a/base/allocator/partition_allocator/src/partition_alloc/buildflag_header.gni b/base/allocator/partition_allocator/src/partition_alloc/buildflag_header.gni
-index a1c752a2bc..8b0b76f921 100644
+index 979042758e..8b0b76f921 100644
 --- a/base/allocator/partition_allocator/src/partition_alloc/buildflag_header.gni
 +++ b/base/allocator/partition_allocator/src/partition_alloc/buildflag_header.gni
 @@ -79,7 +79,7 @@ _current_dir = get_path_info(".", "abspath")
@@ -31,8 +34,8 @@ index a1c752a2bc..8b0b76f921 100644
 @@ -116,6 +116,5 @@ template("pa_buildflag_header") {
                               "visibility",
                             ])
-
--    public_deps = [ "${_current_dir}:build_config" ]
+ 
+-    public_deps = [ "${_current_dir}:buildflag_macro" ]
    }
  }
 diff --git a/base/allocator/partition_allocator/src/partition_alloc/write_buildflag_header.py b/base/allocator/partition_allocator/src/partition_alloc/write_buildflag_header.py
@@ -49,5 +52,5 @@ index e2eaf33165..156ef7656a 100755
      for pair in options.flags:
        output_file.write('#define PA_BUILDFLAG_INTERNAL_%s() (%s)\n' % pair)
 -- 
-2.45.1.467.gbab1589fc0-goog
+2.45.2.803.g4e1b14247a-goog
 

@@ -1,19 +1,23 @@
-From a814532caa42a39ec09ad1928e1e11d81ccbb9a8 Mon Sep 17 00:00:00 2001
-From: Byron Lee <byronlee@google.com>
-Date: Thu, 30 Nov 2023 02:48:00 +0000
-Subject: [PATCH] tmp
+From eacb72284f699a9ee9833edd1a81eb58631e9bb6 Mon Sep 17 00:00:00 2001
+From: Jeff Lin <jeffulin@google.com>
+Date: Mon, 1 Jul 2024 15:37:35 +0800
+Subject: [PATCH] Do not use boringssl in base::UnguessableToken
 
-Change-Id: I5d9112960519089197bceb338f0f0724efd330b2
+Introduced in r930012 (crrev.com/c/3343574).
+Updated in r1230523 (crrev.com/c/5075453).
+Updated in r1321254 (crrev.com/c/5669584).
+
+Change-Id: I4035f5c236b9b2ca8b3c4f6296a36786cfe85ae7
 ---
  base/unguessable_token.cc | 22 +++++++++++-----------
  base/unguessable_token.h  | 17 ++++++++---------
  2 files changed, 19 insertions(+), 20 deletions(-)
 
 diff --git a/base/unguessable_token.cc b/base/unguessable_token.cc
-index 44bfc3e262..46b28b6e11 100644
+index ea33ca66f3..dfc6bc1b6f 100644
 --- a/base/unguessable_token.cc
 +++ b/base/unguessable_token.cc
-@@ -11,9 +11,9 @@
+@@ -12,9 +12,9 @@
  #include "base/rand_util.h"
  #include "build/build_config.h"
  
@@ -26,8 +30,8 @@ index 44bfc3e262..46b28b6e11 100644
  
  namespace base {
  
-@@ -45,15 +45,15 @@ absl::optional<UnguessableToken> UnguessableToken::Deserialize(uint64_t high,
-   return UnguessableToken(Token{high, low});
+@@ -57,15 +57,15 @@ std::optional<UnguessableToken> UnguessableToken::DeserializeFromString(
+   return UnguessableToken(token.value());
  }
  
 -bool operator==(const UnguessableToken& lhs, const UnguessableToken& rhs) {
@@ -43,47 +47,47 @@ index 44bfc3e262..46b28b6e11 100644
 -#endif
 +  return token_ == other.token_;
 +// #else
-+//   auto bytes = token_.AsBytes();
-+//   auto other_bytes = other.token_.AsBytes();
++//   auto bytes = lhs.token_.AsBytes();
++//   auto other_bytes = rhs.token_.AsBytes();
 +//   return CRYPTO_memcmp(bytes.data(), other_bytes.data(), bytes.size()) == 0;
 +// #endif
  }
  
  std::ostream& operator<<(std::ostream& out, const UnguessableToken& token) {
 diff --git a/base/unguessable_token.h b/base/unguessable_token.h
-index 4efef5abe1..8dd7705356 100644
+index 2021d4b35e..49a97f9851 100644
 --- a/base/unguessable_token.h
 +++ b/base/unguessable_token.h
-@@ -7,7 +7,6 @@
- 
+@@ -8,7 +8,6 @@
  #include <stdint.h>
  #include <string.h>
+ 
 -#include <compare>
  #include <iosfwd>
+ #include <string_view>
  #include <tuple>
- 
-@@ -96,12 +95,15 @@ class BASE_EXPORT UnguessableToken {
+@@ -107,12 +106,15 @@ class BASE_EXPORT UnguessableToken {
  
    span<const uint8_t, 16> AsBytes() const { return token_.AsBytes(); }
  
 -  friend constexpr auto operator<=>(const UnguessableToken& lhs,
 -                                    const UnguessableToken& rhs) = default;
 +  constexpr bool operator<(const UnguessableToken& other) const {
-+    return token_ < other.token_;
-+  }
-+
-+  bool operator==(const UnguessableToken& other) const;
++     return token_ < other.token_;
++   }
  
 -  // operator== uses constant-time comparison for security where available.
 -  friend BASE_EXPORT bool operator==(const UnguessableToken& lhs,
 -                                     const UnguessableToken& rhs);
++  bool operator==(const UnguessableToken& other) const;
++
 +  bool operator!=(const UnguessableToken& other) const {
 +    return !(*this == other);
 +  }
  
  #if defined(UNIT_TEST)
    static UnguessableToken CreateForTesting(uint64_t high, uint64_t low) {
-@@ -118,9 +120,6 @@ class BASE_EXPORT UnguessableToken {
+@@ -129,9 +131,6 @@ class BASE_EXPORT UnguessableToken {
    base::Token token_;
  };
  
@@ -94,5 +98,5 @@ index 4efef5abe1..8dd7705356 100644
                                       const UnguessableToken& token);
  
 -- 
-2.43.0.rc1.413.gea7ed67945-goog
+2.45.2.803.g4e1b14247a-goog
 

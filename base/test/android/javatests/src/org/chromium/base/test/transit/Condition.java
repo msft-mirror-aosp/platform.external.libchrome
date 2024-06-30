@@ -6,12 +6,16 @@ package org.chromium.base.test.transit;
 
 import android.util.ArrayMap;
 
+import androidx.annotation.CallSuper;
 import androidx.annotation.Nullable;
+import androidx.annotation.VisibleForTesting;
 
 import com.google.errorprone.annotations.FormatMethod;
 
 import org.chromium.base.supplier.Supplier;
 import org.chromium.base.test.transit.ConditionStatus.Status;
+import org.chromium.base.test.transit.Transition.TransitionOptions;
+import org.chromium.base.test.transit.Transition.Trigger;
 
 /**
  * A condition that needs to be fulfilled for a state transition to be considered done.
@@ -24,6 +28,9 @@ public abstract class Condition {
 
     private final boolean mIsRunOnUiThread;
     private ArrayMap<String, Supplier<?>> mDependentSuppliers;
+
+    @VisibleForTesting boolean mHasStartedMonitoringForTesting;
+    @VisibleForTesting boolean mHasStoppedMonitoringForTesting;
 
     /**
      * @param isRunOnUiThread true if the Condition should be checked on the UI Thread, false if it
@@ -55,13 +62,25 @@ public abstract class Condition {
      * Hook run right before the condition starts being checked. Used, for example, to get initial
      * callback counts and install observers.
      */
-    public void onStartMonitoring() {}
+    @CallSuper
+    public void onStartMonitoring() {
+        assert !mHasStartedMonitoringForTesting
+                : getDescription() + ": onStartMonitoring should only be called once";
+        mHasStartedMonitoringForTesting = true;
+    }
 
     /**
      * Hook run right after the condition stops being checked. Used, for example, to uninstall
      * observers.
      */
-    public void onStopMonitoring() {}
+    @CallSuper
+    public void onStopMonitoring() {
+        assert mHasStartedMonitoringForTesting
+                : getDescription() + ": onStartMonitoring was not called before onStopMonitoring";
+        assert !mHasStoppedMonitoringForTesting
+                : getDescription() + ": onStopMonitoring should only be called once";
+        mHasStoppedMonitoringForTesting = true;
+    }
 
     /**
      * @return a short description to be printed as part of a list of conditions.
@@ -246,5 +265,16 @@ public abstract class Condition {
     public static ConditionStatus fulfilledOrAwaiting(
             boolean isFulfilled, String message, Object... args) {
         return fulfilledOrAwaiting(isFulfilled, String.format(message, args));
+    }
+
+    /** Runs |trigger| and waits for one or more Conditions using a Transition. */
+    public static CarryOn runAndWaitFor(Trigger trigger, Condition... conditions) {
+        return runAndWaitFor(TransitionOptions.DEFAULT, trigger, conditions);
+    }
+
+    /** Versions of {@link #runAndWaitFor(Trigger, Condition...)} with {@link TransitionOptions}. */
+    public static CarryOn runAndWaitFor(
+            TransitionOptions options, Trigger trigger, Condition... conditions) {
+        return CarryOn.pickUp(CarryOn.fromConditions(conditions), options, trigger);
     }
 }

@@ -8,16 +8,14 @@
 #include <vector>
 
 #include "partition_alloc/build_config.h"
+#include "partition_alloc/buildflags.h"
 #include "partition_alloc/page_allocator.h"
-#include "partition_alloc/partition_alloc_base/debug/debugging_buildflags.h"
 #include "partition_alloc/partition_alloc_check.h"
 #include "partition_alloc/random.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 #if PA_BUILDFLAG(IS_WIN)
 #include <windows.h>
-
-#include "base/win/windows_version.h"
 #endif
 
 namespace partition_alloc {

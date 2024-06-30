@@ -1,12 +1,12 @@
-From fcad2c03511d89e6b32114b49e747999fa31a52e Mon Sep 17 00:00:00 2001
-From: Grace Cham <hscham@chromium.org>
-Date: Tue, 18 Oct 2022 14:30:08 +0900
+From 64194dc354c3d89aefc5038d375aa39aae0779c0 Mon Sep 17 00:00:00 2001
+From: Jeff Lin <jeffulin@google.com>
+Date: Mon, 1 Jul 2024 15:59:21 +0800
 Subject: [PATCH] disable boringssl in base::RandBytes
 
 Introduced in r1045239 (crrev.com/c/3880863).
+Updated in r1321254 (crrev.com/c/5669584).
 
-Change-Id: I03b1ad34f9b4b9bd20b8cfb9f3d77d06ddc8b43a
-patch-name: long-term-0800-disable-boringssl-in-base-RandBytes.patch
+Change-Id: I2cdc2fe34a83b8debad12c0143e881a7a52c5bf5
 ---
  base/feature_list.cc    | 2 +-
  base/rand_util.h        | 2 +-
@@ -27,7 +27,7 @@ index 895b710fdf..80b80df74c 100644
      internal::ConfigureBoringSSLBackedRandBytesFieldTrial();
  #endif
 diff --git a/base/rand_util.h b/base/rand_util.h
-index 967ac9f385..5fb52af899 100644
+index 746166bf75..5c9c3b1ad0 100644
 --- a/base/rand_util.h
 +++ b/base/rand_util.h
 @@ -38,7 +38,7 @@ namespace internal {
@@ -40,7 +40,7 @@ index 967ac9f385..5fb52af899 100644
  #endif
  
 diff --git a/base/rand_util_posix.cc b/base/rand_util_posix.cc
-index d7dc274bfd..ecde63d42b 100644
+index 00fcb8547e..a388e9f2fc 100644
 --- a/base/rand_util_posix.cc
 +++ b/base/rand_util_posix.cc
 @@ -36,7 +36,7 @@
@@ -49,10 +49,10 @@ index d7dc274bfd..ecde63d42b 100644
  
 -#if !BUILDFLAG(IS_NACL)
 +#if !BUILDFLAG(IS_NACL) && 0
- #include "third_party/boringssl/src/include/openssl/crypto.h"
  #include "third_party/boringssl/src/include/openssl/rand.h"
  #endif
-@@ -154,9 +154,9 @@ void ConfigureRandBytesFieldTrial() {
+ 
+@@ -153,9 +153,9 @@ void ConfigureRandBytesFieldTrial() {
  }
  #endif
  
@@ -63,7 +63,7 @@ index d7dc274bfd..ecde63d42b 100644
  // The BoringSSl helpers are duplicated in rand_util_fuchsia.cc and
  // rand_util_win.cc.
  std::atomic<bool> g_use_boringssl;
-@@ -182,7 +182,7 @@ bool UseBoringSSLForRandBytes() {
+@@ -181,7 +181,7 @@ bool UseBoringSSLForRandBytes() {
  namespace {
  
  void RandBytesInternal(span<uint8_t> output, bool avoid_allocation) {
@@ -71,7 +71,7 @@ index d7dc274bfd..ecde63d42b 100644
 +#if !BUILDFLAG(IS_NACL) && 0
    // The BoringSSL experiment takes priority over everything else.
    if (!avoid_allocation && internal::UseBoringSSLForRandBytes()) {
-     // Ensure BoringSSL is initialized so it can use things like RDRAND.
+     // BoringSSL's RAND_bytes always returns 1. Any error aborts the program.
 -- 
-2.45.0.118.g7fe29c98d7-goog
+2.45.2.803.g4e1b14247a-goog
 
