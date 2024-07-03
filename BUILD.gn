@@ -1316,6 +1316,7 @@ if (use.mojo) {
 
       sources += [
         "third_party/ipcz/src/api.cc",
+        "third_party/ipcz/src/ipcz/api_context.cc",
         "third_party/ipcz/src/ipcz/api_object.cc",
         "third_party/ipcz/src/ipcz/application_object.cc",
         "third_party/ipcz/src/ipcz/block_allocator.cc",
