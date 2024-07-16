@@ -1,4 +1,4 @@
-From 9cb4e66a99fcd300a14ddfa9cb87687f1a010614 Mon Sep 17 00:00:00 2001
+From ef434123dabcae3c1752780b31c52ab1544d805e Mon Sep 17 00:00:00 2001
 From: Nathan Muggli <nmuggli@google.com>
 Date: Fri, 12 Jul 2024 13:27:23 -0600
 Subject: [PATCH] Revert "[Code Health] Add deprecation comment for
@@ -12,15 +12,15 @@ This reverts commit dd42a71cd065bf2a32ad6e7a58a23b1c48ce132b.
 This patch reverts two different commits to weak_ptr.h.
 Remove this patch when all uses of SupportsWeakPtr have been removed.
 ---
- base/memory/weak_ptr.h           | 62 ++------------------------------
+ base/memory/weak_ptr.h           | 60 ++------------------------------
  base/memory/weak_ptr_unittest.cc | 11 ------
- 2 files changed, 3 insertions(+), 70 deletions(-)
+ 2 files changed, 3 insertions(+), 68 deletions(-)
 
 diff --git a/base/memory/weak_ptr.h b/base/memory/weak_ptr.h
-index 2b1b02d51f..17f9ca6258 100644
+index 131096c00d..17f9ca6258 100644
 --- a/base/memory/weak_ptr.h
 +++ b/base/memory/weak_ptr.h
-@@ -92,38 +92,6 @@ class ProcessNodeImpl;
+@@ -92,37 +92,6 @@ class ProcessNodeImpl;
  class WorkerNodeImpl;
  }  // namespace performance_manager
  
@@ -44,7 +44,6 @@ index 2b1b02d51f..17f9ca6258 100644
 -
 -namespace storage {
 -class CopyOrMoveHookDelegate;
--class CopyOrMoveHookDelegateComposite;
 -}  // namespace storage
 -
 -namespace ui {
@@ -59,7 +58,7 @@ index 2b1b02d51f..17f9ca6258 100644
  namespace base {
  
  namespace sequence_manager::internal {
-@@ -498,23 +466,16 @@ class WeakPtrFactory : public internal::WeakPtrFactoryBase {
+@@ -497,23 +466,16 @@ class WeakPtrFactory : public internal::WeakPtrFactoryBase {
    }
  };
  
@@ -86,7 +85,7 @@ index 2b1b02d51f..17f9ca6258 100644
    SupportsWeakPtr(const SupportsWeakPtr&) = delete;
    SupportsWeakPtr& operator=(const SupportsWeakPtr&) = delete;
  
-@@ -526,23 +487,6 @@ class SupportsWeakPtr : public internal::SupportsWeakPtrBase {
+@@ -525,22 +487,6 @@ class SupportsWeakPtr : public internal::SupportsWeakPtrBase {
    ~SupportsWeakPtr() = default;
  
   private:
@@ -98,7 +97,6 @@ index 2b1b02d51f..17f9ca6258 100644
 -  friend class media_router::MediaRoutesObserver;
 -  friend class ppapi::proxy::PluginDispatcher;
 -  friend class storage::CopyOrMoveHookDelegate;
--  friend class storage::CopyOrMoveHookDelegateComposite;
 -  friend class ui::MenuModel;
 -  friend class ui::TextInputClient;
 -  friend class views::WidgetDelegate;

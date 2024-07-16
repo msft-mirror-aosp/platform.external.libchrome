@@ -602,6 +602,7 @@ libbase_sublibs = [
       "base/profiler/stack_sampler.cc",
       "base/profiler/stack_sampler_posix.cc",
       "base/profiler/stack_sampling_profiler.cc",
+      "base/profiler/stack_unwind_data.cc",
       "base/profiler/thread_delegate_posix.cc",
       "base/profiler/unwinder.cc",
       "base/rand_util.cc",

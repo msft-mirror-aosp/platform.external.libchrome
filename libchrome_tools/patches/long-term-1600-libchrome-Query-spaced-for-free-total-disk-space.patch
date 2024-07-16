@@ -142,7 +142,7 @@ index a0e6f938a5..056c32c77f 100644
  
 +SysInfo::GetAppOutputCallback* g_chromeos_get_app_output_for_test = nullptr;
 +
-+int64_t GetInfoFromSpaced(StringPiece action, const base::FilePath& path) {
++int64_t GetInfoFromSpaced(std::string_view action, const base::FilePath& path) {
 +  CommandLine command((base::FilePath(kSpacedCliPath)));
 +  command.AppendSwitchPath(action, path);
 +
