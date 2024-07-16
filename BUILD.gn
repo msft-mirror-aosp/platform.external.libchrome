@@ -1010,6 +1010,12 @@ if (use.asan) {
   ]
 }
 
+if (use.ipcz) {
+  libchrome_exported_cflags += [
+    "-DENABLE_IPCZ_ON_CHROMEOS",
+  ]
+}
+
 generate_pkg_config("libchrome") {
   deps = [ ":base" ]
   description = "chrome base library"
