@@ -1,4 +1,4 @@
-From ef434123dabcae3c1752780b31c52ab1544d805e Mon Sep 17 00:00:00 2001
+From 89b2f490570462a361d59bf8b3e3b8e539a90af7 Mon Sep 17 00:00:00 2001
 From: Nathan Muggli <nmuggli@google.com>
 Date: Fri, 12 Jul 2024 13:27:23 -0600
 Subject: [PATCH] Revert "[Code Health] Add deprecation comment for
@@ -12,15 +12,15 @@ This reverts commit dd42a71cd065bf2a32ad6e7a58a23b1c48ce132b.
 This patch reverts two different commits to weak_ptr.h.
 Remove this patch when all uses of SupportsWeakPtr have been removed.
 ---
- base/memory/weak_ptr.h           | 60 ++------------------------------
- base/memory/weak_ptr_unittest.cc | 11 ------
- 2 files changed, 3 insertions(+), 68 deletions(-)
+ base/memory/weak_ptr.h           | 48 ++------------------------------
+ base/memory/weak_ptr_unittest.cc | 11 --------
+ 2 files changed, 3 insertions(+), 56 deletions(-)
 
 diff --git a/base/memory/weak_ptr.h b/base/memory/weak_ptr.h
-index 131096c00d..17f9ca6258 100644
+index 9c4191bab5..17f9ca6258 100644
 --- a/base/memory/weak_ptr.h
 +++ b/base/memory/weak_ptr.h
-@@ -92,37 +92,6 @@ class ProcessNodeImpl;
+@@ -92,27 +92,6 @@ class ProcessNodeImpl;
  class WorkerNodeImpl;
  }  // namespace performance_manager
  
@@ -31,16 +31,6 @@ index 131096c00d..17f9ca6258 100644
 -class GLContext;
 -class GLSurface;
 -}  // namespace gl
--
--namespace media_router {
--class MediaRoutesObserver;
--}  // namespace media_router
--
--namespace ppapi {
--namespace proxy {
--class PluginDispatcher;
--}  // namespace proxy
--}  // namespace ppapi
 -
 -namespace storage {
 -class CopyOrMoveHookDelegate;
@@ -58,7 +48,7 @@ index 131096c00d..17f9ca6258 100644
  namespace base {
  
  namespace sequence_manager::internal {
-@@ -497,23 +466,16 @@ class WeakPtrFactory : public internal::WeakPtrFactoryBase {
+@@ -487,23 +466,16 @@ class WeakPtrFactory : public internal::WeakPtrFactoryBase {
    }
  };
  
@@ -85,7 +75,7 @@ index 131096c00d..17f9ca6258 100644
    SupportsWeakPtr(const SupportsWeakPtr&) = delete;
    SupportsWeakPtr& operator=(const SupportsWeakPtr&) = delete;
  
-@@ -525,22 +487,6 @@ class SupportsWeakPtr : public internal::SupportsWeakPtrBase {
+@@ -515,20 +487,6 @@ class SupportsWeakPtr : public internal::SupportsWeakPtrBase {
    ~SupportsWeakPtr() = default;
  
   private:
@@ -94,8 +84,6 @@ index 131096c00d..17f9ca6258 100644
 -  friend struct weak_ptr_unittest::Target;
 -  friend class gl::GLContext;
 -  friend class gl::GLSurface;
--  friend class media_router::MediaRoutesObserver;
--  friend class ppapi::proxy::PluginDispatcher;
 -  friend class storage::CopyOrMoveHookDelegate;
 -  friend class ui::MenuModel;
 -  friend class ui::TextInputClient;
@@ -134,5 +122,5 @@ index bd5d7c4d82..02a44772c1 100644
  struct DerivedTarget : public Target {};
  
 -- 
-2.45.2.993.g49e7a77208-goog
+2.45.2.1089.g2a221341d9-goog
 
