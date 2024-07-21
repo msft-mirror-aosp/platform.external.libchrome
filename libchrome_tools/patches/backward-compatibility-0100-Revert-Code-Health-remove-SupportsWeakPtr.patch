@@ -12,15 +12,15 @@ This reverts commit dd42a71cd065bf2a32ad6e7a58a23b1c48ce132b.
 This patch reverts two different commits to weak_ptr.h.
 Remove this patch when all uses of SupportsWeakPtr have been removed.
 ---
- base/memory/weak_ptr.h           | 48 ++------------------------------
+ base/memory/weak_ptr.h           | 43 +++-----------------------------
  base/memory/weak_ptr_unittest.cc | 11 --------
- 2 files changed, 3 insertions(+), 56 deletions(-)
+ 2 files changed, 3 insertions(+), 51 deletions(-)
 
 diff --git a/base/memory/weak_ptr.h b/base/memory/weak_ptr.h
-index 9c4191bab5..17f9ca6258 100644
+index e449bf2c8a..17f9ca6258 100644
 --- a/base/memory/weak_ptr.h
 +++ b/base/memory/weak_ptr.h
-@@ -92,27 +92,6 @@ class ProcessNodeImpl;
+@@ -92,23 +92,6 @@ class ProcessNodeImpl;
  class WorkerNodeImpl;
  }  // namespace performance_manager
  
@@ -31,10 +31,6 @@ index 9c4191bab5..17f9ca6258 100644
 -class GLContext;
 -class GLSurface;
 -}  // namespace gl
--
--namespace storage {
--class CopyOrMoveHookDelegate;
--}  // namespace storage
 -
 -namespace ui {
 -class MenuModel;
@@ -48,7 +44,7 @@ index 9c4191bab5..17f9ca6258 100644
  namespace base {
  
  namespace sequence_manager::internal {
-@@ -487,23 +466,16 @@ class WeakPtrFactory : public internal::WeakPtrFactoryBase {
+@@ -483,23 +466,16 @@ class WeakPtrFactory : public internal::WeakPtrFactoryBase {
    }
  };
  
@@ -75,7 +71,7 @@ index 9c4191bab5..17f9ca6258 100644
    SupportsWeakPtr(const SupportsWeakPtr&) = delete;
    SupportsWeakPtr& operator=(const SupportsWeakPtr&) = delete;
  
-@@ -515,20 +487,6 @@ class SupportsWeakPtr : public internal::SupportsWeakPtrBase {
+@@ -511,19 +487,6 @@ class SupportsWeakPtr : public internal::SupportsWeakPtrBase {
    ~SupportsWeakPtr() = default;
  
   private:
@@ -84,7 +80,6 @@ index 9c4191bab5..17f9ca6258 100644
 -  friend struct weak_ptr_unittest::Target;
 -  friend class gl::GLContext;
 -  friend class gl::GLSurface;
--  friend class storage::CopyOrMoveHookDelegate;
 -  friend class ui::MenuModel;
 -  friend class ui::TextInputClient;
 -  friend class views::WidgetDelegate;
