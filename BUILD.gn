@@ -449,6 +449,7 @@ libbase_sublibs = [
       "base/allocator/partition_allocator/src/partition_alloc/partition_alloc_base/strings/safe_sprintf.cc",
       "base/allocator/partition_allocator/src/partition_alloc/partition_alloc_base/strings/string_util.cc",
       "base/allocator/partition_allocator/src/partition_alloc/partition_alloc_base/strings/stringprintf.cc",
+      "base/allocator/partition_allocator/src/partition_alloc/tagging.cc",
       "base/at_exit.cc",
       "base/barrier_closure.cc",
       "base/base64.cc",
