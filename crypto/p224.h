@@ -9,8 +9,8 @@
 #include <stdint.h>
 
 #include <string>
+#include <string_view>
 
-#include "base/strings/string_piece.h"
 #include "crypto/crypto_export.h"
 
 namespace crypto {
@@ -28,7 +28,7 @@ struct CRYPTO_EXPORT Point {
   // representation. The external point representation is an (x, y) pair of a
   // point on the curve. Each field element is represented as a big-endian
   // number < p.
-  bool SetFromString(const base::StringPiece& in);
+  bool SetFromString(std::string_view in);
 
   // ToString returns an external representation of the Point.
   std::string ToString() const;

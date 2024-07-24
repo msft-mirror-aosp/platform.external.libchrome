@@ -37,15 +37,15 @@ size_t HMAC::DigestLength() const {
   }
 }
 
-bool HMAC::Verify(const base::StringPiece& data,
-                  const base::StringPiece& digest) const {
+bool HMAC::Verify(std::string_view data,
+                  std::string_view digest) const {
   if (digest.size() != DigestLength())
     return false;
   return VerifyTruncated(data, digest);
 }
 
-bool HMAC::VerifyTruncated(const base::StringPiece& data,
-                           const base::StringPiece& digest) const {
+bool HMAC::VerifyTruncated(std::string_view data,
+                           std::string_view digest) const {
   if (digest.empty())
     return false;
   size_t digest_length = DigestLength();

@@ -221,11 +221,11 @@ TEST(HMACTest, NSSFIPSPowerUpSelfTest) {
   EXPECT_EQ(0, memcmp(kKnownHMACSHA1, calculated_hmac, kSHA1DigestSize));
   EXPECT_TRUE(hmac.Verify(
       message_data,
-      base::StringPiece(reinterpret_cast<const char*>(kKnownHMACSHA1),
+      std::string_view(reinterpret_cast<const char*>(kKnownHMACSHA1),
                         kSHA1DigestSize)));
   EXPECT_TRUE(hmac.VerifyTruncated(
       message_data,
-      base::StringPiece(reinterpret_cast<const char*>(kKnownHMACSHA1),
+      std::string_view(reinterpret_cast<const char*>(kKnownHMACSHA1),
                         kSHA1DigestSize / 2)));
 
   crypto::HMAC hmac2(crypto::HMAC::SHA256);
@@ -259,22 +259,22 @@ TEST(HMACTest, Verify) {
   for (size_t i = 0; i < arraysize(kSimpleHmacCases); ++i) {
     // Expected results
     EXPECT_TRUE(hmac.Verify(
-        base::StringPiece(kSimpleHmacCases[i].data,
+        std::string_view(kSimpleHmacCases[i].data,
                           kSimpleHmacCases[i].data_len),
-        base::StringPiece(kSimpleHmacCases[i].digest,
+        std::string_view(kSimpleHmacCases[i].digest,
                           kSHA1DigestSize)));
     // Mismatched size
     EXPECT_FALSE(hmac.Verify(
-        base::StringPiece(kSimpleHmacCases[i].data,
+        std::string_view(kSimpleHmacCases[i].data,
                           kSimpleHmacCases[i].data_len),
-        base::StringPiece(kSimpleHmacCases[i].data,
+        std::string_view(kSimpleHmacCases[i].data,
                           kSimpleHmacCases[i].data_len)));
 
     // Expected size, mismatched data
     EXPECT_FALSE(hmac.Verify(
-        base::StringPiece(kSimpleHmacCases[i].data,
+        std::string_view(kSimpleHmacCases[i].data,
                           kSimpleHmacCases[i].data_len),
-        base::StringPiece(empty_digest, kSHA1DigestSize)));
+        std::string_view(empty_digest, kSHA1DigestSize)));
   }
 }
 
@@ -283,7 +283,7 @@ TEST(HMACTest, EmptyKey) {
   const char* kExpectedDigest =
       "\xFB\xDB\x1D\x1B\x18\xAA\x6C\x08\x32\x4B\x7D\x64\xB7\x1F\xB7\x63"
       "\x70\x69\x0E\x1D";
-  base::StringPiece data("");
+  std::string_view data("");
 
   crypto::HMAC hmac(crypto::HMAC::SHA1);
   ASSERT_TRUE(hmac.Init(NULL, 0));
@@ -293,5 +293,5 @@ TEST(HMACTest, EmptyKey) {
   EXPECT_EQ(0, memcmp(kExpectedDigest, digest, kSHA1DigestSize));
 
   EXPECT_TRUE(hmac.Verify(
-      data, base::StringPiece(kExpectedDigest, kSHA1DigestSize)));
+      data, std::string_view(kExpectedDigest, kSHA1DigestSize)));
 }

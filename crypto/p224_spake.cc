@@ -98,7 +98,7 @@ const crypto::p224::Point kN = {
 namespace crypto {
 
 P224EncryptedKeyExchange::P224EncryptedKeyExchange(
-    PeerType peer_type, const base::StringPiece& password)
+    PeerType peer_type, std::string_view password)
     : state_(kStateInitial),
       is_server_(peer_type == kPeerTypeServer) {
   memset(&x_, 0, sizeof(x_));
@@ -147,7 +147,7 @@ const std::string& P224EncryptedKeyExchange::GetNextMessage() {
 }
 
 P224EncryptedKeyExchange::Result P224EncryptedKeyExchange::ProcessMessage(
-    const base::StringPiece& message) {
+    std::string_view message) {
   if (state_ == kStateRecvHash) {
     // This is the final state of the protocol: we are reading the peer's
     // authentication hash and checking that it matches the one that we expect.

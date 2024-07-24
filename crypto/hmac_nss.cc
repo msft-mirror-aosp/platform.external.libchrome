@@ -75,7 +75,7 @@ bool HMAC::Init(const unsigned char *key, size_t key_length) {
   return true;
 }
 
-bool HMAC::Sign(const base::StringPiece& data,
+bool HMAC::Sign(std::string_view data,
                 unsigned char* digest,
                 size_t digest_length) const {
   if (!plat_->sym_key_.get()) {

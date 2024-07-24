@@ -13,13 +13,13 @@
 
 namespace crypto {
 
-void SHA256HashString(const base::StringPiece& str, void* output, size_t len) {
+void SHA256HashString(std::string_view str, void* output, size_t len) {
   std::unique_ptr<SecureHash> ctx(SecureHash::Create(SecureHash::SHA256));
   ctx->Update(str.data(), str.length());
   ctx->Finish(output, len);
 }
 
-std::string SHA256HashString(const base::StringPiece& str) {
+std::string SHA256HashString(std::string_view str) {
   std::string output(kSHA256Length, 0);
   SHA256HashString(str, std::data(output), output.size());
   return output;
