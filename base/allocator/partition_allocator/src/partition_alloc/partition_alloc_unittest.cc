@@ -764,7 +764,7 @@ bool IsDirectMapAllocatedByRoot(uintptr_t address, PartitionRoot* root) {
   ::partition_alloc::internal::ScopedGuard locker{
       partition_alloc::internal::PartitionRootLock(root)};
 
-  partition_alloc::internal::PartitionDirectMapExtent* extent =
+  partition_alloc::internal::ReadOnlyPartitionDirectMapExtent* extent =
       root->direct_map_list;
   while (extent != nullptr) {
     uintptr_t super_page =
@@ -2606,7 +2606,6 @@ TEST_P(PartitionAllocDeathTest, SuspendTagCheckingScope) {
     GTEST_SKIP();
   }
 
-  constexpr uint64_t kCookie = 0x1234567890ABCDEF;
   constexpr uint64_t kQuarantined = 0xEFEFEFEFEFEFEFEF;
 
   // Make an arbitrary-sized small allocation.
