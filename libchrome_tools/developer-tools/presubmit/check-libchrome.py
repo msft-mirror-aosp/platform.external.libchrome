@@ -37,7 +37,9 @@ BAD_KEYWORDS = {
     # UmaHistogram functions send their metrics into the void on CrOS.
     r'(?:base::){0,1}UmaHistogram[a-zA-Z0-9]*\(': 'Chromium UmaHistogram functions don\'t work on CrOS. See crsrc.org/o/src/platform2/metrics/metrics_library.h if you want to collect metrics on CrOS.',
     # base::SupportsWeakPtr will be deprecated
-    r'base::SupportsWeakPtr': 'Deprecated base::SupportsWeakPtr.  See crbug.com/40485134 for details.'
+    r'base::SupportsWeakPtr': 'Deprecated base::SupportsWeakPtr.  See crbug.com/40485134 for details.',
+    r'NOTREACHED_IN_MIGRATION\(':
+    'CrOS libchrome NOTREACHED migration, do NOT use NOTREACHED_IN_MIGRATION. Use NOTREACHED which is now fatal and [[noreturn]]. See b/356312475',
 }
 
 LINE_NUMBER_RE=re.compile(r'^@@ [0-9\,\+\-]+ \+([0-9]+)[ \,][0-9 ]*@@')
