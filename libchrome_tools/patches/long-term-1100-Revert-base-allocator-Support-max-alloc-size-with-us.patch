@@ -16,11 +16,11 @@ This partially reverts commit e558947377db0b8e4f66687fd3c272ab6c34963e
 patch-name: long-term-1100-Revert-base-allocator-Support-max-alloc-size-with-us.patch
 Change-Id: If83feeb40d469d4f91e5f13255b96d5a986a459a
 ---
- ...llocator_shim_default_dispatch_to_glibc.cc | 51 +------------------
- 1 file changed, 2 insertions(+), 49 deletions(-)
+ ...llocator_shim_default_dispatch_to_glibc.cc | 46 +------------------
+ 1 file changed, 2 insertions(+), 44 deletions(-)
 
 diff --git a/base/allocator/partition_allocator/src/partition_alloc/shim/allocator_shim_default_dispatch_to_glibc.cc b/base/allocator/partition_allocator/src/partition_alloc/shim/allocator_shim_default_dispatch_to_glibc.cc
-index 41c532544b..df219fe16b 100644
+index 699d98da76..bdcf15e6ca 100644
 --- a/base/allocator/partition_allocator/src/partition_alloc/shim/allocator_shim_default_dispatch_to_glibc.cc
 +++ b/base/allocator/partition_allocator/src/partition_alloc/shim/allocator_shim_default_dispatch_to_glibc.cc
 @@ -2,8 +2,6 @@
@@ -32,7 +32,7 @@ index 41c532544b..df219fe16b 100644
  #include "partition_alloc/oom.h"
  #include "partition_alloc/partition_alloc_base/compiler_specific.h"
  #include "partition_alloc/partition_alloc_base/numerics/checked_math.h"
-@@ -28,28 +26,7 @@ namespace {
+@@ -28,59 +26,19 @@ namespace {
  
  using allocator_shim::AllocatorDispatch;
  
@@ -41,72 +41,58 @@ index 41c532544b..df219fe16b 100644
 -// most platforms), and tests expect that.
 -constexpr size_t kMaxAllowedSize = std::numeric_limits<int>::max() - (1 << 12);
 -
- void* GlibcMalloc(const AllocatorDispatch*, size_t size, void* context) {
+ void* GlibcMalloc(size_t size, void* context) {
 -  // Cannot force glibc's malloc() to crash when a large size is requested, do
 -  // it in the shim instead.
--  if (PA_UNLIKELY(size >= kMaxAllowedSize)) {
+-  if (size >= kMaxAllowedSize) [[unlikely]] {
 -    partition_alloc::TerminateBecauseOutOfMemory(size);
 -  }
 -
 -  return __libc_malloc(size);
 -}
 -
--void* GlibcUncheckedMalloc(const AllocatorDispatch*,
--                           size_t size,
--                           void* context) {
--  if (PA_UNLIKELY(size >= kMaxAllowedSize)) {
+-void* GlibcUncheckedMalloc(size_t size, void* context) {
+-  if (size >= kMaxAllowedSize) [[unlikely]] {
 -    return nullptr;
 -  }
 -
    return __libc_malloc(size);
  }
  
-@@ -57,11 +34,6 @@ void* GlibcCalloc(const AllocatorDispatch*,
-                   size_t n,
-                   size_t size,
-                   void* context) {
+ void* GlibcCalloc(size_t n, size_t size, void* context) {
 -  const auto total = partition_alloc::internal::base::CheckMul(n, size);
--  if (PA_UNLIKELY(!total.IsValid() || total.ValueOrDie() >= kMaxAllowedSize)) {
+-  if (!total.IsValid() || total.ValueOrDie() >= kMaxAllowedSize) [[unlikely]] {
 -    partition_alloc::TerminateBecauseOutOfMemory(size * n);
 -  }
 -
    return __libc_calloc(n, size);
  }
  
-@@ -69,21 +41,6 @@ void* GlibcRealloc(const AllocatorDispatch*,
-                    void* address,
-                    size_t size,
-                    void* context) {
--  if (PA_UNLIKELY(size >= kMaxAllowedSize)) {
+ void* GlibcRealloc(void* address, size_t size, void* context) {
+-  if (size >= kMaxAllowedSize) [[unlikely]] {
 -    partition_alloc::TerminateBecauseOutOfMemory(size);
 -  }
 -
 -  return __libc_realloc(address, size);
 -}
 -
--void* GlibcUncheckedRealloc(const AllocatorDispatch*,
--                            void* address,
--                            size_t size,
--                            void* context) {
--  if (PA_UNLIKELY(size >= kMaxAllowedSize)) {
+-void* GlibcUncheckedRealloc(void* address, size_t size, void* context) {
+-  if (size >= kMaxAllowedSize) [[unlikely]] {
 -    return nullptr;
 -  }
 -
    return __libc_realloc(address, size);
  }
  
-@@ -91,10 +48,6 @@ void* GlibcMemalign(const AllocatorDispatch*,
-                     size_t alignment,
-                     size_t size,
-                     void* context) {
--  if (PA_UNLIKELY(size >= kMaxAllowedSize)) {
+ void* GlibcMemalign(size_t alignment, size_t size, void* context) {
+-  if (size >= kMaxAllowedSize) [[unlikely]] {
 -    partition_alloc::TerminateBecauseOutOfMemory(size);
 -  }
 -
    return __libc_memalign(alignment, size);
  }
  
-@@ -122,11 +75,11 @@ size_t GlibcGetSizeEstimate(const AllocatorDispatch*,
+@@ -106,11 +64,11 @@ size_t GlibcGetSizeEstimate(void* address, void* context) {
  
  const AllocatorDispatch AllocatorDispatch::default_dispatch = {
      &GlibcMalloc,           /* alloc_function */
@@ -121,5 +107,5 @@ index 41c532544b..df219fe16b 100644
      &GlibcGetSizeEstimate,  /* get_size_estimate_function */
      nullptr,                /* good_size_function */
 -- 
-2.45.2.803.g4e1b14247a-goog
+2.46.0.76.ge559c4bf1a-goog
 
