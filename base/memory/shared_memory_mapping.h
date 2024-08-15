@@ -5,44 +5,20 @@
 #ifndef BASE_MEMORY_SHARED_MEMORY_MAPPING_H_
 #define BASE_MEMORY_SHARED_MEMORY_MAPPING_H_
 
-#include <atomic>
 #include <cstddef>
-#include <type_traits>
 
 #include "base/base_export.h"
 #include "base/check.h"
 #include "base/containers/span.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/shared_memory_mapper.h"
+#include "base/memory/shared_memory_safety_checker.h"
 #include "base/unguessable_token.h"
 
 namespace base {
 
 namespace subtle {
-
 class PlatformSharedMemoryRegion;
-
-// Constraints on types that are safe to copy across memory spaces.
-
-template <typename T>
-struct LockFreeIfAtomic {
-  // Non-atomics aren't synchronized, so trivially don't contain locks.
-  static constexpr bool is_lock_free = true;
-};
-
-template <typename T>
-struct LockFreeIfAtomic<std::atomic<T>> {
-  static constexpr bool is_lock_free = std::atomic<T>::is_always_lock_free;
-};
-
-template <typename T>
-concept SharedMemorySafe =
-    // Copying non-trivially-copyable object across memory spaces is dangerous.
-    std::is_trivially_copyable_v<T> &&
-    // If T is a std::atomic, it's unsafe to share across memory spaces unless
-    // it's lock-free.
-    LockFreeIfAtomic<T>::is_lock_free;
-
 }  // namespace subtle
 
 // Base class for scoped handles to a shared memory mapping created from a
@@ -147,7 +123,7 @@ class BASE_EXPORT ReadOnlySharedMemoryMapping : public SharedMemoryMapping {
   // Returns a pointer to a page-aligned const T if the mapping is valid and
   // large enough to contain a T, or nullptr otherwise.
   template <typename T>
-    requires subtle::SharedMemorySafe<T>
+    requires subtle::AllowedOverSharedMemory<T>
   const T* GetMemoryAs() const {
     if (!IsValid())
       return nullptr;
@@ -163,7 +139,7 @@ class BASE_EXPORT ReadOnlySharedMemoryMapping : public SharedMemoryMapping {
   // will be returned. The first element, if any, is guaranteed to be
   // page-aligned.
   template <typename T>
-    requires subtle::SharedMemorySafe<T>
+    requires subtle::AllowedOverSharedMemory<T>
   span<const T> GetMemoryAsSpan() const {
     if (!IsValid())
       return span<const T>();
@@ -175,7 +151,7 @@ class BASE_EXPORT ReadOnlySharedMemoryMapping : public SharedMemoryMapping {
   // large enough to contain |count| elements, or an empty span otherwise. The
   // first element, if any, is guaranteed to be page-aligned.
   template <typename T>
-    requires subtle::SharedMemorySafe<T>
+    requires subtle::AllowedOverSharedMemory<T>
   span<const T> GetMemoryAsSpan(size_t count) const {
     if (!IsValid())
       return span<const T>();
@@ -231,7 +207,7 @@ class BASE_EXPORT WritableSharedMemoryMapping : public SharedMemoryMapping {
   // Returns a pointer to a page-aligned T if the mapping is valid and large
   // enough to contain a T, or nullptr otherwise.
   template <typename T>
-    requires subtle::SharedMemorySafe<T>
+    requires subtle::AllowedOverSharedMemory<T>
   T* GetMemoryAs() const {
     if (!IsValid())
       return nullptr;
@@ -246,7 +222,7 @@ class BASE_EXPORT WritableSharedMemoryMapping : public SharedMemoryMapping {
   // enough to contain even one T: in that case, an empty span will be returned.
   // The first element, if any, is guaranteed to be page-aligned.
   template <typename T>
-    requires subtle::SharedMemorySafe<T>
+    requires subtle::AllowedOverSharedMemory<T>
   span<T> GetMemoryAsSpan() const {
     if (!IsValid())
       return span<T>();
@@ -258,7 +234,7 @@ class BASE_EXPORT WritableSharedMemoryMapping : public SharedMemoryMapping {
   // enough to contain |count| elements, or an empty span otherwise. The first
   // element, if any, is guaranteed to be page-aligned.
   template <typename T>
-    requires subtle::SharedMemorySafe<T>
+    requires subtle::AllowedOverSharedMemory<T>
   span<T> GetMemoryAsSpan(size_t count) const {
     if (!IsValid())
       return span<T>();
