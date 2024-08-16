@@ -97,7 +97,7 @@ RSAPrivateKey* RSAPrivateKey::CreateFromKey(SECKEYPrivateKey* key) {
   copy->key_ = SECKEY_CopyPrivateKey(key);
   copy->public_key_ = SECKEY_ConvertToPublicKey(key);
   if (!copy->key_ || !copy->public_key_) {
-    NOTREACHED();
+    NOTREACHED_IN_MIGRATION();
     delete copy;
     return NULL;
   }
