@@ -356,7 +356,10 @@ buildflag_header("message_pump_buildflags") {
 
 buildflag_header("mojo_buildflags") {
   header = "mojo/buildflags.h"
-  flags = [ "MOJO_USE_APPLE_CHANNEL=false" ]
+  flags = [
+    "MOJO_USE_APPLE_CHANNEL=false",
+    "MOJO_SUPPORT_LEGACY_CORE=true",
+  ]
 }
 
 buildflag_header("mojo_cpp_bindings_buildflags") {
@@ -689,7 +692,6 @@ libbase_sublibs = [
       "base/task/thread_pool/pooled_single_thread_task_runner_manager.cc",
       "base/task/thread_pool/pooled_task_runner_delegate.cc",
       "base/task/thread_pool/priority_queue.cc",
-      "base/task/thread_pool/semaphore/semaphore_posix.cc",
       "base/task/thread_pool/sequence.cc",
       "base/task/thread_pool/service_thread.cc",
       "base/task/thread_pool/task.cc",
@@ -698,12 +700,10 @@ libbase_sublibs = [
       "base/task/thread_pool/task_tracker.cc",
       "base/task/thread_pool/thread_group.cc",
       "base/task/thread_pool/thread_group_impl.cc",
-      "base/task/thread_pool/thread_group_semaphore.cc",
       "base/task/thread_pool/thread_group_worker_delegate.cc",
       "base/task/thread_pool/thread_pool_impl.cc",
       "base/task/thread_pool/thread_pool_instance.cc",
       "base/task/thread_pool/worker_thread.cc",
-      "base/task/thread_pool/worker_thread_semaphore.cc",
       "base/task/thread_pool/worker_thread_set.cc",
       "base/task/thread_pool/worker_thread_waitable_event.cc",
       "base/third_party/cityhash/city.cc",
@@ -1229,7 +1229,6 @@ if (use.mojo) {
           "mojo/core/ipcz_driver/transport.cc",
           "mojo/core/ipcz_driver/wrapped_platform_handle.cc",
           "mojo/core/message_pipe_dispatcher.cc",
-          "mojo/core/mojo_core.cc",
           "mojo/core/node_channel.cc",
           "mojo/core/node_controller.cc",
           "mojo/core/platform_handle_dispatcher.cc",
