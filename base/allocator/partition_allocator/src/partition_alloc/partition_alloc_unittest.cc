@@ -745,7 +745,8 @@ class MockPartitionStatsDumper : public PartitionStatsDumper {
 // Regarding IsManagedByDirectMap(), this rarely happens because of allocation
 // size. But we should also check who allocates the memory.
 bool IsNormalBucketsAllocatedByRoot(uintptr_t address, PartitionRoot* root) {
-  partition_alloc::internal::ReadOnlyPartitionSuperPageExtentEntry* extent =
+  partition_alloc::internal::PartitionSuperPageExtentEntry<
+      partition_alloc::internal::MetadataKind::kReadOnly>* extent =
       root->first_extent;
   while (extent != nullptr) {
     uintptr_t super_page =
@@ -764,7 +765,8 @@ bool IsDirectMapAllocatedByRoot(uintptr_t address, PartitionRoot* root) {
   ::partition_alloc::internal::ScopedGuard locker{
       partition_alloc::internal::PartitionRootLock(root)};
 
-  partition_alloc::internal::ReadOnlyPartitionDirectMapExtent* extent =
+  partition_alloc::internal::PartitionDirectMapExtent<
+      partition_alloc::internal::MetadataKind::kReadOnly>* extent =
       root->direct_map_list;
   while (extent != nullptr) {
     uintptr_t super_page =
@@ -4354,7 +4356,7 @@ TEST_P(PartitionAllocTest, RefCountBasic) {
   // doesn't equal zero.
   uint64_t* ptr2 =
       static_cast<uint64_t*>(allocator.root()->Alloc(alloc_size, type_name));
-  EXPECT_NE(ptr1, ptr2);
+  PA_EXPECT_PTR_NE(ptr1, ptr2);
   allocator.root()->Free(ptr2);
 
   // When the last reference is released, the slot should become reusable.
@@ -4365,7 +4367,7 @@ TEST_P(PartitionAllocTest, RefCountBasic) {
   PartitionAllocFreeForRefCounting(allocator.root()->ObjectToSlotStart(ptr1));
   uint64_t* ptr3 =
       static_cast<uint64_t*>(allocator.root()->Alloc(alloc_size, type_name));
-  EXPECT_EQ(ptr1, ptr3);
+  PA_EXPECT_PTR_EQ(ptr1, ptr3);
   allocator.root()->Free(ptr3);
 }
 

@@ -229,28 +229,19 @@ class TypeScriptStylizer(generator.Stylizer):
 class Generator(generator.Generator):
   def _GetParameters(self):
     return {
-        "bindings_library_path":
-        self._GetBindingsLibraryPath(),
-        "enums":
-        self.module.enums,
-        "for_bindings_internals":
-        self.disallow_native_types,
-        "interfaces":
-        self.module.interfaces,
-        "js_module_imports":
-        self._GetJsModuleImports(),
-        "kinds":
-        self.module.kinds,
-        "module":
-        self.module,
-        "mojom_namespace":
-        self.module.mojom_namespace,
-        "structs":
-        self.module.structs + self._GetStructsFromMethods(),
-        "unions":
-        self.module.unions,
-        "generate_struct_deserializers":
-        self.js_generate_struct_deserializers,
+        "bindings_library_path": self._GetBindingsLibraryPath(),
+        "enums": self.module.enums,
+        "for_bindings_internals": self.disallow_native_types,
+        "interfaces": self.module.interfaces,
+        "js_module_imports": self._GetJsModuleImports(),
+        "kinds": self.module.kinds,
+        "module": self.module,
+        "module_filename": self._GetModuleFilename(filetype='js'),
+        "mojom_namespace": self.module.mojom_namespace,
+        "structs": self.module.structs + self._GetStructsFromMethods(),
+        "unions": self.module.unions,
+        "generate_struct_deserializers": self.js_generate_struct_deserializers,
+        "typemapped_structs": self._TypeMappedStructs(),
     }
 
   @staticmethod
@@ -274,9 +265,16 @@ class Generator(generator.Generator):
     }
     return ts_filters
 
+  @UseJinja("converter_interface_declarations.tmpl")
+  def _GenerateConverterInterfaces(self):
+    return self._GetParameters()
+
   @UseJinja("module_definition.tmpl")
   def _GenerateWebUiModule(self):
     return self._GetParameters()
+
+  def _GetModuleFilename(self, filetype='ts'):
+    return f"{self.module.path}-webui.{filetype}"
 
   def GenerateFiles(self, args):
     if self.variant:
@@ -284,14 +282,17 @@ class Generator(generator.Generator):
 
     self.module.Stylize(TypeScriptStylizer())
 
-    # TODO(crbug.com/41361453): Change the media router extension to not mess with
-    # the mojo namespace, so that namespaces such as "mojo.common.mojom" are not
-    # affected and we can remove this method.
+    # TODO(crbug.com/41361453): Change the media router extension to not mess
+    # with the mojo namespace, so that namespaces such as "mojo.common.mojom"
+    # are not affected and we can remove this method.
     self._SetUniqueNameForImports()
 
     assert(_GetWebUiModulePath(self.module) is not None)
     self.WriteWithComment(self._GenerateWebUiModule(),
-                          "%s-webui.ts" % self.module.path)
+                          self._GetModuleFilename())
+    self.WriteWithComment(self._GenerateConverterInterfaces(),
+                          "%s-converters.ts" % self.module.path)
+
 
   def _GetBindingsLibraryPath(self):
     return "//resources/mojo/mojo/public/js/bindings.js"
@@ -663,3 +664,13 @@ class Generator(generator.Generator):
 
   def _IsPrimitiveKind(self, kind):
     return kind in mojom.PRIMITIVES
+
+  def _TypeMappedStructs(self):
+    if len(self.typemap) == 0:
+      return []
+
+    mapped_structs = []
+    for struct in self.module.structs:
+      if struct.qualified_name in self.typemap:
+        mapped_structs.append(struct)
+    return mapped_structs
