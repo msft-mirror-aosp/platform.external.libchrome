@@ -150,13 +150,6 @@
 #define PRINTF_FORMAT(format_param, dots_param)
 #endif
 
-// WPRINTF_FORMAT is the same, but for wide format strings.
-// This doesn't appear to yet be implemented in any compiler.
-// See http://gcc.gnu.org/bugzilla/show_bug.cgi?id=38308 .
-#define WPRINTF_FORMAT(format_param, dots_param)
-// If available, it would look like:
-//   __attribute__((format(wprintf, format_param, dots_param)))
-
 // Sanitizers annotations.
 #if HAS_ATTRIBUTE(no_sanitize)
 #define NO_SANITIZE(what) __attribute__((no_sanitize(what)))
@@ -223,32 +216,6 @@
 #if !defined(DISABLE_CFI_DLSYM)
 #define DISABLE_CFI_DLSYM
 #endif
-
-// Macro useful for writing cross-platform function pointers.
-#if !defined(CDECL)
-#if BUILDFLAG(IS_WIN)
-#define CDECL __cdecl
-#else  // BUILDFLAG(IS_WIN)
-#define CDECL
-#endif  // BUILDFLAG(IS_WIN)
-#endif  // !defined(CDECL)
-
-// Macro for hinting that an expression is likely to be false.
-#if !defined(UNLIKELY)
-#if defined(COMPILER_GCC) || defined(__clang__)
-#define UNLIKELY(x) __builtin_expect(!!(x), 0)
-#else
-#define UNLIKELY(x) (x)
-#endif  // defined(COMPILER_GCC)
-#endif  // !defined(UNLIKELY)
-
-#if !defined(LIKELY)
-#if defined(COMPILER_GCC) || defined(__clang__)
-#define LIKELY(x) __builtin_expect(!!(x), 1)
-#else
-#define LIKELY(x) (x)
-#endif  // defined(COMPILER_GCC)
-#endif  // !defined(LIKELY)
 
 // Compiler feature-detection.
 // clang.llvm.org/docs/LanguageExtensions.html#has-feature-and-has-extension
