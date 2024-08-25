@@ -11,6 +11,7 @@ import os
 import sys
 import urllib.request
 from mojom.generate.template_expander import UseJinja
+from pathlib import Path
 
 _kind_to_javascript_default_value = {
     mojom.BOOL: "false",
@@ -236,7 +237,9 @@ class Generator(generator.Generator):
         "js_module_imports": self._GetJsModuleImports(),
         "kinds": self.module.kinds,
         "module": self.module,
-        "module_filename": self._GetModuleFilename(filetype='js'),
+        "module_filename": Path(self._GetModuleFilename(filetype='js')).name,
+        "converters_filename":
+        Path(self._GetConvertersFilename(filetype='js')).name,
         "mojom_namespace": self.module.mojom_namespace,
         "structs": self.module.structs + self._GetStructsFromMethods(),
         "unions": self.module.unions,
@@ -276,6 +279,9 @@ class Generator(generator.Generator):
   def _GetModuleFilename(self, filetype='ts'):
     return f"{self.module.path}-webui.{filetype}"
 
+  def _GetConvertersFilename(self, filetype='ts'):
+    return f"{self.module.path}-converters.{filetype}"
+
   def GenerateFiles(self, args):
     if self.variant:
       raise Exception("Variants not supported in JavaScript bindings.")
@@ -291,7 +297,7 @@ class Generator(generator.Generator):
     self.WriteWithComment(self._GenerateWebUiModule(),
                           self._GetModuleFilename())
     self.WriteWithComment(self._GenerateConverterInterfaces(),
-                          "%s-converters.ts" % self.module.path)
+                          self._GetConvertersFilename())
 
 
   def _GetBindingsLibraryPath(self):
@@ -667,10 +673,10 @@ class Generator(generator.Generator):
 
   def _TypeMappedStructs(self):
     if len(self.typemap) == 0:
-      return []
+      return {}
 
-    mapped_structs = []
+    mapped_structs = {}
     for struct in self.module.structs:
       if struct.qualified_name in self.typemap:
-        mapped_structs.append(struct)
+        mapped_structs[struct] = self.typemap[struct.qualified_name]
     return mapped_structs
