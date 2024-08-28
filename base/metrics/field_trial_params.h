@@ -92,6 +92,14 @@ BASE_EXPORT std::string GetFieldTrialParamValueByFeature(
     const base::Feature& feature,
     const std::string& param_name);
 
+// Same as GetFieldTrialParamValueByFeature(). But internally relies on
+// GetFieldTrialParamsByFeature to handle empty values in the map, and returns
+// |default_value| only if |param_name| is not found in the map.
+BASE_EXPORT std::string GetFieldTrialParamByFeatureAsString(
+    const base::Feature& feature,
+    const std::string& param_name,
+    const std::string& default_value);
+
 // Same as GetFieldTrialParamValueByFeature(). On top of that, it converts the
 // string value into an int using base::StringToInt() and returns it, if
 // successful. Otherwise, it returns |default_value|. If the string value is not
@@ -133,6 +141,7 @@ BASE_EXPORT base::TimeDelta GetFieldTrialParamByFeatureAsTimeDelta(
 // This template is defined for the following types T:
 //   bool
 //   int
+//   size_t
 //   double
 //   std::string
 //   enum types
@@ -242,6 +251,38 @@ struct FeatureParam<int> {
   const char* const name;
   const int default_value;
   int (*const cache_getter)(const FeatureParam<int>*);
+};
+
+// Declares a size_t-valued parameter. Example:
+//
+//     constexpr FeatureParam<size_t> kAssistantParallelism = {
+//         &kAssistantFeature, "parallelism", 4u};
+//
+// If the feature is not enabled, the parameter is not set, or set to an invalid
+// size_t value, then Get() will return the default value. Overflow and
+// underflow will be checked via base::checked_cast<size_t>().
+template <>
+struct FeatureParam<size_t> {
+  constexpr FeatureParam(
+      const Feature* feature,
+      const char* name,
+      size_t default_value,
+      size_t (*cache_getter)(const FeatureParam<size_t>*) = nullptr)
+      : feature(feature),
+        name(name),
+        default_value(default_value),
+        cache_getter(cache_getter) {}
+
+  // Calling Get() or GetWithoutCache() will activate the field trial associated
+  // with |feature|. See GetFieldTrialParamValueByFeature() for more details.
+  BASE_EXPORT size_t Get() const;
+  BASE_EXPORT size_t GetWithoutCache() const;
+
+  // RAW_PTR_EXCLUSION: #global-scope
+  RAW_PTR_EXCLUSION const Feature* const feature;
+  const char* const name;
+  const size_t default_value;
+  size_t (*const cache_getter)(const FeatureParam<size_t>*);
 };
 
 // Declares a bool-valued parameter. Example:
@@ -393,8 +434,7 @@ struct FeatureParam<Enum, true> {
       if (value == options[i].value)
         return options[i].name;
     }
-    NOTREACHED_IN_MIGRATION();
-    return "";
+    NOTREACHED();
   }
 
   // RAW_PTR_EXCLUSION: #global-scope
