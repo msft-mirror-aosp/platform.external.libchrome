@@ -498,6 +498,7 @@ libbase_sublibs = [
       "base/files/scoped_file.cc",
       "base/files/scoped_file_linux.cc",
       "base/files/scoped_temp_dir.cc",
+      "base/files/scoped_temp_file.cc",
       "base/functional/callback_helpers.cc",
       "base/functional/callback_internal.cc",
       "base/hash/hash.cc",
