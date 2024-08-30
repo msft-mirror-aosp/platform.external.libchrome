@@ -132,6 +132,11 @@ def main():
 
   if errors:
       print('\n'.join(errors), file=sys.stderr)
+      print('\n**Note the regex checks can sometimes return false positives, ' \
+            'for example the base::WriteFile\(.*,.*,.*\) check fails if the ' \
+            'second arg has a string_view ctor that contains a comma.  If ' \
+            'you are certain you didn\'t use deprecated APIs, --no-verify ' \
+            'may be appropriate.', file=sys.stderr)
       sys.exit(1)
 
 
