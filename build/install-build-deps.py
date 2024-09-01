@@ -649,7 +649,6 @@ def nacl_list(options):
 
   packages = [
       "g++-mingw-w64-i686",
-      "lib32ncurses5-dev",
       "lib32z1-dev",
       "libasound2:i386",
       "libcap2:i386",
@@ -696,6 +695,14 @@ def nacl_list(options):
 
   print("Including NaCl, NaCl toolchain, NaCl ports dependencies.",
         file=sys.stderr)
+
+  # Prefer lib32ncurses5-dev to match libncurses5:i386 if it exists.
+  # In some Ubuntu releases, lib32ncurses5-dev is a transition package to
+  # lib32ncurses-dev, so use that as a fallback.
+  if package_exists("lib32ncurses5-dev"):
+    packages.append("lib32ncurses5-dev")
+  else:
+    packages.append("lib32ncurses-dev")
 
   return packages
 
@@ -840,7 +847,7 @@ def install_packages(options):
     packages = find_missing_packages(options)
     if packages:
       quiet = ["-qq", "--assume-yes"] if options.no_prompt else []
-      subprocess.check_output(["sudo", "apt-get", "install"] + quiet + packages)
+      subprocess.check_call(["sudo", "apt-get", "install"] + quiet + packages)
       print(file=sys.stderr)
     else:
       print("No missing packages, and the packages are up to date.",
@@ -850,7 +857,6 @@ def install_packages(options):
     # An apt-get exit status of 100 indicates that a real error has occurred.
     print("`apt-get --just-print install ...` failed", file=sys.stderr)
     print("It produced the following output:", file=sys.stderr)
-    print(e.output.decode(), file=sys.stderr)
     print(file=sys.stderr)
     print("You will have to install the above packages yourself.",
           file=sys.stderr)
