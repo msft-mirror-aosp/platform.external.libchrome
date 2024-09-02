@@ -1,0 +1,125 @@
+From a93f31ab2ecbd87f93135638659b4e985c8e103d Mon Sep 17 00:00:00 2001
+From: Georg Neis <neis@chromium.org>
+Date: Tue, 3 Sep 2024 05:14:19 +0000
+Subject: [PATCH] Revert "MessagePumpEpoll: Add debug logs for a test failure
+ investigation"
+
+This reverts commit 1254da4cedc4f264a61938155da5e8b3a8cdb821.
+---
+ base/message_loop/message_pump_epoll.cc | 27 -------------------------
+ base/message_loop/message_pump_epoll.h  | 26 ------------------------
+ 2 files changed, 53 deletions(-)
+
+diff --git a/base/message_loop/message_pump_epoll.cc b/base/message_loop/message_pump_epoll.cc
+index 7b755471e3..e6db1ca0b1 100644
+--- a/base/message_loop/message_pump_epoll.cc
++++ b/base/message_loop/message_pump_epoll.cc
+@@ -24,10 +24,6 @@
+ #include "base/time/time.h"
+ #include "base/trace_event/base_tracing.h"
+ 
+-#if DCHECK_IS_ON()
+-#include <iomanip>
+-#endif
+-
+ namespace base {
+ 
+ namespace {
+@@ -317,23 +313,6 @@ void MessagePumpEpoll::AddEpollEvent(EpollEventEntry& entry) {
+   const uint32_t events = entry.ComputeActiveEvents();
+   epoll_event event{.events = events, .data = {.ptr = &entry}};
+   int rv = epoll_ctl(epoll_.get(), EPOLL_CTL_ADD, entry.fd, &event);
+-#if DCHECK_IS_ON()
+-  // TODO(361611793): Remove these debug logs after resolving the issue.
+-  if (rv != 0) {
+-    for (auto& history : entry.epoll_history_) {
+-      if (history.event) {
+-        auto& e = history.event.value();
+-        LOG(ERROR) << "events=0x" << std::hex << std::setfill('0')
+-                   << std::setw(8) << e.events;
+-        LOG(ERROR) << "data=0x" << std::hex << std::setfill('0')
+-                   << std::setw(16) << e.data.u64;
+-      }
+-      LOG(ERROR) << history.stack_trace;
+-    }
+-  } else {
+-    entry.PushEpollHistory(std::make_optional(event));
+-  }
+-#endif
+   DPCHECK(rv == 0);
+   entry.registered_events = events;
+ 
+@@ -375,9 +354,6 @@ void MessagePumpEpoll::UpdateEpollEvent(EpollEventEntry& entry) {
+     epoll_event event{.events = events, .data = {.ptr = &entry}};
+     int rv = epoll_ctl(epoll_.get(), EPOLL_CTL_MOD, entry.fd, &event);
+     DPCHECK(rv == 0);
+-#if DCHECK_IS_ON()
+-    entry.PushEpollHistory(std::make_optional(event));
+-#endif
+     entry.registered_events = events;
+ 
+     auto poll_entry = FindPollEntry(entry.fd);
+@@ -395,9 +371,6 @@ void MessagePumpEpoll::StopEpollEvent(EpollEventEntry& entry) {
+   if (!entry.stopped) {
+     int rv = epoll_ctl(epoll_.get(), EPOLL_CTL_DEL, entry.fd, nullptr);
+     DPCHECK(rv == 0);
+-#if DCHECK_IS_ON()
+-    entry.PushEpollHistory(std::nullopt);
+-#endif
+     entry.stopped = true;
+     entry.registered_events = 0;
+     RemovePollEntry(entry.fd);
+diff --git a/base/message_loop/message_pump_epoll.h b/base/message_loop/message_pump_epoll.h
+index 06735898b8..a1fbefaa9d 100644
+--- a/base/message_loop/message_pump_epoll.h
++++ b/base/message_loop/message_pump_epoll.h
+@@ -12,7 +12,6 @@
+ #include <map>
+ 
+ #include "base/base_export.h"
+-#include "base/dcheck_is_on.h"
+ #include "base/feature_list.h"
+ #include "base/files/scoped_file.h"
+ #include "base/memory/raw_ptr.h"
+@@ -25,13 +24,6 @@
+ #include "base/time/time.h"
+ #include "third_party/abseil-cpp/absl/container/inlined_vector.h"
+ 
+-#if DCHECK_IS_ON()
+-#include <deque>
+-#include <optional>
+-
+-#include "base/debug/stack_trace.h"
+-#endif
+-
+ namespace base {
+ 
+ // Use poll() rather than epoll().
+@@ -191,24 +183,6 @@ class BASE_EXPORT MessagePumpEpoll : public MessagePump,
+     // it from the epoll interest list to avoid unconditionally epoll_wait
+     // return, and prevent any future update on this `EpollEventEntry`.
+     bool stopped = false;
+-
+-#if DCHECK_IS_ON()
+-    struct EpollHistory {
+-      base::debug::StackTrace stack_trace;
+-      std::optional<epoll_event> event;
+-    };
+-    static constexpr ssize_t kEpollHistoryWindowSize = 5;
+-    std::deque<EpollHistory> epoll_history_;
+-
+-    void PushEpollHistory(std::optional<epoll_event> event) {
+-      EpollHistory info = {.stack_trace = base::debug::StackTrace(),
+-                           .event = event};
+-      epoll_history_.push_back(info);
+-      if (epoll_history_.size() > kEpollHistoryWindowSize) {
+-        epoll_history_.pop_front();
+-      }
+-    }
+-#endif
+   };
+ 
+   // State which lives on the stack within Run(), to support nested run loops.
+-- 
+2.46.0.469.g59c65b2a67-goog
+
