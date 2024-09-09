@@ -17,6 +17,9 @@ libchrome_basever = read_file("BASE_VER", "trim string")
 # Enable //base/allocator shim for non-sanitizer builds.
 use_allocator_shim = !(use.asan || use.fuzzer || use.msan || use.ubsan)
 
+# We don't require legacy Mojo Core support if ipcz is enabled.
+mojo_support_legacy_core = !use.ipcz
+
 group("all") {
   deps = [
     ":install_basever",
@@ -74,7 +77,6 @@ config("libchrome_config") {
     "USE_SYSTEM_LIBEVENT",
     "NO_TCMALLOC",
     "MOJO_BACKWARDS_COMPAT",
-    "MOJO_CORE_LEGACY_PROTOCOL",
     "BASE_USE_PERFETTO_CLIENT_LIBRARY",
     "PERFETTO_ENABLE_LEGACY_TRACE_EVENTS",
   ]
@@ -86,6 +88,11 @@ config("libchrome_config") {
   }
   if (use.ipcz) {
     defines += [ "ENABLE_IPCZ_ON_CHROMEOS" ]
+  }
+  if (mojo_support_legacy_core) {
+    defines += [
+      "MOJO_CORE_LEGACY_PROTOCOL",
+    ]
   }
 
   include_dirs = [
@@ -359,7 +366,7 @@ buildflag_header("mojo_buildflags") {
   header = "mojo/buildflags.h"
   flags = [
     "MOJO_USE_APPLE_CHANNEL=false",
-    "MOJO_SUPPORT_LEGACY_CORE=true",
+    "MOJO_SUPPORT_LEGACY_CORE=$mojo_support_legacy_core",
   ]
 }
 
@@ -1188,12 +1195,12 @@ if (use.mojo) {
       ":mojo_export_config",
       "//common-mk:visibility_default",
     ]
+
     sources =
         [
           "ipc/ipc_message.cc",
           "ipc/ipc_message_attachment_set.cc",
           "ipc/native_handle_type_converters.cc",
-          "mojo/core/atomic_flag.cc",
           "mojo/core/broker_host.cc",
           "mojo/core/broker_posix.cc",
           "mojo/core/channel.cc",
@@ -1201,18 +1208,10 @@ if (use.mojo) {
           "mojo/core/channel_posix.cc",
           "mojo/core/configuration.cc",
           "mojo/core/connection_params.cc",
-          "mojo/core/core.cc",
           "mojo/core/core_ipcz.cc",
-          "mojo/core/data_pipe_consumer_dispatcher.cc",
-          "mojo/core/data_pipe_control_message.cc",
-          "mojo/core/data_pipe_producer_dispatcher.cc",
-          "mojo/core/dispatcher.cc",
           "mojo/core/embedder/embedder.cc",
           "mojo/core/embedder/features.cc",
           "mojo/core/embedder/scoped_ipc_support.cc",
-          "mojo/core/entrypoints.cc",
-          "mojo/core/handle_table.cc",
-          "mojo/core/invitation_dispatcher.cc",
           "mojo/core/ipcz_api.cc",
           "mojo/core/ipcz_driver/base_shared_memory_service.cc",
           "mojo/core/ipcz_driver/data_pipe.cc",
@@ -1227,28 +1226,9 @@ if (use.mojo) {
           "mojo/core/ipcz_driver/transmissible_platform_handle.cc",
           "mojo/core/ipcz_driver/transport.cc",
           "mojo/core/ipcz_driver/wrapped_platform_handle.cc",
-          "mojo/core/message_pipe_dispatcher.cc",
-          "mojo/core/node_channel.cc",
-          "mojo/core/node_controller.cc",
-          "mojo/core/platform_handle_dispatcher.cc",
           "mojo/core/platform_handle_in_transit.cc",
           "mojo/core/platform_handle_utils.cc",
-          "mojo/core/platform_shared_memory_mapping.cc",
-          "mojo/core/ports/event.cc",
-          "mojo/core/ports/message_queue.cc",
-          "mojo/core/ports/name.cc",
-          "mojo/core/ports/node.cc",
-          "mojo/core/ports/port.cc",
-          "mojo/core/ports/port_locker.cc",
-          "mojo/core/ports/port_ref.cc",
-          "mojo/core/ports/user_message.cc",
-          "mojo/core/request_context.cc",
           "mojo/core/scoped_ipcz_handle.cc",
-          "mojo/core/shared_buffer_dispatcher.cc",
-          "mojo/core/user_message_impl.cc",
-          "mojo/core/watch.cc",
-          "mojo/core/watcher_dispatcher.cc",
-          "mojo/core/watcher_set.cc",
           "mojo/public/c/system/thunks.cc",
           "mojo/public/cpp/bindings/async_flusher.cc",
           "mojo/public/cpp/bindings/connection_group.cc",
@@ -1314,6 +1294,39 @@ if (use.mojo) {
       "third_party/ipcz/include",
       "third_party/ipcz/src",
     ]
+
+    if (mojo_support_legacy_core) {
+      sources += [
+        "mojo/core/atomic_flag.cc",
+        "mojo/core/core.cc",
+        "mojo/core/data_pipe_consumer_dispatcher.cc",
+        "mojo/core/data_pipe_control_message.cc",
+        "mojo/core/data_pipe_producer_dispatcher.cc",
+        "mojo/core/dispatcher.cc",
+        "mojo/core/entrypoints.cc",
+        "mojo/core/handle_table.cc",
+        "mojo/core/invitation_dispatcher.cc",
+        "mojo/core/message_pipe_dispatcher.cc",
+        "mojo/core/node_channel.cc",
+        "mojo/core/node_controller.cc",
+        "mojo/core/platform_handle_dispatcher.cc",
+        "mojo/core/platform_shared_memory_mapping.cc",
+        "mojo/core/request_context.cc",
+        "mojo/core/shared_buffer_dispatcher.cc",
+        "mojo/core/user_message_impl.cc",
+        "mojo/core/watch.cc",
+        "mojo/core/watcher_dispatcher.cc",
+        "mojo/core/watcher_set.cc",
+        "mojo/core/ports/event.cc",
+        "mojo/core/ports/message_queue.cc",
+        "mojo/core/ports/name.cc",
+        "mojo/core/ports/node.cc",
+        "mojo/core/ports/port.cc",
+        "mojo/core/ports/port_locker.cc",
+        "mojo/core/ports/port_ref.cc",
+        "mojo/core/ports/user_message.cc",
+      ]
+    }
 
     if (use.ipcz) {
       configs += [ ":mojo-ipcz-pkg-config" ]
