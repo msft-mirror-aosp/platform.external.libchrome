@@ -1,0 +1,43 @@
+From 6789edae23d883ab24bf5dc0f3c6aab8376d068a Mon Sep 17 00:00:00 2001
+From: Ren-Pei Zeng <kamesan@google.com>
+Date: Mon, 16 Sep 2024 08:47:31 +0000
+Subject: [PATCH] Allow StringPrintf with non-constexpr format string
+
+Change-Id: I26f173619e76d5398ed80ad63da94d23cbc940a5
+---
+ base/strings/stringprintf.cc | 2 +-
+ base/strings/stringprintf.h  | 5 +----
+ 2 files changed, 2 insertions(+), 5 deletions(-)
+
+diff --git a/base/strings/stringprintf.cc b/base/strings/stringprintf.cc
+index bbbf78e3af..9d9e4d3860 100644
+--- a/base/strings/stringprintf.cc
++++ b/base/strings/stringprintf.cc
+@@ -23,7 +23,7 @@ namespace base {
+ // an unresolved symbol). The message need not match; anything put there will
+ // only affect calls that see this definition instead of just the declaration,
+ // i.e. calls within this file (i.e. none).
+-std::string StringPrintf(const char* format, ...) ENABLE_IF_ATTR(!!format, "") {
++std::string StringPrintf(const char* format, ...) {
+   va_list ap;
+   va_start(ap, format);
+   absl::Cleanup end_list = [&] { va_end(ap); };
+diff --git a/base/strings/stringprintf.h b/base/strings/stringprintf.h
+index 0c3d3c33c8..df218e755a 100644
+--- a/base/strings/stringprintf.h
++++ b/base/strings/stringprintf.h
+@@ -20,10 +20,7 @@ namespace base {
+ // TODO(crbug.com/40241565): Implement in terms of `std::format()`,
+ // `absl::StrFormat()`, or similar.
+ [[nodiscard]] PRINTF_FORMAT(1, 2) BASE_EXPORT std::string
+-    StringPrintf(const char* format, ...)
+-        ENABLE_IF_ATTR(!!format,
+-                       "Make format string constexpr; use "
+-                       "StringPrintfNonConstexpr() if that's impossible");
++    StringPrintf(const char* format, ...);
+ 
+ #if HAS_ATTRIBUTE(enable_if)
+ // Returns a C++ string given `printf()`-like input. The format string must be a
+-- 
+2.46.0.662.g92d0881bb0-goog
+
