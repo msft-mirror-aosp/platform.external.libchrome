@@ -1,43 +1,74 @@
-From 6789edae23d883ab24bf5dc0f3c6aab8376d068a Mon Sep 17 00:00:00 2001
+From 7450d6f4c9c3a576ded56c19490690bbf10d4a01 Mon Sep 17 00:00:00 2001
 From: Ren-Pei Zeng <kamesan@google.com>
 Date: Mon, 16 Sep 2024 08:47:31 +0000
 Subject: [PATCH] Allow StringPrintf with non-constexpr format string
 
 Change-Id: I26f173619e76d5398ed80ad63da94d23cbc940a5
 ---
- base/strings/stringprintf.cc | 2 +-
- base/strings/stringprintf.h  | 5 +----
- 2 files changed, 2 insertions(+), 5 deletions(-)
+ base/strings/stringprintf.cc | 23 +++++++++++++++++++++++
+ base/strings/stringprintf.h  | 12 +++++-------
+ 2 files changed, 28 insertions(+), 7 deletions(-)
 
 diff --git a/base/strings/stringprintf.cc b/base/strings/stringprintf.cc
-index bbbf78e3af..9d9e4d3860 100644
+index 0aa55580ff..d517c30825 100644
 --- a/base/strings/stringprintf.cc
 +++ b/base/strings/stringprintf.cc
-@@ -23,7 +23,7 @@ namespace base {
- // an unresolved symbol). The message need not match; anything put there will
- // only affect calls that see this definition instead of just the declaration,
- // i.e. calls within this file (i.e. none).
--std::string StringPrintf(const char* format, ...) ENABLE_IF_ATTR(!!format, "") {
+@@ -13,9 +13,32 @@
+ #include "base/scoped_clear_last_error.h"
+ #include "base/strings/string_util.h"
+ #include "build/build_config.h"
++#include "third_party/abseil-cpp/absl/cleanup/cleanup.h"
+ 
+ namespace base {
+ 
++// `ENABLE_IF_ATTR()` is part of the function signature, so at least that
++// annotation, with a matching condition to the declaration, must be present, or
++// this would be considered a distinct overload (and other components will get
++// an unresolved symbol). The message need not match; anything put there will
++// only affect calls that see this definition instead of just the declaration,
++// i.e. calls within this file (i.e. none).
 +std::string StringPrintf(const char* format, ...) {
-   va_list ap;
-   va_start(ap, format);
-   absl::Cleanup end_list = [&] { va_end(ap); };
++  va_list ap;
++  va_start(ap, format);
++  absl::Cleanup end_list = [&] { va_end(ap); };
++  return StringPrintV(format, ap);
++}
++
++#if HAS_ATTRIBUTE(enable_if)
++std::string StringPrintfNonConstexpr(const char* format, ...) {
++  va_list ap;
++  va_start(ap, format);
++  absl::Cleanup end_list = [&] { va_end(ap); };
++  return StringPrintV(format, ap);
++}
++#endif
++
+ std::string StringPrintV(const char* format, va_list ap) {
+   std::string result;
+   StringAppendV(&result, format, ap);
 diff --git a/base/strings/stringprintf.h b/base/strings/stringprintf.h
-index 0c3d3c33c8..df218e755a 100644
+index 7de6f91611..519042de61 100644
 --- a/base/strings/stringprintf.h
 +++ b/base/strings/stringprintf.h
-@@ -20,10 +20,7 @@ namespace base {
- // TODO(crbug.com/40241565): Implement in terms of `std::format()`,
- // `absl::StrFormat()`, or similar.
- [[nodiscard]] PRINTF_FORMAT(1, 2) BASE_EXPORT std::string
--    StringPrintf(const char* format, ...)
--        ENABLE_IF_ATTR(!!format,
--                       "Make format string constexpr; use "
--                       "StringPrintfNonConstexpr() if that's impossible");
-+    StringPrintf(const char* format, ...);
+@@ -19,13 +19,11 @@ namespace base {
  
- #if HAS_ATTRIBUTE(enable_if)
  // Returns a C++ string given `printf()`-like input. The format string must be a
+ // compile-time constant (like with `std::format()`), or this will not compile.
+-// TODO(crbug.com/40241565): Replace calls to this with direct calls to
+-// `absl::StrFormat()` and remove.
+-template <typename... Args>
+-[[nodiscard]] std::string StringPrintf(const absl::FormatSpec<Args...>& format,
+-                                       const Args&... args) {
+-  return absl::StrFormat(format, args...);
+-}
++// TODO(crbug.com/40241565): Implement in terms of `std::format()`,
++// `absl::StrFormat()`, or similar.
++[[nodiscard]] PRINTF_FORMAT(1, 2) BASE_EXPORT std::string
++    StringPrintf(const char* format, ...);
++
+ // Returns a C++ string given `printf()`-like input. The format string must be a
+ // run-time value (like with `std::vformat()`), or this will not compile.
+ // Because this does not check arguments at compile-time, prefer
 -- 
-2.46.0.662.g92d0881bb0-goog
+2.46.1.824.gd892dcdcdd-goog
 

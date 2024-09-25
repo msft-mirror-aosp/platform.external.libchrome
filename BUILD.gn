@@ -1027,6 +1027,7 @@ generate_pkg_config("libchrome") {
   deps = [ ":base" ]
   description = "chrome base library"
   version = "${libchrome_basever}"
+  requires = [ "absl" ]
   requires_private = []
   foreach(attr, libbase_sublibs) {
     if ((!defined(attr.testonly) || !attr.testonly) && defined(attr.pkg_deps)) {
