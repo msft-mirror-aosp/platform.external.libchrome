@@ -247,6 +247,7 @@ pa_buildflag_header("partition_allocator_buildflags") {
     "DCHECK_IS_CONFIGURABLE=false",
     "CAN_UNWIND_WITH_FRAME_POINTERS=false",
     "IS_ANDROID=false",
+    "USE_PARTITION_COOKIE=false"
   ]
 }
 

@@ -839,17 +839,6 @@ bool PartitionAllocSupport::ShouldEnablePartitionAllocWithAdvancedChecks(
 #endif  // !PA_BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
 }
 
-#if PA_BUILDFLAG( \
-    ENABLE_ALLOCATOR_SHIM_PARTITION_ALLOC_DISPATCH_WITH_ADVANCED_CHECKS_SUPPORT)
-allocator_shim::AllocatorDispatch g_dispatch_for_advanced_checks = {
-    .realloc_function =
-        &allocator_shim::internal::PartitionReallocWithAdvancedChecks,
-    .free_function = &allocator_shim::internal::PartitionFreeWithAdvancedChecks,
-    .next = nullptr,
-};
-#endif  // PA_BUILDFLAG(
-        // ENABLE_ALLOCATOR_SHIM_PARTITION_ALLOC_DISPATCH_WITH_ADVANCED_CHECKS_SUPPORT)
-
 // static
 PartitionAllocSupport::BrpConfiguration
 PartitionAllocSupport::GetBrpConfiguration(const std::string& process_type) {
@@ -857,8 +846,9 @@ PartitionAllocSupport::GetBrpConfiguration(const std::string& process_type) {
   CHECK(base::FeatureList::GetInstance());
 
   bool process_affected_by_brp_flag = false;
-#if (PA_BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC) &&  \
-     PA_BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)) || \
+#if (PA_BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC) &&          \
+     PA_BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT) &&          \
+     !PA_BUILDFLAG(FORCE_DISABLE_BACKUP_REF_PTR_FEATURE)) || \
     PA_BUILDFLAG(USE_ASAN_BACKUP_REF_PTR)
   if (base::FeatureList::IsEnabled(
           base::features::kPartitionAllocBackupRefPtr)) {
@@ -867,7 +857,8 @@ PartitionAllocSupport::GetBrpConfiguration(const std::string& process_type) {
         base::features::kBackupRefPtrEnabledProcessesParam.Get(), process_type);
   }
 #endif  // (PA_BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC) &&
-        // PA_BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)) ||
+        // PA_BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)&&
+        // !PA_BUILDFLAG(FORCE_DISABLE_BACKUP_REF_PTR_FEATURE)) ||
         // PA_BUILDFLAG(USE_ASAN_BACKUP_REF_PTR)
 
   const bool enable_brp =
@@ -1135,8 +1126,7 @@ void PartitionAllocSupport::ReconfigureAfterFeatureListInit(
   bool enable_pa_with_advanced_checks =
       ShouldEnablePartitionAllocWithAdvancedChecks(process_type);
   if (enable_pa_with_advanced_checks) {
-    allocator_shim::InstallDispatchToPartitionAllocWithAdvancedChecks(
-        &g_dispatch_for_advanced_checks);
+    allocator_shim::InstallCustomDispatchForPartitionAllocWithAdvancedChecks();
   }
 #endif  // PA_BUILDFLAG(
         // ENABLE_ALLOCATOR_SHIM_PARTITION_ALLOC_DISPATCH_WITH_ADVANCED_CHECKS_SUPPORT)
@@ -1313,9 +1303,8 @@ void PartitionAllocSupport::OnBackgrounded() {
   // TODO(lizeb): Remove once/if the behavior of idle tasks changes.
   base::PostDelayedMemoryReductionTask(
       base::SingleThreadTaskRunner::GetCurrentDefault(), FROM_HERE,
-      base::BindOnce([]() {
-        ::partition_alloc::MemoryReclaimer::Instance()->ReclaimAll();
-      }),
+      base::BindOnce(
+          [] { ::partition_alloc::MemoryReclaimer::Instance()->ReclaimAll(); }),
       base::Seconds(10));
 
 #endif  // PA_CONFIG(THREAD_CACHE_SUPPORTED)
