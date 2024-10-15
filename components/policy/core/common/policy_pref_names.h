@@ -64,7 +64,6 @@ extern const char kForceGoogleSafeSearch[];
 extern const char kForceYouTubeRestrict[];
 extern const char kHideWebStoreIcon[];
 extern const char kIncognitoModeAvailability[];
-extern const char kBeforeunloadEventCancelByPreventDefaultEnabled[];
 extern const char kKeyboardFocusableScrollersEnabled[];
 extern const char kStandardizedBrowserZoomEnabled[];
 extern const char kPolicyTestPageEnabled[];
@@ -73,6 +72,7 @@ extern const char kAllowBackForwardCacheForCacheControlNoStorePageEnabled[];
 extern const char kLocalTestPoliciesForNextStartup[];
 extern const char kMutationEventsEnabled[];
 extern const char kCSSCustomStateDeprecatedSyntaxEnabled[];
+extern const char kSelectParserRelaxationEnabled[];
 extern const char kForcePermissionPolicyUnloadDefaultEnabled[];
 #if BUILDFLAG(IS_CHROMEOS)
 extern const char kAlwaysOnVpnPreConnectUrlAllowlist[];
