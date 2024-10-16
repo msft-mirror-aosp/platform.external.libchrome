@@ -8,7 +8,6 @@ import org.chromium.base.BaseSwitches;
 import org.chromium.base.CommandLine;
 import org.chromium.base.cached_flags.CachedFlagsSharedPreferences;
 import org.chromium.base.cached_flags.ValuesOverridden;
-import org.chromium.base.cached_flags.ValuesReturned;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -18,7 +17,7 @@ import java.util.Set;
 
 /**
  * Helps with setting Field Trial parameters during instrumentation tests. It parses the field
- * trials info from CommandLine, and applies the overrides to CachedFlag.
+ * trials info from CommandLine, and applies the overrides to CachedFieldTrialParameters.
  */
 public class FieldTrials {
     // TODO(crbug.com/40257556): Allow setting field trial via annotation.
@@ -151,12 +150,6 @@ public class FieldTrials {
         Set<String> enableFeaturesSet = new HashSet<>();
         if (enableFeatures != null) {
             Collections.addAll(enableFeaturesSet, enableFeatures.split(","));
-
-            Map<String, Boolean> enabledFeaturesMap = new HashMap<>();
-            for (String enabledFeature : enableFeaturesSet) {
-                enabledFeaturesMap.put(cleanupFeatureName(enabledFeature), true);
-            }
-            ValuesReturned.setFeaturesForTesting(enabledFeaturesMap);
         }
 
         if (forceFieldTrials == null || forceFieldTrialParams == null || enableFeatures == null) {
