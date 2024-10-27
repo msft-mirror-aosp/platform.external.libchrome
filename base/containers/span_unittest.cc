@@ -56,6 +56,10 @@ namespace {
         std::is_same_v<decltype(span(v.begin(), v.size())), span<const int>>);
     static_assert(
         std::is_same_v<decltype(span(v.data(), v.size())), span<const int>>);
+    static_assert(
+        std::is_same_v<decltype(span(v.cbegin(),
+                                     std::integral_constant<size_t, 0>())),
+                       span<const int, 0>>);
   }
 
   {
@@ -66,6 +70,10 @@ namespace {
         std::is_same_v<decltype(span(v.begin(), v.size())), span<int>>);
     static_assert(
         std::is_same_v<decltype(span(v.data(), v.size())), span<int>>);
+    static_assert(
+        std::is_same_v<decltype(span(v.cbegin(),
+                                     std::integral_constant<size_t, 0>())),
+                       span<const int, 0>>);
   }
 
   {
@@ -741,6 +749,13 @@ TEST(SpanTest, FromRefOfConstStackVariable) {
   static_assert(std::is_same_v<decltype(b), span<const uint8_t, sizeof(int)>>);
   EXPECT_EQ(reinterpret_cast<const uint8_t*>(&x), b.data());
   EXPECT_EQ(sizeof(int), b.size());
+}
+
+TEST(SpanTest, FromRefOfRValue) {
+  int x = 123;
+  static_assert(std::is_same_v<decltype(span_from_ref(std::move(x))),
+                               span<const int, 1u>>);
+  EXPECT_EQ(&x, span_from_ref(std::move(x)).data());
 }
 
 TEST(SpanTest, FromCString) {

@@ -95,7 +95,7 @@ void StdSetConversionDisallowed() {
   span<int> span3(set);                            // expected-error {{no matching constructor for initialization of 'span<int>'}}
   auto span4 = make_span(set.begin(), 0u);         // expected-error@*:* {{no matching constructor for initialization of 'span<T>' (aka 'span<const int>')}}
   auto span5 = make_span(set.begin(), set.end());  // expected-error@*:* {{no matching constructor for initialization of 'span<T>' (aka 'span<const int>')}}
-  auto span6 = make_span(set);                     // expected-error@*:* {{no matching function for call to 'data'}}
+  auto span6 = make_span(set);                     // expected-error@*:* {{no viable constructor or deduction guide for deduction of template arguments of 'span'}}
 }
 
 // Static views of spans with static extent must not exceed the size.
@@ -235,15 +235,6 @@ void FixedSizeCopyFromNonSpan() {
 void FixedSizeSplitAtOutOfBounds() {
   const int arr[] = {1, 2, 3};
   base::span(arr).split_at<4u>();  // expected-error@*:* {{no matching member function for call to 'split_at'}}
-}
-
-void FromRefNoSuchFunctionForIntLiteral() {
-  // Expectations of this test just capture the current behavior which is not
-  // necessarily desirable or required. This test expects that when we ask the
-  // compiler to deduce the template arguments for `span_from_ref` (the only
-  // difference from `FromRefLifetimeBoundErrorForIntLiteral` below) then it
-  // will fail to find a suitable function to invoke.
-  auto wont_work = span_from_ref(123);  // expected-error@*:* {{no matching function for call to 'span_from_ref'}}
 }
 
 void FromRefLifetimeBoundErrorForIntLiteral() {

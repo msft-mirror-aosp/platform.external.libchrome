@@ -1,0 +1,37 @@
+From 811f071075465505c766e3df1639d763019795cc Mon Sep 17 00:00:00 2001
+From: Byron Lee <byronlee@google.com>
+Date: Mon, 28 Oct 2024 08:17:06 +0000
+Subject: [PATCH] Revert "More deep-const-correctness for base::SharedMemoryMapping subtypes."
+
+This reverts commit 7de6b0d5b136e38c95d6136081e4a87b06a52c36.
+---
+ base/memory/shared_memory_mapping.h              | 6 ++----
+ 2 files changed, 3 insertions(+), 5 deletions(-)
+
+diff --git a/base/memory/shared_memory_mapping.h b/base/memory/shared_memory_mapping.h
+index 8f8de4c7d0..21b9603377 100644
+--- a/base/memory/shared_memory_mapping.h
++++ b/base/memory/shared_memory_mapping.h
+@@ -215,8 +215,7 @@ class BASE_EXPORT WritableSharedMemoryMapping : public SharedMemoryMapping {
+   // Use `span(mapping)` to make a span of `uint8_t`, `GetMemoryAs<T>()` to
+   // access the memory as a single `T` or `GetMemoryAsSpan<T>()` to access it as
+   // an array of `T`.
+-  uint8_t* data() { return mapped_memory().data(); }
+-  const uint8_t* data() const { return mapped_memory().data(); }
++  uint8_t* data() const { return mapped_memory().data(); }
+ 
+   // Iterate memory as bytes up to the end of its logical size.
+   iterator begin() {
+@@ -241,8 +240,7 @@ class BASE_EXPORT WritableSharedMemoryMapping : public SharedMemoryMapping {
+   // of `uint8_t`, `GetMemoryAs<T>()` to access the memory as a single `T`, or
+   // `GetMemoryAsSpan<T>()` to access it as an array of `T` or `data()` for an
+   // unbounded pointer.
+-  void* memory() { return data(); }
+-  const void* memory() const { return data(); }
++  void* memory() const { return data(); }
+ 
+   // Returns a pointer to a page-aligned T if the mapping is valid and large
+   // enough to contain a T, or nullptr otherwise.
+-- 
+2.47.0.163.g1226f6d8fa-goog
+

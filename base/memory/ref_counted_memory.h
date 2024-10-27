@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "base/base_export.h"
+#include "base/compiler_specific.h"
 #include "base/containers/span.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/shared_memory_mapping.h"
@@ -132,8 +133,8 @@ class BASE_EXPORT RefCountedString : public RefCountedMemory {
   RefCountedString(const RefCountedString&) = delete;
   RefCountedString& operator=(const RefCountedString&) = delete;
 
-  const std::string& as_string() const { return string_; }
-  std::string& as_string() { return string_; }
+  const std::string& as_string() const LIFETIME_BOUND { return string_; }
+  std::string& as_string() LIFETIME_BOUND { return string_; }
 
  private:
   ~RefCountedString() override;
@@ -154,8 +155,8 @@ class BASE_EXPORT RefCountedString16 : public base::RefCountedMemory {
   RefCountedString16(const RefCountedString16&) = delete;
   RefCountedString16& operator=(const RefCountedString16&) = delete;
 
-  const std::u16string& as_string() const { return string_; }
-  std::u16string& as_string() { return string_; }
+  const std::u16string& as_string() const LIFETIME_BOUND { return string_; }
+  std::u16string& as_string() LIFETIME_BOUND { return string_; }
 
  private:
   ~RefCountedString16() override;
