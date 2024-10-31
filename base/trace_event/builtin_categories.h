@@ -265,6 +265,7 @@
   X(TRACE_DISABLED_BY_DEFAULT("paint-worklet"))                          \
   X(TRACE_DISABLED_BY_DEFAULT("power"))                                  \
   X(TRACE_DISABLED_BY_DEFAULT("process_metrics"))                        \
+  X(TRACE_DISABLED_BY_DEFAULT("system_metrics"))                         \
   X(TRACE_DISABLED_BY_DEFAULT("renderer.scheduler"))                     \
   X(TRACE_DISABLED_BY_DEFAULT("renderer.scheduler.debug"))               \
   X(TRACE_DISABLED_BY_DEFAULT("sequence_manager"))                       \
@@ -277,7 +278,6 @@
   X(TRACE_DISABLED_BY_DEFAULT("skottie"))                                \
   X(TRACE_DISABLED_BY_DEFAULT("SyncFileSystem"))                         \
   X(TRACE_DISABLED_BY_DEFAULT("system_power"))                           \
-  X(TRACE_DISABLED_BY_DEFAULT("system_stats"))                           \
   X(TRACE_DISABLED_BY_DEFAULT("thread_pool_diagnostics"))                \
   X(TRACE_DISABLED_BY_DEFAULT("toplevel.ipc"))                           \
   X(TRACE_DISABLED_BY_DEFAULT("user_action_samples"))                    \
