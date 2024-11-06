@@ -105,6 +105,12 @@ bool DeleteContentUri(const FilePath& content_uri) {
   return Java_ContentUriUtils_delete(env, content_uri.value());
 }
 
+bool IsDocumentUri(const FilePath& content_uri) {
+  DCHECK(content_uri.IsContentUri());
+  JNIEnv* env = android::AttachCurrentThread();
+  return Java_ContentUriUtils_isDocumentUri(env, content_uri.value());
+}
+
 }  // namespace internal
 
 void JNI_ContentUriUtils_AddFileInfoToVector(
@@ -155,6 +161,32 @@ FilePath ContentUriBuildDocumentUriUsingTree(
   ScopedJavaLocalRef<jstring> j_uri =
       Java_ContentUriUtils_buildDocumentUriUsingTree(env, tree_uri.value(),
                                                      encoded_document_id);
+  return FilePath(SafeConvertJavaStringToUTF8(env, j_uri));
+}
+
+FilePath ContentUriGetChildDocumentOrQuery(const FilePath& parent,
+                                           const std::string& display_name,
+                                           const std::string& mime_type,
+                                           bool is_directory,
+                                           bool create) {
+  JNIEnv* env = android::AttachCurrentThread();
+  ScopedJavaLocalRef<jstring> j_uri =
+      Java_ContentUriUtils_getChildDocumentOrQuery(
+          env, parent.value(), display_name, mime_type, is_directory, create);
+  return FilePath(SafeConvertJavaStringToUTF8(env, j_uri));
+}
+
+bool ContentUriIsCreateChildDocumentQuery(const FilePath& content_uri) {
+  JNIEnv* env = android::AttachCurrentThread();
+  return Java_ContentUriUtils_isCreateChildDocumentQuery(env,
+                                                         content_uri.value());
+}
+
+FilePath ContentUriGetDocumentFromQuery(const FilePath& content_uri,
+                                        bool create) {
+  JNIEnv* env = android::AttachCurrentThread();
+  ScopedJavaLocalRef<jstring> j_uri = Java_ContentUriUtils_getDocumentFromQuery(
+      env, content_uri.value(), create);
   return FilePath(SafeConvertJavaStringToUTF8(env, j_uri));
 }
 
