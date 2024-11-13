@@ -1443,6 +1443,7 @@ install_config("install_header") {
     "base/hash/*.h",
     "base/i18n/*.h",
     "base/json/*.h",
+    "base/logging/*.h",
     "base/macros/*.h",
     "base/memory/*.h",
     "base/message_loop/*.h",

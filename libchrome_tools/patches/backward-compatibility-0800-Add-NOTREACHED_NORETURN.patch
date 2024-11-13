@@ -1,0 +1,30 @@
+From ca3631c825fcb82d186e96d231bc845ffa2d2081 Mon Sep 17 00:00:00 2001
+From: Andrew Moylan <amoylan@google.com>
+Date: Thu, 14 Nov 2024 16:24:59 +1100
+Subject: [PATCH] Add NOTREACHED_NORETURN
+
+Was removed in crrev.com/c/6011819 but still needed until all ChromeOS
+usages are migrated to NOTREACHED.
+
+Change-Id: I443d0644d357b255621a1f636ceb89272225f031
+---
+ base/notreached.h | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/base/notreached.h b/base/notreached.h
+index d6a550b27e..4a58a51f97 100644
+--- a/base/notreached.h
++++ b/base/notreached.h
+@@ -53,6 +53,9 @@ namespace logging {
+           LOGGING_CHECK_FUNCTION_IMPL(                            \
+               ::logging::NotReachedError::NotReached(__VA_ARGS__), false))
+ 
++// Equivalent to NOTREACHED. Backwards-compatibility helper for ChromeOS.
++#define NOTREACHED_NORETURN NOTREACHED_INTERNAL_IMPL
++
+ // The DUMP_WILL_BE_NOTREACHED() macro provides a convenient way to
+ // non-fatally dump in official builds if ever hit. See DUMP_WILL_BE_CHECK for
+ // suggested usage.
+-- 
+2.47.0.277.g8800431eea-goog
+
