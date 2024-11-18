@@ -1,0 +1,115 @@
+From 0f7eb535917a86e4d4f909635533180931dd6d6a Mon Sep 17 00:00:00 2001
+From: Nathan Muggli <nmuggli@google.com>
+Date: Mon, 18 Nov 2024 11:09:40 -0700
+Subject: [PATCH] Revert "Remove NOTREACHED_IN_MIGRATION()"
+
+This reverts commit 5e342fc336640bad90e2cecb96415e37bd720e97.
+
+We need to maintain NOTREACHED_IN_MIGRATION until all of platform2 has
+been migrated.
+---
+ base/check.cc          |  7 +++++++
+ base/check.h           | 16 +++++++++++-----
+ base/check_unittest.cc |  4 ++++
+ base/notreached.h      | 14 ++++++++++++++
+ 4 files changed, 36 insertions(+), 5 deletions(-)
+
+diff --git a/base/check.cc b/base/check.cc
+index 75b23d186c..bf1c10ff5c 100644
+--- a/base/check.cc
++++ b/base/check.cc
+@@ -375,6 +375,13 @@ NotReachedError NotReachedError::NotReached(base::NotFatalUntil fatal_milestone,
+   return NotReachedError(log_message);
+ }
+ 
++void NotReachedError::TriggerNotReached() {
++  // This triggers a NOTREACHED_IN_MIGRATION() error as the returned
++  // NotReachedError goes out of scope.
++  NotReached()
++      << "NOTREACHED log messages are omitted in official builds. Sorry!";
++}
++
+ NotReachedError::~NotReachedError() = default;
+ 
+ NotReachedNoreturnError::NotReachedNoreturnError(const base::Location& location)
+diff --git a/base/check.h b/base/check.h
+index 96a9c10528..1b7fa2ba37 100644
+--- a/base/check.h
++++ b/base/check.h
+@@ -145,22 +145,28 @@ class BASE_EXPORT CheckError {
+   std::unique_ptr<LogMessage> log_message_;
+ };
+ 
+-// Used for NOTREACHED(base::NotFatalUntil).
+-// TODO(pbos): Reconsider the name of this + NotReachedNoreturnError to be less
+-// confusing.
+ class BASE_EXPORT NotReachedError : public CheckError {
+  public:
+   static NotReachedError NotReached(
+-      base::NotFatalUntil fatal_milestone,
++      base::NotFatalUntil fatal_milestone =
++          base::NotFatalUntil::NoSpecifiedMilestoneInternal,
+       const base::Location& location = base::Location::Current());
+ 
++  // Used to trigger a NOTREACHED_IN_MIGRATION() without providing file or line
++  // while also discarding log-stream arguments. See base/notreached.h.
++  NOMERGE NOINLINE NOT_TAIL_CALLED static void TriggerNotReached();
++
++  // TODO(crbug.com/40580068): Mark [[noreturn]] once this is CHECK-fatal on all
++  // builds.
+   NOMERGE NOINLINE NOT_TAIL_CALLED ~NotReachedError();
+ 
+  private:
+   using CheckError::CheckError;
+ };
+ 
+-// Used for NOTREACHED(), its destructor is importantly [[noreturn]].
++// TODO(crbug.com/40580068): This should take the name of the above class once
++// all callers of NOTREACHED_IN_MIGRATION() have migrated to the CHECK-fatal
++// version.
+ class BASE_EXPORT NotReachedNoreturnError : public CheckError {
+  public:
+   explicit NotReachedNoreturnError(
+diff --git a/base/check_unittest.cc b/base/check_unittest.cc
+index 4d6aa14aa1..16f51a24d6 100644
+--- a/base/check_unittest.cc
++++ b/base/check_unittest.cc
+@@ -557,6 +557,10 @@ TEST(CheckDeathTest, NotReached) {
+                             CHECK_WILL_STREAM() ? "NOTREACHED hit. " : "");
+ }
+ 
++TEST(CheckDeathTest, NotReachedInMigration) {
++  EXPECT_CHECK_DEATH(NOTREACHED_IN_MIGRATION());
++}
++
+ TEST(CheckDeathTest, DumpWillBeCheck) {
+   DUMP_WILL_BE_CHECK(true);
+ 
+diff --git a/base/notreached.h b/base/notreached.h
+index 4651806913..d6a550b27e 100644
+--- a/base/notreached.h
++++ b/base/notreached.h
+@@ -16,6 +16,20 @@
+ 
+ namespace logging {
+ 
++// Migration in progress: For new code use NOTREACHED() or
++// NOTREACHED(base::NotFatalUntil::M*). NOTREACHED_IN_MIGRATION() is equally
++// fatal to NOTREACHED() without parameters but not annotated as [[noreturn]].
++#if CHECK_WILL_STREAM()
++#define NOTREACHED_IN_MIGRATION() \
++  LOGGING_CHECK_FUNCTION_IMPL(::logging::NotReachedError::NotReached(), false)
++#else
++#define NOTREACHED_IN_MIGRATION()                          \
++  (true) ? ::logging::NotReachedError::TriggerNotReached() \
++         : EAT_CHECK_STREAM_PARAMS()
++#endif
++
++// Migration in progress: Use NOTREACHED() directly without parameters instead.
++// TODO(crbug.com/40580068): Merge this with NOTREACHED().
+ #if CHECK_WILL_STREAM()
+ #define NOTREACHED_INTERNAL_IMPL() ::logging::NotReachedNoreturnError()
+ #else
+-- 
+2.47.0.338.g60cca15819-goog
+
