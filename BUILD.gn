@@ -542,6 +542,8 @@ libbase_sublibs = [
       "base/memory/unsafe_shared_memory_region.cc",
       "base/memory/weak_ptr.cc",
       "base/memory/writable_shared_memory_region.cc",
+      "base/message_loop/io_watcher.cc",
+      "base/message_loop/io_watcher.h",
       "base/message_loop/message_pump.cc",
       "base/message_loop/message_pump_default.cc",
       "base/message_loop/message_pump_epoll.cc",

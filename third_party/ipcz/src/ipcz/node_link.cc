@@ -474,8 +474,12 @@ bool NodeLink::OnAcceptIntroduction(msg::AcceptIntroduction& accept) {
   if (auto* v1 = accept.v1()) {
     remote_features = Features::Deserialize(accept, v1->remote_features);
   }
-  auto transport = MakeRefCounted<DriverTransport>(
-      accept.TakeDriverObject(accept.v0()->transport));
+  DriverObject transport_object =
+      accept.TakeDriverObject(accept.v0()->transport);
+  if (!transport_object.is_valid()) {
+    return false;
+  }
+  auto transport = MakeRefCounted<DriverTransport>(std::move(transport_object));
   node()->AcceptIntroduction(
       *this, accept.v0()->name, accept.v0()->link_side,
       accept.v0()->remote_node_type, accept.v0()->remote_protocol_version,
@@ -615,7 +619,8 @@ bool NodeLink::OnAcceptParcel(msg::AcceptParcel& accept) {
       return true;
     }
 
-    if (!parcel->AdoptDataFragment(WrapRefCounted(&memory()), fragment)) {
+    if (fragment.is_null() ||
+        !parcel->AdoptDataFragment(WrapRefCounted(&memory()), fragment)) {
       return false;
     }
   } else {
@@ -767,6 +772,10 @@ bool NodeLink::OnFlushRouter(msg::FlushRouter& flush) {
 }
 
 bool NodeLink::OnRequestMemory(msg::RequestMemory& request) {
+  if (request.v0()->size == 0) {
+    return false;
+  }
+
   DriverMemory memory(node_->driver(), request.v0()->size);
   msg::ProvideMemory provide;
   provide.v0()->size = request.v0()->size;
@@ -976,6 +985,10 @@ bool NodeLink::AcceptCompleteParcel(SublinkId for_sublink,
     SubparcelTracker& tracker = it->second;
     if (inserted) {
       tracker.subparcels.resize(num_subparcels);
+    } else if (tracker.subparcels.size() != num_subparcels) {
+      // Inconsistent subparcel count expectations across subparcels. This is
+      // a validation failure.
+      return false;
     }
 
     // Note that `index` has already been validated against the expected number
