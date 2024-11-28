@@ -337,6 +337,9 @@ bool Router::AcceptRouteDisconnectedFrom(LinkType link_type) {
   TrapEventDispatcher dispatcher;
   absl::InlinedVector<Ref<RouterLink>, 4> forwarding_links;
   {
+    // If we have to drop any undeliverable parcels, make sure they're destroyed
+    // outside of `lock` in case they have any attached Routers.
+    std::vector<std::unique_ptr<Parcel>> dropped_parcels;
     absl::MutexLock lock(&mutex_);
 
     DVLOG(4) << "Router " << this << " disconnected from "
@@ -344,9 +347,9 @@ bool Router::AcceptRouteDisconnectedFrom(LinkType link_type) {
 
     is_disconnected_ = true;
     if (link_type.is_peripheral_inward()) {
-      outbound_parcels_.ForceTerminateSequence();
+      dropped_parcels = outbound_parcels_.ForceTerminateSequence();
     } else {
-      inbound_parcels_.ForceTerminateSequence();
+      dropped_parcels = inbound_parcels_.ForceTerminateSequence();
     }
 
     // Wipe out all remaining links and propagate the disconnection over them.
@@ -698,7 +701,6 @@ IpczResult Router::MergeRoute(const Ref<Router>& other) {
 // static
 Ref<Router> Router::Deserialize(const RouterDescriptor& descriptor,
                                 NodeLink& from_node_link) {
-  bool disconnected = false;
   auto router = MakeRefCounted<Router>();
   Ref<RemoteRouterLink> new_outward_link;
   {
@@ -781,17 +783,14 @@ Ref<Router> Router::Deserialize(const RouterDescriptor& descriptor,
                  << from_node_link.remote_node_name().ToString() << " to "
                  << from_node_link.local_node_name().ToString()
                  << " via sublink " << descriptor.new_sublink;
-      } else if (!descriptor.peer_closed) {
-        // The new portal is DOA, either because the associated NodeLink is
-        // dead, or the sublink ID was already in use. The latter implies a bug
-        // or bad behavior, but it should be harmless to ignore beyond this
-        // point.
-        disconnected = true;
       }
     }
   }
 
-  if (disconnected) {
+  if (!new_outward_link) {
+    // The new portal is DOA, either because the associated NodeLink is dead, or
+    // or the sublink ID was already in use. The latter implies a bug or bad
+    // behavior, but it should be harmless to ignore beyond this point.
     DVLOG(4) << "Disconnected new Router immediately after deserialization";
     router->AcceptRouteDisconnectedFrom(LinkType::kPeripheralOutward);
   } else if (descriptor.proxy_peer_node_name.is_valid()) {
@@ -989,6 +988,7 @@ void Router::BeginProxyingToNewRouter(NodeLink& to_node_link,
   auto new_decaying_sublink =
       to_node_link.GetSublink(descriptor.new_decaying_sublink);
   if (!new_sublink) {
+    AcceptRouteDisconnectedFrom(LinkType::kPeripheralInward);
     Flush(kForceProxyBypassAttempt);
     return;
   }
