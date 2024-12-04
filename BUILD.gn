@@ -1436,6 +1436,7 @@ install_config("install_header") {
     "base/allocator/partition_allocator/src/partition_alloc/*.h",
     "base/allocator/partition_allocator/src/partition_alloc/partition_alloc_base/*.h",
     "base/allocator/partition_allocator/src/partition_alloc/partition_alloc_base/augmentations/*.h",
+    "base/allocator/partition_allocator/src/partition_alloc/partition_alloc_base/types/*.h",
     "base/allocator/partition_allocator/src/partition_alloc/pointers/*.h",
     "base/allocator/partition_allocator/src/partition_alloc/starscan/*.h",
     "base/containers/*.h",
