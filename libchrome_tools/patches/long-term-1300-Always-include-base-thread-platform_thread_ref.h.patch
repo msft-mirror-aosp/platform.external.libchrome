@@ -1,4 +1,4 @@
-From 3476110d0bb1f45626c6129ca196f67fa9e20736 Mon Sep 17 00:00:00 2001
+From f1f63f778e489973c2df519211c7c38abd295acf Mon Sep 17 00:00:00 2001
 From: Grace Cham <hscham@chromium.org>
 Date: Thu, 27 Oct 2022 11:04:47 +0900
 Subject: [PATCH] Always include base/thread/platform_thread_ref.h
@@ -14,18 +14,18 @@ patch-name: long-term-1300-Always-include-base-thread-platform_thread_ref.h.patc
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/base/synchronization/lock.h b/base/synchronization/lock.h
-index 60ecf178c7..3a7e9adef4 100644
+index 4b8381ce9a..717b06cc73 100644
 --- a/base/synchronization/lock.h
 +++ b/base/synchronization/lock.h
-@@ -11,7 +11,7 @@
+@@ -14,7 +14,7 @@
  #include "base/thread_annotations.h"
  #include "build/build_config.h"
  
 -#if DCHECK_IS_ON()
 +#if DCHECK_IS_ON() | 1
- #include "base/threading/platform_thread_ref.h"
- #endif
+ #include <memory>
  
+ #include "base/compiler_specific.h"
 -- 
-2.42.0.582.g8ccd20d70d-goog
+2.47.0.338.g60cca15819-goog
 
