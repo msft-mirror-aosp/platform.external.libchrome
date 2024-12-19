@@ -1,19 +1,21 @@
-From c45037860e281700c8cf75b0ef301153929fce07 Mon Sep 17 00:00:00 2001
-From: Georg Neis <neis@chromium.org>
-Date: Fri, 29 Nov 2024 06:12:29 +0000
+From af90d7e2821d99dbb8c86b9c6070c8dfd2e9926c Mon Sep 17 00:00:00 2001
+From: Cici Ruan <cuicuiruan@google.com>
+Date: Thu, 19 Dec 2024 17:02:50 -0800
 Subject: [PATCH] Revert "Make CHECK() failures understood as [[noreturn]]"
 
 This reverts commit b37a2c2574209e3e86d67ff6733ab9bb42972722.
+
+Change-Id: I68c3088d4fbfa40dbcc2d91f22ad97fd45a0c276
 ---
- base/check.cc          | 86 +++++++++++++-----------------------------
- base/check.h           | 57 +++++++++++-----------------
- base/check_op.h        |  5 +--
- base/check_unittest.cc | 41 +++-----------------
+ base/check.cc          | 36 +++++++++++++++++++++++++++---------
+ base/check.h           | 26 ++++++++++++++++++--------
+ base/check_op.h        |  5 ++---
+ base/check_unittest.cc | 41 +++++------------------------------------
  base/notreached.h      |  2 +-
- 5 files changed, 56 insertions(+), 135 deletions(-)
+ 5 files changed, 53 insertions(+), 57 deletions(-)
 
 diff --git a/base/check.cc b/base/check.cc
-index 4c30de5cb3..75b23d186c 100644
+index 4c30de5cb3..87fcaf4132 100644
 --- a/base/check.cc
 +++ b/base/check.cc
 @@ -291,6 +291,24 @@ CheckError CheckError::DumpWillBeCheckOp(char* log_message_str,
@@ -57,64 +59,7 @@ index 4c30de5cb3..75b23d186c 100644
  CheckError CheckError::NotImplemented(const char* function,
                                        const base::Location& location) {
    auto* const log_message = new LogMessage(
-@@ -337,56 +364,6 @@ CheckError::~CheckError() {
- 
- CheckError::CheckError(LogMessage* log_message) : log_message_(log_message) {}
- 
--// Note: This function ends up in crash stack traces. If its full name changes,
--// the crash server's magic signature logic needs to be updated. See
--// cl/306632920.
--CheckNoreturnError::~CheckNoreturnError() {
--  // Reset before `ImmediateCrash()` to ensure the message is flushed.
--  log_message_.reset();
--
--  // Make sure we die if we haven't.
--  // TODO(crbug.com/40254046): Replace this with NOTREACHED() once LOG(FATAL) is
--  // [[noreturn]].
--  base::ImmediateCrash();
--}
--
--CheckNoreturnError CheckNoreturnError::Check(const char* condition,
--                                             const base::Location& location) {
--  auto* const log_message =
--      new CheckLogMessage(location, LOGGING_FATAL,
--                          base::NotFatalUntil::NoSpecifiedMilestoneInternal);
--  log_message->stream() << "Check failed: " << condition << ". ";
--  return CheckNoreturnError(log_message);
--}
--
--CheckNoreturnError CheckNoreturnError::CheckOp(char* log_message_str,
--                                               const base::Location& location) {
--  auto* const log_message =
--      new CheckLogMessage(location, LOGGING_FATAL,
--                          base::NotFatalUntil::NoSpecifiedMilestoneInternal);
--  log_message->stream() << log_message_str;
--  free(log_message_str);
--  return CheckNoreturnError(log_message);
--}
--
--CheckNoreturnError CheckNoreturnError::PCheck(const char* condition,
--                                              const base::Location& location) {
--  SystemErrorCode err_code = logging::GetLastSystemErrorCode();
--#if BUILDFLAG(IS_WIN)
--  auto* const log_message = new Win32ErrorLogMessage(
--      location.file_name(), location.line_number(), LOGGING_FATAL, err_code);
--#elif BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
--  auto* const log_message = new ErrnoLogMessage(
--      location.file_name(), location.line_number(), LOGGING_FATAL, err_code);
--#endif
--  log_message->stream() << "Check failed: " << condition << ". ";
--  return CheckNoreturnError(log_message);
--}
--
--CheckNoreturnError CheckNoreturnError::PCheck(const base::Location& location) {
--  return PCheck("", location);
--}
--
- NotReachedError NotReachedError::NotReached(base::NotFatalUntil fatal_milestone,
-                                             const base::Location& location) {
-   auto* const log_message = new NotReachedLogMessage(
-@@ -398,15 +375,6 @@ NotReachedError NotReachedError::NotReached(base::NotFatalUntil fatal_milestone,
+@@ -398,15 +425,6 @@ NotReachedError NotReachedError::NotReached(base::NotFatalUntil fatal_milestone,
    return NotReachedError(log_message);
  }
  
@@ -131,30 +76,30 @@ index 4c30de5cb3..75b23d186c 100644
  
  NotReachedNoreturnError::NotReachedNoreturnError(const base::Location& location)
 diff --git a/base/check.h b/base/check.h
-index aaf866282e..dcdd59354d 100644
+index 1311bb7169..231b42bb6b 100644
 --- a/base/check.h
 +++ b/base/check.h
-@@ -77,13 +77,15 @@ class BASE_EXPORT CheckError {
-  public:
-   static CheckError Check(
-       const char* condition,
--      base::NotFatalUntil fatal_milestone,
-+      base::NotFatalUntil fatal_milestone =
-+          base::NotFatalUntil::NoSpecifiedMilestoneInternal,
-       const base::Location& location = base::Location::Current());
+@@ -85,13 +85,15 @@ class BASE_EXPORT CheckError {
+   // logs.
+ 
+   static CheckError Check(const char* condition,
+-                          base::NotFatalUntil fatal_milestone,
++                          base::NotFatalUntil fatal_milestone =
++                          base::NotFatalUntil::NoSpecifiedMilestoneInternal,
+                           const base::Location& location =
+                               base::Location::CurrentWithoutFunctionName());
    // Takes ownership over (free()s after using) `log_message_str`, for use with
    // CHECK_op macros.
-   static CheckError CheckOp(
-       char* log_message_str,
--      base::NotFatalUntil fatal_milestone,
-+      base::NotFatalUntil fatal_milestone =
-+          base::NotFatalUntil::NoSpecifiedMilestoneInternal,
-       const base::Location& location = base::Location::Current());
+   static CheckError CheckOp(char* log_message_str,
+-                            base::NotFatalUntil fatal_milestone,
++                            base::NotFatalUntil fatal_milestone  =
++                            base::NotFatalUntil::NoSpecifiedMilestoneInternal,
+                             const base::Location& location =
+                                 base::Location::CurrentWithoutFunctionName());
  
-   static CheckError DCheck(
-@@ -104,10 +106,19 @@ class BASE_EXPORT CheckError {
-       char* log_message_str,
-       const base::Location& location = base::Location::Current());
+@@ -115,10 +117,19 @@ class BASE_EXPORT CheckError {
+       const base::Location& location =
+           base::Location::CurrentWithoutFunctionName());
  
 +  static CheckError PCheck(
 +      const char* condition,
@@ -162,61 +107,17 @@ index aaf866282e..dcdd59354d 100644
 +  static CheckError PCheck(
 +      const base::Location& location = base::Location::Current());
 +
-   static CheckError DPCheck(
-       const char* condition,
-       const base::Location& location = base::Location::Current());
+   static CheckError DPCheck(const char* condition,
+                             const base::Location& location =
+                                 base::Location::CurrentWithoutFunctionName());
  
 +  static CheckError DumpWillBeNotReachedNoreturn(
 +      const base::Location& location = base::Location::Current());
 +
    static CheckError NotImplemented(
        const char* function,
-       const base::Location& location = base::Location::Current());
-@@ -134,40 +145,15 @@ class BASE_EXPORT CheckError {
-   std::unique_ptr<LogMessage> log_message_;
- };
- 
--// Used for NOTREACHED(), its destructor is importantly [[noreturn]].
--class BASE_EXPORT CheckNoreturnError : public CheckError {
-- public:
--  [[noreturn]] NOMERGE NOINLINE NOT_TAIL_CALLED ~CheckNoreturnError();
--
--  static CheckNoreturnError Check(
--      const char* condition,
--      const base::Location& location = base::Location::Current());
--  // Takes ownership over (free()s after using) `log_message_str`, for use with
--  // CHECK_op macros.
--  static CheckNoreturnError CheckOp(
--      char* log_message_str,
--      const base::Location& location = base::Location::Current());
--
--  static CheckNoreturnError PCheck(
--      const char* condition,
--      const base::Location& location = base::Location::Current());
--  static CheckNoreturnError PCheck(
--      const base::Location& location = base::Location::Current());
--
-- private:
--  using CheckError::CheckError;
--};
--
--// Used for NOTREACHED(base::NotFatalUntil) and DUMP_WILL_BE_NOTREACHED().
-+// Used for NOTREACHED(base::NotFatalUntil).
-+// TODO(pbos): Reconsider the name of this + NotReachedNoreturnError to be less
-+// confusing.
- class BASE_EXPORT NotReachedError : public CheckError {
-  public:
-   static NotReachedError NotReached(
-       base::NotFatalUntil fatal_milestone,
-       const base::Location& location = base::Location::Current());
- 
--  static NotReachedError DumpWillBeNotReached(
--      const base::Location& location = base::Location::Current());
--
-   NOMERGE NOINLINE NOT_TAIL_CALLED ~NotReachedError();
- 
-  private:
-@@ -246,7 +232,7 @@ class BASE_EXPORT NotReachedNoreturnError : public CheckError {
+       const base::Location& location =
+@@ -265,7 +276,7 @@ class BASE_EXPORT NotReachedNoreturnError : public CheckError {
  #define CHECK_WILL_STREAM() true
  
  #define CHECK_INTERNAL_IMPL(cond) \
@@ -225,7 +126,7 @@ index aaf866282e..dcdd59354d 100644
  
  #endif
  
-@@ -256,11 +242,10 @@ class BASE_EXPORT NotReachedNoreturnError : public CheckError {
+@@ -275,11 +286,10 @@ class BASE_EXPORT NotReachedNoreturnError : public CheckError {
                logging::CheckError::Check(#cond, __VA_ARGS__), cond))
  
  // Strip the conditional string based on CHECK_WILL_STREAM()
@@ -258,10 +159,10 @@ index 76c3d7f12b..5c934ab1fa 100644
  #endif
  
 diff --git a/base/check_unittest.cc b/base/check_unittest.cc
-index ed8d7305c9..4d6aa14aa1 100644
+index bb23f5dfe7..deda7d49d0 100644
 --- a/base/check_unittest.cc
 +++ b/base/check_unittest.cc
-@@ -541,51 +541,20 @@ TEST(CheckDeathTest, OstreamVsToString) {
+@@ -542,51 +542,20 @@ TEST(CheckDeathTest, OstreamVsToString) {
                 CHECK_EQ(g, h));
  }
  
@@ -332,5 +233,5 @@ index d8f5b9d211..1fef9ab3d7 100644
  }  // namespace logging
  
 -- 
-2.47.0.338.g60cca15819-goog
+2.47.1.613.gc27f4b7a9f-goog
 

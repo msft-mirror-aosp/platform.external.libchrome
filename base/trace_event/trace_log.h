@@ -64,15 +64,6 @@ class BASE_EXPORT TraceLog :
  public:
   class ThreadLocalEventBuffer;
 
-  // Argument passed to TraceLog::SetEnabled.
-  enum Mode : uint8_t {
-    // Enables normal tracing (recording trace events in the trace buffer).
-    // This is the only tracing mode supported now.
-    // TODO(khokhlov): Clean up all uses of tracing mode and remove this enum
-    // completely.
-    RECORDING_MODE = 1 << 0,
-  };
-
   static TraceLog* GetInstance();
 
   TraceLog(const TraceLog&) = delete;
@@ -86,8 +77,8 @@ class BASE_EXPORT TraceLog :
   void InitializeThreadLocalEventBufferIfSupported();
 
   // See TraceConfig comments for details on how to control which categories
-  // will be traced. Only RECORDING_MODE is supported.
-  void SetEnabled(const TraceConfig& trace_config, uint8_t modes_to_enable);
+  // will be traced.
+  void SetEnabled(const TraceConfig& trace_config);
 
   // Enable tracing using a customized Perfetto trace config. This allows, for
   // example, enabling additional data sources and enabling protobuf output
@@ -95,9 +86,8 @@ class BASE_EXPORT TraceLog :
   void SetEnabled(const TraceConfig& trace_config,
                   const perfetto::TraceConfig& perfetto_config);
 
-  // Disables tracing for all categories. Only RECORDING_MODE is supported.
+  // Disables tracing for all categories.
   void SetDisabled();
-  void SetDisabled(uint8_t modes_to_disable);
 
   // Returns true if TraceLog is enabled (i.e. there's an active tracing
   // session).
@@ -394,13 +384,6 @@ class BASE_EXPORT TraceLog :
   // may not handle the flush request in time causing lost of unflushed events.
   void SetCurrentThreadBlocksMessageLoop();
 
-#if BUILDFLAG(IS_WIN)
-  // This function is called by the ETW exporting module whenever the ETW
-  // keyword (flags) changes. This keyword indicates which categories should be
-  // exported, so whenever it changes, we adjust accordingly.
-  void UpdateETWCategoryGroupEnabledFlags();
-#endif
-
   // Replaces |logged_events_| with a new TraceBuffer for testing.
   void SetTraceBufferForTesting(std::unique_ptr<TraceBuffer> trace_buffer);
 
@@ -490,7 +473,7 @@ class BASE_EXPORT TraceLog :
                                                      bool check_buffer_is_full)
       EXCLUSIVE_LOCKS_REQUIRED(lock_);
   void CheckIfBufferIsFullWhileLocked() EXCLUSIVE_LOCKS_REQUIRED(lock_);
-  void SetDisabledWhileLocked(uint8_t modes) EXCLUSIVE_LOCKS_REQUIRED(lock_);
+  void SetDisabledWhileLocked() EXCLUSIVE_LOCKS_REQUIRED(lock_);
 
   TraceEvent* GetEventByHandleInternal(TraceEventHandle handle,
                                        OptionalAutoLock* lock);
