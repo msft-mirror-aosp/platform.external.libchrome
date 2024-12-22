@@ -757,7 +757,6 @@ libbase_sublibs = [
       "base/timer/timer.cc",
       "base/timer/wall_clock_timer.cc",
       "base/token.cc",
-      "base/trace_event/category_registry.cc",
       "base/trace_event/heap_profiler_allocation_context_tracker.cc",
       "base/trace_event/interned_args_helper.cc",
       "base/trace_event/malloc_dump_provider.cc",
