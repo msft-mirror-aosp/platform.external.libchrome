@@ -14,6 +14,7 @@ includes=$(find . -name '*.cc' -or -name '*.h' \
 
 # Other headers included by generated protozero (.pbzero.h) headers.
 protozero_includes="
+  third_party/perfetto/include/perfetto/protozero/contiguous_memory_range.h
   third_party/perfetto/include/perfetto/protozero/field_writer.h
   third_party/perfetto/include/perfetto/protozero/message.h
   third_party/perfetto/include/perfetto/protozero/packed_repeated_fields.h

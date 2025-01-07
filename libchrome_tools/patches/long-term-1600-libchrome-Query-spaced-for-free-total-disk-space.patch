@@ -1,4 +1,4 @@
-From 436f040301d046e92060272b6ef18f0bb0f8e525 Mon Sep 17 00:00:00 2001
+From d3f1580dd202ac17ea7ba4197d8f5fdc398d0f24 Mon Sep 17 00:00:00 2001
 From: Sarthak Kukreti <sarthakkukreti@google.com>
 Date: Mon, 22 Nov 2021 08:55:31 +0000
 Subject: [PATCH] Reland "Query spaced for free/total disk space"
@@ -52,9 +52,9 @@ patch-name: long-term-1600-libchrome-Query-spaced-for-free-total-disk-space.patc
 ---
  base/system/sys_info.h           | 24 ++++++++++++++++
  base/system/sys_info_chromeos.cc | 44 +++++++++++++++++++++++++++++
- base/system/sys_info_posix.cc    | 13 +++++++++
+ base/system/sys_info_posix.cc    | 11 ++++++++
  base/system/sys_info_unittest.cc | 48 ++++++++++++++++++++++++++++++++
- 4 files changed, 129 insertions(+)
+ 4 files changed, 127 insertions(+)
 
 diff --git a/base/system/sys_info.h b/base/system/sys_info.h
 index b5ae4fdfe7..ea37906077 100644
@@ -106,7 +106,7 @@ index b5ae4fdfe7..ea37906077 100644
    static std::string KernelVersion();
  
 diff --git a/base/system/sys_info_chromeos.cc b/base/system/sys_info_chromeos.cc
-index 376925efa7..add947102f 100644
+index 0eff17c938..8ba8c48dd3 100644
 --- a/base/system/sys_info_chromeos.cc
 +++ b/base/system/sys_info_chromeos.cc
 @@ -14,12 +14,15 @@
@@ -125,7 +125,7 @@ index 376925efa7..add947102f 100644
  #include "base/strings/string_number_conversions.h"
  #include "base/strings/string_split.h"
  #include "base/strings/string_tokenizer.h"
-@@ -50,6 +53,10 @@ const char kLsbReleaseSourceKey[] = "lsb-release";
+@@ -53,6 +56,10 @@ const char kLsbReleaseSourceKey[] = "lsb-release";
  const char kLsbReleaseSourceEnv[] = "env";
  const char kLsbReleaseSourceFile[] = "file";
  
@@ -136,7 +136,7 @@ index 376925efa7..add947102f 100644
  }  // namespace
  
  class ChromeOSVersionInfo {
-@@ -176,6 +183,28 @@ ChromeOSVersionInfo& GetChromeOSVersionInfo() {
+@@ -185,6 +192,28 @@ ChromeOSVersionInfo& GetChromeOSVersionInfo() {
    return *version_info;
  }
  
@@ -165,7 +165,7 @@ index 376925efa7..add947102f 100644
  // static
  std::string SysInfo::HardwareModelName() {
    std::string board = GetLsbReleaseBoard();
-@@ -256,6 +285,11 @@ void SysInfo::ResetChromeOSVersionInfoForTest() {
+@@ -267,6 +296,11 @@ void SysInfo::ResetChromeOSVersionInfoForTest() {
    g_chromeos_version_info_for_test = nullptr;
  }
  
@@ -176,8 +176,8 @@ index 376925efa7..add947102f 100644
 +
  // static
  void SysInfo::CrashIfChromeOSNonTestImage() {
-   if (!IsRunningOnChromeOS())
-@@ -273,6 +307,16 @@ void SysInfo::CrashIfChromeOSNonTestImage() {
+   if (!IsRunningOnChromeOS()) {
+@@ -285,6 +319,16 @@ void SysInfo::CrashIfChromeOSNonTestImage() {
    CHECK_NE(track.find(kTestImageRelease), std::string::npos);
  }
  
@@ -195,10 +195,10 @@ index 376925efa7..add947102f 100644
    HardwareInfo info;
    // Manufacturer of ChromeOS device is always Google so hardcode it.
 diff --git a/base/system/sys_info_posix.cc b/base/system/sys_info_posix.cc
-index e6f6a1f4fd..f5540b80d1 100644
+index 3abeea32e6..c77d6b2a48 100644
 --- a/base/system/sys_info_posix.cc
 +++ b/base/system/sys_info_posix.cc
-@@ -184,10 +184,16 @@ uint64_t SysInfo::AmountOfVirtualMemory() {
+@@ -186,6 +186,11 @@ uint64_t SysInfo::AmountOfVirtualMemory() {
  int64_t SysInfo::AmountOfFreeDiskSpace(const FilePath& path) {
    base::ScopedBlockingCall scoped_blocking_call(FROM_HERE,
                                                  base::BlockingType::MAY_BLOCK);
@@ -209,13 +209,8 @@ index e6f6a1f4fd..f5540b80d1 100644
 +#endif
  
    int64_t available;
-   if (!GetDiskSpaceInfo(path, &available, nullptr))
-     return -1;
-+
-   return available;
- }
- 
-@@ -196,9 +202,16 @@ int64_t SysInfo::AmountOfTotalDiskSpace(const FilePath& path) {
+   if (!GetDiskSpaceInfo(path, &available, nullptr)) {
+@@ -199,6 +204,12 @@ int64_t SysInfo::AmountOfTotalDiskSpace(const FilePath& path) {
    base::ScopedBlockingCall scoped_blocking_call(FROM_HERE,
                                                  base::BlockingType::MAY_BLOCK);
  
@@ -226,12 +221,8 @@ index e6f6a1f4fd..f5540b80d1 100644
 +#endif
 +
    int64_t total;
-   if (!GetDiskSpaceInfo(path, nullptr, &total))
+   if (!GetDiskSpaceInfo(path, nullptr, &total)) {
      return -1;
-+
-   return total;
- }
- 
 diff --git a/base/system/sys_info_unittest.cc b/base/system/sys_info_unittest.cc
 index 1983447cb9..bbaf780bb8 100644
 --- a/base/system/sys_info_unittest.cc
@@ -291,6 +282,6 @@ index 1983447cb9..bbaf780bb8 100644
  #endif  // BUILDFLAG(IS_CHROMEOS)
  
  }  // namespace base
---
-2.47.0.163.g1226f6d8fa-goog
+-- 
+2.47.1.613.gc27f4b7a9f-goog
 

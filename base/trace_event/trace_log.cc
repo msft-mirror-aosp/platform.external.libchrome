@@ -39,6 +39,7 @@
 #include "base/task/single_thread_task_runner.h"
 #include "base/threading/platform_thread.h"
 #include "base/time/time.h"
+#include "base/trace_event/perfetto_proto_appender.h"
 #include "base/trace_event/trace_event.h"
 #include "build/build_config.h"
 #include "third_party/perfetto/include/perfetto/ext/trace_processor/export_json.h"  // nogncheck
@@ -78,8 +79,9 @@ void InitializeMetadataEvent(TraceEvent* trace_event,
                              const char* metadata_name,
                              const char* arg_name,
                              const T& value) {
-  if (!trace_event)
+  if (!trace_event) {
     return;
+  }
 
   TraceArguments args(arg_name, value);
   base::TimeTicks now = TRACE_TIME_TICKS_NOW();
@@ -92,31 +94,6 @@ void InitializeMetadataEvent(TraceEvent* trace_event,
       trace_event_internal::kNoId,         // id
       &args, TRACE_EVENT_FLAG_NONE);
 }
-
-class PerfettoProtoAppender
-    : public base::trace_event::ConvertableToTraceFormat::ProtoAppender {
- public:
-  explicit PerfettoProtoAppender(
-      perfetto::protos::pbzero::DebugAnnotation* proto)
-      : annotation_proto_(proto) {}
-  ~PerfettoProtoAppender() override = default;
-
-  // ProtoAppender implementation
-  void AddBuffer(uint8_t* begin, uint8_t* end) override {
-    ranges_.emplace_back();
-    ranges_.back().begin = begin;
-    ranges_.back().end = end;
-  }
-
-  size_t Finalize(uint32_t field_id) override {
-    return annotation_proto_->AppendScatteredBytes(field_id, ranges_.data(),
-                                                   ranges_.size());
-  }
-
- private:
-  std::vector<protozero::ContiguousMemoryRange> ranges_;
-  raw_ptr<perfetto::protos::pbzero::DebugAnnotation> annotation_proto_;
-};
 
 void AddConvertableToTraceFormat(
     base::trace_event::ConvertableToTraceFormat* value,
@@ -439,8 +416,9 @@ void TraceLog::SetEnabled(const TraceConfig& trace_config) {
   // services/tracing/public/cpp/perfetto/perfetto_config.cc.
   perfetto::TraceConfig perfetto_config;
   size_t size_limit = trace_config.GetTraceBufferSizeInKb();
-  if (size_limit == 0)
+  if (size_limit == 0) {
     size_limit = 200 * 1024;
+  }
   auto* buffer_config = perfetto_config.add_buffers();
   buffer_config->set_size_kb(checked_cast<uint32_t>(size_limit));
   switch (trace_config.GetTraceRecordMode()) {
@@ -526,8 +504,9 @@ void TraceLog::InitializePerfettoIfNeeded() {
       << "Don't use TraceLog for recording traces from non-test code. Use "
          "perfetto::Tracing::NewTrace() instead.";
 
-  if (perfetto::Tracing::IsInitialized())
+  if (perfetto::Tracing::IsInitialized()) {
     return;
+  }
   g_perfetto_initialized_by_tracelog = true;
   perfetto::TracingInitArgs init_args;
   init_args.backends = perfetto::BackendType::kInProcessBackend;
@@ -608,8 +587,9 @@ void TraceLog::SetDisabled() {
 }
 
 void TraceLog::SetDisabledWhileLocked() {
-  if (!tracing_session_)
+  if (!tracing_session_) {
     return;
+  }
 
   AddMetadataEventsWhileLocked();
 
@@ -748,8 +728,9 @@ void TraceLog::FlushInternal(const TraceLog::OutputCallback& cb,
 void TraceLog::OnTraceData(const char* data, size_t size, bool has_more) {
   if (proto_output_callback_) {
     scoped_refptr<RefCountedString> chunk = new RefCountedString();
-    if (size)
+    if (size) {
       chunk->as_string().assign(data, size);
+    }
     proto_output_callback_.Run(std::move(chunk), has_more);
     if (!has_more) {
       proto_output_callback_.Reset();
@@ -763,8 +744,9 @@ void TraceLog::OnTraceData(const char* data, size_t size, bool has_more) {
     auto status = trace_processor_->Parse(std::move(data_copy), size);
     DCHECK(status.ok()) << status.message();
   }
-  if (has_more)
+  if (has_more) {
     return;
+  }
 
   auto status = trace_processor_->NotifyEndOfFile();
   DCHECK(status.ok()) << status.message();
@@ -866,8 +848,9 @@ void TraceLog::UpdateTraceEventDuration(
     const unsigned char* category_group_enabled,
     const char* name,
     TraceEventHandle handle) {
-  if (!*category_group_enabled)
+  if (!*category_group_enabled) {
     return;
+  }
 
   OnUpdateLegacyTraceEventDuration(
       category_group_enabled, name, base::PlatformThread::CurrentId(),
@@ -913,16 +896,18 @@ void TraceLog::AddMetadataEventsWhileLocked() {
 
   if (!process_labels_.empty()) {
     std::vector<std::string_view> labels;
-    for (const auto& it : process_labels_)
+    for (const auto& it : process_labels_) {
       labels.push_back(it.second);
+    }
     AddMetadataEventWhileLocked(current_thread_id, "process_labels", "labels",
                                 base::JoinString(labels, ","));
   }
 
   // Thread sort indices.
   for (const auto& it : thread_sort_indices_) {
-    if (it.second == 0)
+    if (it.second == 0) {
       continue;
+    }
     AddMetadataEventWhileLocked(it.first, "thread_sort_index", "sort_index",
                                 it.second);
   }
@@ -954,8 +939,9 @@ int TraceLog::GetNewProcessLabelId() {
 
 void TraceLog::UpdateProcessLabel(int label_id,
                                   const std::string& current_label) {
-  if (!current_label.length())
+  if (!current_label.length()) {
     return RemoveProcessLabel(label_id);
+  }
 
   if (perfetto::Tracing::IsInitialized()) {
     auto track = perfetto::ProcessTrack::Current();
@@ -1001,8 +987,9 @@ void TraceLog::OnStart(const perfetto::DataSourceBase::StartArgs&) {
   }
 
   AutoLock lock(observers_lock_);
-  for (EnabledStateObserver* observer : enabled_state_observers_)
+  for (EnabledStateObserver* observer : enabled_state_observers_) {
     observer->OnTraceLogEnabled();
+  }
   for (const auto& it : async_observers_) {
     it.second.task_runner->PostTask(
         FROM_HERE, BindOnce(&AsyncEnabledStateObserver::OnTraceLogEnabled,

@@ -18,7 +18,11 @@ import org.chromium.build.annotations.Nullable;
 import java.util.HashMap;
 import java.util.Map;
 
-/** Provides shared capabilities for feature flag support. */
+/**
+ * Provides shared capabilities for feature flag support.
+ *
+ * <p>TODO(crbug.com/345483590): Move all override logic and TestValues to FeatureOverrides.
+ */
 @NullMarked
 @JNINamespace("base::android")
 public class FeatureList {
@@ -62,8 +66,9 @@ public class FeatureList {
             addFieldTrialParamOverride(param.getFeatureName(), param.getName(), testValue);
         }
 
+        @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
         @Nullable
-        Boolean getFeatureFlagOverride(String featureName) {
+        public Boolean getFeatureFlagOverride(String featureName) {
             return mFeatureFlags.get(featureName);
         }
 
@@ -204,24 +209,36 @@ public class FeatureList {
         return sDisableNativeForTesting;
     }
 
-    /** Sets the feature flags to use in JUnit tests, since native calls are not available there. */
+    /**
+     * Adds overrides to feature flags and field trial parameters in addition to existing ones.
+     *
+     * @deprecated use {@link FeatureOverrides#apply()}
+     */
     @VisibleForTesting
-    public static void setTestFeatures(@Nullable Map<String, Boolean> testFeatures) {
-        if (testFeatures == null) {
-            setTestValues(null);
-        } else {
-            TestValues testValues = new TestValues();
-            testValues.setFeatureFlagsOverride(testFeatures);
-            setTestValues(testValues);
-        }
+    @Deprecated
+    public static void setTestValues(TestValues testValues) {
+        assert testValues != null;
+        mergeTestValues(testValues, /* replace= */ true);
     }
 
     /**
-     * Sets the feature flags and field trial parameters to use in JUnit tests, since native calls
-     * are not available there.
+     * Rarely necessary. Remove all Java overrides to feature flags and field trial parameters.
+     *
+     * <p>You don't need to call this on tearDown() or at the end of a test. ResettersForTesting
+     * already resets test values.
+     *
+     * <p>@Features annotations and @CommandLineFlags --enable/disable-features are affected by
+     * this.
+     *
+     * @deprecated use {@link FeatureOverrides#removeAllIncludingAnnotations()}
      */
     @VisibleForTesting
-    public static void setTestValues(@Nullable TestValues testValues) {
+    @Deprecated
+    public static void removeAllTestOverrides() {
+        overwriteTestValues(null);
+    }
+
+    private static void overwriteTestValues(@Nullable TestValues testValues) {
         TestValues prevValues = sTestFeatures;
         sTestFeatures = testValues;
         ResettersForTesting.register(() -> sTestFeatures = prevValues);
@@ -235,16 +252,23 @@ public class FeatureList {
     /**
      * Adds overrides to feature flags and field trial parameters in addition to existing ones.
      *
+     * <p>TODO(crbug.com/386813115): Migrate test class usages to {@link
+     * FeatureOverrides.Builder#apply()} or {@link FeatureOverrides.Builder#applyWithoutOverwrite()}
+     * and make this private.
+     *
+     * @deprecated use {@link FeatureOverrides.Builder#apply()} or {@link
+     *     FeatureOverrides.Builder#applyWithoutOverwrite()}
      * @param testValuesToMerge the TestValues to merge into existing ones
-     * @param replace if true, replaces existing values (e.g. from @EnableFeatures annotations)
+     * @param replace if true, replaces existing overrides; otherwise preserve them
      */
+    @Deprecated
     public static void mergeTestValues(TestValues testValuesToMerge, boolean replace) {
         TestValues newTestValues = new TestValues();
         if (sTestFeatures != null) {
             newTestValues.merge(sTestFeatures, /* replace= */ true);
         }
         newTestValues.merge(testValuesToMerge, replace);
-        setTestValues(newTestValues);
+        overwriteTestValues(newTestValues);
     }
 
     /**
