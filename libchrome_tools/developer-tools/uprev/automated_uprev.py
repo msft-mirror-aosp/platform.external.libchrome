@@ -688,12 +688,9 @@ def PushOptions(git_merge_success, emerge_success, recipe: bool) -> str:
         "topic=libchrome-automated-uprev,"
     )
     # Add votes according to `sudo emerge libchrome` result.
-    # If in recipe mode, trigger CQ directly by auto bot-commit, otherwise
-    # simply mark as Verified+1.
-    if emerge_success:
-      if recipe:
-        push_options += "l=Commit-Queue+2,l=Bot-Commit+1,"
-      else:
+    # Note bot submit votes will be added in the recipe after verifying
+    # `emerge libchrome` succeeded (or not).
+    if emerge_success and not recipe:
         push_options += "l=Verified+1,"
     # Flag git merge and emerge failure by Verified-1 in both modes.
     elif not git_merge_success or emerge_success == False:
