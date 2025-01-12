@@ -453,7 +453,7 @@ TEST(ValuesTest, MoveAssignDictionary) {
 
 TEST(ValuesTest, ConstructDictWithIterators) {
   std::vector<std::pair<std::string, Value>> values;
-  values.emplace_back(std::make_pair("Int", 123));
+  values.emplace_back("Int", 123);
 
   Value blank;
   blank = Value(Value::Dict(std::make_move_iterator(values.begin()),
@@ -1147,7 +1147,7 @@ TEST(ValuesTest, SetStringKey) {
 
   std::string movable_value("movable_value");
   dict.Set("movable_key", std::move(movable_value));
-  ASSERT_TRUE(movable_value.empty());
+  ASSERT_TRUE(movable_value.empty());  // NOLINT(bugprone-use-after-move)
 
   const std::string* value;
 
@@ -1471,8 +1471,8 @@ TEST(ValuesTest, List) {
   EXPECT_EQ("foo", mixed_list[3]);
 
   // Try searching in the mixed list.
-  ASSERT_TRUE(Contains(mixed_list, 42));
-  ASSERT_FALSE(Contains(mixed_list, false));
+  ASSERT_TRUE(Contains(mixed_list, 42, &Value::GetIfInt));
+  ASSERT_FALSE(Contains(mixed_list, false, &Value::GetIfBool));
 }
 
 TEST(ValuesTest, RvalueAppend) {

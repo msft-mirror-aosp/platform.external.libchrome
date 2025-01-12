@@ -1154,6 +1154,8 @@ void PartitionRoot::Init(PartitionOptions opts) {
         opts.zapping_by_free_flags == PartitionOptions::kEnabled;
     settings.eventually_zero_freed_memory =
         opts.eventually_zero_freed_memory == PartitionOptions::kEnabled;
+    settings.fewer_memory_regions =
+        opts.fewer_memory_regions == PartitionOptions::kEnabled;
 
     settings.scheduler_loop_quarantine =
         opts.scheduler_loop_quarantine == PartitionOptions::kEnabled;
@@ -1352,6 +1354,9 @@ void PartitionRoot::EnableThreadCacheIfSupported() {
       thread_caches_being_constructed_.fetch_add(1, std::memory_order_acquire);
   PA_CHECK(before == 0);
   ThreadCache::Init(this);
+  // Create thread cache for this thread so that we can start using it right
+  // after.
+  ThreadCache::Create(this);
   thread_caches_being_constructed_.fetch_sub(1, std::memory_order_release);
   settings.with_thread_cache = true;
 #endif  // PA_CONFIG(THREAD_CACHE_SUPPORTED)

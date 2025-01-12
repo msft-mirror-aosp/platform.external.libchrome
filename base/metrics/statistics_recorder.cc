@@ -65,7 +65,7 @@ StatisticsRecorder::ScopedHistogramSampleObserver::
 void StatisticsRecorder::ScopedHistogramSampleObserver::RunCallback(
     const char* histogram_name,
     uint64_t name_hash,
-    HistogramBase::Sample sample) {
+    HistogramBase::Sample32 sample) {
   callback_.Run(histogram_name, name_hash, sample);
 }
 
@@ -382,7 +382,7 @@ void StatisticsRecorder::FindAndRunHistogramCallbacks(
     base::PassKey<HistogramBase>,
     const char* histogram_name,
     uint64_t name_hash,
-    HistogramBase::Sample sample) {
+    HistogramBase::Sample32 sample) {
   DCHECK_EQ(name_hash, HashMetricName(histogram_name));
 
   const AutoLock auto_lock(GetLock());
@@ -537,17 +537,14 @@ StatisticsRecorder::Histograms StatisticsRecorder::WithName(
     query_string = lowercase_query.c_str();
   }
 
-  histograms.erase(
-      ranges::remove_if(
-          histograms,
-          [query_string, case_sensitive](const HistogramBase* const h) {
-            return !strstr(
-                case_sensitive
-                    ? h->histogram_name()
-                    : base::ToLowerASCII(h->histogram_name()).c_str(),
-                query_string);
-          }),
-      histograms.end());
+  auto removed = std::ranges::remove_if(
+      histograms, [query_string, case_sensitive](const HistogramBase* const h) {
+        return !strstr(case_sensitive
+                           ? h->histogram_name()
+                           : base::ToLowerASCII(h->histogram_name()).c_str(),
+                       query_string);
+      });
+  histograms.erase(removed.begin(), removed.end());
   return histograms;
 }
 

@@ -1059,6 +1059,8 @@ void PartitionAllocSupport::ReconfigureAfterFeatureListInit(
       base::features::kPartitionAllocZappingByFreeFlags);
   const bool eventually_zero_freed_memory = base::FeatureList::IsEnabled(
       base::features::kPartitionAllocEventuallyZeroFreedMemory);
+  const bool fewer_memory_regions = base::FeatureList::IsEnabled(
+      base::features::kPartitionAllocFewerMemoryRegions);
 
 #if PA_BUILDFLAG(USE_FREELIST_DISPATCHER)
   const bool use_pool_offset_freelists =
@@ -1168,6 +1170,7 @@ void PartitionAllocSupport::ReconfigureAfterFeatureListInit(
       scheduler_loop_quarantine_branch_capacity_in_bytes,
       allocator_shim::ZappingByFreeFlags(zapping_by_free_flags),
       allocator_shim::EventuallyZeroFreedMemory(eventually_zero_freed_memory),
+      allocator_shim::FewerMemoryRegions(fewer_memory_regions),
       allocator_shim::UsePoolOffsetFreelists(use_pool_offset_freelists),
       use_small_single_slot_spans);
 
@@ -1188,6 +1191,18 @@ void PartitionAllocSupport::ReconfigureAfterFeatureListInit(
           base::features::kPartitionAllocLargeEmptySlotSpanRing)) {
     allocator_shim::internal::PartitionAllocMalloc::Allocator()
         ->EnableLargeEmptySlotSpanRing();
+  }
+
+  if (process_type == "" &&
+      base::FeatureList::IsEnabled(
+          base::features::kPartitionAllocSchedulerLoopQuarantine)) {
+    // `ReconfigureAfterTaskRunnerInit()` is called on the UI thread.
+    const size_t capacity_in_bytes = static_cast<size_t>(
+        base::features::kPartitionAllocSchedulerLoopQuarantineBrowserUICapacity
+            .Get());
+    allocator_shim::internal::PartitionAllocMalloc::Allocator()
+        ->SetSchedulerLoopQuarantineThreadLocalBranchCapacity(
+            capacity_in_bytes);
   }
 
 #if PA_BUILDFLAG( \

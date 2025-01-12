@@ -472,12 +472,11 @@ PersistentMemoryAllocator::PersistentMemoryAllocator(Memory memory,
   }
 }
 
-PersistentMemoryAllocator::~PersistentMemoryAllocator() {
-  // It's strictly forbidden to do any memory access here in case there is
-  // some issue with the underlying memory segment. The "Local" allocator
-  // makes use of this to allow deletion of the segment on the heap from
-  // within its destructor.
-}
+// It's strictly forbidden to do any memory access inside this destructor in
+// case there is some issue with the underlying memory segment. The "Local"
+// allocator makes use of this to allow deletion of the segment on the heap from
+// within its destructor.
+PersistentMemoryAllocator::~PersistentMemoryAllocator() = default;
 
 uint64_t PersistentMemoryAllocator::Id() const {
   return shared_meta()->id;
@@ -1010,7 +1009,7 @@ void PersistentMemoryAllocator::UpdateTrackingHistograms() {
   if (used_histogram_) {
     MemoryInfo meminfo;
     GetMemoryInfo(&meminfo);
-    HistogramBase::Sample used_percent = static_cast<HistogramBase::Sample>(
+    HistogramBase::Sample32 used_percent = static_cast<HistogramBase::Sample32>(
         ((meminfo.total - meminfo.free) * 100ULL / meminfo.total));
     used_histogram_->Add(used_percent);
   }

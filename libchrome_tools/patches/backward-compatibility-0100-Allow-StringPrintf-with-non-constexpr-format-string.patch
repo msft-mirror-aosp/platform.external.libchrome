@@ -1,4 +1,4 @@
-From 7450d6f4c9c3a576ded56c19490690bbf10d4a01 Mon Sep 17 00:00:00 2001
+From 8358b0061d7f625bc545b651e7398280279db445 Mon Sep 17 00:00:00 2001
 From: Ren-Pei Zeng <kamesan@google.com>
 Date: Mon, 16 Sep 2024 08:47:31 +0000
 Subject: [PATCH] Allow StringPrintf with non-constexpr format string
@@ -6,15 +6,15 @@ Subject: [PATCH] Allow StringPrintf with non-constexpr format string
 Change-Id: I26f173619e76d5398ed80ad63da94d23cbc940a5
 ---
  base/strings/stringprintf.cc | 23 +++++++++++++++++++++++
- base/strings/stringprintf.h  | 12 +++++-------
- 2 files changed, 28 insertions(+), 7 deletions(-)
+ base/strings/stringprintf.h  | 11 ++++-------
+ 2 files changed, 27 insertions(+), 7 deletions(-)
 
 diff --git a/base/strings/stringprintf.cc b/base/strings/stringprintf.cc
-index 0aa55580ff..d517c30825 100644
+index 71d77c5952..aab459fcfb 100644
 --- a/base/strings/stringprintf.cc
 +++ b/base/strings/stringprintf.cc
-@@ -13,9 +13,32 @@
- #include "base/scoped_clear_last_error.h"
+@@ -14,9 +14,32 @@
+ #include "base/strings/span_printf.h"
  #include "base/strings/string_util.h"
  #include "build/build_config.h"
 +#include "third_party/abseil-cpp/absl/cleanup/cleanup.h"
@@ -47,10 +47,10 @@ index 0aa55580ff..d517c30825 100644
    std::string result;
    StringAppendV(&result, format, ap);
 diff --git a/base/strings/stringprintf.h b/base/strings/stringprintf.h
-index 7de6f91611..519042de61 100644
+index 81a70dc1c6..828835d1ff 100644
 --- a/base/strings/stringprintf.h
 +++ b/base/strings/stringprintf.h
-@@ -19,13 +19,11 @@ namespace base {
+@@ -19,13 +19,10 @@ namespace base {
  
  // Returns a C++ string given `printf()`-like input. The format string must be a
  // compile-time constant (like with `std::format()`), or this will not compile.
@@ -65,10 +65,9 @@ index 7de6f91611..519042de61 100644
 +// `absl::StrFormat()`, or similar.
 +[[nodiscard]] PRINTF_FORMAT(1, 2) BASE_EXPORT std::string
 +    StringPrintf(const char* format, ...);
-+
- // Returns a C++ string given `printf()`-like input. The format string must be a
- // run-time value (like with `std::vformat()`), or this will not compile.
- // Because this does not check arguments at compile-time, prefer
+ 
+ // Returns a C++ string given `vprintf()`-like input.
+ [[nodiscard]] PRINTF_FORMAT(1, 0) BASE_EXPORT std::string
 -- 
-2.46.1.824.gd892dcdcdd-goog
+2.47.1.613.gc27f4b7a9f-goog
 

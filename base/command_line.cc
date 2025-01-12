@@ -9,6 +9,7 @@
 
 #include "base/command_line.h"
 
+#include <array>
 #include <ostream>
 #include <string_view>
 
@@ -54,10 +55,17 @@ constexpr CommandLine::CharType kSwitchValueSeparator[] =
 // By putting slash last, we can control whether it is treaded as a switch
 // value by changing the value of switch_prefix_count to be one less than
 // the array size.
-constexpr CommandLine::StringViewType kSwitchPrefixes[] = {L"--", L"-", L"/"};
+constexpr auto kSwitchPrefixes = std::to_array<CommandLine::StringViewType>({
+    L"--",
+    L"-",
+    L"/",
+});
 #elif BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
 // Unixes don't use slash as a switch.
-constexpr CommandLine::StringViewType kSwitchPrefixes[] = {"--", "-"};
+constexpr auto kSwitchPrefixes = std::to_array<CommandLine::StringViewType>({
+    "--",
+    "-",
+});
 #endif
 size_t switch_prefix_count = std::size(kSwitchPrefixes);
 
@@ -512,7 +520,7 @@ void CommandLine::AppendArgNative(StringViewType value) {
 #if BUILDFLAG(ENABLE_COMMANDLINE_SEQUENCE_CHECKS)
   sequence_checker_.Check();
 #endif
-  argv_.push_back(StringType(value));
+  argv_.emplace_back(value);
 }
 
 void CommandLine::AppendArguments(const CommandLine& other,

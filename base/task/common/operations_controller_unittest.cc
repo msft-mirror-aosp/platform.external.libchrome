@@ -14,13 +14,13 @@
 #include "base/threading/simple_thread.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-namespace base {
-namespace internal {
+namespace base::internal {
 namespace {
 
 class ScopedShutdown {
  public:
-  ScopedShutdown(OperationsController* controller) : controller_(*controller) {}
+  explicit ScopedShutdown(OperationsController* controller)
+      : controller_(*controller) {}
   ~ScopedShutdown() { controller_->ShutdownAndWaitForZeroOperations(); }
 
  private:
@@ -100,7 +100,7 @@ TEST(OperationsControllerTest, ScopedOperationsControllerIsMoveConstructible) {
   auto operation_token_1 = controller.TryBeginOperation();
   auto operation_token_2 = std::move(operation_token_1);
 
-  EXPECT_FALSE(operation_token_1);
+  EXPECT_FALSE(operation_token_1);  // NOLINT(bugprone-use-after-move)
   EXPECT_TRUE(operation_token_2);
 }
 
@@ -175,5 +175,4 @@ TEST(OperationsControllerTest, BeginsFromMultipleThreads) {
 }
 
 }  // namespace
-}  // namespace internal
-}  // namespace base
+}  // namespace base::internal

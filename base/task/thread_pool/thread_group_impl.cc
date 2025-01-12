@@ -20,14 +20,7 @@
 #include "base/trace_event/base_tracing.h"
 #include "third_party/abseil-cpp/absl/container/inlined_vector.h"
 
-namespace base {
-namespace internal {
-
-namespace {
-
-constexpr size_t kMaxNumberOfWorkers = 256;
-
-}  // namespace
+namespace base::internal {
 
 // Upon destruction, executes actions that control the number of active workers.
 // Useful to satisfy locking requirements of these actions.
@@ -968,5 +961,4 @@ void ThreadGroupImpl::AdjustMaxTasks() {
   EnsureEnoughWorkersLockRequired(&executor);
 }
 
-}  // namespace internal
-}  // namespace base
+}  // namespace base::internal

@@ -20,8 +20,7 @@
 #include "partition_alloc/shim/allocator_shim_dispatch_to_noop_on_free.h"
 #include "partition_alloc/thread_cache.h"
 
-namespace base {
-namespace features {
+namespace base::features {
 
 namespace {
 
@@ -142,6 +141,11 @@ const base::FeatureParam<int>
     kPartitionAllocSchedulerLoopQuarantineBranchCapacity{
         &kPartitionAllocSchedulerLoopQuarantine,
         "PartitionAllocSchedulerLoopQuarantineBranchCapacity", 0};
+// Scheduler Loop Quarantine's capacity for the UI thread in bytes.
+const base::FeatureParam<int>
+    kPartitionAllocSchedulerLoopQuarantineBrowserUICapacity{
+        &kPartitionAllocSchedulerLoopQuarantine,
+        "PartitionAllocSchedulerLoopQuarantineBrowserUICapacity", 0};
 
 BASE_FEATURE(kPartitionAllocZappingByFreeFlags,
              "PartitionAllocZappingByFreeFlags",
@@ -149,6 +153,10 @@ BASE_FEATURE(kPartitionAllocZappingByFreeFlags,
 
 BASE_FEATURE(kPartitionAllocEventuallyZeroFreedMemory,
              "PartitionAllocEventuallyZeroFreedMemory",
+             FEATURE_DISABLED_BY_DEFAULT);
+
+BASE_FEATURE(kPartitionAllocFewerMemoryRegions,
+             "PartitionAllocFewerMemoryRegions",
              FEATURE_DISABLED_BY_DEFAULT);
 #endif  // PA_BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
 
@@ -473,5 +481,4 @@ const base::FeatureParam<ShadowMetadataEnabledProcesses>
         &kShadowMetadataEnabledProcessesOptions};
 #endif  // PA_CONFIG(ENABLE_SHADOW_METADATA)
 
-}  // namespace features
-}  // namespace base
+}  // namespace base::features

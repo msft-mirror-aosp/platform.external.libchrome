@@ -19,8 +19,7 @@
 #include "base/no_destructor.h"
 #endif  // BUILDFLAG(IS_ANDROID)
 
-namespace base {
-namespace debug {
+namespace base::debug {
 namespace {
 #if BUILDFLAG(IS_ANDROID)
 // Android sends stdout and stderr to /dev/null; logging should be done through
@@ -100,9 +99,10 @@ size_t TaskTrace::GetAddresses(span<const void*> addresses) const {
     return count;
   }
   span<const void* const> current_addresses = stack_trace_->addresses();
-  ranges::copy_n(current_addresses.begin(),
-                 std::min(current_addresses.size(), addresses.size()),
-                 addresses.begin());
+  std::ranges::copy_n(current_addresses.begin(),
+                      static_cast<ptrdiff_t>(
+                          std::min(current_addresses.size(), addresses.size())),
+                      addresses.begin());
   return current_addresses.size();
 }
 
@@ -111,5 +111,4 @@ std::ostream& operator<<(std::ostream& os, const TaskTrace& task_trace) {
   return os;
 }
 
-}  // namespace debug
-}  // namespace base
+}  // namespace base::debug
