@@ -1,0 +1,25 @@
+From 9966805c567280349cb911ce8970b2f67a41df47 Mon Sep 17 00:00:00 2001
+From: Andrew Moylan <amoylan@google.com>
+Date: Thu, 23 Jan 2025 11:22:46 +1100
+Subject: [PATCH] Add HistogramBase::Sample
+
+Change-Id: Ib0f2f56515d47ff710ef7bc4d5fc33f4a4d7a190
+---
+ base/metrics/histogram_base.h | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/base/metrics/histogram_base.h b/base/metrics/histogram_base.h
+index 6aac61a57d..041daee5e5 100644
+--- a/base/metrics/histogram_base.h
++++ b/base/metrics/histogram_base.h
+@@ -95,6 +95,7 @@ BASE_EXPORT HistogramBase* DeserializeHistogramInfo(base::PickleIterator* iter);
+ class BASE_EXPORT HistogramBase {
+  public:
+   typedef int32_t Sample32;  // Used for samples.
++  typedef Sample32 Sample;  // Backwards compatibility.
+   typedef subtle::Atomic32 AtomicCount;  // Used to count samples.
+   typedef int32_t Count;  // Used to manipulate counts in temporaries.
+ 
+-- 
+2.48.1.262.g85cc9f2d1e-goog
+

@@ -42,6 +42,7 @@ BAD_KEYWORDS = {
     r'base::WriteFile\(.*,.*,.*\)': '3-arg version of base::WriteFile is deprecated - please use 2-arg version.  See crbug.com/41134632 for details.',
     r'NOTREACHED_IN_MIGRATION\(':
     'CrOS libchrome NOTREACHED migration, do NOT use NOTREACHED_IN_MIGRATION. Use NOTREACHED which is now fatal and [[noreturn]]. See b/356312475',
+    r'HistogramBase::Sample[^3]': 'base::HistogramBase::Sample is deprecated. Use base::HistogramBase::Sample32.',
 }
 
 LINE_NUMBER_RE=re.compile(r'^@@ [0-9\,\+\-]+ \+([0-9]+)[ \,][0-9 ]*@@')
