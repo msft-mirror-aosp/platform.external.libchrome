@@ -94,9 +94,9 @@ BASE_EXPORT HistogramBase* DeserializeHistogramInfo(base::PickleIterator* iter);
 
 class BASE_EXPORT HistogramBase {
  public:
-  typedef int32_t Sample32;  // Used for samples.
-  typedef subtle::Atomic32 AtomicCount;  // Used to count samples.
-  typedef int32_t Count;  // Used to manipulate counts in temporaries.
+  using Sample32 = int32_t;              // Used for samples.
+  using AtomicCount = subtle::Atomic32;  // Used to count samples.
+  using Count32 = int32_t;  // Used to manipulate counts in temporaries.
 
   static const Sample32 kSampleType_MAX;  // INT_MAX
 
@@ -299,11 +299,11 @@ class BASE_EXPORT HistogramBase {
   enum ReportActivity { HISTOGRAM_CREATED, HISTOGRAM_LOOKUP };
 
   struct BASE_EXPORT CountAndBucketData {
-    Count count;
+    Count32 count;
     int64_t sum;
     Value::List buckets;
 
-    CountAndBucketData(Count count, int64_t sum, Value::List buckets);
+    CountAndBucketData(Count32 count, int64_t sum, Value::List buckets);
     ~CountAndBucketData();
 
     CountAndBucketData(CountAndBucketData&& other);
@@ -331,7 +331,7 @@ class BASE_EXPORT HistogramBase {
 
   // Write textual description of the bucket contents (relative to histogram).
   // Output is the count in the buckets, as well as the percentage.
-  void WriteAsciiBucketValue(Count current,
+  void WriteAsciiBucketValue(Count32 current,
                              double scaled_sum,
                              std::string* output) const;
 

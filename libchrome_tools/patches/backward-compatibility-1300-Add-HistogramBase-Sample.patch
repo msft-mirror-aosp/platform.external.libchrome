@@ -1,24 +1,27 @@
-From 9966805c567280349cb911ce8970b2f67a41df47 Mon Sep 17 00:00:00 2001
-From: Andrew Moylan <amoylan@google.com>
-Date: Thu, 23 Jan 2025 11:22:46 +1100
-Subject: [PATCH] Add HistogramBase::Sample
+From e4b10d6cfb61c2ed6ac375b2992118d617122906 Mon Sep 17 00:00:00 2001
+From: Nathan Muggli <nmuggli@google.com>
+Date: Mon, 27 Jan 2025 08:59:28 -0700
+Subject: [PATCH] Add HistogramBase::Sample and HistogramBase::Count
 
-Change-Id: Ib0f2f56515d47ff710ef7bc4d5fc33f4a4d7a190
+Change-Id: I90e779e453742a2d566955e42cb6d274ce08d3f5
 ---
- base/metrics/histogram_base.h | 1 +
- 1 file changed, 1 insertion(+)
+ base/metrics/histogram_base.h | 2 ++
+ 1 file changed, 2 insertions(+)
 
 diff --git a/base/metrics/histogram_base.h b/base/metrics/histogram_base.h
-index 6aac61a57d..041daee5e5 100644
+index f77970bb47..784f00c320 100644
 --- a/base/metrics/histogram_base.h
 +++ b/base/metrics/histogram_base.h
-@@ -95,6 +95,7 @@ BASE_EXPORT HistogramBase* DeserializeHistogramInfo(base::PickleIterator* iter);
+@@ -95,8 +95,10 @@ BASE_EXPORT HistogramBase* DeserializeHistogramInfo(base::PickleIterator* iter);
  class BASE_EXPORT HistogramBase {
   public:
-   typedef int32_t Sample32;  // Used for samples.
-+  typedef Sample32 Sample;  // Backwards compatibility.
-   typedef subtle::Atomic32 AtomicCount;  // Used to count samples.
-   typedef int32_t Count;  // Used to manipulate counts in temporaries.
+   using Sample32 = int32_t;              // Used for samples.
++  using Sample = Sample32;  // Backwards compatibility.
+   using AtomicCount = subtle::Atomic32;  // Used to count samples.
+   using Count32 = int32_t;  // Used to manipulate counts in temporaries.
++  using Count = Count32;  // Backwards compatibility.
+ 
+   static const Sample32 kSampleType_MAX;  // INT_MAX
  
 -- 
 2.48.1.262.g85cc9f2d1e-goog
