@@ -6,6 +6,7 @@
 
 #include <inttypes.h>
 
+#include <algorithm>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -18,7 +19,6 @@
 #include "base/metrics/histogram_macros.h"
 #include "base/notreached.h"
 #include "base/observer_list.h"
-#include "base/ranges/algorithm.h"
 #include "base/sequence_token.h"
 #include "base/strings/stringprintf.h"
 #include "base/task/common/scoped_defer_task_posting.h"
@@ -1572,6 +1572,31 @@ TaskQueueImpl::CreateQueueEnabledVoter() {
   DCHECK_CALLED_ON_VALID_THREAD(associated_thread_->thread_checker);
   return WrapUnique(
       new TaskQueue::QueueEnabledVoter(voter_weak_ptr_factory_.GetWeakPtr()));
+}
+
+void TaskQueueImpl::RemoveCancelledTasks() {
+  // Because callback destructors could have a side-effect of posting new tasks,
+  // move cancelled callbacks into a temporary container before deleting them.
+  // This prevents lock reentrancy or modifying a container while traversing it.
+  absl::InlinedVector<base::OnceClosure, 8> tasks_to_delete;
+
+  auto remove_canceled_tasks_from_queue = [&tasks_to_delete](TaskDeque& queue) {
+    for (auto& task : queue) {
+      if (task.task.IsCancelled()) {
+        tasks_to_delete.push_back(std::move(task.task));
+      }
+    }
+    std::erase_if(queue, [](const Task& task) { return task.task.is_null(); });
+  };
+
+  {
+    base::internal::CheckedAutoLock lock(any_thread_lock_);
+    remove_canceled_tasks_from_queue(any_thread_.immediate_incoming_queue);
+  }
+  remove_canceled_tasks_from_queue(
+      main_thread_only_.immediate_work_queue->tasks_);
+  remove_canceled_tasks_from_queue(
+      main_thread_only_.delayed_work_queue->tasks_);
 }
 
 void TaskQueueImpl::AddQueueEnabledVoter(bool voter_is_enabled,
