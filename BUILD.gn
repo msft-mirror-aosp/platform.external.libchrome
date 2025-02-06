@@ -243,11 +243,13 @@ pa_buildflag_header("partition_allocator_buildflags") {
     "IS_CASTOS=false",
     "IS_CHROMEOS=true",
     "DCHECKS_ARE_ON=false",
+    "DCHECK_ALWAYS_ON=false",
     "EXPENSIVE_DCHECKS_ARE_ON=false",
     "DCHECK_IS_CONFIGURABLE=false",
     "CAN_UNWIND_WITH_FRAME_POINTERS=false",
     "IS_ANDROID=false",
-    "USE_PARTITION_COOKIE=false"
+    "USE_PARTITION_COOKIE=false",
+    "IS_DEBUG=false",
   ]
 }
 
@@ -477,7 +479,6 @@ libbase_sublibs = [
       "base/containers/intrusive_heap.cc",
       "base/containers/linked_list.cc",
       "base/cpu.cc",
-      "base/cpu_reduction_experiment.cc",
       "base/debug/alias.cc",
       "base/debug/crash_logging.cc",
       "base/debug/debugger.cc",

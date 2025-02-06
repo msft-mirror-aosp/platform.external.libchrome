@@ -43,7 +43,6 @@
 #include "base/types/expected.h"
 #include "build/blink_buildflags.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "testing/multiprocess_func_list.h"
@@ -61,8 +60,7 @@
 #include "base/process/port_provider_mac.h"
 #endif
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) ||      \
-    BUILDFLAG(IS_CHROMEOS_LACROS) || BUILDFLAG(IS_WIN) || \
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_WIN) || \
     BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_FUCHSIA) || BUILDFLAG(IS_APPLE)
 #define ENABLE_CPU_TESTS 1
 #else
@@ -464,7 +462,7 @@ TEST_F(SystemMetricsTest, ParseMeminfo) {
 
   // output from a system with a large page cache, to catch arithmetic errors
   // that incorrectly assume free + buffers + cached <= total. (Copied from
-  // ash/components/arc/test/data/mem_profile/16G.)
+  // chromeos/ash/experiences/arc/test/data/mem_profile/16G.)
   const char large_cache_input[] =
       "MemTotal:       18025572 kB\n"
       "MemFree:        13150176 kB\n"

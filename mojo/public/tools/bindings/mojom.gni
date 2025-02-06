@@ -115,7 +115,6 @@ mojom_parser_sources = [
   "$_mojom_library_root/parse/conditional_features.py",
   "$_mojom_library_root/parse/lexer.py",
   "$_mojom_library_root/parse/parser.py",
-  "//tools/diagnosis/crbug_1001171.py",
 ]
 
 mojom_generator_root = "$_mojom_tools_root/bindings"
@@ -1200,8 +1199,11 @@ template("mojom") {
         import_dirs = [ "//" ]
         proto_in_dir = "${root_gen_dir}"
         proto_out_dir = "."
-        proto_deps = [ ":$generator_mojolpm_proto_target_name" ]
-        link_deps = [ "//mojo/public/tools/fuzzers:mojolpm_proto" ]
+        proto_deps = [
+          ":$generator_mojolpm_proto_target_name",
+          "//mojo/public/tools/fuzzers:mojolpm_proto",
+        ]
+        link_deps = []
 
         foreach(d, all_deps) {
           # Resolve the name, so that a target //mojo/something becomes
@@ -2235,7 +2237,18 @@ template("mojom") {
       # Generate Typescript bindings.
       generator_ts_target_name = "${target_name}_ts__generator"
 
-      action(generator_ts_target_name) {
+      if (defined(invoker.ts_typemaps)) {
+        converter_sources = []
+        foreach(typemap, invoker.ts_typemaps) {
+          converter_sources += [ typemap.source ]
+        }
+        copy("${target_name}_ts__copy_converters") {
+          sources = converter_sources
+          outputs = [ "{{source_gen_dir}}/{{source_file_part}}" ]
+        }
+      }
+
+      action("${generator_ts_target_name}") {
         script = mojom_generator_script
         inputs = mojom_generator_sources + jinja2_sources
         sources = sources_list + [ type_mappings_path ]

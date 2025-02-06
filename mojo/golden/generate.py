@@ -25,10 +25,9 @@ def removesuffix(string, suffix):
 
 
 def generate_bindings(input_dir, output_dir):
-    output_dir_rel_path = os.path.relpath(output_dir)
     if not os.path.isdir(output_dir):
         raise NotADirectoryError(
-            f'Output directory "{output_dir_rel_path}" must exist')
+            f'Output directory "{output_dir}" must exist')
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         tmp_modules_dir = os.path.join(tmp_dir, 'modules')
@@ -56,6 +55,8 @@ def generate_bindings(input_dir, output_dir):
         subprocess.run([
             'python3', _GENERATOR_SCRIPT, '-o', tmp_bindings_dir, 'generate',
             '--bytecode_path', tmp_bytecode_dir, '--generators', 'typescript',
+            # typemap is hardcoded for now.
+            '--typemap', f'{input_dir}/typemap.json',
             *mojom_modules
         ],
                        check=True)

@@ -216,7 +216,6 @@ class CrashUtil;
 }
 namespace chromeos {
 class BlockingMethodCaller;
-class ChromeOsCdmFactory;
 namespace system {
 bool IsCoreSchedulingAvailable();
 int NumberOfPhysicalCores();
@@ -259,9 +258,6 @@ namespace cronet {
 class CronetPrefsManager;
 class CronetContext;
 }  // namespace cronet
-namespace crosapi {
-class LacrosThreadTypeDelegate;
-}  // namespace crosapi
 namespace crypto {
 class ScopedAllowBlockingForNSS;
 }
@@ -616,7 +612,6 @@ class BASE_EXPORT ScopedAllowBlocking {
   friend class content::WebContentsViewMac;
   friend class cronet::CronetContext;
   friend class cronet::CronetPrefsManager;
-  friend class crosapi::LacrosThreadTypeDelegate;
   friend class crypto::ScopedAllowBlockingForNSS;  // http://crbug.com/59847
   friend class drive::FakeDriveService;
   friend class extensions::DesktopAndroidExtensionSystem;
@@ -799,7 +794,6 @@ class BASE_EXPORT ScopedAllowBaseSyncPrimitives {
   friend class android_webview::
       OverlayProcessorWebView;                     // http://crbug.com/341151462
   friend class blink::VideoFrameResourceProvider;  // http://crbug.com/878070
-  friend class chromeos::ChromeOsCdmFactory;       // http://crbug.com/368792274
   friend class viz::
       DisplayCompositorMemoryAndTaskController;    // http://crbug.com/341151462
   friend class viz::SkiaOutputSurfaceImpl;         // http://crbug.com/341151462
