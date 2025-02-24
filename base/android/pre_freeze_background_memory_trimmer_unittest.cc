@@ -924,7 +924,7 @@ TEST_F(PreFreezeSelfCompactionTest, NotCanceled) {
   // We also check that no other histograms (other than the ones expected above)
   // were recorded.
   EXPECT_EQ(histograms.GetTotalCountsForPrefix("Memory.SelfCompact2").size(),
-            45);
+            46);
 
   for (size_t i = 1; i < 5; i++) {
     size_t len = i * base::GetPageSize();
@@ -947,7 +947,8 @@ TEST_F(PreFreezeSelfCompactionTest, Disabled) {
 
   base::HistogramTester histograms;
 
-  PreFreezeBackgroundMemoryTrimmer::Instance().CompactSelf();
+  PreFreezeBackgroundMemoryTrimmer::Instance().CompactSelf(
+      task_environment_.GetMainThreadTaskRunner(), base::TimeTicks::Now());
 
   // Run metrics
   task_environment_.FastForwardBy(base::Seconds(60));
@@ -976,7 +977,29 @@ TEST_F(PreFreezeSelfCompactionTest, Disabled) {
   // We also check that no other histograms (other than the ones expected above)
   // were recorded.
   EXPECT_EQ(histograms.GetTotalCountsForPrefix("Memory.SelfCompact2").size(),
-            45);
+            46);
+}
+
+TEST_F(PreFreezeSelfCompactionTest, OnSelfFreezeCancel) {
+  base::test::ScopedFeatureList feature_list_;
+  feature_list_.InitAndEnableFeature(kShouldFreezeSelf);
+
+  PreFreezeBackgroundMemoryTrimmer::Instance().OnSelfFreezeInternal(
+      task_environment_.GetMainThreadTaskRunner());
+  EXPECT_EQ(task_environment_.GetPendingMainThreadTaskCount(), 1u);
+
+  // We advance here because |MaybeCancelSelfCompaction| relies on the current
+  // time to determine cancellation, which will not work correctly with mocked
+  // time otherwise.
+  task_environment_.FastForwardBy(base::Seconds(1));
+
+  PreFreezeBackgroundMemoryTrimmer::MaybeCancelSelfCompaction();
+  EXPECT_EQ(task_environment_.GetPendingMainThreadTaskCount(), 1u);
+
+  task_environment_.FastForwardBy(
+      task_environment_.NextMainThreadPendingTaskDelay());
+
+  EXPECT_EQ(task_environment_.GetPendingMainThreadTaskCount(), 0u);
 }
 
 }  // namespace base::android

@@ -85,23 +85,27 @@ HistogramBase::CountAndBucketData& HistogramBase::CountAndBucketData::operator=(
 
 const HistogramBase::Sample32 HistogramBase::kSampleType_MAX = INT_MAX;
 
-HistogramBase::HistogramBase(const char* name)
-    : histogram_name_(name), flags_(kNoFlags) {}
+HistogramBase::HistogramBase(DurableStringView name)
+    : histogram_name_(name->data()),
+      histogram_name_length_(base::saturated_cast<uint16_t>(name->length())),
+      flags_(kNoFlags) {
+  DCHECK_LT(name->length(), static_cast<size_t>(UINT16_MAX));
+}
 
 HistogramBase::~HistogramBase() = default;
 
 void HistogramBase::CheckName(std::string_view name) const {
-  DCHECK_EQ(std::string_view(histogram_name()), name)
+  DCHECK_EQ(histogram_name(), name)
       << "Provided histogram name doesn't match instance name. Are you using a "
          "dynamic string in a macro?";
 }
 
 void HistogramBase::SetFlags(int32_t flags) {
-  flags_.fetch_or(flags, std::memory_order_relaxed);
+  flags_.fetch_or(static_cast<uint16_t>(flags), std::memory_order_relaxed);
 }
 
 void HistogramBase::ClearFlags(int32_t flags) {
-  flags_.fetch_and(~flags, std::memory_order_relaxed);
+  flags_.fetch_and(~static_cast<uint16_t>(flags), std::memory_order_relaxed);
 }
 
 bool HistogramBase::HasFlags(int32_t flags) const {
@@ -258,10 +262,12 @@ void HistogramBase::WriteAscii(std::string* output) const {
 }
 
 // static
-char const* HistogramBase::GetPermanentName(std::string_view name) {
-  // A set of histogram names that provides the "permanent" lifetime required
-  // by histogram objects for those strings that are not already code constants
-  // or held in persistent memory.
+DurableStringView HistogramBase::GetPermanentName(std::string_view name) {
+  // A set of histogram names that provides the "permanent" lifetime required by
+  // histogram objects for those strings that are not already code constants or
+  // held in persistent memory. The container used for `permanent_names` MUST
+  // support pointer-stability for its keys, due to small-string-optimization
+  // in std::string.
   static base::NoDestructor<std::set<std::string, std::less<>>> permanent_names;
   static base::NoDestructor<Lock> permanent_names_lock;
 
@@ -270,7 +276,7 @@ char const* HistogramBase::GetPermanentName(std::string_view name) {
   if (it == permanent_names->end() || *it != name) {
     it = permanent_names->emplace_hint(it, name);
   }
-  return it->c_str();
+  return DurableStringView(*it);
 }
 
 }  // namespace base
