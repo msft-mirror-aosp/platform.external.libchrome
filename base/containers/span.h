@@ -227,6 +227,8 @@
 // Differences from [span.sub]:
 // - As in [span.cons], `size_t` parameters are changed to
 //   `StrictNumeric<size_type>`.
+// - There are separate overloads for one-arg and two-arg forms of subspan,
+//   and the two-arg form does not accept dynamic_extent as a count.
 // - For convenience, provides `span::split_at()` to split a single span into
 //   two at a given offset.
 // - For convenience, provides `span::take_first[_elem]()` to remove the first
@@ -719,19 +721,21 @@ class GSL_POINTER span {
       return UNSAFE_BUFFERS(span<element_type, Count>(data() + Offset, Count));
     }
   }
-  constexpr auto subspan(
-      StrictNumeric<size_type> offset,
-      StrictNumeric<size_type> count = dynamic_extent) const {
+  constexpr auto subspan(StrictNumeric<size_type> offset) const {
     CHECK_LE(size_type{offset}, extent);
     const size_type remaining = extent - size_type{offset};
-    if (count == dynamic_extent) {
-      // SAFETY: `data()` points to at least `extent` elements, so `offset`
-      // specifies a valid element index or the past-the-end index, and
-      // `remaining` cannot index past-the-end elements.
-      return UNSAFE_BUFFERS(
-          span<element_type>(data() + size_type{offset}, remaining));
-    }
-    CHECK_LE(size_type{count}, remaining);
+    // SAFETY: `data()` points to at least `extent` elements, so `offset`
+    // specifies a valid element index or the past-the-end index, and
+    // `remaining` cannot index past-the-end elements.
+    return UNSAFE_BUFFERS(
+        span<element_type>(data() + size_type{offset}, remaining));
+  }
+  constexpr auto subspan(StrictNumeric<size_type> offset,
+                         StrictNumeric<size_type> count) const {
+    DCHECK(size_type{count} != dynamic_extent)
+        << "base does not allow dynamic_extent in two-arg subspan()";
+    CHECK(size_type{offset} <= size() &&
+          size_type{count} <= size() - size_type{offset});
     // SAFETY: `data()` points to at least `extent` elements, so `offset`
     // specifies a valid element index or the past-the-end index, and `count` is
     // no larger than the number of remaining valid elements.
@@ -1151,19 +1155,21 @@ class GSL_POINTER span<ElementType, dynamic_extent, InternalPtrType> {
     // no larger than the number of remaining valid elements.
     return UNSAFE_BUFFERS(span<element_type, Count>(data() + Offset, Count));
   }
-  constexpr auto subspan(
-      StrictNumeric<size_type> offset,
-      StrictNumeric<size_type> count = dynamic_extent) const {
+  constexpr auto subspan(StrictNumeric<size_type> offset) const {
     CHECK_LE(size_type{offset}, size());
     const size_type remaining = size() - size_type{offset};
-    if (count == dynamic_extent) {
-      // SAFETY: `data()` points to at least `size()` elements, so `offset`
-      // specifies a valid element index or the past-the-end index, and
-      // `remaining` cannot index past-the-end elements.
-      return UNSAFE_BUFFERS(
-          span<element_type>(data() + size_type{offset}, remaining));
-    }
-    CHECK_LE(size_type{count}, remaining);
+    // SAFETY: `data()` points to at least `size()` elements, so `offset`
+    // specifies a valid element index or the past-the-end index, and
+    // `remaining` cannot index past-the-end elements.
+    return UNSAFE_BUFFERS(
+        span<element_type>(data() + size_type{offset}, remaining));
+  }
+  constexpr auto subspan(StrictNumeric<size_type> offset,
+                         StrictNumeric<size_type> count) const {
+    DCHECK(size_type{count} != dynamic_extent)
+        << "base does not allow dynamic_extent in two-arg subspan()";
+    CHECK(size_type{offset} <= size() &&
+          size_type{count} <= size() - size_type{offset});
     // SAFETY: `data()` points to at least `size()` elements, so `offset`
     // specifies a valid element index or the past-the-end index, and `count` is
     // no larger than the number of remaining valid elements.
