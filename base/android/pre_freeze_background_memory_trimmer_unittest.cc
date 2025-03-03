@@ -799,7 +799,9 @@ TEST_F(PreFreezeSelfCompactionTest, SimpleCancel) {
 
   EXPECT_TRUE(ShouldContinueSelfCompaction(started_at));
 
-  PreFreezeBackgroundMemoryTrimmer::MaybeCancelSelfCompaction();
+  PreFreezeBackgroundMemoryTrimmer::MaybeCancelSelfCompaction(
+      PreFreezeBackgroundMemoryTrimmer::SelfCompactCancellationReason::
+          kPageResumed);
 
   EXPECT_FALSE(ShouldContinueSelfCompaction(started_at));
 }
@@ -827,10 +829,8 @@ TEST_F(PreFreezeSelfCompactionTest, Cancel) {
 
   const auto started_at = base::TimeTicks::Now();
   PreFreezeBackgroundMemoryTrimmer::Instance().StartSelfCompaction(
-      task_environment_.GetMainThreadTaskRunner(), std::move(regions),
-      base::MakeRefCounted<PreFreezeBackgroundMemoryTrimmer::CompactionMetric>(
-          started_at),
-      1, started_at);
+      task_environment_.GetMainThreadTaskRunner(), std::move(regions), 1,
+      started_at);
 
   EXPECT_EQ(task_environment_.GetPendingMainThreadTaskCount(), 1u);
 
@@ -839,7 +839,9 @@ TEST_F(PreFreezeSelfCompactionTest, Cancel) {
 
   EXPECT_EQ(task_environment_.GetPendingMainThreadTaskCount(), 1u);
 
-  PreFreezeBackgroundMemoryTrimmer::MaybeCancelSelfCompaction();
+  PreFreezeBackgroundMemoryTrimmer::MaybeCancelSelfCompaction(
+      PreFreezeBackgroundMemoryTrimmer::SelfCompactCancellationReason::
+          kPageResumed);
 
   task_environment_.FastForwardBy(
       task_environment_.NextMainThreadPendingTaskDelay());
@@ -881,10 +883,8 @@ TEST_F(PreFreezeSelfCompactionTest, NotCanceled) {
 
   const auto started_at = base::TimeTicks::Now();
   PreFreezeBackgroundMemoryTrimmer::Instance().StartSelfCompaction(
-      task_environment_.GetMainThreadTaskRunner(), std::move(regions),
-      base::MakeRefCounted<PreFreezeBackgroundMemoryTrimmer::CompactionMetric>(
-          started_at),
-      1, started_at);
+      task_environment_.GetMainThreadTaskRunner(), std::move(regions), 1,
+      started_at);
 
   // We should have 4 sections here, based on the sizes mapped above.
   // |StartSelfCompaction| doesn't run right away, but rather schedules a task.
@@ -907,12 +907,12 @@ TEST_F(PreFreezeSelfCompactionTest, NotCanceled) {
     for (const auto& timing :
          {"Before", "After", "After1s", "After10s", "After60s"}) {
       histograms.ExpectTotalCount(
-          StrCat({"Memory.SelfCompact2.Browser.", name, ".", timing}), 1);
+          StrCat({"Memory.SelfCompact2.Renderer.", name, ".", timing}), 1);
     }
     for (const auto& timing :
          {"BeforeAfter", "After1s", "After10s", "After60s"}) {
       const auto metric =
-          StrCat({"Memory.SelfCompact2.Browser.", name, ".Diff.", timing});
+          StrCat({"Memory.SelfCompact2.Renderer.", name, ".Diff.", timing});
       base::HistogramTester::CountsMap diff_metrics;
       diff_metrics[StrCat({metric, ".Increase"})] = 1;
       diff_metrics[StrCat({metric, ".Decrease"})] = 1;
@@ -924,7 +924,7 @@ TEST_F(PreFreezeSelfCompactionTest, NotCanceled) {
   // We also check that no other histograms (other than the ones expected above)
   // were recorded.
   EXPECT_EQ(histograms.GetTotalCountsForPrefix("Memory.SelfCompact2").size(),
-            46);
+            47);
 
   for (size_t i = 1; i < 5; i++) {
     size_t len = i * base::GetPageSize();
@@ -960,12 +960,12 @@ TEST_F(PreFreezeSelfCompactionTest, Disabled) {
     for (const auto& timing :
          {"Before", "After", "After1s", "After10s", "After60s"}) {
       histograms.ExpectTotalCount(
-          StrCat({"Memory.SelfCompact2.Browser.", name, ".", timing}), 1);
+          StrCat({"Memory.SelfCompact2.Renderer.", name, ".", timing}), 1);
     }
     for (const auto& timing :
          {"BeforeAfter", "After1s", "After10s", "After60s"}) {
       const auto metric =
-          StrCat({"Memory.SelfCompact2.Browser.", name, ".Diff.", timing});
+          StrCat({"Memory.SelfCompact2.Renderer.", name, ".Diff.", timing});
       base::HistogramTester::CountsMap diff_metrics;
       diff_metrics[StrCat({metric, ".Increase"})] = 1;
       diff_metrics[StrCat({metric, ".Decrease"})] = 1;
@@ -977,7 +977,7 @@ TEST_F(PreFreezeSelfCompactionTest, Disabled) {
   // We also check that no other histograms (other than the ones expected above)
   // were recorded.
   EXPECT_EQ(histograms.GetTotalCountsForPrefix("Memory.SelfCompact2").size(),
-            46);
+            47);
 }
 
 TEST_F(PreFreezeSelfCompactionTest, OnSelfFreezeCancel) {
@@ -993,7 +993,9 @@ TEST_F(PreFreezeSelfCompactionTest, OnSelfFreezeCancel) {
   // time otherwise.
   task_environment_.FastForwardBy(base::Seconds(1));
 
-  PreFreezeBackgroundMemoryTrimmer::MaybeCancelSelfCompaction();
+  PreFreezeBackgroundMemoryTrimmer::MaybeCancelSelfCompaction(
+      PreFreezeBackgroundMemoryTrimmer::SelfCompactCancellationReason::
+          kPageResumed);
   EXPECT_EQ(task_environment_.GetPendingMainThreadTaskCount(), 1u);
 
   task_environment_.FastForwardBy(
