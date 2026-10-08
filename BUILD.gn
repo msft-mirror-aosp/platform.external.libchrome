@@ -210,6 +210,7 @@ pa_buildflag_header("partition_allocator_buildflags") {
     "ENABLE_BACKUP_REF_PTR_SLOW_CHECKS=false",
     "ENABLE_BRP_FOR_UNPROTECTED_IN_RELEASE_RAW_PTR=false",
     "ENABLE_DANGLING_RAW_PTR_CHECKS=false",
+    "REMOVE_UNPROTECTED_IN_RELEASE_TRAIT=false",
     "PUT_REF_COUNT_IN_PREVIOUS_SLOT=false",
     "ENABLE_MTE_CHECKED_PTR_SUPPORT=false",
     "RECORD_ALLOC_INFO=false",
