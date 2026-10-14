@@ -1,4 +1,4 @@
-From 9854460c272fc06af53e5db1a9c4d98cf5b231e4 Mon Sep 17 00:00:00 2001
+From 0a49ed4d323bbc93764b8a3e3b7e9e4f7fe72736 Mon Sep 17 00:00:00 2001
 From: Nathan Muggli <nmuggli@google.com>
 Date: Thu, 7 May 2026 11:25:20 -0600
 Subject: [PATCH] disable boringssl in base::RandBytes and
@@ -11,6 +11,7 @@ Updated in r1624070 (crrev.com/c/7812144).
 Updated in r1626560 (crrev.com/c/7828277).
 Updated in r1632053 (crrev.com/c/7856143).
 Updated in r1682187 (crrev.com/c/8265040).
+Updated in r1718350 (crrev.com/c/8578019).
 
 Also fold in long-term-2000 (disable boringssl used in
 base::NonAllocatingRandomBitGenerator in base/rand_util.h) since both
@@ -20,11 +21,11 @@ Change-Id: I465dc418929f7ed936d5a2c8be114ca8194acc7e
 patch-name: long-term-0800-disable-boringssl-in-base-RandBytes.patch
 ---
  base/rand_util.h        | 17 -----------------
- base/rand_util_posix.cc | 11 -----------
- 2 files changed, 28 deletions(-)
+ base/rand_util_posix.cc | 10 ----------
+ 2 files changed, 27 deletions(-)
 
 diff --git a/base/rand_util.h b/base/rand_util.h
-index ae5425cf17..c08d1e8246 100644
+index ff59e32c84..cb8f86657c 100644
 --- a/base/rand_util.h
 +++ b/base/rand_util.h
 @@ -23,7 +23,6 @@
@@ -35,7 +36,7 @@ index ae5425cf17..c08d1e8246 100644
  
  namespace memory_simulator {
  class MemoryHolder;
-@@ -188,22 +187,6 @@ class RandomBitGenerator {
+@@ -186,22 +185,6 @@ class RandomBitGenerator {
    ~RandomBitGenerator() = default;
  };
  
@@ -59,18 +60,18 @@ index ae5425cf17..c08d1e8246 100644
  template <typename Itr>
  void RandomShuffle(Itr first, Itr last) {
 diff --git a/base/rand_util_posix.cc b/base/rand_util_posix.cc
-index 6560a29287..597fc33fa3 100644
+index 71bb35a2ff..697d6817c0 100644
 --- a/base/rand_util_posix.cc
 +++ b/base/rand_util_posix.cc
-@@ -13,7 +13,6 @@
- #include "base/feature_list.h"
+@@ -12,7 +12,6 @@
+ #include "base/containers/span.h"
  #include "base/time/time.h"
  #include "build/build_config.h"
 -#include "third_party/boringssl/src/include/openssl/rand.h"
  
  #if BUILDFLAG(IS_MAC)
  #include <sys/random.h>
-@@ -31,10 +30,6 @@
+@@ -30,10 +29,6 @@
  #include "base/system/sys_info.h"
  #endif  // BUILDFLAG(IS_MAC)
  
@@ -81,12 +82,11 @@ index 6560a29287..597fc33fa3 100644
  namespace base {
  
  namespace {
-@@ -121,12 +116,6 @@ bool UseBoringSSLForRandBytes() {
- namespace {
+@@ -93,11 +88,6 @@ bool GetRandomSyscall(void* output, size_t output_length) {
+         // BUILDFLAG(IS_ANDROID)
  
  void RandBytesInternal(span<uint8_t> output, bool avoid_allocation) {
--  // The BoringSSL experiment takes priority over everything else.
--  if (!avoid_allocation && internal::UseBoringSSLForRandBytes()) {
+-  if (!avoid_allocation) {
 -    // BoringSSL's RAND_bytes always returns 1. Any error aborts the program.
 -    (void)RAND_bytes(output.data(), output.size());
 -    return;
@@ -95,5 +95,5 @@ index 6560a29287..597fc33fa3 100644
    CHECK(getentropy(output.data(), output.size()) == 0);
  #elif BUILDFLAG(IS_APPLE)
 -- 
-2.56.0.rc1.315.gc6ed9934b7-goog
+2.56.0.385.gd3acb90ef8-goog
 
