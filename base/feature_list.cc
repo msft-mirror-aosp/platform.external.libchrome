@@ -627,15 +627,6 @@ FeatureList::PrepareRuntimeMutableFeatureStateUpdateImpl(
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   CHECK(override_info);
 
-  // Runtime overrides must explicitly enable or disable the feature; reverting
-  // to `OVERRIDE_USE_DEFAULT` is not supported.
-  if (override_state == OVERRIDE_USE_DEFAULT) {
-    LogRuntimeMutabilityResult(
-        feature_name,
-        internal::RuntimeMutabilityResult::kFailure_StateNotSupported);
-    return std::nullopt;
-  }
-
   // Don't allow runtime mutability to override a feature that is already
   // overridden from the command line.
   if (IsFeatureOverriddenFromCommandLine(feature_name)) {
@@ -1239,13 +1230,6 @@ FeatureList::OverrideState FeatureList::GetOverrideStateImpl(
     const Feature& feature,
     bool activate_trial) const {
   DCHECK(initialized_);
-  DCHECK(IsValidFeatureOrFieldTrialName(feature.name)) << feature.name;
-  DCHECK(CheckFeatureIdentity(feature))
-      << feature.name
-      << " has multiple definitions. Either it is defined more than once in "
-         "code or (for component builds) the code is built into multiple "
-         "components (shared libraries) without a corresponding export "
-         "statement";
   Feature::FeatureStateCache current_cached_value =
       feature.cached_value.load(std::memory_order_relaxed);
 
@@ -1267,6 +1251,21 @@ FeatureList::OverrideState FeatureList::GetOverrideStateImpl(
   if (caching_context == caching_context_) {
     return cached_state;
   }
+
+  // It is safe to defer these checks until after the cache check above:
+  // `feature.cached_value` is stored directly in the `Feature` instance at
+  // `&feature` and only gets populated with `caching_context_` after passing
+  // the checks below on a cache miss. Any duplicate `Feature` definition with
+  // the same `name` at a different address has its own separate `cached_value`
+  // (initially 0), so its first query will also miss the cache and fail
+  // `CheckFeatureIdentity()` below.
+  DCHECK(IsValidFeatureOrFieldTrialName(feature.name)) << feature.name;
+  DCHECK(CheckFeatureIdentity(feature))
+      << feature.name
+      << " has multiple definitions. Either it is defined more than once in "
+         "code or (for component builds) the code is built into multiple "
+         "components (shared libraries) without a corresponding export "
+         "statement";
 
   // Otherwise, look up the static override state by feature name.
   const OverrideState state =
@@ -1300,7 +1299,7 @@ FeatureList::MaybeGetRuntimeOverrideState(
            "feature's state.";
     const auto& override_entry = it->second;
     DCHECK_EQ(&override_entry.feature.get(), &feature);
-    if (override_entry.override_state != OVERRIDE_USE_DEFAULT) {
+    if (override_entry.override_state.has_value()) {
       CHECK(override_entry.override_info);
       if (activate_trial) {
         override_entry.override_info->Activate();
@@ -1455,7 +1454,7 @@ void FeatureList::RegisterOverride(std::string_view feature_name,
     if (found != overrides_.end() &&
         found->second.overridden_state == OVERRIDE_USE_DEFAULT) {
       // Also, keep the existing trial if a null trial was passed.
-      auto* trial = field_trial ? field_trial : &*found->second.field_trial;
+      auto* trial = field_trial ? field_trial : found->second.field_trial.get();
       found->second = OverrideEntry(overridden_state, trial);
       return;
     }
@@ -1527,14 +1526,11 @@ void FeatureList::GetFeatureOverridesImpl(std::string* enable_overrides,
 bool FeatureList::CheckFeatureIdentity(const Feature& feature) const {
   AutoLock auto_lock(feature_identity_tracker_lock_);
 
-  auto it = feature_identity_tracker_.find(feature.name);
-  if (it == feature_identity_tracker_.end()) {
-    // If it's not tracked yet, register it.
-    feature_identity_tracker_[feature.name] = &feature;
-    return true;
-  }
-  // Compare address of |feature| to the existing tracked entry.
-  return it->second == &feature;
+  auto [it, inserted] =
+      feature_identity_tracker_.try_emplace(feature.name, &feature);
+  // If it wasn't tracked yet, it is now registered; otherwise compare the
+  // address of `feature` to the existing tracked entry.
+  return inserted || it->second == &feature;
 }
 
 bool FeatureList::IsEarlyAccessInstance() const {
