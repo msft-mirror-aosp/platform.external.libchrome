@@ -496,6 +496,7 @@ libbase_sublibs = [
       "base/command_line.cc",
       "base/containers/intrusive_heap.cc",
       "base/containers/linked_list.cc",
+      "base/containers/lru_cache_internal.cc",
       "base/cpu.cc",
       "base/debug/alias.cc",
       "base/debug/crash_logging.cc",
